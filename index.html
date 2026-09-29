@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Prototipo - Where is my Ragdoll?</title>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
+                background-color: #1a1a24;
+                font-family: "Segoe UI", sans-serif;
+                color: #eee;
+            }
+            canvas {
+                display: block;
+            }
+            #panel {
+                position: absolute;
+                top: 15px;
+                left: 15px;
+                background: rgba(15, 15, 20, 0.85);
+                padding: 15px 20px;
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                pointer-events: none;
+            }
+            h3 {
+                margin: 0 0 8px 0;
+                color: #44aaff;
+                font-size: 18px;
+            }
+            p {
+                margin: 0;
+                font-size: 14px;
+                color: #ccc;
+            }
+        </style>
+        <!-- Motor oficial LiquidFun compilado desde C++ -->
+        <script src="https://google.github.io/liquidfun/testbed/liquidfun.js"></script>
+        <!-- Clases locales -->
+        <script src="ActiveRagdoll.js"></script>
+    </head>
+    <body>
+        <div id="panel">
+            <h3>Where is my Ragdoll?</h3>
+            <p>Hacé clic en cualquier parte para generar más agua.</p>
+            <p>
+                Objetivo: Que el fluido empuje el cuerpo hacia la fosa derecha.
+            </p>
+        </div>
+        <canvas id="canvas"></canvas>
+
+        <script>
+            window.onload = function () {
+                const canvas = document.getElementById("canvas");
+                const ctx = canvas.getContext("2d");
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+                const SCALE = 40;
+                const toMeters = (px) => px / SCALE;
+                const toPixels = (m) => m * SCALE;
+
+                // 1. INICIALIZAR EL MUNDO
+                window.world = new b2World(new b2Vec2(0, 10));
+
+                // 2. CREAR EL ESCENARIO (Rampas y contenedor)
+                const groundBody = window.world.CreateBody(new b2BodyDef());
+                const escenarioVisual = []; // Nuevo arreglo para el render
+
+                function crearLineaEstica(x1, y1, x2, y2) {
+                    // 1. Lógica física (Box2D)
+                    const edge = new b2EdgeShape();
+                    edge.Set(
+                        new b2Vec2(toMeters(x1), toMeters(y1)),
+                        new b2Vec2(toMeters(x2), toMeters(y2)),
+                    );
+                    groundBody.CreateFixtureFromShape(edge, 0);
+
+                    // 2. Lógica visual (Guardamos para el Canvas)
+                    escenarioVisual.push({ x1, y1, x2, y2 });
+                }
+
+                const w = canvas.width;
+                const h = canvas.height;
+
+                // Tubería izquierda y rampa central
+                crearLineaEstica(0, h * 0.3, w * 0.2, h * 0.3);
+                crearLineaEstica(w * 0.2, h * 0.3, w * 0.4, h * 0.7);
+                crearLineaEstica(w * 0.4, h * 0.7, w * 0.7, h * 0.7);
+                // Fosa final derecha
+                crearLineaEstica(w * 0.7, h * 0.7, w * 0.7, h * 0.95);
+                crearLineaEstica(w * 0.7, h * 0.95, w * 0.9, h * 0.95);
+                crearLineaEstica(w * 0.9, h * 0.95, w * 0.9, 0);
+
+                // 3. CREAR EL ACTIVE RAGDOLL
+                const dynamicBodies = []; // El registro que Canvas va a leer
+                const myRagdoll = new ActiveRagdoll(
+                    window.world,
+                    w * 0.5,
+                    h * 0.4,
+                    dynamicBodies,
+                );
+
+                // 4. SISTEMA DE FLUIDOS SPH
+                const psDef = new b2ParticleSystemDef();
+                psDef.radius = toMeters(6);
+                psDef.dampingStrength = 0.2;
+                const particleSystem = window.world.CreateParticleSystem(psDef);
+
+                function soltarAgua(x, y) {
+                    const pgDef = new b2ParticleGroupDef();
+                    const shape = new b2CircleShape();
+                    shape.position.Set(toMeters(x), toMeters(y));
+                    shape.radius = toMeters(40); // Tamaño del bloque de agua
+                    pgDef.shape = shape;
+                    pgDef.flags = b2_waterParticle;
+                    particleSystem.CreateParticleGroup(pgDef);
+                }
+
+                // Masa de agua inicial en la tubería izquierda
+                soltarAgua(w * 0.1, h * 0.1);
+
+                // 5. INTERACCIÓN (Click del usuario)
+                window.addEventListener("mousedown", (e) => {
+                    soltarAgua(e.clientX, e.clientY);
+                });
+
+                // 6. RENDER LOOP
+                function loop() {
+                    // A. Tensar músculos ANTES de la física
+                    myRagdoll.updateMuscles();
+
+                    // B. Resolver colisiones
+                    window.world.Step(1 / 60, 8, 3, 3);
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Dibujar escenario (Líneas)
+                    ctx.strokeStyle = "#444";
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = "round";
+                    ctx.beginPath();
+
+                    for (let linea of escenarioVisual) {
+                        ctx.moveTo(linea.x1, linea.y1);
+                        ctx.lineTo(linea.x2, linea.y2);
+                    }
+                    ctx.stroke();
+
+                    // Dibujar partículas de agua
+                    const pCount = particleSystem.GetParticleCount();
+                    const posBuffer = particleSystem.GetPositionBuffer();
+                    ctx.fillStyle = "#1188ff";
+                    for (let i = 0; i < pCount; i++) {
+                        ctx.beginPath();
+                        ctx.arc(
+                            toPixels(posBuffer[i * 2]),
+                            toPixels(posBuffer[i * 2 + 1]),
+                            6,
+                            0,
+                            Math.PI * 2,
+                        );
+                        ctx.fill();
+                    }
+
+                    // Dibujar Ragdoll
+                    ctx.fillStyle = "#ff9933";
+                    ctx.strokeStyle = "#fff";
+                    ctx.lineWidth = 2;
+
+                    for (let item of dynamicBodies) {
+                        const pos = item.body.GetPosition();
+                        const angle = item.body.GetAngle();
+
+                        ctx.save();
+                        ctx.translate(toPixels(pos.x), toPixels(pos.y));
+                        ctx.rotate(angle);
+
+                        ctx.beginPath();
+                        if (item.type === "box") {
+                            // En Canvas, el (0,0) ahora es el centro físico, por lo que dibujamos hacia atrás la mitad del ancho/alto
+                            ctx.rect(
+                                -item.width,
+                                -item.height,
+                                item.width * 2,
+                                item.height * 2,
+                            );
+                        } else if (item.type === "circle") {
+                            ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
+                        }
+
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    requestAnimationFrame(loop);
+                }
+                loop();
+            };
+        </script>
+    </body>
+</html>
