@@ -11,8 +11,20 @@
                 font-family: "Segoe UI", sans-serif;
                 color: #eee;
             }
+            #gameContainer {
+                position: relative;
+                width: 100vw;
+                height: 100vh;
+            }
             canvas {
+                position: absolute;
+                top: 0;
+                left: 0;
                 display: block;
+            }
+            #fluidCanvas {
+                filter: url("#goo");
+                pointer-events: none;
             }
             #panel {
                 position: absolute;
@@ -41,9 +53,31 @@
             }
         </style>
         <script src="https://google.github.io/liquidfun/testbed/liquidfun.js"></script>
-        <script src="js/ActiveRagdoll.js"></script>
+        <script src="/js/ActiveRagdoll.js"></script>
     </head>
     <body>
+        <svg style="display: none">
+            <defs>
+                <filter id="goo">
+                    <feGaussianBlur
+                        in="SourceGraphic"
+                        stdDeviation="6"
+                        result="blur"
+                    />
+                    <feColorMatrix
+                        in="blur"
+                        mode="matrix"
+                        values="
+                    1 0 0 0 0  
+                    0 1 0 0 0  
+                    0 0 1 0 0  
+                    0 0 0 20 -10"
+                        result="goo"
+                    />
+                </filter>
+            </defs>
+        </svg>
+
         <div id="panel">
             <h3>Armas de Fluidos</h3>
             <p>
@@ -57,9 +91,13 @@
                 Presiona <span class="highlight">3</span>: Miel (Amarillo,
                 viscoso)
             </p>
-            <p><br />Click para disparar hacia el mouse.</p>
+            <p>Movimiento: A/D/W | Apuntar: Mouse</p>
         </div>
-        <canvas id="canvas"></canvas>
+
+        <div id="gameContainer">
+            <canvas id="canvas"></canvas>
+            <canvas id="fluidCanvas"></canvas>
+        </div>
 
         <script>
             window.onload = function () {
@@ -68,13 +106,17 @@
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
 
+                const fluidCanvas = document.getElementById("fluidCanvas");
+                const fluidCtx = fluidCanvas.getContext("2d");
+                fluidCanvas.width = window.innerWidth;
+                fluidCanvas.height = window.innerHeight;
+
                 const SCALE = 40;
                 const toMeters = (px) => px / SCALE;
                 const toPixels = (m) => m * SCALE;
 
                 window.world = new b2World(new b2Vec2(0, 10));
 
-                // Escenario
                 const groundBody = window.world.CreateBody(new b2BodyDef());
                 const escenarioVisual = [];
 
@@ -91,12 +133,10 @@
                 const w = canvas.width;
                 const h = canvas.height;
 
-                // Suelo y paredes
                 crearLineaEstica(0, h * 0.8, w, h * 0.8);
                 crearLineaEstica(0, 0, 0, h);
                 crearLineaEstica(w, 0, w, h);
 
-                // Ragdoll Activo
                 const dynamicBodies = [];
                 const myRagdoll = new ActiveRagdoll(
                     window.world,
@@ -105,25 +145,29 @@
                     dynamicBodies,
                 );
 
-                // Sistema de Partículas
                 const psDef = new b2ParticleSystemDef();
                 psDef.radius = toMeters(6);
                 psDef.dampingStrength = 0.2;
                 const particleSystem = window.world.CreateParticleSystem(psDef);
 
-                // NUEVO: Herramienta (Goma de borrar) de partículas para esquivar la limitación de JS
                 const eraserShape = new b2CircleShape();
-                eraserShape.radius = toMeters(1); // Círculo muy chiquito
+                eraserShape.radius = toMeters(1);
                 const eraserTransform = new b2Transform();
                 eraserTransform.SetIdentity();
 
-                // Controles de Armas y Movimiento
                 let armaActual = 1;
-                const teclasPulsadas = {}; // NUEVO: Diccionario para guardar qué teclas están apretadas
+                const teclasPulsadas = {};
+                let currentMouseX = 0;
+                let currentMouseY = 0;
+
+                window.addEventListener("mousemove", (e) => {
+                    currentMouseX = toMeters(e.clientX);
+                    currentMouseY = toMeters(e.clientY);
+                });
 
                 window.addEventListener("keydown", (e) => {
                     const key = e.key.toLowerCase();
-                    teclasPulsadas[key] = true; // Guardamos que se apretó
+                    teclasPulsadas[key] = true;
 
                     if (key === "1") {
                         armaActual = 1;
@@ -139,7 +183,6 @@
                     }
                 });
 
-                // NUEVO: Cuando se suelta la tecla, la borramos del registro
                 window.addEventListener("keyup", (e) => {
                     teclasPulsadas[e.key.toLowerCase()] = false;
                 });
@@ -148,11 +191,9 @@
                     if (!myRagdoll) return;
 
                     const torsoPos = myRagdoll.torso.GetPosition();
-                    const mouseX = toMeters(e.clientX);
-                    const mouseY = toMeters(e.clientY);
 
-                    const dirX = mouseX - torsoPos.x;
-                    const dirY = mouseY - torsoPos.y;
+                    const dirX = currentMouseX - torsoPos.x;
+                    const dirY = currentMouseY - torsoPos.y;
                     const length = Math.sqrt(dirX * dirX + dirY * dirY);
 
                     const fuerzaDisparo = 20;
@@ -185,18 +226,23 @@
                     particleSystem.CreateParticleGroup(pgDef);
                 });
 
-                // Loop
                 function loop() {
                     if (myRagdoll) {
-                        // Comprobación de seguridad
+                        myRagdoll.aim(currentMouseX, currentMouseY);
                         myRagdoll.updateMuscles();
-                        myRagdoll.move(teclasPulsadas); // NUEVO: Procesar movimiento horizontal
+                        myRagdoll.move(teclasPulsadas);
                     }
 
                     window.world.Step(1 / 60, 8, 3, 3);
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                    // Escenario
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    fluidCtx.clearRect(
+                        0,
+                        0,
+                        fluidCanvas.width,
+                        fluidCanvas.height,
+                    );
+
                     ctx.strokeStyle = "#444";
                     ctx.lineWidth = 6;
                     ctx.lineCap = "round";
@@ -207,7 +253,6 @@
                     }
                     ctx.stroke();
 
-                    // Partículas (Renderizado, Colisiones y Limpieza)
                     const pCount = particleSystem.GetParticleCount();
                     const posBuffer = particleSystem.GetPositionBuffer();
                     const colorBuffer = particleSystem.GetColorBuffer();
@@ -220,7 +265,6 @@
                         const px = toPixels(posBuffer[i * 2]);
                         const py = toPixels(posBuffer[i * 2 + 1]);
 
-                        // 1. Limpieza: Si la partícula cae fuera de la pantalla
                         if (py > canvas.height) {
                             eraserShape.position.Set(
                                 posBuffer[i * 2],
@@ -237,14 +281,12 @@
                         const g = colorBuffer[i * 4 + 1];
                         const b = colorBuffer[i * 4 + 2];
 
-                        // 2. Colisión: Detectar si toca el torso
                         const dist = Math.hypot(
                             px - torsoPixelX,
                             py - torsoPixelY,
                         );
                         if (dist < 25) {
                             if (g === 255 && r === 50) {
-                                // ÁCIDO
                                 myRagdoll.takeDamage(2);
                                 eraserShape.position.Set(
                                     posBuffer[i * 2],
@@ -256,10 +298,8 @@
                                 );
                                 continue;
                             } else if (r === 255 && g === 80) {
-                                // LAVA
                                 myRagdoll.takeDamage(0.1);
                             } else if (r === 255 && g === 200) {
-                                // MIEL
                                 myRagdoll.applyHoney();
                                 eraserShape.position.Set(
                                     posBuffer[i * 2],
@@ -273,23 +313,12 @@
                             }
                         }
 
-                        // 3. Renderizado
-                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                        ctx.beginPath();
-                        ctx.arc(px, py, 6, 0, Math.PI * 2);
-                        ctx.fill();
+                        fluidCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        fluidCtx.beginPath();
+                        fluidCtx.arc(px, py, 14, 0, Math.PI * 2);
+                        fluidCtx.fill();
                     }
 
-                    // UI: Dibujar la barra de vida en pantalla
-                    ctx.fillStyle = myRagdoll.hp > 30 ? "#55ff55" : "#ff5555";
-                    ctx.font = "bold 24px Segoe UI";
-                    ctx.fillText(
-                        `Salud: ${Math.floor(myRagdoll.hp)}%`,
-                        20,
-                        canvas.height - 30,
-                    );
-
-                    // Ragdoll
                     ctx.fillStyle = "#ff9933";
                     ctx.strokeStyle = "#fff";
                     ctx.lineWidth = 2;
@@ -317,6 +346,15 @@
                         ctx.stroke();
                         ctx.restore();
                     }
+
+                    ctx.fillStyle = myRagdoll.hp > 30 ? "#55ff55" : "#ff5555";
+                    ctx.font = "bold 24px Segoe UI";
+                    ctx.fillText(
+                        `Salud: ${Math.floor(myRagdoll.hp)}%`,
+                        20,
+                        canvas.height - 30,
+                    );
+
                     requestAnimationFrame(loop);
                 }
                 loop();
