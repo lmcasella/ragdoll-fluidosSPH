@@ -1,6 +1,6 @@
 {
   "format": "ragassembler",
-  "version": 1,
+  "version": 4,
   "meta": {
     "name": "ragdoll",
     "editorVersion": "0.9.0"
@@ -9,18 +9,32 @@
     "pixelsPerMeter": 32
   },
   "preview": {
-    "gravity": [0, -10]
+    "gravity": [
+      0,
+      -10
+    ]
   },
   "ragdoll": {
     "id": "root",
     "name": "ragdoll",
-    "position": [0, 0],
+    "position": [
+      0,
+      0
+    ],
     "angle": 0,
     "rootBody": "b_2",
     "channels": {
       "strength": 1,
+      "balance": 1,
       "gain": 1,
       "damping": 1
+    },
+    "balance": {
+      "enabled": true,
+      "maxTorque": 990,
+      "gain": 10,
+      "damping": 0.5,
+      "maxSpeed": 20
     }
   },
   "sprites": [],
@@ -28,8 +42,12 @@
     {
       "id": "b_2",
       "name": "body_2",
-      "position": [-0.02225, 0.48582],
+      "position": [
+        -0.02225,
+        0.48582
+      ],
       "angle": 0.60379,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -40,12 +58,14 @@
           "name": "box_2",
           "shape": {
             "type": "box",
-            "center": [0.02236, -0.00682],
+            "center": [
+              0.02236,
+              -0.00682
+            ],
             "width": 0.32904,
             "height": 0.32955,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -64,8 +84,12 @@
     {
       "id": "b_3",
       "name": "body_3",
-      "position": [0.1713, 0.73953],
+      "position": [
+        0.1713,
+        0.73953
+      ],
       "angle": -0.48172,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -76,12 +100,14 @@
           "name": "box_3",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.31591,
             "height": 0.40934,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -100,8 +126,12 @@
     {
       "id": "b_5",
       "name": "body_5",
-      "position": [0.38871, 0.86553],
+      "position": [
+        0.38871,
+        0.86553
+      ],
       "angle": 0,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -112,10 +142,12 @@
           "name": "circle_5",
           "shape": {
             "type": "circle",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "radius": 0.30089
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -134,8 +166,12 @@
     {
       "id": "b_6",
       "name": "body_6",
-      "position": [-0.0178, 0.35234],
+      "position": [
+        -0.0178,
+        0.35234
+      ],
       "angle": 0.69469,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -146,12 +182,14 @@
           "name": "box_6",
           "shape": {
             "type": "box",
-            "center": [0, -0.00256],
+            "center": [
+              0,
+              -0.00256
+            ],
             "width": 0.42714,
             "height": 0.44562,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -170,8 +208,12 @@
     {
       "id": "b_7",
       "name": "body_7",
-      "position": [-0.29366, 0.448],
+      "position": [
+        -0.29366,
+        0.448
+      ],
       "angle": 0,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -182,12 +224,14 @@
           "name": "box_7",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.47164,
             "height": 0.24917,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -206,8 +250,12 @@
     {
       "id": "b_8",
       "name": "body_8",
-      "position": [-0.70523, 0.48804],
+      "position": [
+        -0.70523,
+        0.48804
+      ],
       "angle": -0.16181,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -218,12 +266,14 @@
           "name": "box_8",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.46719,
             "height": 0.23137,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -242,8 +292,12 @@
     {
       "id": "b_9",
       "name": "body_9",
-      "position": [-1.11012, 0.6371],
+      "position": [
+        -1.11012,
+        0.6371
+      ],
       "angle": -0.49521,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -254,12 +308,14 @@
           "name": "box_9",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.48498,
             "height": 0.22692,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -278,8 +334,12 @@
     {
       "id": "b_10",
       "name": "body_10",
-      "position": [0.10668, 0.12117],
+      "position": [
+        0.10668,
+        0.12117
+      ],
       "angle": -0.76058,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -290,12 +350,14 @@
           "name": "box_10",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.20912,
             "height": 0.52948,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -314,8 +376,12 @@
     {
       "id": "b_13",
       "name": "body_13",
-      "position": [0.02255, -0.16966],
+      "position": [
+        0.02255,
+        -0.16966
+      ],
       "angle": 0.73153,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -326,12 +392,14 @@
           "name": "box_13",
           "shape": {
             "type": "box",
-            "center": [0, -0.06712],
+            "center": [
+              0,
+              -0.06712
+            ],
             "width": 0.19132,
             "height": 0.59698,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -350,8 +418,12 @@
     {
       "id": "b_16",
       "name": "body_16",
-      "position": [0.69759, 0.95836],
+      "position": [
+        0.69759,
+        0.95836
+      ],
       "angle": -0.32275,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -362,12 +434,14 @@
           "name": "box_16",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.37415,
             "height": 0.22075,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -386,8 +460,12 @@
     {
       "id": "b_17",
       "name": "body_17",
-      "position": [0.97072, 0.81431],
+      "position": [
+        0.97072,
+        0.81431
+      ],
       "angle": 0,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -398,10 +476,12 @@
           "name": "circle_17",
           "shape": {
             "type": "circle",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "radius": 0.21701
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -420,8 +500,12 @@
     {
       "id": "b_18",
       "name": "body_18",
-      "position": [0.63399, 0.60853],
+      "position": [
+        0.63399,
+        0.60853
+      ],
       "angle": 0.56701,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -432,12 +516,14 @@
           "name": "box_18",
           "shape": {
             "type": "box",
-            "center": [-0.05967, 0.07348],
+            "center": [
+              -0.05967,
+              0.07348
+            ],
             "width": 0.08271,
             "height": 0.15236,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -456,8 +542,12 @@
     {
       "id": "b_19",
       "name": "body_19",
-      "position": [0.70172, 0.51271],
+      "position": [
+        0.70172,
+        0.51271
+      ],
       "angle": 0,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -468,10 +558,12 @@
           "name": "circle_19",
           "shape": {
             "type": "circle",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "radius": 0.04374
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -490,8 +582,12 @@
     {
       "id": "b_20",
       "name": "body_20",
-      "position": [0.68115, 0.54919],
+      "position": [
+        0.68115,
+        0.54919
+      ],
       "angle": 1.23414,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -502,12 +598,14 @@
           "name": "box_20",
           "shape": {
             "type": "box",
-            "center": [-0.00561, 0.04116],
+            "center": [
+              -0.00561,
+              0.04116
+            ],
             "width": 0.05612,
             "height": 0.12908,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -526,8 +624,12 @@
     {
       "id": "b_21",
       "name": "body_21",
-      "position": [0.21393, -0.45828],
+      "position": [
+        0.21393,
+        -0.45828
+      ],
       "angle": 0.60449,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -538,12 +640,14 @@
           "name": "box_21",
           "shape": {
             "type": "box",
-            "center": [-0.02012, -0.01224],
+            "center": [
+              -0.02012,
+              -0.01224
+            ],
             "width": 0.18708,
             "height": 0.08009,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -562,8 +666,12 @@
     {
       "id": "b_22",
       "name": "body_22",
-      "position": [0.38856, -0.44493],
+      "position": [
+        0.38856,
+        -0.44493
+      ],
       "angle": -0.63928,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -574,12 +682,14 @@
           "name": "box_22",
           "shape": {
             "type": "box",
-            "center": [-0.02798, -0.03037],
+            "center": [
+              -0.02798,
+              -0.03037
+            ],
             "width": 0.24882,
             "height": 0.09277,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -598,8 +708,12 @@
     {
       "id": "b_23",
       "name": "body_23",
-      "position": [0.06376, -0.54282],
+      "position": [
+        0.06376,
+        -0.54282
+      ],
       "angle": 0,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -610,12 +724,14 @@
           "name": "box_23",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.1535,
             "height": 0.07341,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -634,8 +750,12 @@
     {
       "id": "b_24",
       "name": "body_24",
-      "position": [0.51315, -0.54504],
+      "position": [
+        0.51315,
+        -0.54504
+      ],
       "angle": 0,
+      "mass": 1,
       "linearDamping": 0,
       "angularDamping": 0,
       "fixedRotation": false,
@@ -646,12 +766,14 @@
           "name": "box_24",
           "shape": {
             "type": "box",
-            "center": [0, 0],
+            "center": [
+              0,
+              0
+            ],
             "width": 0.2158,
             "height": 0.07341,
             "angle": 0
           },
-          "density": 1,
           "friction": 0.6,
           "restitution": 0,
           "isSensor": false,
@@ -675,7 +797,10 @@
       "type": "revolute",
       "bodyA": "b_2",
       "bodyB": "b_6",
-      "anchor": [0.00542, 0.47758],
+      "anchor": [
+        0.00542,
+        0.47758
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -696,7 +821,10 @@
       "type": "revolute",
       "bodyA": "b_2",
       "bodyB": "b_3",
-      "anchor": [0.08399, 0.61602],
+      "anchor": [
+        0.08399,
+        0.61602
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -717,7 +845,10 @@
       "type": "revolute",
       "bodyA": "b_3",
       "bodyB": "b_5",
-      "anchor": [0.33093, 0.8405],
+      "anchor": [
+        0.33093,
+        0.8405
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -738,7 +869,10 @@
       "type": "revolute",
       "bodyA": "b_5",
       "bodyB": "b_16",
-      "anchor": [0.58909, 0.95649],
+      "anchor": [
+        0.58909,
+        0.95649
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -759,7 +893,10 @@
       "type": "revolute",
       "bodyA": "b_16",
       "bodyB": "b_17",
-      "anchor": [0.83603, 0.89663],
+      "anchor": [
+        0.83603,
+        0.89663
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -780,7 +917,10 @@
       "type": "revolute",
       "bodyA": "b_7",
       "bodyB": "b_8",
-      "anchor": [-0.50716, 0.46262],
+      "anchor": [
+        -0.50716,
+        0.46262
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -801,7 +941,10 @@
       "type": "revolute",
       "bodyA": "b_8",
       "bodyB": "b_9",
-      "anchor": [-0.91873, 0.5337],
+      "anchor": [
+        -0.91873,
+        0.5337
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -822,7 +965,10 @@
       "type": "revolute",
       "bodyA": "b_6",
       "bodyB": "b_10",
-      "anchor": [0.19249, 0.28302],
+      "anchor": [
+        0.19249,
+        0.28302
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -843,7 +989,10 @@
       "type": "revolute",
       "bodyA": "b_10",
       "bodyB": "b_13",
-      "anchor": [-0.05819, -0.04997],
+      "anchor": [
+        -0.05819,
+        -0.04997
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -864,7 +1013,10 @@
       "type": "revolute",
       "bodyA": "b_2",
       "bodyB": "b_7",
-      "anchor": [-0.17417, 0.52996],
+      "anchor": [
+        -0.17417,
+        0.52996
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -885,7 +1037,10 @@
       "type": "revolute",
       "bodyA": "b_18",
       "bodyB": "b_20",
-      "anchor": [0.58948, 0.58941],
+      "anchor": [
+        0.58948,
+        0.58941
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -906,7 +1061,10 @@
       "type": "revolute",
       "bodyA": "b_19",
       "bodyB": "b_20",
-      "anchor": [0.68115, 0.53516],
+      "anchor": [
+        0.68115,
+        0.53516
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -927,7 +1085,10 @@
       "type": "revolute",
       "bodyA": "b_5",
       "bodyB": "b_18",
-      "anchor": [0.52397, 0.67734],
+      "anchor": [
+        0.52397,
+        0.67734
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -948,7 +1109,10 @@
       "type": "revolute",
       "bodyA": "b_13",
       "bodyB": "b_21",
-      "anchor": [0.21837, -0.44605],
+      "anchor": [
+        0.21837,
+        -0.44605
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -969,7 +1133,10 @@
       "type": "revolute",
       "bodyA": "b_21",
       "bodyB": "b_23",
-      "anchor": [0.12494, -0.52169],
+      "anchor": [
+        0.12494,
+        -0.52169
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -990,7 +1157,10 @@
       "type": "revolute",
       "bodyA": "b_13",
       "bodyB": "b_22",
-      "anchor": [0.30291, -0.38598],
+      "anchor": [
+        0.30291,
+        -0.38598
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,
@@ -1011,7 +1181,10 @@
       "type": "revolute",
       "bodyA": "b_22",
       "bodyB": "b_24",
-      "anchor": [0.4275, -0.52391],
+      "anchor": [
+        0.4275,
+        -0.52391
+      ],
       "collideConnected": false,
       "limits": {
         "enabled": true,

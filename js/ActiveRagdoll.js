@@ -1,123 +1,27 @@
-class ActiveRagdoll {
-    constructor(physicsWorld, startX, startY, renderArray) {
+const AIM_LIMIT = Math.PI - 0.05;
+const AIM_HYSTERESIS = 0.4;
+
+// rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
+//        aimOffset: ángulo de reposo del arma relativo al padre, clips: { walk, jump, dead } }
+export class ActiveRagdoll {
+    constructor(def, physicsWorld, startX, startY, rig, flipX = false) {
         this.world = physicsWorld;
-        this.scale = 40;
-        this.renderArray = renderArray;
+        this.rig = rig;
+        this.flipX = flipX;
+        this.rag = def.spawn(physicsWorld, { x: startX, y: startY, flipX });
+        this.torso = this.rag.bodies.get(rig.rootBody);
+        this.scratch = new Box2D.b2Vec2(0, 0);
 
         // Estados del jugador
         this.hp = 100;
         this.honeyTimer = 0;
         this.framesGrounded = 0;
-        this.walkCycle = 0;
-
-        this.head = this.createCircle(startX, startY - 30, 10, 0.5);
-        this.torso = this.createBox(startX, startY, 10, 25, 1.0);
-        this.leftArm = this.createBox(startX - 15, startY - 3, 6, 20, 1.0);
-        this.rightArm = this.createBox(startX + 15, startY - 3, 6, 20, 1.0);
-        this.leftLeg = this.createBox(startX - 5, startY + 30, 6, 20, 1.5);
-        this.rightLeg = this.createBox(startX + 5, startY + 30, 6, 20, 1.5);
-
-        this.joints = [];
-        this.headJoint = this.createMuscleJoint(
-            this.torso,
-            this.head,
-            startX,
-            startY - 25,
-        );
-        this.leftArmJoint = this.createMuscleJoint(
-            this.torso,
-            this.leftArm,
-            startX - 15,
-            startY - 10,
-        );
-        this.rightArmJoint = this.createMuscleJoint(
-            this.torso,
-            this.rightArm,
-            startX + 15,
-            startY - 10,
-        );
-        this.leftLegJoint = this.createMuscleJoint(
-            this.torso,
-            this.leftLeg,
-            startX - 5,
-            startY + 20,
-        );
-        this.rightLegJoint = this.createMuscleJoint(
-            this.torso,
-            this.rightLeg,
-            startX + 5,
-            startY + 20,
-        );
-
-        this.joints.push(
-            this.headJoint,
-            this.leftArmJoint,
-            this.rightArmJoint,
-            this.leftLegJoint,
-            this.rightLegJoint,
-        );
+        this.jumping = false;
+        this.clipState = null;
     }
 
-    createBox(x, y, width, height, density) {
-        const bodyDef = new b2BodyDef();
-        bodyDef.type = b2_dynamicBody;
-        bodyDef.position.Set(x / this.scale, y / this.scale);
-        const body = this.world.CreateBody(bodyDef);
-
-        const shape = new b2PolygonShape();
-        shape.SetAsBoxXY(width / 2 / this.scale, height / 2 / this.scale);
-
-        const fixtureDef = new b2FixtureDef();
-        fixtureDef.shape = shape;
-        fixtureDef.density = density;
-        fixtureDef.filter.groupIndex = -1;
-
-        body.CreateFixtureFromDef(fixtureDef);
-        this.renderArray.push({
-            body: body,
-            type: "box",
-            width: width / 2,
-            height: height / 2,
-        });
-        return body;
-    }
-
-    createCircle(x, y, radius, density) {
-        const bodyDef = new b2BodyDef();
-        bodyDef.type = b2_dynamicBody;
-        bodyDef.position.Set(x / this.scale, y / this.scale);
-        const body = this.world.CreateBody(bodyDef);
-
-        const shape = new b2CircleShape();
-        shape.radius = radius / this.scale;
-
-        const fixtureDef = new b2FixtureDef();
-        fixtureDef.shape = shape;
-        fixtureDef.density = density;
-        fixtureDef.filter.groupIndex = -1;
-
-        body.CreateFixtureFromDef(fixtureDef);
-        this.renderArray.push({ body: body, type: "circle", radius: radius });
-        return body;
-    }
-
-    createMuscleJoint(bodyA, bodyB, anchorX, anchorY) {
-        const jointDef = new b2RevoluteJointDef();
-        const anchor = new b2Vec2(anchorX / this.scale, anchorY / this.scale);
-        jointDef.bodyA = bodyA;
-        jointDef.bodyB = bodyB;
-        jointDef.localAnchorA = bodyA.GetLocalPoint(anchor);
-        jointDef.localAnchorB = bodyB.GetLocalPoint(anchor);
-        jointDef.referenceAngle = bodyB.GetAngle() - bodyA.GetAngle();
-        jointDef.enableMotor = true;
-        jointDef.maxMotorTorque = 250;
-        jointDef.motorSpeed = 0;
-
-        const joint = this.world.CreateJoint(jointDef);
-        joint.targetAngle = 0;
-        joint.jsBodyA = bodyA;
-        joint.jsBodyB = bodyB;
-        return joint;
+    get dead() {
+        return this.hp <= 0;
     }
 
     takeDamage(amount) {
@@ -129,46 +33,71 @@ class ActiveRagdoll {
         this.honeyTimer = 60;
     }
 
-    updateMuscles() {
-        const pGain = 10.0;
-        const dGain = 1.0;
-        const maxSpeed = 15;
+    // Ángulo nativo de la articulación (sin espejar); el objetivo se toma por el camino más corto
+    // desde el ángulo actual para que el brazo no salte al cruzar ±π
+    aim(mouseX, mouseY) {
+        if (this.dead) return;
+        const mirror = this.flipX ? -1 : 1;
+        const forward = this.flipX ? Math.PI : 0;
+        for (const name of this.rig.aimJoints) {
+            const joint = this.rag.joint(name);
+            const anchor = joint.GetAnchorA();
+            const ax = anchor.get_x();
+            const ay = anchor.get_y();
+            const parentAngle = joint.GetBodyA().GetAngle();
+            const desired =
+                Math.atan2(mouseY - ay, mouseX - ax) -
+                parentAngle -
+                forward -
+                this.rig.aimOffset * mirror;
+            const current = joint.GetJointAngle();
+            const delta = desired - current;
+            let target =
+                current + Math.atan2(Math.sin(delta), Math.cos(delta));
+            // RagImporter normaliza el objetivo a (-π, π]: cerca de ±π se frena del lado actual
+            // (histéresis) y más allá se da la vuelta por delante
+            const overshoot = Math.abs(target) - AIM_LIMIT;
+            if (overshoot > AIM_HYSTERESIS) {
+                target = Math.atan2(Math.sin(desired), Math.cos(desired));
+            } else if (overshoot > 0) {
+                target = Math.sign(target) * AIM_LIMIT;
+            }
+            this.rag.setJointAngle(name, target * mirror);
+        }
+    }
 
-        for (let joint of this.joints) {
-            const currentAngle = joint.GetJointAngle();
-            const currentSpeed =
-                joint.jsBodyB.GetAngularVelocity() -
-                joint.jsBodyA.GetAngularVelocity();
-            const error = joint.targetAngle - currentAngle;
-            let speed = error * pGain - currentSpeed * dGain;
+    setVelocity(x, y) {
+        this.scratch.set_x(x);
+        this.scratch.set_y(y);
+        this.torso.SetLinearVelocity(this.scratch);
+    }
 
-            if (speed > maxSpeed) speed = maxSpeed;
-            if (speed < -maxSpeed) speed = -maxSpeed;
-            joint.SetMotorSpeed(speed);
+    // La versión actual de RagImporter cambia de clip sin fundido (fadeIn/fadeOut aún no implementados)
+    setClip(state) {
+        if (state === this.clipState) return;
+        if (this.clipState !== null) {
+            this.rag.stop(this.rig.clips[this.clipState]);
+        }
+        this.clipState = state;
+        if (state !== null) this.rag.play(this.rig.clips[state]);
+    }
+
+    // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld
+    move(keys) {
+        if (this.dead) {
+            if (this.clipState !== "dead") this.rag.clearAllOverrides();
+            this.setClip("dead");
+            return;
         }
 
-        const torsoAngle = this.torso.GetAngle();
-        this.torso.ApplyTorque((0 - torsoAngle) * 300, true);
-        this.torso.SetAngularVelocity(this.torso.GetAngularVelocity() * 0.9);
-    }
-
-    aim(mouseX, mouseY) {
-        const torsoPos = this.torso.GetPosition();
-        let angle =
-            Math.atan2(mouseY - torsoPos.y, mouseX - torsoPos.x) - Math.PI / 2;
-        angle -= this.torso.GetAngle();
-
-        this.leftArmJoint.targetAngle = angle;
-        this.rightArmJoint.targetAngle = angle + 0.2;
-    }
-
-    move(keys) {
         let currentSpeed = this.honeyTimer > 0 ? 3 : 6;
         if (this.honeyTimer > 0) this.honeyTimer--;
 
         const vel = this.torso.GetLinearVelocity();
+        const velX = vel.get_x();
+        const velY = vel.get_y();
 
-        if (Math.abs(vel.y) < 1.0) {
+        if (Math.abs(velY) < 1.0) {
             this.framesGrounded++;
         } else {
             this.framesGrounded = 0;
@@ -176,34 +105,45 @@ class ActiveRagdoll {
 
         let isMoving = false;
         if (keys["a"] || keys["arrowleft"]) {
-            this.torso.SetLinearVelocity(new b2Vec2(-currentSpeed, vel.y));
+            this.setVelocity(-currentSpeed, velY);
             isMoving = true;
         } else if (keys["d"] || keys["arrowright"]) {
-            this.torso.SetLinearVelocity(new b2Vec2(currentSpeed, vel.y));
+            this.setVelocity(currentSpeed, velY);
             isMoving = true;
         } else {
             const friction = this.honeyTimer > 0 ? 0.95 : 0.85;
-            this.torso.SetLinearVelocity(new b2Vec2(vel.x * friction, vel.y));
+            this.setVelocity(velX * friction, velY);
         }
 
+        // Y hacia arriba: el salto es velocidad positiva
         if (
             (keys["w"] || keys["arrowup"] || keys[" "]) &&
             this.framesGrounded > 15
         ) {
-            const jumpPower = this.honeyTimer > 0 ? 15 : 30;
-            this.torso.SetLinearVelocity(new b2Vec2(vel.x, -jumpPower));
+            // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
+            const jumpPower = this.honeyTimer > 0 ? 3 : 6;
+            for (const body of this.rag.bodies.values()) {
+                this.scratch.set_x(body.GetLinearVelocity().get_x());
+                this.scratch.set_y(jumpPower);
+                body.SetLinearVelocity(this.scratch);
+            }
             this.framesGrounded = 0;
+            this.jumping = true;
+        } else if (this.framesGrounded > 5) {
+            this.jumping = false;
         }
 
-        if (isMoving && this.framesGrounded > 5) {
-            this.walkCycle += 0.25;
-            const step = Math.sin(this.walkCycle) * 1.2;
-            this.leftLegJoint.targetAngle = step;
-            this.rightLegJoint.targetAngle = -step;
+        if (this.jumping) {
+            this.setClip("jump");
+        } else if (isMoving) {
+            this.setClip("walk");
         } else {
-            this.walkCycle = 0;
-            this.leftLegJoint.targetAngle = 0;
-            this.rightLegJoint.targetAngle = 0;
+            this.setClip(null);
         }
+    }
+
+    destroy() {
+        this.rag.destroy();
+        Box2D.destroy(this.scratch);
     }
 }

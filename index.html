@@ -52,8 +52,8 @@
                 font-weight: bold;
             }
         </style>
-        <script src="https://google.github.io/liquidfun/testbed/liquidfun.js"></script>
-        <script src="/js/ActiveRagdoll.js"></script>
+        <script src="./vendor/pixi.min.js"></script>
+        <script src="./vendor/liquidfun.js"></script>
     </head>
     <body>
         <svg style="display: none">
@@ -99,266 +99,388 @@
             <canvas id="fluidCanvas"></canvas>
         </div>
 
-        <script>
-            window.onload = function () {
-                const canvas = document.getElementById("canvas");
-                const ctx = canvas.getContext("2d");
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+        <script type="module">
+            import {
+                RagImporter,
+                stepWorld,
+                STEP_SETTINGS,
+            } from "./lib/ragimporter.js";
+            import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
 
-                const fluidCanvas = document.getElementById("fluidCanvas");
-                const fluidCtx = fluidCanvas.getContext("2d");
-                fluidCanvas.width = window.innerWidth;
-                fluidCanvas.height = window.innerHeight;
+            RagImporter.configure({ Box2D, PIXI });
 
-                const SCALE = 40;
-                const toMeters = (px) => px / SCALE;
-                const toPixels = (m) => m * SCALE;
+            // Flags de partícula de LiquidFun (b2ParticleFlag); el build Emscripten no los exporta
+            const WATER_PARTICLE = 0;
+            const VISCOUS_PARTICLE = 1 << 5;
+            const TENSILE_PARTICLE = 1 << 7;
 
-                window.world = new b2World(new b2Vec2(0, 10));
+            async function loadRag(url) {
+                const response = await fetch(url);
+                if (!response.ok)
+                    throw new Error(`HTTP ${response.status} cargando ${url}`);
+                const json = await response.json();
+                return { json, def: RagImporter.parse(json) };
+            }
 
-                const groundBody = window.world.CreateBody(new b2BodyDef());
-                const escenarioVisual = [];
+            const robotRag = await loadRag("./assets/robot.rag.json");
 
-                function crearLineaEstica(x1, y1, x2, y2) {
-                    const edge = new b2EdgeShape();
-                    edge.Set(
-                        new b2Vec2(toMeters(x1), toMeters(y1)),
-                        new b2Vec2(toMeters(x2), toMeters(y2)),
-                    );
-                    groundBody.CreateFixtureFromShape(edge, 0);
-                    escenarioVisual.push({ x1, y1, x2, y2 });
+            // Mapeo del rig del robot: los hombros no tienen límites y giran brazo + arma
+            const ROBOT_RIG = {
+                rootBody: robotRag.json.ragdoll.rootBody,
+                aimJoints: ["joint_11", "joint_11_copy"],
+                aimOffset: 0,
+                clips: { walk: "walk", jump: "jump", dead: "dead" },
+            };
+
+            const canvas = document.getElementById("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const fluidCanvas = document.getElementById("fluidCanvas");
+            const fluidCtx = fluidCanvas.getContext("2d");
+            fluidCanvas.width = window.innerWidth;
+            fluidCanvas.height = window.innerHeight;
+
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Mundo en metros con Y hacia arriba (convención de RagImporter); y = 0 es el borde inferior de la pantalla
+            const SCALE = 40;
+            const toMeters = (px) => px / SCALE;
+            const toPixels = (m) => m * SCALE;
+            const toScreenY = (m) => h - m * SCALE;
+            const toWorldY = (py) => (h - py) / SCALE;
+
+            const gravity = new Box2D.b2Vec2(0, -10);
+            const world = new Box2D.b2World(gravity);
+            Box2D.destroy(gravity);
+
+            const groundBodyDef = new Box2D.b2BodyDef();
+            const groundBody = world.CreateBody(groundBodyDef);
+            Box2D.destroy(groundBodyDef);
+            const escenarioVisual = [];
+
+            function crearLineaEstica(x1, y1, x2, y2) {
+                const edge = new Box2D.b2EdgeShape();
+                const v1 = new Box2D.b2Vec2(toMeters(x1), toWorldY(y1));
+                const v2 = new Box2D.b2Vec2(toMeters(x2), toWorldY(y2));
+                edge.Set(v1, v2);
+                groundBody.CreateFixture(edge, 0);
+                Box2D.destroy(v1);
+                Box2D.destroy(v2);
+                Box2D.destroy(edge);
+                escenarioVisual.push({ x1, y1, x2, y2 });
+            }
+
+            crearLineaEstica(0, h * 0.8, w, h * 0.8);
+            crearLineaEstica(0, 0, 0, h);
+            crearLineaEstica(w, 0, w, h);
+
+            const groundY = toWorldY(h * 0.8);
+
+            function lowestPoint(rag) {
+                let lowest = Infinity;
+                for (const body of rag.bodies.values()) {
+                    for (
+                        let fixture = body.GetFixtureList();
+                        Box2D.getPointer(fixture) !== 0;
+                        fixture = fixture.GetNext()
+                    ) {
+                        lowest = Math.min(
+                            lowest,
+                            fixture.GetAABB(0).get_lowerBound().get_y(),
+                        );
+                    }
+                }
+                return lowest;
+            }
+
+            // Spawnea una vez para medir y vuelve a spawnear apoyado sobre el piso
+            function spawnOnGround(def, x) {
+                const probe = def.spawn(world, { x, y: 0 });
+                const lift = groundY + 0.02 - lowestPoint(probe);
+                probe.destroy();
+                return lift;
+            }
+
+            const dynamicBodies = [];
+
+            // Con flipX las formas se espejan en el marco del cuerpo (x y ángulo negados)
+            function addRenderBodies(rag, json, flipX = false) {
+                const mirror = flipX ? -1 : 1;
+                for (const b of json.bodies) {
+                    const body = rag.bodies.get(b.id);
+                    for (const f of b.fixtures) {
+                        const s = f.shape;
+                        const item = {
+                            body,
+                            type: s.type,
+                            cx: toPixels(s.center?.[0] ?? 0) * mirror,
+                            cy: toPixels(s.center?.[1] ?? 0),
+                            angle: (s.angle ?? 0) * mirror,
+                        };
+                        if (s.type === "box") {
+                            item.width = toPixels(s.width / 2);
+                            item.height = toPixels(s.height / 2);
+                        } else if (s.type === "circle") {
+                            item.radius = toPixels(s.radius);
+                        } else if (s.type === "polygon") {
+                            item.vertices = s.vertices.map(([vx, vy]) => [
+                                toPixels(vx) * mirror,
+                                toPixels(vy),
+                            ]);
+                        }
+                        dynamicBodies.push(item);
+                    }
+                }
+            }
+
+            function spawnRobot(screenX, flipX) {
+                const x = toMeters(screenX);
+                const robot = new ActiveRagdoll(
+                    robotRag.def,
+                    world,
+                    x,
+                    spawnOnGround(robotRag.def, x),
+                    ROBOT_RIG,
+                    flipX,
+                );
+                addRenderBodies(robot.rag, robotRag.json, flipX);
+                return robot;
+            }
+
+            // Jugador 1 (controlado) mira a la derecha; jugador 2 (sin input) espejado, mirando al 1
+            const myRagdoll = spawnRobot(w * 0.3, false);
+            const rival = spawnRobot(w * 0.7, true);
+            const players = [myRagdoll, rival];
+            const instances = players.map((p) => p.rag);
+            const sinInput = {};
+
+            const psDef = new Box2D.b2ParticleSystemDef();
+            psDef.set_radius(toMeters(6));
+            psDef.set_dampingStrength(0.2);
+            const particleSystem = world.CreateParticleSystem(psDef);
+            Box2D.destroy(psDef);
+
+            let armaActual = 1;
+            const teclasPulsadas = {};
+            let currentMouseX = 0;
+            let currentMouseY = 0;
+
+            window.addEventListener("mousemove", (e) => {
+                currentMouseX = toMeters(e.clientX);
+                currentMouseY = toWorldY(e.clientY);
+            });
+
+            window.addEventListener("keydown", (e) => {
+                const key = e.key.toLowerCase();
+                teclasPulsadas[key] = true;
+
+                if (key === "1") {
+                    armaActual = 1;
+                    console.log("Arma: Ácido");
+                }
+                if (key === "2") {
+                    armaActual = 2;
+                    console.log("Arma: Lava");
+                }
+                if (key === "3") {
+                    armaActual = 3;
+                    console.log("Arma: Miel");
+                }
+            });
+
+            window.addEventListener("keyup", (e) => {
+                teclasPulsadas[e.key.toLowerCase()] = false;
+            });
+
+            window.addEventListener("mousedown", (e) => {
+                if (myRagdoll.dead) return;
+                const torsoPos = myRagdoll.torso.GetPosition();
+                const torsoX = torsoPos.get_x();
+                const torsoY = torsoPos.get_y();
+
+                const dirX = currentMouseX - torsoX;
+                const dirY = currentMouseY - torsoY;
+                const length = Math.sqrt(dirX * dirX + dirY * dirY);
+                if (length === 0) return;
+
+                const fuerzaDisparo = 20;
+
+                const pgDef = new Box2D.b2ParticleGroupDef();
+                const shape = new Box2D.b2CircleShape();
+                const center = new Box2D.b2Vec2(
+                    torsoX + (dirX / length) * 1.5,
+                    torsoY + (dirY / length) * 1.5,
+                );
+                shape.set_m_p(center);
+                shape.set_m_radius(toMeters(15));
+                pgDef.set_shape(shape);
+
+                const velocity = new Box2D.b2Vec2(
+                    (dirX / length) * fuerzaDisparo,
+                    (dirY / length) * fuerzaDisparo,
+                );
+                pgDef.set_linearVelocity(velocity);
+
+                let color;
+                if (armaActual === 1) {
+                    pgDef.set_flags(WATER_PARTICLE);
+                    color = new Box2D.b2ParticleColor(50, 255, 50, 255);
+                } else if (armaActual === 2) {
+                    pgDef.set_flags(TENSILE_PARTICLE);
+                    color = new Box2D.b2ParticleColor(255, 80, 20, 255);
+                } else {
+                    pgDef.set_flags(VISCOUS_PARTICLE);
+                    color = new Box2D.b2ParticleColor(255, 200, 50, 255);
+                }
+                pgDef.set_color(color);
+
+                particleSystem.CreateParticleGroup(pgDef);
+                Box2D.destroy(color);
+                Box2D.destroy(velocity);
+                Box2D.destroy(center);
+                Box2D.destroy(shape);
+                Box2D.destroy(pgDef);
+            });
+
+            // Pasos fijos como el editor (stepWorld); el input se aplica una vez por paso
+            let accumulator = 0;
+            let lastTime = performance.now();
+
+            function loop(now) {
+                accumulator = Math.min(
+                    accumulator + (now - lastTime) / 1000,
+                    0.25,
+                );
+                lastTime = now;
+
+                myRagdoll.aim(currentMouseX, currentMouseY);
+                while (accumulator >= STEP_SETTINGS.dt) {
+                    myRagdoll.move(teclasPulsadas);
+                    rival.move(sinInput);
+                    stepWorld(world, instances);
+                    accumulator -= STEP_SETTINGS.dt;
                 }
 
-                const w = canvas.width;
-                const h = canvas.height;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
 
-                crearLineaEstica(0, h * 0.8, w, h * 0.8);
-                crearLineaEstica(0, 0, 0, h);
-                crearLineaEstica(w, 0, w, h);
+                ctx.strokeStyle = "#444";
+                ctx.lineWidth = 6;
+                ctx.lineCap = "round";
+                ctx.beginPath();
+                for (let linea of escenarioVisual) {
+                    ctx.moveTo(linea.x1, linea.y1);
+                    ctx.lineTo(linea.x2, linea.y2);
+                }
+                ctx.stroke();
 
-                const dynamicBodies = [];
-                const myRagdoll = new ActiveRagdoll(
-                    window.world,
-                    w * 0.5,
-                    h * 0.5,
-                    dynamicBodies,
+                // Los buffers viven en el heap de Emscripten: se leen por puntero
+                const pCount = particleSystem.GetParticleCount();
+                const posBase =
+                    Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
+                const colorBase = Box2D.getPointer(
+                    particleSystem.GetColorBuffer(),
                 );
+                const positions = Box2D.HEAPF32;
+                const colors = Box2D.HEAPU8;
 
-                const psDef = new b2ParticleSystemDef();
-                psDef.radius = toMeters(6);
-                psDef.dampingStrength = 0.2;
-                const particleSystem = window.world.CreateParticleSystem(psDef);
-
-                const eraserShape = new b2CircleShape();
-                eraserShape.radius = toMeters(1);
-                const eraserTransform = new b2Transform();
-                eraserTransform.SetIdentity();
-
-                let armaActual = 1;
-                const teclasPulsadas = {};
-                let currentMouseX = 0;
-                let currentMouseY = 0;
-
-                window.addEventListener("mousemove", (e) => {
-                    currentMouseX = toMeters(e.clientX);
-                    currentMouseY = toMeters(e.clientY);
+                const torsos = players.map((player) => {
+                    const pos = player.torso.GetPosition();
+                    return {
+                        player,
+                        x: toPixels(pos.get_x()),
+                        y: toScreenY(pos.get_y()),
+                    };
                 });
 
-                window.addEventListener("keydown", (e) => {
-                    const key = e.key.toLowerCase();
-                    teclasPulsadas[key] = true;
+                particles: for (let i = pCount - 1; i >= 0; i--) {
+                    const px = toPixels(positions[posBase + i * 2]);
+                    const py = toScreenY(positions[posBase + i * 2 + 1]);
 
-                    if (key === "1") {
-                        armaActual = 1;
-                        console.log("Arma: Ácido");
-                    }
-                    if (key === "2") {
-                        armaActual = 2;
-                        console.log("Arma: Lava");
-                    }
-                    if (key === "3") {
-                        armaActual = 3;
-                        console.log("Arma: Miel");
-                    }
-                });
-
-                window.addEventListener("keyup", (e) => {
-                    teclasPulsadas[e.key.toLowerCase()] = false;
-                });
-
-                window.addEventListener("mousedown", (e) => {
-                    if (!myRagdoll) return;
-
-                    const torsoPos = myRagdoll.torso.GetPosition();
-
-                    const dirX = currentMouseX - torsoPos.x;
-                    const dirY = currentMouseY - torsoPos.y;
-                    const length = Math.sqrt(dirX * dirX + dirY * dirY);
-
-                    const fuerzaDisparo = 20;
-
-                    const pgDef = new b2ParticleGroupDef();
-                    const shape = new b2CircleShape();
-                    shape.position.Set(
-                        torsoPos.x + (dirX / length) * 1.5,
-                        torsoPos.y + (dirY / length) * 1.5,
-                    );
-                    shape.radius = toMeters(15);
-                    pgDef.shape = shape;
-
-                    pgDef.linearVelocity = new b2Vec2(
-                        (dirX / length) * fuerzaDisparo,
-                        (dirY / length) * fuerzaDisparo,
-                    );
-
-                    if (armaActual === 1) {
-                        pgDef.flags = b2_waterParticle;
-                        pgDef.color = new b2ParticleColor(50, 255, 50, 255);
-                    } else if (armaActual === 2) {
-                        pgDef.flags = b2_tensileParticle;
-                        pgDef.color = new b2ParticleColor(255, 80, 20, 255);
-                    } else if (armaActual === 3) {
-                        pgDef.flags = b2_viscousParticle;
-                        pgDef.color = new b2ParticleColor(255, 200, 50, 255);
+                    if (py > canvas.height) {
+                        particleSystem.DestroyParticle(i);
+                        continue;
                     }
 
-                    particleSystem.CreateParticleGroup(pgDef);
-                });
+                    const r = colors[colorBase + i * 4];
+                    const g = colors[colorBase + i * 4 + 1];
+                    const b = colors[colorBase + i * 4 + 2];
 
-                function loop() {
-                    if (myRagdoll) {
-                        myRagdoll.aim(currentMouseX, currentMouseY);
-                        myRagdoll.updateMuscles();
-                        myRagdoll.move(teclasPulsadas);
+                    for (const torso of torsos) {
+                        const dist = Math.hypot(px - torso.x, py - torso.y);
+                        if (dist >= 25) continue;
+                        if (g === 255 && r === 50) {
+                            torso.player.takeDamage(2);
+                            particleSystem.DestroyParticle(i);
+                            continue particles;
+                        } else if (r === 255 && g === 80) {
+                            torso.player.takeDamage(0.1);
+                        } else if (r === 255 && g === 200) {
+                            torso.player.applyHoney();
+                            particleSystem.DestroyParticle(i);
+                            continue particles;
+                        }
                     }
 
-                    window.world.Step(1 / 60, 8, 3, 3);
+                    fluidCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                    fluidCtx.beginPath();
+                    fluidCtx.arc(px, py, 14, 0, Math.PI * 2);
+                    fluidCtx.fill();
+                }
 
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    fluidCtx.clearRect(
-                        0,
-                        0,
-                        fluidCanvas.width,
-                        fluidCanvas.height,
-                    );
+                ctx.fillStyle = "#ff9933";
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 2;
 
-                    ctx.strokeStyle = "#444";
-                    ctx.lineWidth = 6;
-                    ctx.lineCap = "round";
+                for (let item of dynamicBodies) {
+                    const pos = item.body.GetPosition();
+                    const angle = item.body.GetAngle();
+
+                    ctx.save();
+                    ctx.translate(toPixels(pos.get_x()), toScreenY(pos.get_y()));
+                    ctx.rotate(-angle);
+                    ctx.translate(item.cx, -item.cy);
+                    ctx.rotate(-item.angle);
+
                     ctx.beginPath();
-                    for (let linea of escenarioVisual) {
-                        ctx.moveTo(linea.x1, linea.y1);
-                        ctx.lineTo(linea.x2, linea.y2);
-                    }
-                    ctx.stroke();
-
-                    const pCount = particleSystem.GetParticleCount();
-                    const posBuffer = particleSystem.GetPositionBuffer();
-                    const colorBuffer = particleSystem.GetColorBuffer();
-
-                    const torsoPos = myRagdoll.torso.GetPosition();
-                    const torsoPixelX = toPixels(torsoPos.x);
-                    const torsoPixelY = toPixels(torsoPos.y);
-
-                    for (let i = pCount - 1; i >= 0; i--) {
-                        const px = toPixels(posBuffer[i * 2]);
-                        const py = toPixels(posBuffer[i * 2 + 1]);
-
-                        if (py > canvas.height) {
-                            eraserShape.position.Set(
-                                posBuffer[i * 2],
-                                posBuffer[i * 2 + 1],
-                            );
-                            particleSystem.DestroyParticlesInShape(
-                                eraserShape,
-                                eraserTransform,
-                            );
-                            continue;
-                        }
-
-                        const r = colorBuffer[i * 4];
-                        const g = colorBuffer[i * 4 + 1];
-                        const b = colorBuffer[i * 4 + 2];
-
-                        const dist = Math.hypot(
-                            px - torsoPixelX,
-                            py - torsoPixelY,
+                    if (item.type === "box") {
+                        ctx.rect(
+                            -item.width,
+                            -item.height,
+                            item.width * 2,
+                            item.height * 2,
                         );
-                        if (dist < 25) {
-                            if (g === 255 && r === 50) {
-                                myRagdoll.takeDamage(2);
-                                eraserShape.position.Set(
-                                    posBuffer[i * 2],
-                                    posBuffer[i * 2 + 1],
-                                );
-                                particleSystem.DestroyParticlesInShape(
-                                    eraserShape,
-                                    eraserTransform,
-                                );
-                                continue;
-                            } else if (r === 255 && g === 80) {
-                                myRagdoll.takeDamage(0.1);
-                            } else if (r === 255 && g === 200) {
-                                myRagdoll.applyHoney();
-                                eraserShape.position.Set(
-                                    posBuffer[i * 2],
-                                    posBuffer[i * 2 + 1],
-                                );
-                                particleSystem.DestroyParticlesInShape(
-                                    eraserShape,
-                                    eraserTransform,
-                                );
-                                continue;
-                            }
-                        }
-
-                        fluidCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                        fluidCtx.beginPath();
-                        fluidCtx.arc(px, py, 14, 0, Math.PI * 2);
-                        fluidCtx.fill();
+                    } else if (item.type === "circle") {
+                        ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
+                    } else if (item.type === "polygon") {
+                        item.vertices.forEach(([vx, vy], k) =>
+                            k === 0 ? ctx.moveTo(vx, -vy) : ctx.lineTo(vx, -vy),
+                        );
+                        ctx.closePath();
                     }
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
 
-                    ctx.fillStyle = "#ff9933";
-                    ctx.strokeStyle = "#fff";
-                    ctx.lineWidth = 2;
-
-                    for (let item of dynamicBodies) {
-                        const pos = item.body.GetPosition();
-                        const angle = item.body.GetAngle();
-
-                        ctx.save();
-                        ctx.translate(toPixels(pos.x), toPixels(pos.y));
-                        ctx.rotate(angle);
-
-                        ctx.beginPath();
-                        if (item.type === "box") {
-                            ctx.rect(
-                                -item.width,
-                                -item.height,
-                                item.width * 2,
-                                item.height * 2,
-                            );
-                        } else if (item.type === "circle") {
-                            ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
-                        }
-                        ctx.fill();
-                        ctx.stroke();
-                        ctx.restore();
-                    }
-
-                    ctx.fillStyle = myRagdoll.hp > 30 ? "#55ff55" : "#ff5555";
-                    ctx.font = "bold 24px Segoe UI";
+                ctx.font = "bold 24px Segoe UI";
+                players.forEach((player, k) => {
+                    ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
+                    ctx.textAlign = k === 0 ? "left" : "right";
                     ctx.fillText(
-                        `Salud: ${Math.floor(myRagdoll.hp)}%`,
-                        20,
+                        `J${k + 1} Salud: ${Math.floor(player.hp)}%`,
+                        k === 0 ? 20 : canvas.width - 20,
                         canvas.height - 30,
                     );
+                });
+                ctx.textAlign = "left";
 
-                    requestAnimationFrame(loop);
-                }
-                loop();
-            };
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
         </script>
     </body>
 </html>
