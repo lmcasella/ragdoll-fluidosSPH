@@ -12,3 +12,13 @@ Los ragdolls se cargan con RagImporter (`lib/`, copiado de [ragassembler2d](http
 `vendor/liquidfun.js` (build Emscripten, namespace `Box2D`) y `vendor/pixi.min.js` son los que exige RagImporter. El mundo usa Y hacia arriba y se avanza con `stepWorld`.
 
 Requiere servidor HTTP (módulos ES): `npx http-server -c-1 .`
+
+## Controles
+
+| | Mover | Saltar | Apuntar | Disparar | Arma |
+|---|---|---|---|---|---|
+| J1 teclado | A / D | W | hacia donde mira (S: abajo) o mouse | Espacio (o clic) | 1 / 2 / 3 |
+| J2 teclado | ← / → | ↑ | hacia donde mira (↓: abajo) | Enter | Num 1 / 2 / 3 |
+| Gamepad | stick izq. / cruceta | arriba | stick der. | A / RT | LB / RB |
+
+Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador.

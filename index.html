@@ -81,17 +81,24 @@
         <div id="panel">
             <h3>Armas de Fluidos</h3>
             <p>
-                Presiona <span class="highlight">1</span>: Ácido (Verde, rápido)
+                <span class="highlight">1</span> Ácido (verde, rápido) ·
+                <span class="highlight">2</span> Lava (naranja, tensión) ·
+                <span class="highlight">3</span> Miel (amarillo, viscoso)
             </p>
             <p>
-                Presiona <span class="highlight">2</span>: Lava (Naranja,
-                tensión)
+                <span class="highlight">J1</span> A/D mover · W saltar · S
+                apuntar abajo · Espacio disparar · 1/2/3 arma · Mouse apunta y
+                dispara
             </p>
             <p>
-                Presiona <span class="highlight">3</span>: Miel (Amarillo,
-                viscoso)
+                <span class="highlight">J2</span> ←/→ mover · ↑ saltar · ↓
+                apuntar abajo · Enter disparar · Num 1/2/3 arma
             </p>
-            <p>Movimiento: A/D/W | Apuntar: Mouse</p>
+            <p>
+                <span class="highlight">Gamepad</span> (1.º → J1, 2.º → J2):
+                stick izq./cruceta mover, arriba saltar · stick der. apuntar · A
+                o RT disparar · LB/RB arma
+            </p>
         </div>
 
         <div id="gameContainer">
@@ -106,6 +113,7 @@
                 STEP_SETTINGS,
             } from "./lib/ragimporter.js";
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
+            import { Input } from "./js/Input.js";
 
             RagImporter.configure({ Box2D, PIXI });
 
@@ -250,12 +258,11 @@
                 return robot;
             }
 
-            // Jugador 1 (controlado) mira a la derecha; jugador 2 (sin input) espejado, mirando al 1
-            const myRagdoll = spawnRobot(w * 0.3, false);
-            const rival = spawnRobot(w * 0.7, true);
-            const players = [myRagdoll, rival];
+            // J1 mira a la derecha; J2 espejado, mirando al J1
+            const players = [spawnRobot(w * 0.3, false), spawnRobot(w * 0.7, true)];
             const instances = players.map((p) => p.rag);
-            const sinInput = {};
+            const input = new Input(players.length);
+            let inputs = input.poll();
 
             const psDef = new Box2D.b2ParticleSystemDef();
             psDef.set_radius(toMeters(6));
@@ -263,46 +270,49 @@
             const particleSystem = world.CreateParticleSystem(psDef);
             Box2D.destroy(psDef);
 
-            let armaActual = 1;
-            const teclasPulsadas = {};
-            let currentMouseX = 0;
-            let currentMouseY = 0;
+            const NOMBRES_ARMAS = ["Ácido", "Lava", "Miel"];
+
+            // El J1 puede seguir apuntando y disparando con el mouse; se activa al moverlo
+            let mouse = null;
 
             window.addEventListener("mousemove", (e) => {
-                currentMouseX = toMeters(e.clientX);
-                currentMouseY = toWorldY(e.clientY);
+                mouse = { x: toMeters(e.clientX), y: toWorldY(e.clientY) };
             });
 
-            window.addEventListener("keydown", (e) => {
-                const key = e.key.toLowerCase();
-                teclasPulsadas[key] = true;
-
-                if (key === "1") {
-                    armaActual = 1;
-                    console.log("Arma: Ácido");
-                }
-                if (key === "2") {
-                    armaActual = 2;
-                    console.log("Arma: Lava");
-                }
-                if (key === "3") {
-                    armaActual = 3;
-                    console.log("Arma: Miel");
-                }
+            window.addEventListener("mousedown", () => {
+                if (mouse) disparar(players[0]);
             });
 
-            window.addEventListener("keyup", (e) => {
-                teclasPulsadas[e.key.toLowerCase()] = false;
-            });
+            // Punto de mira: stick derecho del gamepad, si no mouse (solo J1), si no hacia donde mira
+            // (abajo inclina el disparo 45°)
+            function actualizarMira(player, state, k) {
+                const pos = player.torso.GetPosition();
+                const x = pos.get_x();
+                const y = pos.get_y();
+                if (state.aim) {
+                    player.aimTarget = {
+                        x: x + state.aim.x * 5,
+                        y: y + state.aim.y * 5,
+                    };
+                } else if (k === 0 && mouse) {
+                    player.aimTarget = mouse;
+                } else {
+                    player.aimTarget = {
+                        x: x + player.facing * 5,
+                        y: y + (state.down ? -5 : 0),
+                    };
+                }
+                player.aim(player.aimTarget.x, player.aimTarget.y);
+            }
 
-            window.addEventListener("mousedown", (e) => {
-                if (myRagdoll.dead) return;
-                const torsoPos = myRagdoll.torso.GetPosition();
+            function disparar(player) {
+                if (player.dead || !player.aimTarget) return;
+                const torsoPos = player.torso.GetPosition();
                 const torsoX = torsoPos.get_x();
                 const torsoY = torsoPos.get_y();
 
-                const dirX = currentMouseX - torsoX;
-                const dirY = currentMouseY - torsoY;
+                const dirX = player.aimTarget.x - torsoX;
+                const dirY = player.aimTarget.y - torsoY;
                 const length = Math.sqrt(dirX * dirX + dirY * dirY);
                 if (length === 0) return;
 
@@ -325,10 +335,10 @@
                 pgDef.set_linearVelocity(velocity);
 
                 let color;
-                if (armaActual === 1) {
+                if (player.weapon === 1) {
                     pgDef.set_flags(WATER_PARTICLE);
                     color = new Box2D.b2ParticleColor(50, 255, 50, 255);
-                } else if (armaActual === 2) {
+                } else if (player.weapon === 2) {
                     pgDef.set_flags(TENSILE_PARTICLE);
                     color = new Box2D.b2ParticleColor(255, 80, 20, 255);
                 } else {
@@ -343,9 +353,10 @@
                 Box2D.destroy(center);
                 Box2D.destroy(shape);
                 Box2D.destroy(pgDef);
-            });
+            }
 
-            // Pasos fijos como el editor (stepWorld); el input se aplica una vez por paso
+            // Pasos fijos como el editor (stepWorld); el movimiento se aplica una vez por paso,
+            // disparo y cambio de arma una vez por frame
             let accumulator = 0;
             let lastTime = performance.now();
 
@@ -356,10 +367,20 @@
                 );
                 lastTime = now;
 
-                myRagdoll.aim(currentMouseX, currentMouseY);
+                inputs = input.poll();
+                players.forEach((player, k) => {
+                    const state = inputs[k];
+                    if (state.weapon) player.weapon = state.weapon;
+                    if (state.weaponStep) {
+                        player.weapon =
+                            ((player.weapon - 1 + state.weaponStep + 3) % 3) + 1;
+                    }
+                    actualizarMira(player, state, k);
+                    if (state.action) disparar(player);
+                });
+
                 while (accumulator >= STEP_SETTINGS.dt) {
-                    myRagdoll.move(teclasPulsadas);
-                    rival.move(sinInput);
+                    players.forEach((player, k) => player.move(inputs[k]));
                     stepWorld(world, instances);
                     accumulator -= STEP_SETTINGS.dt;
                 }
@@ -471,7 +492,7 @@
                     ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
                     ctx.textAlign = k === 0 ? "left" : "right";
                     ctx.fillText(
-                        `J${k + 1} Salud: ${Math.floor(player.hp)}%`,
+                        `J${k + 1} Salud: ${Math.floor(player.hp)}% · ${NOMBRES_ARMAS[player.weapon - 1]}`,
                         k === 0 ? 20 : canvas.width - 20,
                         canvas.height - 30,
                     );

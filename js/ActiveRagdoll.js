@@ -18,6 +18,8 @@ export class ActiveRagdoll {
         this.framesGrounded = 0;
         this.jumping = false;
         this.clipState = null;
+        this.facing = flipX ? -1 : 1;
+        this.weapon = 1;
     }
 
     get dead() {
@@ -82,8 +84,9 @@ export class ActiveRagdoll {
         if (state !== null) this.rag.play(this.rig.clips[state]);
     }
 
-    // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld
-    move(keys) {
+    // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld.
+    // input: { left, right, up } (ver Input.js); el salto es la dirección arriba
+    move(input) {
         if (this.dead) {
             if (this.clipState !== "dead") this.rag.clearAllOverrides();
             this.setClip("dead");
@@ -104,11 +107,13 @@ export class ActiveRagdoll {
         }
 
         let isMoving = false;
-        if (keys["a"] || keys["arrowleft"]) {
+        if (input.left && !input.right) {
             this.setVelocity(-currentSpeed, velY);
+            this.facing = -1;
             isMoving = true;
-        } else if (keys["d"] || keys["arrowright"]) {
+        } else if (input.right && !input.left) {
             this.setVelocity(currentSpeed, velY);
+            this.facing = 1;
             isMoving = true;
         } else {
             const friction = this.honeyTimer > 0 ? 0.95 : 0.85;
@@ -116,10 +121,7 @@ export class ActiveRagdoll {
         }
 
         // Y hacia arriba: el salto es velocidad positiva
-        if (
-            (keys["w"] || keys["arrowup"] || keys[" "]) &&
-            this.framesGrounded > 15
-        ) {
+        if (input.up && this.framesGrounded > 15) {
             // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
             const jumpPower = this.honeyTimer > 0 ? 3 : 6;
             for (const body of this.rag.bodies.values()) {
