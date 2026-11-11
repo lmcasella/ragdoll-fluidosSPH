@@ -54,8 +54,7 @@ export class ActiveRagdoll {
                 this.rig.aimOffset * mirror;
             const current = joint.GetJointAngle();
             const delta = desired - current;
-            let target =
-                current + Math.atan2(Math.sin(delta), Math.cos(delta));
+            let target = current + Math.atan2(Math.sin(delta), Math.cos(delta));
             // RagImporter normaliza el objetivo a (-π, π]: cerca de ±π se frena del lado actual
             // (histéresis) y más allá se da la vuelta por delante
             const overshoot = Math.abs(target) - AIM_LIMIT;
@@ -123,7 +122,7 @@ export class ActiveRagdoll {
         // Y hacia arriba: el salto es velocidad positiva
         if (input.up && this.framesGrounded > 15) {
             // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
-            const jumpPower = this.honeyTimer > 0 ? 3 : 6;
+            const jumpPower = this.honeyTimer > 0 ? 3 : 9;
             for (const body of this.rag.bodies.values()) {
                 this.scratch.set_x(body.GetLinearVelocity().get_x());
                 this.scratch.set_y(jumpPower);
