@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-18
+
+### Fixed
+- El mouse ya no pisa la mira del gamepad del J1: al soltar el stick derecho se conserva su última dirección y el mouse solo vuelve a apuntar si se mueve después.
+
+### Changed
+- El clic del mouse siempre dispara con el J1, aunque el mouse no se haya movido antes.
+
 ## [0.3.1] - 2026-11-18
 
 ### Added

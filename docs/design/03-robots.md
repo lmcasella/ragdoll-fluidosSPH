@@ -13,7 +13,7 @@ Código: `js/ActiveRagdoll.js` (un jugador), rig `ROBOT_RIG` en `index.html`, mo
 | Apuntar | El hombro (`joint_11`) gira para que **la línea del cañón** pase por el objetivo (corrige el paralaje). El codo queda en reposo y el override va con fuerza 1, así que ningún clip mueve la cadena del arma | Error medido: 0° quieto, ~4,5° de media caminando. Exacto: #8 |
 | Animación | Máquina de estados: `dead` > `punch` > `jump` > `walk` / `walk_back` > reposo. Los cambios son sin fundido (la librería aún no los tiene) | — |
 
-**Mira:** gamepad primero. La dirección viene del stick derecho y se conserva al soltarlo. El mouse (solo J1) y el teclado son respaldo. Bug abierto: #12 (el mouse pisa al stick).
+**Mira:** gamepad primero. La dirección viene del stick derecho y se conserva al soltarlo. El mouse (solo J1) y el teclado son respaldo. El mouse solo retoma la mira si se mueve después del último uso del stick.
 
 ## 3.2 Golpe melee ✅
 
