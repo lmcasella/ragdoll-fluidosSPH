@@ -46,7 +46,7 @@ Objetivo del usuario: que **todos los líquidos interactúen entre sí** (dispar
 
 **Bindings verificados para la inundación** (lectura de `vendor/liquidfun.js`, 18/11): `b2ParticleSystem.CreateParticle(b2ParticleDef)`; `b2ParticleDef` con `set_position`, `set_velocity`, `set_color`, `set_flags`, `set_userData`; `b2ParticleSystemDef.set_maxCount` y `b2ParticleSystem.SetMaxParticleCount`; `SetPaused`/`GetPaused`; `DestroyParticlesInShape`; `GetVelocityBuffer`. **No** está `GetBodyContactCount` (ver [04-fluidos](04-fluidos.md#cortocircuito-regla-compartida--22)). Falta probar en ejecución que `CreateParticle` devuelve un índice negativo al llegar a `maxCount`: el emisor no depende de eso, porque controla su propio tope.
 
-Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial) y las flags de cada fluido se definen como datos en [7.5](#75-parámetros-por-sistema--40) (🔨 #40).
+Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial) y las flags de cada fluido se definen como datos en [7.5](#75-parámetros-por-sistema--40) (✅ #40).
 
 ## 7.3 Técnicas usadas
 
@@ -69,7 +69,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - Un color por fluido, con brillo propio en lava y fuego.
   - Va en GPU (WebGL, PIXI ya está cargado) y reemplaza al filtro SVG.
 
-## 7.5 Parámetros por sistema 🔨 #40
+## 7.5 Parámetros por sistema ✅ #40
 
 **Problema** (feedback del usuario): las partículas de los disparos "rebotan como pelotitas" y el agua acumulada "parece pelotero, no fluye bien". **Restricción:** las partículas siguen chicas; no se tocan los radios (0,1 m los disparos, 0,25 m el agua del nivel, dibujada a 0,28 m).
 

@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-18
+
+### Changed
+- Los disparos ya no rebotan como pelotitas: al chocar se frenan y forman charcos planos.
+- El agua de la pileta y de la inundación fluye, se nivela y queda quieta en reposo, en lugar de amontonarse.
+- Las fuerzas de los dos sistemas de partículas y las propiedades de cada fluido se definen como datos.
+
 ## [0.6.0] - 2026-11-18
 
 ### Added
