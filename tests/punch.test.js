@@ -44,3 +44,24 @@ test("el golpe reproduce su clip, pega al rival cercano y lo aturde (reloj de si
     assert.ok(stunned, "el rival queda aturdido");
     assert.ok(!p1.isPunching(), "el golpe termina");
 });
+
+test("después del golpe los dos brazos vuelven a apuntar (ninguno queda trabado por el clip)", async () => {
+    for (const axes of [[0, 0, 1, 0], [0, 0, 1, -0.6], [0, 0, -1, 0.3]]) {
+        const game = await start(7);
+        const shoulders = () => {
+            const p = game.state.players[0];
+            return p.rig.aimJoints.map((name) => p.rag.joint(name).GetJointAngle());
+        };
+        game.setPad(0, { axes });
+        game.frames(60);
+        const before = shoulders();
+        game.setPad(0, { buttons: [X], axes });
+        game.frames(1);
+        game.setPad(0, { axes });
+        game.frames(150);
+        const after = shoulders();
+        after.forEach((angle, i) => {
+            assert.ok(Math.abs(angle - before[i]) < 0.15, `mira ${axes.slice(2)}: hombro ${i} ${before[i].toFixed(2)} -> ${angle.toFixed(2)}`);
+        });
+    }
+});

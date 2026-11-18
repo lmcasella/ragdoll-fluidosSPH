@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-11-19
+
+### Fixed
+- Después del golpe el segundo brazo ya no queda girado hacia atrás: los dos vuelven a apuntar.
+
 ## [0.11.1] - 2026-11-19
 
 ### Fixed
