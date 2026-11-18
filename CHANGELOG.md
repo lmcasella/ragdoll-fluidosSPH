@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-11-18
+
+### Added
+- Grabador de escenarios (`tests/helpers/recorder.js`) y visor (`tests/tools/viewer.html`) para revisar la física cuadro a cuadro.
+
 ## [0.11.4] - 2026-11-18
 
 ### Changed

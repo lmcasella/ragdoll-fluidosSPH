@@ -23,6 +23,10 @@ npx http-server -c-1 .     # http://localhost:8080
 node --test tests/          # tests (Node 24, sin dependencias)
 ```
 
+## Grabar un escenario
+
+Para revisar la física sobre secuencias de frames, en un script de Node se carga el juego con `loadGame()` (`tests/helpers/game.js`), se crea `recordGame(game, "nombre")` (`tests/helpers/recorder.js`), se llama a `recorder.capture()` después de cada `game.frame()` y se guarda con `recorder.save("ruta/nombre.json")`. Para verlo, abrir `tests/tools/viewer.html` en el navegador (doble clic o por el servidor de arriba) y elegir el JSON: tiene play/pausa, cuadro a cuadro y velocidad. Ejemplo de uso en `tests/recorder.test.js`.
+
 ## Documentación
 
 - [`DESIGN.md`](DESIGN.md): índice del GDD (`docs/design/`, un archivo por tema).
