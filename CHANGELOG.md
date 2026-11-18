@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-19
+
+### Changed
+- Regla de comentarios: el código no se comenta; las explicaciones van en docstrings JSDoc breves.
+
 ## [0.10.0] - 2026-11-18
 
 ### Changed
