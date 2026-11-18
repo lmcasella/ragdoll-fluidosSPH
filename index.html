@@ -532,7 +532,7 @@
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
                 drawLevel(ctx, LEVEL, scale);
-                collectSurfaces(players, LEVEL.solids);
+                collectSurfaces(players, LEVEL.solids, WATER_DRAW.snapReach);
                 drawParticles(fluidCtx, poolSystem, WATER_DRAW.radius, WATER_DRAW);
                 drawParticles(fluidCtx, particleSystem);
                 players.forEach((player, k) => {

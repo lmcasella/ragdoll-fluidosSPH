@@ -245,7 +245,7 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
 }
 
 // Superficies sólidas en metros del mundo (cajas y círculos con su pose), para acercar el agua dibujada a los cuerpos.
-// Se rearma en cada frame con `collectSurfaces`; los objetos se reutilizan.
+// Se rearma en cada frame con `collectSurfaces` (con el alcance del acercamiento: arma la grilla); los objetos se reutilizan.
 const surfacePool = [];
 let surfaceCount = 0;
 
@@ -259,14 +259,48 @@ function addSurface(kind, x, y, angle, hw, hh, radius) {
     s.hw = hw;
     s.hh = hh;
     s.radius = radius;
-    // Radio que encierra la pieza: descarta rápido las partículas lejanas
-    s.reach = kind === 0 ? Math.hypot(hw, hh) : radius;
+    // Mitad de la caja que encierra la pieza, para anotarla en la grilla
+    s.ex = kind === 0 ? Math.abs(s.cos) * hw + Math.abs(s.sin) * hh : radius;
+    s.ey = kind === 0 ? Math.abs(s.sin) * hw + Math.abs(s.cos) * hh : radius;
     surfaceCount++;
+}
+
+// Grilla de 1 m sobre el nivel (con margen): cada celda lista las superficies a menos de `reach` de ella, así cada
+// partícula prueba solo las de su celda en vez de todas. Lo de afuera de la grilla cae en la celda del borde.
+const CELL = 1;
+const GRID_X0 = -2;
+const GRID_Y0 = -2;
+const GRID_W = 64;
+const GRID_H = 40;
+const grid = Array.from({ length: GRID_W * GRID_H }, () => []);
+let gridUsed = [];
+
+function cellIndex(v, origin, size) {
+    return Math.min(size - 1, Math.max(0, Math.floor((v - origin) / CELL)));
+}
+
+function buildGrid(reach) {
+    for (const cell of gridUsed) cell.length = 0;
+    gridUsed = [];
+    for (let i = 0; i < surfaceCount; i++) {
+        const s = surfacePool[i];
+        const x0 = cellIndex(s.x - s.ex - reach, GRID_X0, GRID_W);
+        const x1 = cellIndex(s.x + s.ex + reach, GRID_X0, GRID_W);
+        const y0 = cellIndex(s.y - s.ey - reach, GRID_Y0, GRID_H);
+        const y1 = cellIndex(s.y + s.ey + reach, GRID_Y0, GRID_H);
+        for (let cy = y0; cy <= y1; cy++) {
+            for (let cx = x0; cx <= x1; cx++) {
+                const cell = grid[cy * GRID_W + cx];
+                if (cell.length === 0) gridUsed.push(cell);
+                cell.push(s);
+            }
+        }
+    }
 }
 
 // Piezas de los robots (las mismas formas que dibuja drawRobot) y sólidos del nivel. Los polígonos se omiten:
 // los rigs actuales no los usan.
-export function collectSurfaces(players, solids) {
+export function collectSurfaces(players, solids, reach = 0) {
     surfaceCount = 0;
     for (const s of solids) addSurface(0, s.x, s.y, 0, s.w / 2, s.h / 2, 0);
     for (const player of players) {
@@ -287,24 +321,25 @@ export function collectSurfaces(players, solids) {
             );
         }
     }
+    buildGrid(reach);
     return surfaceCount;
 }
 
 const skinShift = { x: 0, y: 0 };
 
-// Posición de dibujo de una partícula de agua. LiquidFun deja el centro de la primera fila a ~1,85 radios físicos de
-// la superficie del cuerpo (docs/design/07-sph.md §7.4), más lejos de lo que cubre el círculo dibujado: ahí queda un
-// hueco. Las partículas de esa fila se dibujan acercadas por la normal hasta que su borde toca la superficie; el
-// efecto se apaga entre `fullReach` y `reach` para no mover a las de la segunda fila. Solo cambia el dibujo.
+// Posición del segundo círculo de una partícula de agua. LiquidFun deja el centro de la primera fila a ~1,85 radios
+// físicos de la superficie del cuerpo (docs/design/07-sph.md §7.4), más lejos de lo que cubre el círculo dibujado: ahí
+// queda un hueco. El segundo círculo se acerca por la normal hasta que su borde toca la superficie y el
+// desplazamiento se apaga entre `fullReach` y `reach`. Devuelve la posición real si no hay nada que acercar.
 export function skinPosition(x, y, drawRadius, reach, fullReach) {
     let best = reach;
     let gx = 0;
     let gy = 0;
-    for (let i = 0; i < surfaceCount; i++) {
-        const s = surfacePool[i];
+    const near = grid[cellIndex(y, GRID_Y0, GRID_H) * GRID_W + cellIndex(x, GRID_X0, GRID_W)];
+    for (let i = 0; i < near.length; i++) {
+        const s = near[i];
         const dx = x - s.x;
         const dy = y - s.y;
-        if (Math.abs(dx) > s.reach + reach || Math.abs(dy) > s.reach + reach) continue;
         const lx = dx * s.cos + dy * s.sin;
         const ly = -dx * s.sin + dy * s.cos;
         let d;
@@ -343,7 +378,9 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
     return skinShift;
 }
 
-// `skin` = LEVEL.pool.draw ({ radius, snapReach, snapFullReach }) para acercar el agua a los cuerpos (ver skinPosition); sin él, dibujo plano
+// `skin` = LEVEL.pool.draw ({ radius, snapReach, snapFullReach }): además del círculo en la posición real, las
+// partículas junto a un cuerpo suman un segundo círculo acercado a su superficie (ver skinPosition). Mover la
+// partícula en vez de duplicarla abría huecos en el agua donde estaba.
 export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
@@ -353,15 +390,17 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
     for (let i = 0; i < count; i++) {
         const c = colorBase + i * 4;
         ctx.fillStyle = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
+        const x = positions[posBase + i * 2];
+        const y = positions[posBase + i * 2 + 1];
         ctx.beginPath();
-        let x = positions[posBase + i * 2];
-        let y = positions[posBase + i * 2 + 1];
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         if (skin) {
             const p = skinPosition(x, y, skin.radius, skin.snapReach, skin.snapFullReach);
-            x = p.x;
-            y = p.y;
+            if (p.x !== x || p.y !== y) {
+                ctx.moveTo(p.x + radius, p.y);
+                ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+            }
         }
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
     }
 }

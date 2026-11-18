@@ -99,9 +99,9 @@ test("agua del nivel: el centro de las partículas queda a ~1,85 radios del cuer
     assert.ok(standoff < DRAW.snapFullReach, `la primera fila (${standoff.toFixed(3)} m) quedó fuera de snapFullReach`);
 });
 
-test("agua del nivel: con el acercamiento el borde dibujado toca los cuerpos sin mover a las partículas lejanas", (t) => {
+test("agua del nivel: el segundo círculo de contacto toca los cuerpos y las partículas lejanas no tienen", (t) => {
     const { system, box } = settledWater(LEVEL.pool.radius, LEVEL.pool.physics, LEVEL.pool.flags);
-    collectSurfaces(playerOf(box), SOLIDS);
+    collectSurfaces(playerOf(box), SOLIDS, DRAW.snapReach);
     let near = 0;
     let worst = -Infinity;
     let overlap = Infinity;
@@ -119,7 +119,7 @@ test("agua del nivel: con el acercamiento el borde dibujado toca los cuerpos sin
         worst = Math.max(worst, drawnGap);
         overlap = Math.min(overlap, drawnGap);
     }
-    t.diagnostic(`${near} partículas de la primera fila: hueco dibujado entre ${overlap.toFixed(3)} y ${worst.toFixed(3)} m`);
+    t.diagnostic(`${near} partículas de la primera fila: hueco del segundo círculo entre ${overlap.toFixed(3)} y ${worst.toFixed(3)} m`);
     assert.ok(near >= 20);
     assert.ok(worst <= TOUCH, `hueco dibujado ${worst.toFixed(3)} m`);
     assert.ok(overlap >= -0.05, `el agua se mete ${(-overlap).toFixed(3)} m bajo el cuerpo`);
@@ -151,7 +151,7 @@ test("robot en la pileta: el agua dibujada toca todas sus piezas", async (t) => 
     game.setPad(1);
     game.frames(60 * 12);
     const { players, poolSystem } = game.state;
-    collectSurfaces(players, LEVEL.solids);
+    collectSurfaces(players, LEVEL.solids, DRAW.snapReach);
     let near = 0;
     let worstRaw = -Infinity;
     let worst = -Infinity;
