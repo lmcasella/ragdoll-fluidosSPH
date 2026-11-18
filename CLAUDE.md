@@ -15,7 +15,7 @@ Juego web 1v1 de robots ragdoll que pelean con fluidos SPH, para la materia Simu
 | Archivo | Rol |
 |---|---|
 | `DESIGN.md` | **Índice del GDD.** El diseño vive en `docs/design/`, un archivo por tema (`DESIGN.md` §N es el archivo listado para N). Leer solo el archivo que hace falta. Los cambios de comportamiento empiezan acá. |
-| Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los gestiona `planner` con la taxonomía de abajo. |
+| Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los decide `planner` con la taxonomía de abajo y los opera `github-clerk`. |
 | `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Se actualiza en cada merge.** |
 | `README.md` | Cómo correr, probar y jugar. |
 
@@ -129,7 +129,7 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 6. **PR y merge:** push y PR con título igual al commit convencional de la tarea, cuerpo según la plantilla y `Closes #<n>`. Se mergea con merge commit y se borra la rama.
 7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`, no rama por rama.
 
-**Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: `planner` lo registra como issue.
+**Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: `planner` lo especifica y `github-clerk` lo registra como issue.
 
 ### Definición de terminado
 
@@ -144,7 +144,9 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 
 | Nombre | Tipo | Uso |
 |---|---|---|
-| `planner` | agente | Crea y ordena issues, labels, milestones y dependencias. |
+| `planner` | agente | Decide el backlog: división en issues, labels, milestones, prioridades y dependencias. Entrega la especificación; no opera GitHub. |
+| `github-clerk` | agente | Ejecuta en GitHub lo que decidió `planner` o el usuario (issues, labels, milestones, asignaciones). No decide. |
+| `scout` | agente | Lectura rápida de código, GDD y GitHub; devuelve un resumen con rutas y líneas. Solo lectura. |
 | `architect` | agente | Dueño del GDD (`DESIGN.md` y `docs/design/`) y de los patrones; revisa funcionalidades y módulos nuevos antes de implementar. |
 | `developer` | agente | Implementa un issue con sus tests y verificación. |
 | `doc-writer` | agente | Mantiene `CHANGELOG.md`, `README.md` y el estado del GDD. |
@@ -152,7 +154,9 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 | `/next` | skill | Elige el próximo issue y crea su rama. |
 | `/code-review`, `/simplify` | skills incluidos | Revisar un diff; limpiar después de una funcionalidad. |
 
-**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `physics-reviewer`); `sonnet` para los que aplican cambios (`developer`, `doc-writer`).
+**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `physics-reviewer`); `sonnet` para los que ejecutan lo ya decidido (`developer`, `doc-writer`, `github-clerk`); `haiku` para la lectura (`scout`).
+
+**Solo Opus decide.** Los agentes en `sonnet` y `haiku` no eligen entre alternativas ni completan lo que falta: si algo no está especificado, se detienen e informan la pregunta. Para no leer archivos enteros ni listados largos en Opus, la búsqueda se delega a `scout`.
 
 Los agentes y skills son genéricos: no repiten reglas ni datos del proyecto. Todo lo específico vive en este archivo.
 
