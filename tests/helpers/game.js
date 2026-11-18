@@ -25,6 +25,7 @@ function inert(stored = {}) {
 export const FRAME_MS = 1000 / 60;
 
 export async function loadGame() {
+    globalThis.__TEST_HOOKS__ = true;
     globalThis.Box2D = require("../../vendor/liquidfun.js");
     globalThis.PIXI = {
         Container: class {
@@ -100,6 +101,10 @@ export async function loadGame() {
             const fn = pending;
             pending = null;
             fn(clock);
+        },
+        // Salto del reloj real sin ejecutar frames (pestaña oculta, pausa del depurador)
+        skipTime(seconds) {
+            clock += seconds * 1000;
         },
         frames(n) {
             for (let i = 0; i < n; i++) this.frame();

@@ -263,7 +263,7 @@
             const damage = new DamageSystem(world, particleSystem);
             damage.killSensors = killSensors;
             damage.register(players);
-            const emitter = new ShotEmitter(particleSystem, damage, WEAPONS);
+            const emitter = new ShotEmitter(particleSystem, damage, WEAPONS, raycaster);
             const match = new Match(players.length);
             const flood = new Flood(world, poolSystem);
 
@@ -277,6 +277,7 @@
                 damage.register(players);
                 flood.reset();
                 emitter.reset();
+                damage.resetShots();
                 for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
                     particleSystem.DestroyParticle(i);
                 }
@@ -444,16 +445,21 @@
                 gooBlur.setAttribute("stdDeviation", String(sigma));
             }
 
+            // Reloj de simulación (s): avanza con el dt del frame por la escala de tiempo. Lo usan los disparos, el daño
+            // y los efectos, así una pestaña oculta no vence los charcos y la cámara lenta los alarga igual que a la física.
+            let simTime = 0;
             let accumulator = 0;
             let lastTime = performance.now();
             let firstFrame = true;
 
-            globalThis.game = { players, particleSystem, damage, emitter, match };
+            // Solo para las pruebas en Node (tests/helpers/game.js)
+            if (globalThis.__TEST_HOOKS__) {
+                globalThis.game = { players, particleSystem, damage, emitter, match };
+            }
 
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
-                const now = nowMs / 1000;
                 inputs = input.poll();
                 raycaster.count = 0;
 
@@ -461,6 +467,8 @@
                     reiniciarRonda();
                 }
                 accumulator += frameDt * match.timeScale;
+                simTime += frameDt * match.timeScale;
+                const now = simTime;
 
                 players.forEach((player, k) => {
                     const state = inputs[k];
@@ -479,15 +487,14 @@
                     }
                     if (state.weaponStep) cycleWeapon(player, state.weaponStep);
                     if (state.punch) player.punch(now);
-                    else if (!player.isPunching(now)) {
-                        emitter.fire(
-                            k,
-                            player,
-                            state.fire && match.state === "playing",
-                            frameDt * match.timeScale,
-                            now,
-                        );
-                    }
+                    // Con golpe en curso el emisor ve el botón suelto: al terminar, el chorro arranca como una pulsación nueva
+                    emitter.fire(
+                        k,
+                        player,
+                        state.fire && match.state === "playing" && !player.isPunching(now),
+                        frameDt * match.timeScale,
+                        now,
+                    );
                 });
 
                 while (accumulator >= STEP_SETTINGS.dt) {
@@ -499,7 +506,7 @@
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
                     stepWorld(world, instances);
                     damage.process(
-                        performance.now() / 1000,
+                        now,
                         match.hazardsActive ? flood.surfaceAt : -Infinity,
                     );
                     players.forEach((player, k) => golpear(k, now));

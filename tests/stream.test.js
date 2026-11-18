@@ -62,15 +62,60 @@ test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma
     assert.ok(players[0].tanks.get(2) < 90);
 });
 
-test("el golpe interrumpe el chorro", async () => {
+test("durante el golpe no sale chorro, y al terminar arranca como una pulsación nueva", async () => {
     const game = await start();
+    const { players } = game.state;
     game.setPad(0, { buttons: [A, 2] }); // A + X
     game.frames(1);
-    const spent = 135 - tank(game);
-    game.frames(10);
-    assert.ok(135 - tank(game) - spent <= 90 * 0.2 + 1, "mientras pega no sale un chorro entero");
+    const during = tank(game);
+    game.setPad(0, { buttons: [A] });
+    game.frames(28); // el golpe dura 0,55 s (33 frames)
+    assert.equal(tank(game), during, "sin chorro mientras pega");
+    game.frames(40);
+    assert.ok(tank(game) < during, "después del golpe, con A apretado, el chorro sigue");
+    assert.equal(players[0].tanks.get(2), 90);
+});
+test("un salto grande del reloj real sin frames no vence los disparos", async () => {
+    const game = await start();
+    const { damage, particleSystem } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(20);
+    game.setPad(0);
+    const shots = damage.shots.size;
+    const particles = particleSystem.GetParticleCount();
+    assert.ok(shots > 0 && particles > 0);
+    game.skipTime(30); // pestaña oculta
+    game.frames(1);
+    assert.equal(damage.shots.size, shots);
+    assert.ok(particleSystem.GetParticleCount() >= particles - 3, "los charcos siguen");
 });
 
+test("la cámara lenta alarga la vida de los disparos igual que a la física", async () => {
+    const game = await start();
+    const { damage, match } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(5);
+    game.setPad(0);
+    const first = damage.liveShotFloor;
+    match.state = "roundOver"; // timeScale 0,3 durante 1,5 s
+    match.timer = 3;
+    game.frames(60);
+    assert.equal(damage.liveShotFloor, first);
+});
+
+test("al reiniciar la ronda se olvidan los disparos", async () => {
+    const game = await start();
+    const { damage, particleSystem } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(20);
+    game.setPad(0);
+    assert.ok(damage.shots.size > 0);
+    finishRound(game);
+    assert.equal(game.state.match.round, 2);
+    assert.equal(damage.shots.size, 0);
+    assert.equal(damage.openShots.size, 0);
+    assert.equal(particleSystem.GetParticleCount(), 0);
+});
 // Termina la ronda matando al rival; devuelve cuando ya empezó la siguiente (o terminó la partida)
 function finishRound(game, loser = 1) {
     game.state.players[loser].hp = 0;
