@@ -1,10 +1,10 @@
 # 4. Fluidos
 
-Código: tabla de armas y emisor de chorros en `js/weapons.js` (🔨 #13; hoy `disparar` y `ARMAS` en `index.html`), daño en `js/damage.js`, pileta en `js/level.js`.
+Código: tabla de armas y emisor de chorros en `js/weapons.js` (✅ #13), daño en `js/damage.js`, pileta en `js/level.js`.
 
 ## 4.1 Armas
 
-### Disparo continuo con tanque 🔨 #13
+### Disparo continuo con tanque ✅ #13
 
 - **Disparo:** mientras se **mantiene** el botón (A / RT, Espacio / Enter, clic del J1), el arma emite un **chorro continuo**, como una manguera. Conceptualmente, el robot guarda el líquido en un tanque y lo expulsa a presión.
 - **Tanque:** cada arma del inventario tiene el suyo, medido en **partículas**. Cada partícula emitida descuenta 1; vacío, el arma no dispara (el resto del inventario conserva lo suyo).
@@ -37,8 +37,7 @@ Cada partícula guarda en `userData` el id de su disparo, que en `DamageSystem.s
 
 #### Tope de partículas del sistema de disparos
 
-- **Hoy** el sistema de disparos no tiene `maxCount`: crece sin tope, de a 8 partículas por clic, y solo se limpia al salir del mapa o caer al agua.
-- **Con #13:** `psDef.set_maxCount(1500)` y `psDef.set_destroyByAge(false)`.
+- El sistema de disparos se crea con `psDef.set_maxCount(1500)` y `psDef.set_destroyByAge(false)` ✅.
   - **Presupuesto:** en 6 s, un jugador no puede emitir más que sus tanques llenos, salvo que recoja armas. Con el inventario completo son 600 partículas (300 + 135 + 90 + 75), 1.200 con dos jugadores. Junto con las 5.500 del agua del nivel, el total queda por debajo del techo de 8.000 ([09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas)). En memoria, es muy poco frente a las 20.000 medidas.
   - **Al llegar al tope:** el emisor compara `GetParticleCount()` con el tope antes de cada partícula. Si no hay lugar, **corta la emisión de ese frame sin descontar el tanque**, y también corta si `CreateParticle` devuelve un índice negativo. No se recicla la partícula más vieja.
   - **Por qué no usar `destroyByAge` del motor** (que viene activo por defecto): `DestroyOldestParticle` necesita el buffer de vencimientos, que solo existe si alguna partícula tiene `lifetime`. El build no expone `SetParticleLifetime`, `SetDestructionByAge` ni `GetDestructionByAge` en el sistema (*verificado* en `vendor/liquidfun.js`, 18/11: sí están `b2ParticleDef.set_lifetime`, `b2ParticleSystemDef.set_maxCount` y `set_destroyByAge`). Dejarlo activo sin vencimientos es comportamiento indefinido. *Verificado* con LiquidFun real (`tests/weapons.test.js`): con `maxCount` y `destroyByAge(false)`, `CreateParticle` devuelve **−1** al llegar al tope, el conteo se queda en el tope y el sistema sigue avanzando sin romperse. El emisor ni siquiera llega a pedirlo: compara antes con `GetMaxParticleCount()`.
@@ -54,22 +53,22 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 | Arma | `id` (`FLUID`) | Flags | Color | Caudal (p/s) | Velocidad (m/s) | Dispersión | Tanque (p) | Dura | DPS esperado | Por partícula | Se consume | Estado |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **Agua** | `WATER` = 4 | `b2_waterParticle` | 90, 170, 255 | 100 | 14 | ±2° (0,035 rad) | **300** | 3 s | 3 (cortocircuito; dura 3 s más) | `soak()` | No (empuja y deja charco) | 🔨 #18 |
-| **Ácido** | `ACID` = 1 | `b2_waterParticle` | 50, 255, 50 | 90 | 14 | ±2° (0,035 rad) | 135 | 1,5 s | **20** | 20 / 90 ≈ 0,22 × multiplicador de la parte | Sí | 🔨 #13 |
-| **Lava** | `LAVA` = 2 | `b2_tensileParticle` | 255, 80, 20 | 60 | 10 | ±1° (0,017 rad) | 90 | 1,5 s | ~12 (4/s por parte quemada, ~3 partes; dura 1,5 s más) | `burn()` | No | 🔨 #13 |
-| **Miel** | `HONEY` = 3 | `b2_viscousParticle` | 255, 200, 50 | 50 | 8 | ±1° (0,017 rad) | 75 | 1,5 s | 0 (ralentiza) | `applyHoney()` | Sí | 🔨 #13 |
+| **Ácido** | `ACID` = 1 | `b2_waterParticle` | 50, 255, 50 | 90 | 14 | ±2° (0,035 rad) | 135 | 1,5 s | **20** | 20 / 90 ≈ 0,22 × multiplicador de la parte | Sí | ✅ #13 |
+| **Lava** | `LAVA` = 2 | `b2_tensileParticle` | 255, 80, 20 | 60 | 10 | ±1° (0,017 rad) | 90 | 1,5 s | ~12 (4/s por parte quemada, ~3 partes; dura 1,5 s más) | `burn()` | No | ✅ #13 |
+| **Miel** | `HONEY` = 3 | `b2_viscousParticle` | 255, 200, 50 | 50 | 8 | ±1° (0,017 rad) | 75 | 1,5 s | 0 (ralentiza) | `applyHoney()` | Sí | ✅ #13 |
 
 - **Balance:** un tanque de ácido entero sobre el rival saca ~30 de vida, menos de un tercio, y el golpe melee saca 8. El agua es débil en daño (~3/s, hasta ~15 con un tanque, por los 3 s de mojado) y fuerte en control: empuja, deja charcos y prepara el arco eléctrico (#31). Por eso tiene el tanque más grande.
 - La columna "Dura" es `tanque / caudal`. Las velocidades dan un alcance útil de ~6 m para el agua y el ácido, y de ~3–4 m para la lava y la miel, que caen en arco.
 - La cohesión y la viscosidad del chorro se ajustan en #40.
 
-**Hoy** ✅: un grupo de 8 partículas por pulsación (radio de grupo 0,25 m, partícula de 0,1 m, salida a 20 m/s), sin límite ni tope. Armas 1/2/3: ácido (2 por partícula), lava, miel.
+**Estado** ✅ #13: chorro continuo de partículas sueltas de 0,1 m con los caudales, velocidades y tanques de la tabla. Verificado en Node con gamepad simulado: 1 s de A con el ácido emitió 89 partículas (el tanque bajó 89) y el tanque se vacía a los ~1,5 s. En navegador headless el chorro sale en arco, la barra baja y aparece "VACÍO". Las gotas todavía se separan: se ajusta en #40. El agua (#18) sigue 🔨.
 
 ### Las armas
 
 | Fluido | Implementación LiquidFun | Comportamiento | Efecto en el robot | Estado |
 |---|---|---|---|---|
 | **Agua** | Sistema de disparos, `b2_waterParticle` | **Arma inicial** de cada robot. Chorro rápido que salpica, empuja y se acumula en charcos | **Cortocircuito:** cada partícula que toca al robot lo moja (`soak()`, regla compartida abajo): −3 de vida por segundo mientras está mojado y 3 s después, con chispas. Arco eléctrico entre robots mojados ([08-raycast](08-raycast.md), #31) | 🔨 #18 |
-| **Ácido** | Sistema de disparos, `b2_waterParticle` | Rápido, se escurre por las superficies | Hoy: 2 de daño por partícula, que se consume ✅. Con #13: **DPS 20** por caudal (tabla de arriba). Con #19: **corrosión**: la parte queda corroída 4 s y recibe +50 % de daño de cualquier fuente (humo verde) | 🔨 #13, #19 |
+| **Ácido** | Sistema de disparos, `b2_waterParticle` | Rápido, se escurre por las superficies | **DPS 20** por caudal (`dps / caudal` por partícula, que se consume) ✅ #13. Con #19: **corrosión**: la parte queda corroída 4 s y recibe +50 % de daño de cualquier fuente (humo verde) | ✅ #13, 🔨 #19 |
 | **Lava** | Sistema líquido, `b2_tensileParticle` | Pesada, pegajosa, forma gotas | **Quema:** cada contacto deja la parte quemándose 1,5 s a 4 de daño por segundo. No se consume | ✅ |
 | **Fuego** | Sistema de **gases** (gravedad negativa, vida ~0,6 s) | Lanzallamas de corto alcance (~3 m). Sube y se apaga solo | Daño por contacto. Seca el estado mojado | 🔨 #16 |
 | **Viento** | Sistema de gases (gravedad 0, vida ~1,2 s), con velocidad escrita en cada paso | Ráfaga visible como estelas | **Sin daño.** Empuja por transferencia de cantidad de movimiento | 🔨 #17 |
@@ -96,7 +95,7 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 ## 4.2 Recogida e inventario 🔨
 
 - **Arranque** 🔨 #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `js/weapons.js`):
-  - **#13:** todas las armas de la tabla con tanque lleno; arranca equipada la primera fila. Es provisorio, para poder probar.
+  - **#13** ✅: todas las armas de la tabla con tanque lleno; arranca equipada la primera fila. Es provisorio, para poder probar.
   - **#18:** arranca equipada el agua. Mientras #14 no esté, el resto de las armas sigue en el inventario inicial, así se pueden probar.
   - **#14:** el inventario inicial queda **solo con el agua**; el ácido, la lava, la miel y el fuego se recogen.
 - **Inventario en el jugador:** `player.weapon` (id del arma equipada) y `player.tanks` (`Map` id → partículas que quedan). Viven en `ActiveRagdoll` porque son estado del jugador: se copian en `copyStateFrom` al girar y se pierden al recrear el robot en cada ronda. `ActiveRagdoll` no conoce la tabla: el inventario lo carga la raíz de composición con `equipLoadout(robot)` de `js/weapons.js` al crear cada robot.

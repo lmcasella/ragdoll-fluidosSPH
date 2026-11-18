@@ -2,13 +2,13 @@
 
 **Gamepad primero:** el teclado y el mouse son respaldo y nunca pisan al gamepad. Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador.
 
-| | Mover | Saltar | Apuntar | Disparar (mantener 🔨 #13) | Golpe | Arma |
+| | Mover | Saltar | Apuntar | Disparar (mantener ✅) | Golpe | Arma |
 |---|---|---|---|---|---|---|
 | Gamepad | Stick izquierdo / cruceta | Arriba | Stick derecho (conserva la dirección) | Mantener A / RT | X | LB / RB ✅ → rueda con LB 🔨 #15 |
 | J1 teclado | A / D | W | Hacia donde camina (S: abajo) o mouse (solo si se movió después del último uso del stick) | Mantener Espacio (o el botón del mouse) | F | 1 / 2 / 3 ✅ (+ 4 con #18) → rueda con Q 🔨 #15 |
 | J2 teclado | ← / → | ↑ | Hacia donde camina (↓: abajo) | Mantener Enter | Shift derecho | Num 1 / 2 / 3 ✅ (+ Num 4 con #18) → rueda con Ctrl derecho 🔨 #15 |
 
-## 10.1 Disparo mantenido 🔨 #13
+## 10.1 Disparo mantenido ✅ #13
 
 `Input` entrega dos señales del mismo botón por jugador:
 

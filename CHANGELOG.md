@@ -5,6 +5,17 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-18
+
+### Added
+- Disparo continuo: mantené el botón (A / RT, Espacio / Enter o clic mantenido del J1) y el arma emite un chorro, con un caudal propio por arma (ácido 90 partículas por segundo, lava 60, miel 50).
+- Cada arma tiene su tanque (ácido 135 partículas, lava 90, miel 75). No se recarga solo y se llena al empezar cada ronda; vacío, el arma no dispara.
+- El HUD muestra una barra de tanque por jugador, con "VACÍO" en rojo cuando se acaba.
+
+### Changed
+- El ácido daña por caudal: 20 de vida por segundo con el chorro entero sobre el rival.
+- Después de reiniciar la ronda o de pedir la revancha hay que soltar el botón antes de volver a disparar.
+
 ## [0.4.1] - 2026-11-18
 
 ### Changed
