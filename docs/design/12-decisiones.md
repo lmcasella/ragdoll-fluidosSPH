@@ -7,7 +7,7 @@
 | 18/11 | Input | Gamepad primero; teclado y mouse solo como respaldo |
 | 18/11 | Daño del agua | El robot mojado pierde vida por cortocircuito, con chispas visibles |
 | 18/11 | Armas | Se recogen en el mapa, van al inventario y se eligen con una rueda |
-| 18/11 | Disparo | Chorro continuo mientras se mantiene el botón, con tanque que no se recarga solo |
+| 18/11 | Disparo | Chorro continuo mientras se mantiene el botón, con tanque que no se recarga solo (detalle en las filas "Chorro" de abajo) |
 | 18/11 | Muerte súbita | Lluvia desde arriba que inunda el mapa |
 | 18/11 | Fuego | Cuenta como fluido gaseoso: SPH en un sistema con gravedad negativa |
 | 18/11 | Ácido vs agua | Ácido: más daño por partícula y corrosión. Agua: daño continuo por cortocircuito |
@@ -19,6 +19,15 @@
 | 18/11 | Inundación: sensor | El sensor de la pileta no sube: hundirse en el hueco sigue matando; el resto del agua solo daña por cortocircuito |
 | 18/11 | Cortocircuito | Estado `mojado` en `ActiveRagdoll` (`soak`): 3 s, −3 de vida/s sin multiplicador por parte, renovable. Lo disparan las fuentes desde `DamageSystem.process`: la inundación por nivel (#22) y el arma de agua por contacto (#18). Chispas en #18; en #22, tinte cian |
 | 18/11 | Un solo sistema de líquidos | Rechazado: las partículas de 0,25 m ya se ven demasiado grandes respecto del robot. Se mantienen dos sistemas (disparos 0,1 m y agua del nivel 0,25 m, dibujada a 0,28 m) y un puente de un solo sentido detecta los disparos dentro del agua y aplica frenado, flotación y reacciones (#39) |
+| 18/11 | Chorro: emisión | Partículas sueltas con `CreateParticle` y un `b2ParticleDef` reutilizado, una vez por frame. Se emiten por caudal con crédito acumulado y se reparten sobre el tramo recorrido en el frame, separadas `velocidad / caudal` (0,14–0,17 m, cerca del paso de grilla de 0,15 m). Se descartaron los grupos por pulsación o por paso, porque se ven como balas que rebotan. Valores en [04-fluidos](04-fluidos.md#tabla-de-armas-datos-en-weapons-jsweaponsjs) |
+| 18/11 | Chorro: etiqueta de disparo | Un id por tramo de 0,1 s y por jugador y arma (`shotId`). El `time` se actualiza en cada emisión, así que la gracia efectiva queda entre 0,4 y 0,5 s. `Map` de 120 entradas como máximo. Las partículas viven 6 s (`SHOT_LIFETIME`) y `limpiarParticulas` destruye las de tramos vencidos. Se descartaron el id por partícula o por frame (inflan el `Map`) y el id por ráfaga (rompe la gracia) |
+| 18/11 | Chorro: tope | Sistema de disparos con `maxCount` 1.500 y `destroyByAge(false)`. En el tope no se emite y no se descuenta el tanque. Se descartó el reciclado por edad del motor: sin `lifetime` por partícula es indefinido, y el build no expone `SetParticleLifetime` ni `SetDestructionByAge` (verificado en `vendor/liquidfun.js`) |
+| 18/11 | Chorro: daño | El balance se define como DPS con el chorro entero (`dps` en la tabla). El daño por partícula del ácido es `dps / caudal` (20 / 90 ≈ 0,22) y reemplaza a "4 por partícula". Agua, lava y miel aplican un estado renovable y no dañan por partícula |
+| 18/11 | Disparo mantenido | `Input` suma `fire` (mantenido, O entre gamepad, teclado y mouse del J1) y conserva `action` como flanco para la revancha. Después de cada reinicio, el emisor exige soltar el botón antes de disparar |
+| 18/11 | Inventario | `weapon` y `tanks` viven en `ActiveRagdoll` (estado del jugador, se copia al girar y se renueva con cada ronda). La tabla y la carga inicial (`LOADOUT`, `equipLoadout`) están en el módulo nuevo `js/weapons.js`, que no importa nada |
+| 18/11 | Agua como arma inicial | Cada robot empieza cada ronda y la revancha con el agua equipada y el tanque lleno. Reemplaza al ácido. Es la primera fila de la tabla y el ciclo usa el largo de la tabla. Con #14, el inventario inicial queda solo con el agua |
+| 18/11 | Recarga del agua | Igual que las demás armas: se rellena **recogiéndola** (el agua también aparece en los puntos de #14) y al empezar cada ronda. Tiene el **tanque más grande** (300 partículas, 3 s) porque es la más débil. Se descartó rellenarla al tocar el agua del nivel: antes de los 60 s la única agua es la pileta, que mata, y desde la inundación el robot ya está mojado. Además, hoy el daño no recibe contactos del sistema del agua del nivel (puente de #39). Es un valor por defecto: si el usuario prefiere otra recarga, se cambia en `LOADOUT` o en los datos de #14 sin tocar la lógica |
+| 18/11 | Chispas de mojado | `drawRobot` dibuja chispas deterministas (12 Hz, a partir de `now`) mientras `player.wet`, sin importar la fuente: valen para la inundación y para el arma de agua |
 | 18/11 | Caminar hacia atrás y apuntado | Arreglos provisorios en el juego (`walk_back`, cañón alineado). Lo definitivo depende de la librería: Gann4Life/RagAssembler2D#231 y #232 |
 
 ## 12.2 Preguntas abiertas

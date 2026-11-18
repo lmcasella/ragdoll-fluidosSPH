@@ -6,22 +6,32 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 
 | Archivo | Responsabilidad |
 |---|---|
-| `index.html` | Raíz de composición: crea mundo, sistemas y jugadores; loop; disparos, giro y golpe |
-| `js/ActiveRagdoll.js` | Un jugador: vida, estados (miel, quemadura, aturdido, ahogado; mojado ✅ #22), movimiento, mira, golpe, clips |
-| `js/Input.js` | Gamepad y teclado → estado por jugador |
+| `index.html` | Raíz de composición: crea mundo, sistemas y jugadores; loop; giro y golpe. Con #13, el disparo pasa a `ShotEmitter`: `index.html` crea el sistema de disparos (radio 0,1 m, `maxCount` 1.500, `destroyByAge(false)`), carga el inventario con `equipLoadout` al crear cada robot, convierte `state.weapon` / `weaponStep` en el `id` del arma y llama a `emitter.fire` una vez por frame |
+| `js/ActiveRagdoll.js` | Un jugador: vida, estados (miel, quemadura, aturdido, ahogado; mojado ✅ #22), movimiento, mira, golpe, clips. Con #13 también guarda el inventario (`weapon`, `tanks`), que copia en `copyStateFrom`, pero no conoce la tabla de armas |
+| `js/weapons.js` 🔨 #13 | Armas como datos y emisor de chorros. Exporta `FLUID` (se mueve desde `damage.js`, que lo reexporta), `WEAPONS` (tabla, [04-fluidos](04-fluidos.md#tabla-de-armas-datos-en-weapons-jsweaponsjs)), `LOADOUT`, `weaponById(id)`, `cycleWeapon(player, step)`, `equipLoadout(player)`, `particleDamage(weapon)` (`dps / rate`) y `ShotEmitter`. `ShotEmitter(system, damage, weapons = WEAPONS)` crea los objetos nativos de trabajo una vez, `fire(k, player, wants, dt, now)` emite y descuenta el tanque, `reset()` borra los créditos y exige soltar el botón, y `dispose()` libera los nativos. **No importa ningún módulo**: recibe `DamageSystem` por constructor y usa el `Box2D` global |
+| `js/Input.js` | Gamepad y teclado → estado por jugador. Con #13 suma `fire` (mantenido) a `action` (flanco) |
 | `js/camera.js` | Encuadre compartido y conversión pantalla ↔ mundo |
 | `js/level.js` | Datos del nivel, sólidos, sensor y agua de la pileta |
 | `js/raycast.js` | Rayos con callback reutilizado, uno por mundo |
-| `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22) |
+| `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22). Con #13: tramos de disparo (`shotId`, `tagParticle`, `liveShotFloor`, `SHOT_SLICE` 0,1 s, `SHOT_LIFETIME` 6 s) y daño del ácido por caudal. Importa de `weapons.js` solo datos (`FLUID`, `WEAPONS`). Con #18: agua → `soak()` |
 | `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
 | `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja |
-| `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD |
+| `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD. Con #13, barra de tanque (recibe la tabla de armas como parámetro y no la importa). Con #18, chispas de mojado |
 | `js/clips.js` | Transformaciones de clips antes de `parse` (`walk_back`) |
 | `lib/` | RagImporter, copiado de ragassembler2d `d067775`; no se edita acá |
 | `assets/*.rag.json` | Rigs (robot en uso; dino sin uso) |
 | `tests/` | Tests de humo, que corre el CI antes de cada deploy (PR #3) |
 
-Previstos: un módulo de armas y emisores (#13) y uno de métricas (#29).
+Previsto: un módulo de métricas (#29).
+
+**Dependencias de `js/weapons.js`** (#13):
+- `damage.js` → `weapons.js`: solo datos. Así no hay ciclo, porque `weapons.js` no importa nada.
+- `index.html` → `weapons.js`.
+- `render.js` y `ActiveRagdoll.js` no lo importan: reciben datos.
+
+**Prueba de gameplay en Node** (#13): `tests/helpers/game.js` carga el `<script type="module">` de `index.html` con LiquidFun real y stubs de DOM: canvas con contexto no-op, `window`, `fetch` de archivos locales, `requestAnimationFrame` manual, `performance.now` controlado y `navigator.getGamepads` simulado.
+- Para medir, `index.html` deja un handle de solo lectura en `globalThis.game` (`players`, `particleSystem`, `damage`, `emitter`, `match`). Es parte de la raíz de composición y ningún módulo de `js/` lo lee.
+- Los tests que necesitan otra disposición modifican `LEVEL.spawns` importando `js/level.js` antes de cargar el script. Es la misma instancia del módulo.
 
 ## 9.2 Rendimiento medido
 
@@ -58,6 +68,11 @@ El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 - **Código por paso sin memoria nativa nueva:** `Flood` crea en el constructor un `b2ParticleDef`, dos `b2Vec2` y un `b2ParticleColor`, los reutiliza en cada gota y los libera en `dispose()`. Las posiciones, velocidades y marcas se leen directo del heap (`HEAPF32`/`HEAP32`), como `limpiarParticulas`.
 
 **Medición** (verificación de #22): un test en Node con LiquidFun real que arma el nivel, la pileta, dos robots y la inundación con `roundTime` forzado al tope, deja asentar el agua y mide el promedio de ms de `stepWorld` + `flood.step` + `damage.process` en 300 frames. El valor se anota en 9.2 junto con la cantidad de partículas. El test solo falla por encima de 16 ms (para no ser frágil en CI); la meta de 8 ms se revisa a mano con el número anotado. Si no entra, se aplican las optimizaciones de abajo desde la 2.
+
+**Presupuesto del sistema de disparos** (🔨 #13):
+- **Partículas:** `maxCount` = 1.500 y `destroyByAge(false)`. Con todos los tanques llenos, un jugador emite como mucho 600 partículas (300 + 135 + 90 + 75). Cada partícula vive como máximo 6 s (`SHOT_LIFETIME`), así que dos jugadores dejan ~1.200 vivas en el peor caso. Con el agua del nivel (5.500), el total queda en ~7.000, por debajo del techo de 8.000.
+- **Tope:** el emisor no crea partículas por encima del tope y en ese caso no descuenta el tanque. No se usa el reciclado por edad del motor: hace falta `lifetime` por partícula y el build no expone su control en el sistema ([04-fluidos](04-fluidos.md#tope-de-partículas-del-sistema-de-disparos)).
+- **Sin memoria nativa por frame:** `ShotEmitter` crea en el constructor un `b2ParticleDef`, dos `b2Vec2` y un `b2ParticleColor` por arma, y los libera en `dispose()`. `userData` y las posiciones se leen y escriben directo en el heap.
 
 **Optimizaciones previstas para la inundación**, en orden y midiendo cada una:
 1. Partículas más grandes en un sistema propio (radio 0,25 m: ~1,6 veces menos partículas que a 0,2 m y ~6 veces menos que a 0,1 m para el mismo volumen). **Adoptada en #22.**
