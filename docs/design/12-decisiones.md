@@ -38,10 +38,9 @@
 | 18/11 | Gancho | Módulo nuevo `js/grapple.js`: rayo con `getRaycaster` desde la boca del arma y `b2RopeJoint` creado y destruido por el juego entre el antebrazo del arma y el punto de enganche (nivel o rival). `SetMaxLength` recoge la cuerda. Datos `GRAPPLE`: alcance 12 m, recogida 6 m/s, largo mínimo 1,2 m, cooldown 0,4 s, rotura a 1.500 N, balanceo 6 m/s². Se suelta al soltar X, con un golpe, KO, ahogo, muerte del destino, rotura, línea de visión cortada o ronda nueva. Antes de destruir una instancia (giro o ronda), la raíz de composición llama a `grapple.detach`; en el giro, `reattach` vuelve a crear la cuerda. Se descartó `b2DistanceJoint` (barra rígida: empuja hacia afuera). Detalle en [03 §3.5](03-robots.md#35-gancho-) |
 | 18/11 | Conciliaciones del diseño | El borrado de `STATIC_PRESSURE` del agua del nivel es de #71, no de #69. #26 pasa a Canvas2D sin WebGL propio y solo para partículas. Los gases de #16 (fuego, viento) van en el sistema líquido único, con empuje en aire calculado en lugar de gravedad por sistema |
 | 18/11 | Caminar hacia atrás y apuntado | Arreglos provisorios en el juego (`walk_back`, cañón alineado). Lo definitivo depende de la librería: Gann4Life/RagAssembler2D#231 y #232 |
+| 18/11 | Gancho y controles | El gancho solo engancha el escenario (`hookRival` = `false`). Las plataformas atravesables usan `JSContactFilter` + `Fixture.Refilter()` sobre las piezas de la instancia, aceptado como excepción del contrato de RagImporter. Se aceptan los defaults: abajo + A salta fuera de una atravesable, el ragdoll (M5) entra y sale con un toque de Y y el respaldo de J2 de [10](10-controles.md) |
 
 ## 12.2 Preguntas abiertas
 
-1. **Plataformas atravesables desde abajo:** pedidas por el usuario el 18/11, sin issue todavía. No hay `PreSolve`, pero sí `JSContactFilter.ShouldCollide` + `Refilter` ([05 §5.3](05-escenario.md#53-plataformas-atravesables-desde-abajo-)). Llamar a `Refilter` sobre fixtures de la instancia es zona gris del contrato de RagImporter: ¿se acepta?
-2. **Sonido:** otra unidad de la materia; planificado para después de la entrega (#35).
-3. **Issues en ragassembler2d** (#231, #232): ¿se mantienen o se cierran?
-4. **Gancho al rival:** `GRAPPLE.hookRival` está en `true` como propuesta. ¿Se puede enganchar al rival?
+1. **Sonido:** otra unidad de la materia; planificado para después de la entrega (#35).
+2. **Issues en ragassembler2d** (#231, #232): ¿se mantienen o se cierran?

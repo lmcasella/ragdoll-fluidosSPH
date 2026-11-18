@@ -110,7 +110,7 @@ Mecánica nueva para la entrega (X, intención `grapple`). Un rayo en la direcci
 | `range` | 12 m | Alcance del rayo desde la boca del arma |
 | `reelSpeed` | 6 m/s | Cuánto baja `maxLength` por segundo mientras se mantiene X |
 | `minLength` | 1,2 m | Largo mínimo de la cuerda (no se recoge más) |
-| `hookRival` | `true` (decisión del usuario) | Si el rayo pega en el rival, se engancha a esa pieza: la cuerda tira de los dos según sus masas |
+| `hookRival` | `false` (decisión del usuario, 18/11) | El gancho es movilidad, no ataque: solo engancha sólidos del nivel. Si el rayo pega en el rival, no engancha y empieza el cooldown |
 | `cooldown` | 0,4 s | Desde que se suelta, o desde un tiro que no enganchó, hasta poder volver a tirar |
 | `breakForce` | 1.500 N | Si la reacción de la cuerda (`GetReactionForce(1/subpaso)`) lo supera, se corta (≈ 11,5 veces el peso del robot) |
 | `swingAccel` | 6 m/s² | Mientras está enganchado y en el aire, el stick suma esta aceleración tangencial a la raíz, en lugar de fijar su velocidad como al caminar, para no pelear con la cuerda |
@@ -149,7 +149,7 @@ La cuerda es física de Box2D, sin masa y sin arrastre propio (limitación decla
 | G6 | Recibir un golpe enganchado | Se suelta en ese paso |
 | G7 | Girar (la mira cruza al otro lado) enganchado | El joint se vuelve a crear en el cuerpo nuevo con el mismo ancla y el largo ±0,02 m; no queda ningún joint colgado |
 | G8 | Reinicio de ronda, KO y ahogo enganchados | Cantidad de joints igual a la de RagImporter; sin errores |
-| G9 | Enganchar al rival (con `hookRival`) y recoger 1 s | La distancia entre los dos baja; con masas iguales, cada uno se mueve la mitad ±20 % |
+| G9 | Disparar el gancho contra el rival (`hookRival` = `false`) | No se crea ningún joint y empieza el cooldown |
 | G10 | 1.000 ciclos de enganchar y soltar | Sin errores de heap y cantidad de joints estable (sin memoria nativa nueva por ciclo) |
 | G11 | Cargar la cuerda por encima de `breakForce` (impulso hacia abajo al robot colgado) | Se corta en ese paso |
 | G12 | Teclado (E) y mouse (botón derecho) del J1 con el gamepad apretando X | Mismo resultado; soltar E no suelta el gancho mientras X sigue apretado |
