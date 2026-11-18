@@ -23,3 +23,25 @@ export function withReversedClip(json, sourceKey, newKey) {
     };
     return { ...json, clips: [...json.clips, reversed] };
 }
+
+/**
+ * Devuelve una copia del JSON sin las pistas de `jointNames` en los clips `clipKeys`. Las articulaciones que la mira
+ * maneja con override no deben llevar pistas en los clips que corren mientras se apunta: RagImporter suma
+ * `shortestDelta(clip, override)` al ángulo del clip sin normalizarlo, y si ambos difieren más de π el motor recibe
+ * un error de ~2π y gira el brazo por el otro lado (#57).
+ * @param {object} json Documento .rag.json.
+ * @param {string[]} clipKeys Claves de los clips a limpiar.
+ * @param {string[]} jointNames Nombres de las articulaciones cuyas pistas se quitan.
+ * @returns {object} Documento nuevo; el original no se modifica.
+ */
+export function withoutJointTracks(json, clipKeys, jointNames) {
+    const ids = new Set(json.joints.filter((j) => jointNames.includes(j.name)).map((j) => j.id));
+    return {
+        ...json,
+        clips: json.clips.map((clip) =>
+            clipKeys.includes(clip.key)
+                ? { ...clip, tracks: clip.tracks.filter((t) => !ids.has(t.target)) }
+                : clip,
+        ),
+    };
+}

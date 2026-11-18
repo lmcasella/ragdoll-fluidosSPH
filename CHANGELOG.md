@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-19
+
+### Fixed
+- El robot sigue apuntando mientras salta: los brazos ya no giran por el clip de salto al apuntar hacia abajo. El impulso de los brazos sigue ayudando al salto.
+
 ## [0.10.1] - 2026-11-19
 
 ### Changed

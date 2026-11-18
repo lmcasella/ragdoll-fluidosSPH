@@ -123,7 +123,7 @@
             import { Immersion } from "./js/immersion.js";
             import { Match } from "./js/round.js";
             import { getRaycaster } from "./js/raycast.js";
-            import { withReversedClip } from "./js/clips.js";
+            import { withReversedClip, withoutJointTracks } from "./js/clips.js";
             import { DamageSystem } from "./js/damage.js";
             import { createParticleSystem } from "./js/particles.js";
             import {
@@ -159,13 +159,15 @@
                 return { json, def: RagImporter.parse(json) };
             }
 
+            const AIM_JOINTS = ["joint_11", "joint_11_copy"];
+            const AIM_HOLD = ["joint_10", "joint_10_copy"];
             const robotRag = await loadRag("./assets/robot.rag.json", (json) =>
-                withReversedClip(json, "walk", "walk_back"),
+                withReversedClip(withoutJointTracks(json, ["jump"], [...AIM_JOINTS, ...AIM_HOLD]), "walk", "walk_back"),
             );
             const ROBOT_RIG = {
                 rootBody: robotRag.json.ragdoll.rootBody,
-                aimJoints: ["joint_11", "joint_11_copy"],
-                aimHold: ["joint_10", "joint_10_copy"],
+                aimJoints: AIM_JOINTS,
+                aimHold: AIM_HOLD,
                 aimOffset: 0,
                 clips: {
                     walk: "walk",

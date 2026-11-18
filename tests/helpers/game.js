@@ -24,7 +24,11 @@ function inert(stored = {}) {
 
 export const FRAME_MS = 1000 / 60;
 
-export async function loadGame() {
+/**
+ * Carga el juego en Node. `options.assets` mapea una URL del juego (por ejemplo "./assets/robot.rag.json") a una
+ * función que recibe el JSON leído y devuelve el JSON a usar: sirve para probar cambios al rig solo en memoria.
+ */
+export async function loadGame(options = {}) {
     globalThis.__TEST_HOOKS__ = true;
     globalThis.Box2D = require("../../vendor/liquidfun.js");
     globalThis.PIXI = {
@@ -63,7 +67,8 @@ export async function loadGame() {
     };
     globalThis.fetch = async (url) => {
         const text = readFileSync(new URL(String(url), root), "utf8");
-        return { json: async () => JSON.parse(text) };
+        const patch = options.assets?.[String(url)];
+        return { json: async () => (patch ? patch(JSON.parse(text)) : JSON.parse(text)) };
     };
 
     const html = readFileSync(new URL("index.html", root), "utf8");
