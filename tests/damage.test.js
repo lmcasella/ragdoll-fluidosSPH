@@ -5,8 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../vendor/liquidfun.js");
 
-const { DamageSystem, FLUID } = await import("../js/damage.js");
-const { weaponById, particleDamage } = await import("../js/weapons.js");
+const { DamageSystem } = await import("../js/damage.js");
+const { FLUID, weaponById, particleDamage } = await import("../js/weapons.js");
 
 // Regla de fuego amigo (docs/design/12-decisiones.md): el fluido propio no daña a su dueño
 // durante 0,4 s desde el disparo; después sí.
@@ -128,11 +128,6 @@ test("el chorro entero de ácido sobre el rival saca el DPS de la tabla", () => 
     assert.ok(Math.abs(total - 20) < 1e-9, `${total} en 1 s`);
 });
 
-test("FLUID se reexporta desde weapons.js", async () => {
-    const weapons = await import("../js/weapons.js");
-    assert.equal(FLUID, weapons.FLUID);
-});
-
 test("shotId: reutiliza el tramo del mismo jugador y arma dentro de 0,1 s y actualiza time", () => {
     const { damage } = setup();
     const a = damage.shotId(0, FLUID.ACID, 10);
@@ -200,4 +195,27 @@ test("tagParticle escribe el id en el userData de la partícula", () => {
     Box2D.destroy(def);
     damage.tagParticle(index, 42);
     assert.equal(Box2D.HEAP32[(system.GetUserDataBuffer() >> 2) + index], 42);
+});
+
+test("resetShots olvida los disparos y los tramos abiertos pero no reutiliza ids", () => {
+    const { damage } = setup();
+    const a = damage.shotId(0, FLUID.ACID, 10);
+    damage.resetShots();
+    assert.equal(damage.shots.size, 0);
+    const b = damage.shotId(0, FLUID.ACID, 10.01);
+    assert.ok(b > a, "el tramo abierto se olvidó: se abre uno nuevo");
+    assert.equal(damage.liveShotFloor, b);
+});
+
+test("el daño por partícula sale de la tabla de armas dada, calculado una vez", () => {
+    const g = new Box2D.b2Vec2(0, 0);
+    const world = new Box2D.b2World(g);
+    Box2D.destroy(g);
+    const damage = new DamageSystem(world, { DestroyParticle() {} }, [{ id: FLUID.ACID, rate: 50, dps: 10 }]);
+    assert.equal(damage.particleDamage.get(FLUID.ACID), 0.2);
+    const hurts = [];
+    const owner = { player: { hurt: (b, amount) => hurts.push(amount) }, index: 0, bodyId: "torso" };
+    damage.fluidHits.push({ owner, index: 1, shot: { owner: 1, weapon: FLUID.ACID, time: 0 }, kind: FLUID.ACID });
+    damage.process(1);
+    assert.deepEqual(hurts, [0.2]);
 });

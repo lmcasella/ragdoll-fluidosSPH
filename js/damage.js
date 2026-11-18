@@ -3,10 +3,7 @@
 //  - BeginParticleBodyContact: cada partícula informa qué parte del cuerpo tocó (requiere CONTACT_LISTENER_PARTICLE).
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
-import { FLUID, particleDamage, weaponById } from "./weapons.js";
-
-export { FLUID };
-export const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
+import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -16,7 +13,8 @@ const SHOT_SLICE = 0.1; // s que dura un id de disparo abierto
 const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se destruyen
 
 export class DamageSystem {
-    constructor(world, particleSystem) {
+    constructor(world, particleSystem, weapons = WEAPONS) {
+        this.particleDamage = new Map(weapons.map((w) => [w.id, particleDamage(w)]));
         this.world = world;
         this.particleSystem = particleSystem;
         this.particleSystemPtr = Box2D.getPointer(particleSystem);
@@ -73,6 +71,12 @@ export class DamageSystem {
         this.shots.set(id, { owner, weapon, time: now, start: now });
         this.openShots.set(owner, id);
         return id;
+    }
+
+    // Nueva ronda: se olvidan los disparos (las partículas se destruyen aparte)
+    resetShots() {
+        this.shots.clear();
+        this.openShots.clear();
     }
 
     // Marca una partícula con su id de disparo (buffer de userData; se lee de nuevo en cada llamada porque
@@ -163,7 +167,7 @@ export class DamageSystem {
             if (consumed.has(index)) continue;
             if (shot && shot.owner === owner.index && now - shot.time < SELF_IMMUNITY) continue;
             if (kind === FLUID.ACID) {
-                owner.player.hurt(owner.bodyId, particleDamage(weaponById(FLUID.ACID)), now);
+                owner.player.hurt(owner.bodyId, this.particleDamage.get(kind), now);
                 consumed.add(index);
             } else if (kind === FLUID.LAVA) {
                 owner.player.burn(owner.bodyId);

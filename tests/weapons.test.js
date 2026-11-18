@@ -9,6 +9,7 @@ const { WEAPONS, FLUID, LOADOUT, weaponById, particleDamage, equipLoadout, cycle
     "../js/weapons.js"
 );
 const { DamageSystem } = await import("../js/damage.js");
+const { getRaycaster } = await import("../js/raycast.js");
 
 const DT = 1 / 60;
 
@@ -226,4 +227,46 @@ test("un robot muerto no emite", () => {
 test("dispose libera lo nativo sin romper", () => {
     const { emitter } = setup();
     emitter.dispose();
+});
+
+test("con raycaster, el chorro se recorta al primer obstáculo y no emite lo que caería detrás", () => {
+    const { world, system, damage, player } = setup();
+    const bodyDef = new Box2D.b2BodyDef();
+    const wall = world.CreateBody(bodyDef);
+    Box2D.destroy(bodyDef);
+    const shape = new Box2D.b2PolygonShape();
+    shape.SetAsBox(0.1, 2, new Box2D.b2Vec2(0.5, 5), 0); // cara cercana en x = 0,4
+    wall.CreateFixture(shape, 0);
+    Box2D.destroy(shape);
+    const emitter = new ShotEmitter(system, damage, WEAPONS, getRaycaster(world));
+    emitter.fire(0, player, true, DT, 1); // 1 partícula en x = 0,15
+    const made = emitter.fire(0, player, true, 0.25, 2); // pide 5: llegarían hasta x ≈ 0,77
+    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+    for (let i = 0; i < system.GetParticleCount(); i++) {
+        assert.ok(Box2D.HEAPF32[pos + 2 * i] <= 0.4 - 0.1 + 1e-5, `partícula ${i} en x=${Box2D.HEAPF32[pos + 2 * i]}`);
+    }
+    assert.ok(made < 5, `emitió ${made}`);
+    assert.equal(player.tanks.get(FLUID.ACID), 135 - system.GetParticleCount(), "solo descuenta lo emitido");
+});
+
+test("con raycaster y sin obstáculos emite igual que sin él", () => {
+    const { world, system, damage, player } = setup();
+    const emitter = new ShotEmitter(system, damage, WEAPONS, getRaycaster(world));
+    emitter.fire(0, player, true, DT, 1);
+    assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
+});
+
+test("el raycaster ignora los cuerpos propios del jugador", () => {
+    const { world, system, damage, player } = setup();
+    const bodyDef = new Box2D.b2BodyDef();
+    const own = world.CreateBody(bodyDef);
+    Box2D.destroy(bodyDef);
+    const shape = new Box2D.b2PolygonShape();
+    shape.SetAsBox(0.1, 2, new Box2D.b2Vec2(0.5, 5), 0);
+    own.CreateFixture(shape, 0);
+    Box2D.destroy(shape);
+    player.ownBodies = new Set([Box2D.getPointer(own)]);
+    const emitter = new ShotEmitter(system, damage, WEAPONS, getRaycaster(world));
+    emitter.fire(0, player, true, DT, 1);
+    assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
 });

@@ -7,7 +7,7 @@ export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3 };
 const WATER_PARTICLE = 0;
 const VISCOUS_PARTICLE = 1 << 5;
 const TENSILE_PARTICLE = 1 << 7;
-const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
+export const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
 
 // rate: partículas/s; speed: m/s; spread: rad (±); tank: partículas; dps: daño por segundo con el chorro entero
 export const WEAPONS = [
@@ -16,7 +16,7 @@ export const WEAPONS = [
     { id: FLUID.HONEY, name: "Miel", flags: VISCOUS_PARTICLE, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0 },
 ];
 
-// Inventario inicial de cada robot (provisorio hasta #14); arranca equipada la primera
+// Inventario inicial de cada robot; arranca equipada la primera
 export const LOADOUT = [FLUID.ACID, FLUID.LAVA, FLUID.HONEY];
 
 const byId = new Map(WEAPONS.map((w) => [w.id, w]));
@@ -45,12 +45,16 @@ export function cycleWeapon(player, step) {
 
 const GOLDEN = 0.6180339887498949;
 const MUZZLE_OFFSET = 0.15; // radio de la partícula (0,1) más 5 cm: no nace dentro del arma
+const PARTICLE_RADIUS = 0.1; // m, el del sistema de disparos
 const MAX_BURST_TIME = 0.05; // s de caudal que puede salir en un solo frame
 
 // Emite el chorro de cada jugador: partículas sueltas, una vez por frame y fuera de los callbacks de Box2D
 export class ShotEmitter {
-    constructor(system, damage, weapons = WEAPONS) {
+    // Con raycaster (opcional, con cast(x1, y1, x2, y2, ignore)) el chorro se recorta al primer obstáculo: no
+    // nacen partículas detrás de una pared ni dentro del rival
+    constructor(system, damage, weapons = WEAPONS, raycaster = null) {
         this.system = system;
+        this.raycaster = raycaster;
         this.damage = damage;
         this.weapons = new Map(weapons.map((w) => [w.id, w]));
         this.def = new Box2D.b2ParticleDef();
@@ -103,6 +107,12 @@ export class ShotEmitter {
 
         const muzzle = player.muzzle();
         const step = weapon.speed / weapon.rate;
+        let reach = Infinity;
+        if (this.raycaster) {
+            const span = MUZZLE_OFFSET + step * (n - 1) + PARTICLE_RADIUS;
+            const hit = this.raycaster.cast(muzzle.x, muzzle.y, muzzle.x + muzzle.dx * span, muzzle.y + muzzle.dy * span, player.ownBodies ?? null);
+            if (hit) reach = Math.hypot(hit.x - muzzle.x, hit.y - muzzle.y) - PARTICLE_RADIUS;
+        }
         const id = this.damage.shotId(k, weapon.id, now);
         this.def.set_flags(weapon.flags | CONTACT_LISTENER_PARTICLE);
         this.def.set_color(this.colors.get(weapon.id));
@@ -112,6 +122,7 @@ export class ShotEmitter {
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
             const along = MUZZLE_OFFSET + step * (n - 1 - j);
+            if (along > reach) continue;
             this.position.set_x(muzzle.x + muzzle.dx * along);
             this.position.set_y(muzzle.y + muzzle.dy * along);
             this.velocity.set_x(weapon.speed * (muzzle.dx * cos - muzzle.dy * sin));
