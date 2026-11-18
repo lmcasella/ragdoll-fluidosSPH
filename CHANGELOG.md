@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-18
+
+### Added
+- Los disparos interactúan con el agua de la pileta y de la inundación: al entrar se frenan, el agua y el ácido quedan flotando, la miel se hunde despacio y la lava se hunde. La corriente del agua los arrastra.
+
+### Changed
+- Los disparos ya no desaparecen al tocar el agua; solo se borran al salir del mapa o al vencer (6 s).
+
 ## [0.7.0] - 2026-11-18
 
 ### Changed

@@ -32,7 +32,7 @@ Cada partícula guarda en `userData` el id de su disparo, que en `DamageSystem.s
 
 - **Tramo:** `damage.shotId(owner, weapon, now)` devuelve el id abierto de ese jugador si es del mismo arma y se abrió hace menos de `SHOT_SLICE` = **0,1 s**. Si no, abre uno nuevo. Cada emisión actualiza `time` al instante de la última partícula del tramo. Así la gracia efectiva queda entre 0,4 y 0,5 s, nunca menos: a 14 m/s, la partícula ya está a más de 5 m de la boca.
 - **Marca:** `damage.tagParticle(index, id)` escribe el id en `userData`. Reemplaza a `tagShot(group, …)`.
-- **Vida del disparo:** `SHOT_LIFETIME` = **6 s**. `process` borra del `Map` los tramos más viejos. `damage.liveShotFloor` es el id más chico que sigue en el `Map` (o `nextShot` si está vacío). `limpiarParticulas`, una vez por frame, destruye además las partículas con `0 < userData < liveShotFloor`. Los charcos se secan a los 6 s y el sistema no se llena.
+- **Vida del disparo:** `SHOT_LIFETIME` = **6 s**. `process` borra del `Map` los tramos más viejos. `damage.liveShotFloor` es el id más chico que sigue en el `Map` (o `nextShot` si está vacío). `limpiarParticulas`, una vez por frame, destruye además las partículas con `0 < userData < liveShotFloor`. Los charcos se secan a los 6 s y el sistema no se llena. Con #39 🔨, `limpiarParticulas` solo borra por vencimiento y por salir del mundo (±1 m de `LEVEL.bounds`): los disparos que entran al agua del nivel **ya no se borran**. El puente los frena y los hace flotar o hundirse ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)).
 - **Tamaño del `Map`:** como máximo 2 jugadores × 10 tramos/s × 6 s = **120 entradas**.
 
 #### Tope de partículas del sistema de disparos
@@ -60,6 +60,15 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 - **Balance:** un tanque de ácido entero sobre el rival saca ~30 de vida, menos de un tercio, y el golpe melee saca 8. El agua es débil en daño (~3/s, hasta ~15 con un tanque, por los 3 s de mojado) y fuerte en control: empuja, deja charcos y prepara el arco eléctrico (#31). Por eso tiene el tanque más grande.
 - La columna "Dura" es `tanque / caudal`. Las velocidades dan un alcance útil de ~6 m para el agua y el ácido, y de ~3–4 m para la lava y la miel, que caen en arco.
 - **Flags** ✅ #40: son las constantes `PARTICLE` de `js/particles.js` (`TENSILE` = `b2_tensileParticle`, etc.). El emisor les suma `CONTACT_LISTENER`. La fuerza de cada término (tensión superficial, viscosidad, damping) es del sistema de disparos (`SHOT_SYSTEM` en `js/weapons.js`); cada arma elige con sus flags qué términos recibe. Valores, justificación y banco de pruebas en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40).
+- **En el agua del nivel** ✅ #39: cada fila suma `immersion: { buoyancy, drag }`. `buoyancy` = ρ_agua / ρ_fluido (adimensional) y `drag` = frenado lineal en 1/s. Los aplica el puente de [07-sph §7.6](07-sph.md#76-puente-agua--disparos--39). Un arma nueva solo agrega su fila.
+
+  | Arma | `buoyancy` | `drag` (1/s) | Bajo el agua |
+  |---|---|---|---|
+  | Agua | 1,0 | 10 | Neutra: se frena en ~1,4 m y deriva con el agua |
+  | Ácido | 0,95 | 10 | Casi neutro: se asienta a ~0,05 m/s |
+  | Lava | 0,38 | 6 | Se hunde a ~1 m/s |
+  | Miel | 0,7 | 14 | Se hunde lento, a ~0,2 m/s |
+- **Tipo por color** ✅ #39: `fluidFromColor(r, g)` se mueve de `damage.js` a `weapons.js` y se deriva de los colores de `WEAPONS` (sin `if` por arma). Lo usan `DamageSystem` y el puente.
 
 **Estado** ✅ #13: chorro continuo de partículas sueltas de 0,1 m con los caudales, velocidades y tanques de la tabla. Verificado en Node con gamepad simulado: 1 s de A con el ácido emitió 89 partículas (el tanque bajó 89) y el tanque se vacía a los ~1,5 s. En navegador headless el chorro sale en arco, la barra baja y aparece "VACÍO". Las gotas todavía se separan y rebotan: ✅ #40 sube el damping del sistema a 1,0 y da cohesión con `TENSILE` (criterios: rebote ≤ 20 % de la velocidad de llegada y ≤ 10 % de partículas aisladas 1 s después del impacto; [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)). El agua (#18) ✅: en Node, un chorro de agua de J1 a 7,5 m moja a J2 a los 0,5 s y le saca 3,00 de vida por segundo; el tanque de J1 queda en 201 tras 1 s. A 5,5 m, el salpicado vuelve y moja al propio tirador a los ~0,85 s (regla de fuego amigo).
 
@@ -121,7 +130,12 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 ## 4.4 Reacciones entre fluidos 🔨 #30
 
-Se detectan con contactos **partícula↔partícula** (`BeginParticleContact`). Para eso, los fluidos que reaccionan comparten el sistema líquido y se identifican por color o por flags.
+Hay dos fuentes de detección, según dónde está el agua:
+
+- **Entre disparos** (lava disparada + agua disparada): contactos **partícula↔partícula** (`BeginParticleContact`) dentro del sistema de disparos. Se identifican por color o por flags.
+- **Disparo + agua del nivel** (pileta e inundación): los sistemas son distintos y no hay contactos. Se usa la lista del puente de #39: `immersion.submerged`, `immersion.kinds` y `immersion.count`, válidos entre `immersion.step` y el próximo `stepWorld` ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)). Por ejemplo, cada lava de esa lista reacciona con el agua del nivel.
+
+En los dos casos, el cambio (flags, destrucción, vapor) se aplica después de `stepWorld`, nunca en un callback.
 
 | Reacción | Resultado |
 |---|---|

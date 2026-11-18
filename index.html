@@ -116,6 +116,7 @@
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel, fillPool } from "./js/level.js";
             import { Flood } from "./js/flood.js";
+            import { Immersion } from "./js/immersion.js";
             import { Match } from "./js/round.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip } from "./js/clips.js";
@@ -262,6 +263,7 @@
             const emitter = new ShotEmitter(particleSystem, damage, WEAPONS, raycaster);
             const match = new Match(players.length);
             const flood = new Flood(world, poolSystem);
+            const immersion = new Immersion(particleSystem, poolSystem);
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
             function reiniciarRonda() {
@@ -272,6 +274,7 @@
                 });
                 damage.register(players);
                 flood.reset();
+                immersion.reset();
                 emitter.reset();
                 damage.resetShots();
                 for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
@@ -406,24 +409,20 @@
                     : { x1: m.x, y1: m.y, x2, y2, hit: false };
             }
 
-            // Partículas de disparos que salieron del mundo, cayeron al agua (pileta o inundación) o son de un
-            // disparo vencido (charcos que se secan). Los dos sistemas de partículas no interactúan entre sí:
-            // un disparo dentro del agua la atravesaría.
+            // Partículas de disparos que salieron del mundo o son de un disparo vencido (charcos que se
+            // secan). Los que caen al agua del nivel no se borran: Immersion los frena y los hace flotar.
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
                 const tags = particleSystem.GetUserDataBuffer() >> 2;
                 const floor = damage.liveShotFloor;
                 const { minX, maxX, minY } = LEVEL.bounds;
-                const pool = LEVEL.pool;
                 for (let i = 0; i < count; i++) {
                     const x = Box2D.HEAPF32[pos + i * 2];
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
-                    const overPool = x > pool.x1 && x < pool.x2;
-                    const inWater = y < Math.max(overPool ? pool.surface : -Infinity, flood.level);
                     const tag = Box2D.HEAP32[tags + i];
                     const expired = tag > 0 && tag < floor;
-                    if (expired || inWater || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
+                    if (expired || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
                         particleSystem.DestroyParticle(i);
                     }
                 }
@@ -450,7 +449,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { players, particleSystem, damage, emitter, match };
+                globalThis.game = { world, players, particleSystem, poolSystem, flood, damage, emitter, match, immersion };
             }
 
             function loop(nowMs) {
@@ -501,6 +500,7 @@
                     });
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
                     stepWorld(world, instances);
+                    immersion.step(STEP_SETTINGS.dt);
                     damage.process(
                         now,
                         match.hazardsActive ? flood.surfaceAt : -Infinity,
