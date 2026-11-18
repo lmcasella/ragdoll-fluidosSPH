@@ -4,6 +4,12 @@
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];
 const WET_BLINK_HZ = 4;
+// Chispas del cortocircuito: se repiten por tick de reloj, no por frame, para que se vean como destellos
+const SPARK_TICK_HZ = 12;
+const SPARKS_PER_FRAME = 3;
+const SPARK_SEGMENTS = 3;
+const SPARK_SEGMENT_LENGTH = 0.12; // m
+const SPARK_COLORS = ["#fff27a", "#e8ffff"];
 // Algo mayor que el radio físico (0,1 m) para que el filtro goo una las gotas vecinas
 const PARTICLE_RADIUS = 0.14;
 
@@ -62,6 +68,36 @@ export function buildRenderItems(rag, json, flipX) {
     return items;
 }
 
+// Hash entero a [0, 1): da piezas y ángulos repetibles sin Math.random
+function hash01(n) {
+    n = Math.imul(n ^ (n >>> 15), 0x2c1b3c6d);
+    n = Math.imul(n ^ (n >>> 12), 0x297a2d39);
+    return ((n ^ (n >>> 15)) >>> 0) / 4294967296;
+}
+
+function drawSparks(ctx, player, scale, now) {
+    const items = player.renderItems;
+    if (items.length === 0) return;
+    const tick = Math.floor(now * SPARK_TICK_HZ);
+    ctx.lineWidth = 2 / scale;
+    for (let s = 0; s < SPARKS_PER_FRAME; s++) {
+        const seed = tick * 97 + s * 13;
+        const pos = items[Math.floor(hash01(seed) * items.length)].body.GetPosition();
+        let x = pos.get_x();
+        let y = pos.get_y();
+        let angle = hash01(seed + 1) * Math.PI * 2;
+        ctx.strokeStyle = SPARK_COLORS[s % SPARK_COLORS.length];
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let seg = 0; seg < SPARK_SEGMENTS; seg++) {
+            angle += (hash01(seed + 2 + seg) - 0.5) * 2.4;
+            x += Math.cos(angle) * SPARK_SEGMENT_LENGTH;
+            y += Math.sin(angle) * SPARK_SEGMENT_LENGTH;
+            ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+}
 export function drawRobot(ctx, player, color, scale, now) {
     const base = hexToRgb(color);
     // Mojado: tinte cian que parpadea
@@ -93,6 +129,7 @@ export function drawRobot(ctx, player, color, scale, now) {
         ctx.stroke();
         ctx.restore();
     }
+    if (player.wet && !player.dead) drawSparks(ctx, player, scale, now);
 }
 
 // Mira láser: desde la boca del arma hasta el primer impacto (o el alcance máximo)
