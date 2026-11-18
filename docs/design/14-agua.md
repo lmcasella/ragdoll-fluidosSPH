@@ -80,6 +80,8 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 
 ## 14.3 Campo de alturas: Saint-Venant 1D (`ShallowWater`)
 
+**Estado:** 🔨 #70 implementado en `js/water.js` (sin conectar al juego: eso es #71). La primera versión no cumplía W10 (coeficiente 0,6 con escalón de 4 m) por la reconstrucción hidrostática con agua en movimiento; se corrigió con la proyección por energía y la reconstrucción consistente con el lecho (ver Esquema numérico), y el CFL pasó a 0,45.
+
 Reemplaza al sistema de partículas del agua del nivel (pileta e inundación, radio 0,25 m, hasta 5.500 partículas, ~7,2 ms por frame).
 
 ### Estado
@@ -129,8 +131,16 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
     ```
 
     `Sc_i` es el término fuente centrado que da el segundo orden; con reconstrucción constante (orden 1) se anula.
-- **Segundo orden:** reconstrucción MUSCL con limitador minmod sobre `h` y `η` (la cara usa `B = η − h`) y sobre `u`, más integración temporal SSP-RK2 (Heun).
-- **Positividad:** el minmod sobre `h` deja `h` ≥ 0 en las caras. En las celdas secas y en las que tienen una vecina seca se usa **orden 1** (reconstrucción constante).
+- **Proyección por energía y caudal en los escalones** (Noelle, Xing y Shu, *JCP* 226, 2007; energía específica, Henderson 1966). La reconstrucción hidrostática es *well-balanced* solo en reposo: con agua en movimiento conserva `u` y no `q` al subir un escalón, estrangula la cresta y pierde carga (un vertedero sobre 4 m daba 0,6 del caudal teórico). En cada cara, para el lado σ con `B_σ < B*`, `h_σ > h_dry` y `u_σ ≠ 0`:
+  - `q = h_σ u_σ`, `Ẽ = h_σ + B_σ + u_σ²/(2g) − B*`, `h_c = ∛(q²/g)`;
+  - si `Ẽ ≤ 0`: `h* = 0`, `u* = 0`;
+  - si `Ẽ ≤ 1,5 h_c` (flujo estrangulado, crítico en la cara): `h* = min(h_σ, 2Ẽ/3)`, `u* = sign(u_σ)√(g h*)`;
+  - si no: `h*` resuelve `h* + q²/(2g h*²) = Ẽ` en la rama del régimen del lado (subcrítico en (h_c, Ẽ], supercrítico en (0, h_c));
+  - después `h* = min(h*, h_σ)` (positividad de Audusse) y `u* = q/h*`, usados en el flujo HLL y en los términos de pared.
+  - En reposo cae en la reconstrucción hidrostática: W2 sigue exacto.
+  - **Aproximación acotada:** queda una pérdida de ~9–13 % del caudal en la cara del escalón (HLL más presión de pared) que no converge con `dx`. La expansión aguas abajo de un escalón sumergido no modela la pérdida de Borda–Carnot; se mide cuando haya un caso de juego.
+- **Segundo orden:** reconstrucción MUSCL con limitador minmod sobre `η` y sobre `u`, más integración temporal SSP-RK2 (Heun). La pendiente de `h` es la misma que la de `η` (recortada a ±2 `h_i` por celda), así que el lecho reconstruido en cada cara es el de su celda: limitar `h` y `η` por separado inclinaba el lecho en el borde de la cresta y creaba un escalón falso de ~0,27 m.
+- **Positividad:** el recorte de la pendiente a ±2 `h_i` deja `h` ≥ 0 en las caras. En las celdas secas y en las que tienen una vecina seca se usa **orden 1** (reconstrucción constante).
 - **Seco/mojado:** `h_dry` = 10⁻³ m. Por debajo, `q` = 0. La velocidad se desingulariza como en Kurganov y Petrova (2007): `u = 2 h q / (h² + max(h², h_dry²))`.
 - **Escalares** `E` y `M`: flujo upwind según el signo del flujo de masa HLL de la cara. Es conservativo: lo que sale de una celda entra en la vecina.
 - **Dispersión (limitación declarada):** Saint-Venant es no dispersivo y vale para ondas largas (`kh ≪ 1`). Contra la teoría lineal de Airy, `c = √(g tanh(kh)/k)`, la velocidad de fase queda sobreestimada en `1 − √(tanh(kh)/kh)`: 1,6 % con `kh` = 0,31 (λ = 20 h), **4 %** con `kh` = 0,5 y **13 %** con `kh` = 1. Las ondas cortas (salpicaduras, ondas de menos de ~6 h) viajan más rápido que en la realidad. W3 se mide con λ ≥ 20 h, y W9 informa la desviación contra Airy.
@@ -139,10 +149,10 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 
 - **Un `step(dt)` por paso fijo** (dt = 1/60 s), con subpasos internos por CFL:
   - `n = ceil(dt · S_max / (CFL · dx))`, con `S_max` el máximo de `|S_L|` y `|S_R|` sobre todas las caras (las mismas velocidades de onda del flujo HLL);
-  - `CFL` = **0,25** (cota de positividad para MUSCL con SSP-RK2);
+  - `CFL` = **0,45** (la positividad de reconstrucción hidrostática + MUSCL + SSP-RK2 pide ≤ 0,5, Audusse et al. 2004; con 0,45 no hubo repeticiones con `dt/2` en W1–W6);
   - si una etapa de RK2 da `h < 0` en alguna celda, el subpaso se repite con `dt/2` y el debug lo cuenta.
 - **Tope de subpasos:** `n ≤ 32`. Se dimensiona con una velocidad máxima física fija, `u_max` = 2√(g h_max) ≈ **24,5 m/s** (h_max = 15 m, la velocidad del frente de Ritter): con `S_max` ≤ `u_max` hacen falta 17 subpasos, así que 32 deja margen. Si igual se llega al tope, se recorta `|u|` a `u_max` (no a `√(g h)`), y cada activación se cuenta y se informa en el debug. En W1–W6 se exige **0 activaciones**.
-- **Costo estimado:** 560 celdas × 2 etapas × ≤ 15 subpasos ≈ 17.000 flujos por frame: **< 0,3 ms** en JS. Se mide.
+- **Costo:** `n = ceil(dt(|u| + √(g h))/(CFL · dx))`; con h = 15 m, `√(g h)` = 12,2 m/s. Cada subpaso evalúa 560 celdas dos veces (~70 ns por celda). Medido con CFL 0,25: 0,9 ms por paso; presupuesto con CFL 0,45: **≤ 0,6 ms de media** en el peor caso (W8).
 - **Bordes:** paredes reflectivas en x = 0 y x = 56 (celdas fantasma con `h` espejado y `q` negado). Sin fuentes ni sumideros en los bordes.
 - **Plataformas** (sólidos `platform`, 0,4 m): **no son lecho**. El agua las atraviesa como placas delgadas sumergidas. A 15 m desplazarían 18,4 m² de ~700 m²: el **2,6 %** del volumen, que el modelo ignora. No hay "agua arriba de una plataforma y seco abajo": lo que cae sobre una plataforma seca sigue siendo partícula hasta que escurre por el borde ([14.4](#144-absorción-e-inmersión)).
 - **Estado inicial (arranque asentado):** pileta con `η` = `pool.surface` (3 m) entre x 18 y 38, `q` = 0, `T` = 20 °C y `M` = 0; islas secas. Por ser *well-balanced*, el lago en reposo es una solución exacta: **no hay transitorio de arranque** (con partículas, el pico era de 33 m/s).
@@ -540,12 +550,12 @@ Para `physics-reviewer`. Cada criterio tiene referencia, valor esperado y tolera
 | W3 | Velocidad de una onda chica (a/h = 0,02) de onda larga (λ ≥ 20 h) con h = 1 m y h = 3 m | `c = √(g h)` (con λ ≥ 20 h, Airy difiere < 1,6 %) | 3,16 y 5,48 m/s | ±10 % (issue); se informa el valor medido |
 | W4 | Rotura de presa sobre lecho seco, h₀ = 2 m, sin fricción. Dominio sin reflejos hasta t = 3 s: embalse ≥ 13,4 m (`c₀ t`) y aguas abajo ≥ 27 m (`2 c₀ t`) | Solución de Ritter: frente en `2√(g h₀) t`; perfil `h = (2c₀ − x/t)²/(9g)` | Posición de `h = 0,01 h₀` en `x/t = 1,7 c₀` a t = 1, 2 y 3 s; perfil en `L = 3 c₀ t` (de `−c₀ t` a `2 c₀ t`) | Frente ±10 %; error L1 del perfil < 5 % de `h₀ · L` |
 | W5 | Rotura de presa sobre lecho mojado (h_L = 2, h_R = 0,5 m) | Solución de Stoker: `h_m` = 1,1035 m, `u_m` = 2,300 m/s, resalto a 4,207 m/s | `h_m`, `u_m` y velocidad del resalto | `h_m` ±5 %; resalto ±5 % |
-| W6 | Positividad: `h ≥ 0` en todos los pasos de W1–W5 y en el nivel real con lluvia; activaciones del tope de subpasos y repeticiones con `dt/2` | Propiedad del esquema con CFL 0,25 | min h ≥ 0; 0 activaciones del tope en W1–W6 (se informan las repeticiones) | 0 violaciones |
+| W6 | Positividad: `h ≥ 0` en todos los pasos de W1–W5 y en el nivel real con lluvia; activaciones del tope de subpasos y repeticiones con `dt/2` | Propiedad del esquema con CFL 0,45 | min h ≥ 0; 0 activaciones del tope en W1–W6 (se informan las repeticiones) | 0 violaciones |
 | W7 | Escalares: energía y miel advectadas en el tanque cerrado | Conservación | `Σ E` y `Σ M` constantes | < 0,01 % |
 | W7b | `T` y `X_v` uniformes al inicio de la rotura de presa W4 | Un escalar uniforme se mantiene uniforme (consistencia del transporte) | `T` y `X_v` constantes en todas las celdas mojadas | Error < 10⁻¹² |
-| W8 | Costo de `step` con h = 15 m y flujo de 5 m/s | Presupuesto | < 0,3 ms por paso fijo | Se mide y se anota |
+| W8 | Costo de `step` con h = 15 m y flujo de 5 m/s | Presupuesto | Media ≤ 0,6 ms por paso fijo (se informa el p99) | Assert sobre la media solo en corrida aislada (`PERF=1`): en la suite completa los tests corren en paralelo y la medición sube ~15 % |
 | W9 | Seiche fundamental de la pileta (20 × 3 m), perturbación inicial `cos(πx/L)` de 2 cm | Saint-Venant: `T = 2L/√(g h)` | 7,30 s | ±2 %; se informa la desviación contra Airy (`T` = 7,56 s, 3,6 %) |
-| W10 | Vertedero: embalse sobre el escalón de 4 m de una isla con carga `H` sobre la cresta, caudal estacionario | Vertedero de cresta ancha: `q = √g (2H/3)^{3/2}` | Según `H` (H = 0,5 m: 0,61 m²/s) | ±15 % |
+| W10 | Vertedero sin fricción: embalse sobre escalones de 0,5, 1, 2 y 4 m, agua abajo sin ahogar la cresta; q promediado 10 s después de que `|q_cresta/q_aporte − 1| < 1 %`; `H` = carga total aguas arriba (`η − b_cresta + u²/2g`) | Vertedero de cresta ancha: `q = √g (2H/3)^{3/2}` | Según `H` (H = 0,5 m: 0,61 m²/s) | ±15 % por escalón |
 
 ### I. Absorción e inmersión (#71)
 

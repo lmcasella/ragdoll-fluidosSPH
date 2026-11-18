@@ -5,12 +5,13 @@
 export const SIGMA_W = 12.0;
 
 /**
- * Gravedad específica (`SG`) de cada material: la masa de fluido es `SG · σ_w · A`.
+ * Gravedad específica (`SG`) de cada material: la masa de fluido es `SG · σ_w · A`. `c` es el calor
+ * específico (J/(kg·K)) y `mu` la viscosidad dinámica (Pa·s) a 20 °C.
  * Valores de referencia de la literatura, a confirmar por physics-reviewer.
  */
 export const MATERIALS = {
-    water: { SG: 1.0 },
+    water: { SG: 1.0, c: 4186, mu: 1.0e-3 },
     acid: { SG: 1.05 },
-    honey: { SG: 1.42 },
+    honey: { SG: 1.42, mu: 10 },
     lava: { SG: 2.6 },
 };
