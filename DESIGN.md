@@ -38,7 +38,7 @@ En la defensa oral mostraremos el costo de cada técnica con un panel de métric
 1. **Ronda:** los robots aparecen en extremos opuestos del mapa. Gana el último que quede funcionando.
 2. **Fin de ronda:** un robot pierde la ronda cuando su vida llega a 0 o cuando cae a la pileta inferior. Para dejar ver el final hay unos 2 segundos de cámara lenta.
 3. **Partida:** al mejor de 3 rondas (💬). La pantalla de resultado ofrece revancha. Todo se reinicia sin recargar la página: se destruyen las instancias y las partículas y se vuelven a crear.
-4. **Muerte súbita** (💬): a los 90 s el nivel de agua de la pileta empieza a subir. Las plataformas bajas se inundan y la pelea se va hacia arriba.
+4. **Inundación (muerte súbita):** a los 90 s empieza a **llover desde arriba**: emisores en el techo sueltan agua que cae, se acumula y va llenando el mapa desde abajo. Las plataformas bajas quedan bajo el agua, el agua daña a los robots (cortocircuito, §5.1) y la pelea se va hacia arriba hasta que alguien cae. Es el uso masivo de partículas del juego: su costo está medido en §8.3.
 
 ## 4. Robots
 
@@ -92,11 +92,19 @@ Los robots chocan entre sí (cada instancia colisiona con las demás). Además d
 
 ### 5.1 Armas
 
-Cada robot lleva las cinco armas y las alterna. Cada arma tiene un **tanque** que se gasta al disparar y se recarga solo, así no se puede disparar sin pausa (💬 capacidades).
+**Recogida e inventario:**
+
+- **Arranque:** cada robot empieza la ronda **solo con el golpe melee**.
+- **En el mapa:** las armas están en **puntos de aparición** repartidos por el escenario. Un arma recogida reaparece en su punto a los 15 s.
+- **Recoger:** al tocar un arma con el cuerpo (sensor de Box2D), se suma al inventario con su tanque lleno. Si ya la tenía, el tanque se rellena.
+- **Elegir:** con una **rueda de armas**. Al mantener el botón de arma, se abre un círculo con las armas del inventario alrededor del robot; se elige con la dirección (teclas o stick) y al soltar queda equipada. Mientras la rueda está abierta, el juego sigue corriendo.
+- **Tanque:** cada arma tiene uno que se gasta al disparar y **no se recarga**: hay que volver a recogerla. Así se recorre el mapa y se disputa el control de los puntos de aparición.
+
+**Las armas:**
 
 | Fluido | Implementación LiquidFun | Comportamiento | Efecto en el robot |
 |---|---|---|---|
-| **Agua** | Sistema líquido, `b2_waterParticle` | Chorro rápido que salpica y se acumula en charcos | **Cortocircuito:** la parte mojada pasa a estado *mojado* durante 3 s y suelta **chispas eléctricas**. Mientras dure, recibe 1 de daño por segundo y sus motores pierden un 30 % de fuerza (se mueve torpe). Si dos robots mojados quedan cerca, salta un arco eléctrico (§7.3) |
+| **Agua** | Sistema líquido, `b2_waterParticle` | Chorro rápido que salpica y se acumula en charcos | **Cortocircuito:** el robot mojado suelta **chispas eléctricas** y **pierde vida**: 3 por segundo mientras tenga agua encima y 3 s más después de secarse. Si dos robots mojados quedan cerca, salta un arco eléctrico (§7.3) |
 | **Ácido** | Sistema líquido, `b2_waterParticle` con baja viscosidad | Rápido, se escurre por las superficies | Corroe: 2 de daño por partícula, que se consume. Debilita la extremidad tocada (§4.3) |
 | **Lava** | Sistema líquido, `b2_viscousParticle \| b2_tensileParticle` | Pesada, pegajosa, forma gotas | Quema: 0,5 de daño por segundo por cada parte en contacto. No se consume: hay que sacársela de encima |
 | **Fuego** | Sistema de **gases** (gravedad −0,3, vida 0,6 s) | Lanzallamas de corto alcance (unos 3 m). Sube y se apaga solo | 0,3 de daño por partícula y por paso de contacto. Seca el estado *mojado* |
@@ -147,7 +155,7 @@ Las reacciones se detectan con contactos **partícula↔partícula** (`BeginPart
 
 - Agua SPH real al fondo del mapa. Un robot que cae salpica.
 - Un **sensor** de Box2D cubre la pileta: el robot que entra pierde la ronda, con chispas y la explosión del cortocircuito.
-- Es la que sube en la muerte súbita (§3).
+- Es donde se acumula la lluvia de la inundación, que la hace subir (§3).
 - Presupuesto aproximado de 1500 partículas, con el ancho limitado al mapa.
 
 ## 7. Uso técnico de los tres conceptos
@@ -232,36 +240,118 @@ Costo: 10 a 20 rayos por frame en lo normal y unos 50 en picos. Cada rayo es O(l
 
 ### 8.3 Presupuestos y métricas
 
-- **Memoria:** el heap de LiquidFun es **fijo de 16 MiB**. Cada `new Box2D.*` temporal se libera con `Box2D.destroy`. Hay que fijar un tope de partículas por sistema con `maxCount`: líquidos unas 4000 (1500 de ellas para la pileta), gases unas 1500.
-- **Tiempo:** el paso de física debe tardar menos de 8 ms con dos robots y el tope de partículas en una notebook promedio. Se mide antes de agregar cada fluido nuevo.
+- **Memoria:** el heap de LiquidFun es **fijo de 16 MiB**. Cada `new Box2D.*` temporal se libera con `Box2D.destroy`. Se fija un tope por sistema con `maxCount`. Con 20.000 partículas todavía entra en el heap (medido).
+- **Tiempo:** un frame a 60 FPS dura 16,6 ms. La meta es que la física use como máximo unos 8 ms y deje el resto para el render.
+
+**Benchmark** (medido el 18/11 en Node 24 con el mismo build; agua en reposo dentro de una caja de 60 m):
+
+| Partículas | 1 paso por frame | 8 subpasos por frame (lo que usa `stepWorld`) |
+|---|---|---|
+| 2.000 | 0,5 ms | 2,0 ms |
+| 5.000 | 0,9 ms | 4,5 ms |
+| 10.000 | 1,2 ms | 8,8 ms |
+| 20.000 | 1,9 ms | 14,4 ms |
+
+**Lectura:**
+- El costo crece casi lineal con N. LiquidFun ordena las partículas por celda y solo arma pares entre vecinas, así que cada partícula se compara con un número acotado de vecinas.
+- El factor que más pesa son los **8 subpasos**. Los exige RagImporter para que los ragdolls sean estables, pero las partículas no los necesitan.
+- Con 8 subpasos el techo razonable es de **unas 8.000–10.000 partículas** en total.
+
+**Optimizaciones previstas para la inundación** (en orden; cada una se mide con el panel de métricas):
+
+1. **Partículas más grandes para la inundación.** Un sistema propio de radio 0,25 m llena el mismo volumen con unas 2,8 veces menos partículas que uno de 0,15 m. Por ejemplo, 10 m de agua en un mapa de 60 m son unas 2.400 partículas en lugar de 6.700.
+2. **Simular las partículas con menos frecuencia.** Pausar el sistema de la inundación (`SetPaused`) en parte de los subpasos. Exige compensar el paso de tiempo; hay que probar si se ve bien.
+3. **Agua que se asienta.** Las partículas del fondo que llevan tiempo quietas se reemplazan por un bloque de agua estático, que es un rectángulo con un sensor. Solo la capa de arriba sigue siendo SPH (híbrido, como en la materia: "cuándo usar qué").
+4. **Render eficiente.** Hoy cada partícula es un `arc()` en Canvas 2D con un filtro SVG, y eso no escala a miles. Se pasa a dibujar las partículas en un buffer de menor resolución, o en la GPU con PIXI, que ya está cargado.
+
+**Respuesta corta:** sí se puede, y está bueno para la defensa porque muestra el problema de rendimiento y cómo lo resolvemos con mediciones.
+
 - **Panel de métricas** (F3): partículas por sistema, ms de paso y de render, rayos por frame, contactos partícula↔cuerpo por paso y FPS. Lo exige la defensa (Big O y benchmarks).
 
 ## 9. Controles
 
-✅ Ya implementados (detalle en el `README.md`). Falta agregar el golpe:
+Movimiento y disparo ✅ ya implementados. Faltan el golpe y la rueda de armas 🔨, que reemplaza las teclas 1/2/3 y la necesidad del teclado numérico:
 
-| | Mover | Saltar | Disparar | Golpe 🔨 | Arma |
+| | Mover | Saltar | Disparar | Golpe 🔨 | Rueda de armas 🔨 |
 |---|---|---|---|---|---|
-| J1 | A / D | W | Espacio | F (💬) | 1–5 / Q-E (💬) |
-| J2 | ← / → | ↑ | Enter | Shift derecho (💬) | Num 1–5 / , . (💬) |
-| Gamepad | stick izquierdo / cruceta | arriba | A / RT | X / RB (💬) | LB / RB |
+| J1 | A / D | W | Espacio | F | Mantener Q y elegir con WASD |
+| J2 | ← / → | ↑ | Enter | Shift derecho | Mantener Ctrl derecho y elegir con flechas |
+| Gamepad | stick izquierdo / cruceta | arriba | A / RT | X | Mantener LB y elegir con el stick |
 
-## 10. Hitos
+## 10. Cronograma
 
-| Hito | Contenido | Hecho cuando |
+**Fechas:**
+- **Martes 24/11:** entrega. El juego tiene que estar cerrado y funcionando en la URL pública.
+- **Martes 1/12:** presentación frente a los compañeros.
+
+**Prioridad:** primero el juego completo, después los detalles. Cada día termina con algo jugable mergeado en `main`, que se despliega solo.
+
+| Día | Objetivo | Incluye |
 |---|---|---|
-| **M0 — Base** ✅ | Ragdolls con RagImporter, 3 fluidos, dos jugadores, gamepad, giro, deploy | — |
-| **M1 — Combate** | Piso por raycast, mira láser, melee, daño por parte con destello rojo, daño por impacto, loop de rondas | Se juega una partida completa al mejor de 3 sin recargar |
-| **M2 — Fluidos** | Sistema de gases, agua con cortocircuito y chispas, fuego, viento, reacciones lava + agua, tanques | Las 5 armas, cada una con su efecto propio |
-| **M3 — Escenario** | Mundo fijo, cámara compartida, pileta inferior, peligros, plataformas cinemáticas, muerte súbita | Mapa jugable con verticalidad |
-| **M4 — Defensa** | Panel de métricas, render metaball con shader, balance, (💬) sonido y sprites | Benchmarks documentados para la defensa oral |
+| **Mié 18** | Infraestructura | Mergear el deploy y configurar Pages (§13). Mergear plataformas y GDD |
+| **Jue 19** | Mundo y combate base | Mundo de tamaño fijo y cámara compartida. Piso y mira láser por raycast. Daño por parte con destello rojo. Daño por impacto |
+| **Vie 20** | Partida completa | Loop de rondas (al mejor de 3, revancha sin recargar). Golpe melee. Pileta inferior con sensor |
+| **Sáb 21** | Armas | Puntos de aparición, inventario, rueda de armas y tanques. Sistema de gases: fuego y viento. Agua con cortocircuito y chispas |
+| **Dom 22** | Escenario e inundación | Mapa definitivo con verticalidad, miel y ventiladores. Inundación desde arriba con las optimizaciones de §8.3 |
+| **Lun 23** | Cierre | Render eficiente de partículas, balance, bugs, pruebas con dos jugadores. **Congelar funcionalidades** |
+| **Mar 24** | **Entrega** | Solo arreglos. Verificar el deploy |
+| **25/11 → 1/12** | Pulido y defensa | Panel de métricas y benchmarks. Sprites. Reacciones lava + agua. Arco eléctrico. Explosión de vapor. Shader metaball. Sonido (💬). Ensayo de la presentación |
 
-## 11. Preguntas abiertas
+**Si algo se atrasa, se recorta en este orden** (se mueve después del 24):
+1. Reacciones entre fluidos.
+2. Arco eléctrico.
+3. Ventiladores.
+4. Viento como arma.
 
-1. **Efecto del agua:** "aparecen chispas que le bajan el daño". Lo interpreté como daño por segundo más motores debilitados. ¿O la idea era que el robot mojado **haga menos daño** con sus armas? Se pueden combinar las dos.
-2. **Cantidad de armas:** ¿las 5 desde el principio, o se juntan durante la ronda (*pickups*)?
-3. **Fuego amigo:** ¿un robot se daña con sus propios fluidos? Hoy sí.
-4. **Rondas y muerte súbita:** ¿al mejor de 3? ¿Pileta que sube?
-5. **Plataformas atravesables desde abajo:** el build no lo permite (sin `PreSolve`). ¿Lo aceptamos o investigamos una alternativa?
-6. **Arte y sonido:** ¿sprites para el robot (RagImporter los soporta) o formas geométricas? El sonido es otra unidad de la materia y podría sumar.
-7. **Fechas:** ¿cuándo son el primer parcial (GDD) y la entrega final?
+Lo mínimo para entregar:
+- rondas completas;
+- melee;
+- tres armas que se recogen;
+- inundación;
+- pileta inferior;
+- raycast de piso, mira y golpe.
+
+**Reparto sugerido** (💬): una persona en combate y partida (robots, daño, rondas, melee, raycast) y otra en fluidos y escenario (armas, gases, inundación, mapa, render). Así cada una toca mayormente sus propios archivos (§8.2) y hay menos conflictos de merge.
+
+## 11. Decisiones tomadas
+
+| Tema | Decisión |
+|---|---|
+| Daño del agua | El robot mojado pierde vida por cortocircuito, con chispas visibles (§5.1) |
+| Armas | Se recogen en el mapa, se guardan en el inventario y se eligen con una rueda (§5.1) |
+| Muerte súbita | Lluvia desde arriba que inunda el mapa (§3). Costo medido en §8.3 |
+| Fuego | Cuenta como fluido gaseoso: SPH en un sistema con gravedad negativa (§5.1) |
+
+## 12. Preguntas abiertas
+
+1. **Fuego amigo:** ¿un robot se daña con sus propios fluidos? Hoy sí.
+2. **Plataformas atravesables desde abajo:** el build no lo permite (sin `PreSolve`). ¿Lo aceptamos?
+3. **Sonido:** es otra unidad de la materia. ¿Lo sumamos después de la entrega?
+
+## 13. Arte (placeholders)
+
+Hasta tener sprites, todo se dibuja con formas geométricas y colores planos. Así el juego queda completo sin depender del arte.
+
+**Estilo de referencia:** Unreal Tournament / Unreal Flash como inspiración (HUD angular, armas con brillo, colores de equipo). **Ojo:** los assets originales de Unreal Tournament tienen copyright de Epic Games. La URL del juego es pública, así que hay que **dibujar o generar sprites propios inspirados en ese estilo**, o usar packs con licencia libre (por ejemplo, de Kenney, CC0). No copiar los archivos del juego.
+
+**Imágenes necesarias** (PNG con transparencia; tamaños a 40 px/m):
+
+| # | Imagen | Uso | Tamaño aprox. |
+|---|---|---|---|
+| 1 | Robot: cabeza | Sprite de la parte `body_1` | 16 × 16 px |
+| 2 | Robot: pecho | `body_2` | 24 × 24 px |
+| 3 | Robot: pelvis | `body_6` | 16 × 16 px |
+| 4 | Robot: brazo superior | `body_13` | 8 × 16 px |
+| 5 | Robot: antebrazo con arma | `body_3` | 32 × 8 px |
+| 6 | Robot: muslo | `body_7_copy2` | 10 × 6 px |
+| 7 | Robot: pierna | `body_7_copy` | 8 × 16 px |
+| 8 | Robot: pie | `body_4` | 12 × 16 px |
+| 9 | Variante de color para J2 | Mismo set teñido (o se tiñe por código) | — |
+| 10 | Íconos de armas ×5 | Agua, ácido, lava, fuego, viento: para los puntos de aparición en el mapa y la rueda de armas | 48 × 48 px |
+| 11 | Rueda de armas | Fondo circular segmentado | 256 × 256 px |
+| 12 | HUD | Marco de barra de vida, contador de rondas | 256 × 48 px |
+| 13 | Plataformas | Tile repetible de metal | 32 × 32 px |
+| 14 | Fondo | Escenario industrial con capas (parallax opcional) | 1920 × 1080 px |
+| 15 | Partículas de efecto | Chispa eléctrica y brillo de fuego | 16 × 16 px |
+
+Los tamaños salen de las medidas del robot en `robot.rag.json` a 40 px/m. Conviene entregarlos al doble de resolución para que se vean nítidos con zoom.
