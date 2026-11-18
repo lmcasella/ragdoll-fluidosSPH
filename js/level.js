@@ -24,7 +24,7 @@ export const LEVEL = {
     // Inundación (muerte súbita): llueve desde `emitY` y el nivel sube `riseSpeed` m/s a partir de `start` s de ronda.
     // `density` = gotas por m² de agua en reposo con radio 0,25 m; `drain*` = escurrido de charcos sobre plataformas altas
     flood: {
-        start: 90,
+        start: 60,
         riseSpeed: 0.15,
         maxLevel: 15,
         emitY: 31.5,

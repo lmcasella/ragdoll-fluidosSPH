@@ -124,7 +124,7 @@ test("nunca se supera maxParticles", () => {
 test("el agua asentada queda a ±0,4 m del nivel y no hay charcos altos", () => {
     const { world, system } = makeWorld();
     const flood = new Flood(world, system);
-    const roundTime = 120; // nivel 7,5 m
+    const roundTime = F.start + 30; // nivel 7,5 m
     const level = floodLevel(roundTime);
     for (let i = 0; i < 60 * 40; i++) {
         flood.step(roundTime, DT);
