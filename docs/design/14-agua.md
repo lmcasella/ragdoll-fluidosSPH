@@ -80,6 +80,8 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 
 ## 14.3 Campo de alturas: Saint-Venant 1D (`ShallowWater`)
 
+**Estado:** 🔨 #70 implementado en `js/water.js` (sin conectar al juego: eso es #71). W1–W9 cumplen; W10 no cumple con el escalón de 4 m (coeficiente de descarga 0,6) y W8 mide ~0,9 ms por paso contra 0,3 ms.
+
 Reemplaza al sistema de partículas del agua del nivel (pileta e inundación, radio 0,25 m, hasta 5.500 partículas, ~7,2 ms por frame).
 
 ### Estado

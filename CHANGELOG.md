@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-18
+
+### Added
+- Modelo de agua por volumen (campo de alturas de aguas someras): conserva el volumen, deja el lago en reposo exactamente quieto y maneja frentes secos y mojados. Todavía no se usa en el juego: la pileta sigue con partículas.
+
 ## [0.13.1] - 2026-11-18
 
 ### Fixed
