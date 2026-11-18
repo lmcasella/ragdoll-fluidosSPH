@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-11-19
+
+### Changed
+- Agentes repartidos por modelo: `scout` (haiku) para lectura, `github-clerk` (sonnet) ejecuta en GitHub lo que decide `planner` (opus). Los agentes en sonnet y haiku no toman decisiones.
+
 ## [0.11.2] - 2026-11-19
 
 ### Fixed
