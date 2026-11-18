@@ -14,7 +14,7 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | `js/raycast.js` | Rayos con callback reutilizado, uno por mundo |
 | `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22) |
 | `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
-| `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` y `DamageSystem` moja |
+| `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja |
 | `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD |
 | `js/clips.js` | Transformaciones de clips antes de `parse` (`walk_back`) |
 | `lib/` | RagImporter, copiado de ragassembler2d `d067775`; no se edita acá |
