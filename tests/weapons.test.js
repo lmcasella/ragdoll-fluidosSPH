@@ -8,6 +8,7 @@ globalThis.Box2D = require("../vendor/liquidfun.js");
 const { WEAPONS, FLUID, LOADOUT, SHOT_SYSTEM, weaponById, particleDamage, equipLoadout, cycleWeapon, ShotEmitter } =
     await import("../js/weapons.js");
 const { DamageSystem } = await import("../js/damage.js");
+const { SIGMA_W, MATERIALS } = await import("../js/materials.js");
 const { ParticleStore } = await import("../js/particleStore.js");
 const { getRaycaster } = await import("../js/raycast.js");
 
@@ -18,10 +19,10 @@ test("la tabla de armas tiene los valores del diseño", () => {
         const w = weaponById(id);
         return [w.rate, w.speed, w.spread, w.tank, w.dps];
     };
-    assert.deepEqual(row(FLUID.WATER), [100, 14, 0.035, 300, 0]);
-    assert.deepEqual(row(FLUID.ACID), [90, 14, 0.035, 135, 20]);
-    assert.deepEqual(row(FLUID.LAVA), [60, 10, 0.017, 90, 12]);
-    assert.deepEqual(row(FLUID.HONEY), [50, 18, 0.017, 75, 0]);
+    assert.deepEqual(row(FLUID.WATER), [50, 14, 0.035, 150, 0]);
+    assert.deepEqual(row(FLUID.ACID), [45, 14, 0.035, 68, 20]);
+    assert.deepEqual(row(FLUID.LAVA), [30, 10, 0.017, 45, 12]);
+    assert.deepEqual(row(FLUID.HONEY), [25, 18, 0.017, 38, 0]);
     assert.equal(WEAPONS[0].id, FLUID.WATER, "el agua es la primera fila");
     assert.deepEqual(WEAPONS[0].color, [90, 170, 255]);
     assert.deepEqual(WEAPONS.map((w) => w.id), LOADOUT.weapons);
@@ -29,7 +30,7 @@ test("la tabla de armas tiene los valores del diseño", () => {
 });
 
 test("particleDamage es dps / caudal", () => {
-    assert.ok(Math.abs(particleDamage(weaponById(FLUID.ACID)) - 20 / 90) < 1e-12);
+    assert.ok(Math.abs(particleDamage(weaponById(FLUID.ACID)) - 20 / 45) < 1e-12);
     assert.equal(particleDamage(weaponById(FLUID.HONEY)), 0);
 });
 
@@ -37,8 +38,8 @@ test("equipLoadout llena los tanques y equipa el agua", () => {
     const player = {};
     equipLoadout(player);
     assert.equal(player.weapon, FLUID.WATER);
-    assert.equal(player.tanks.get(FLUID.WATER), 300);
-    assert.deepEqual([...player.tanks], [[4, 300], [1, 135], [2, 90], [3, 75]]);
+    assert.equal(player.tanks.get(FLUID.WATER), 150);
+    assert.deepEqual([...player.tanks], [[4, 150], [1, 68], [2, 45], [3, 38]]);
 });
 
 test("cycleWeapon da la vuelta sobre el inventario en el orden de la tabla", () => {
@@ -62,7 +63,7 @@ test("cycleWeapon da la vuelta sobre el inventario en el orden de la tabla", () 
     assert.equal(player.weapon, FLUID.HONEY);
 });
 
-// Mundo sin gravedad y sin cuerpos: el chorro avanza en línea recta y se puede medir
+/** Mundo sin gravedad y sin cuerpos: el chorro avanza en línea recta y se puede medir. */
 function setup({ maxCount = 1500, gravity = 0 } = {}) {
     const g = new Box2D.b2Vec2(0, gravity);
     const world = new Box2D.b2World(g);
@@ -78,7 +79,7 @@ function setup({ maxCount = 1500, gravity = 0 } = {}) {
     const emitter = new ShotEmitter(store, damage, WEAPONS);
     const player = { dead: false, muzzle: () => ({ x: 0, y: 5, dx: 1, dy: 0 }) };
     equipLoadout(player);
-    player.weapon = FLUID.ACID; // la mayoría de las pruebas miden el chorro de ácido; el agua se prueba aparte
+    player.weapon = FLUID.ACID;
     let now = 100;
     const fire = (wants, k = 0, p = player) => {
         now += DT;
@@ -107,7 +108,7 @@ test("la primera partícula de la ráfaga sale en el primer frame", () => {
 test("un frame largo no larga un tapón: tope de ceil(caudal × 0,05) por frame", () => {
     const { emitter, player } = setup();
     emitter.fire(0, player, true, DT, 1);
-    assert.equal(emitter.fire(0, player, true, 0.25, 1.25), 5);
+    assert.equal(emitter.fire(0, player, true, 0.25, 1.25), 3);
 });
 
 test("con el tanque vacío deja de emitir y no pasa a negativo", () => {
@@ -118,14 +119,14 @@ test("con el tanque vacío deja de emitir y no pasa a negativo", () => {
     assert.equal(emitted, 20);
     assert.equal(system.GetParticleCount(), 20);
     assert.equal(player.tanks.get(FLUID.ACID), 0);
-    assert.equal(player.tanks.get(FLUID.LAVA), 90, "el resto del inventario conserva lo suyo");
+    assert.equal(player.tanks.get(FLUID.LAVA), 45, "el resto del inventario conserva lo suyo");
 });
 
 test("las partículas salen con la velocidad, la dispersión y los flags del arma", () => {
     const { system, player, fire } = setup();
     player.weapon = FLUID.LAVA;
     fire(true);
-    fire(true); // 2 partículas
+    fire(true);
     fire(true);
     const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
     const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
@@ -134,22 +135,22 @@ test("las partículas salen con la velocidad, la dispersión y los flags del arm
         const speed = Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]);
         assert.ok(Math.abs(speed - lava.speed) < 1e-3);
         assert.ok(Math.abs(Math.atan2(Box2D.HEAPF32[vel + 2 * i + 1], Box2D.HEAPF32[vel + 2 * i])) <= lava.spread + 1e-6);
-        assert.ok(Box2D.HEAPF32[pos + 2 * i] >= 0.15 - 1e-6);
+        assert.ok(Box2D.HEAPF32[pos + 2 * i] >= 0.17 - 1e-6);
     }
     const flags = system.GetParticleFlags(0);
-    assert.equal(flags & (1 << 7), 1 << 7, "tensile");
+    assert.equal(flags & (1 << 7), 0, "agua pura: sin tensile");
     assert.equal(flags & (1 << 14), 1 << 14, "contact listener");
 });
 
 test("las n partículas de un frame se reparten sobre el tramo recorrido, separadas por velocidad / caudal", () => {
     const { system, player, emitter } = setup();
     emitter.fire(0, player, true, DT, 1);
-    assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
+    assert.equal(emitter.fire(0, player, true, 0.25, 2), 3);
     const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-    const step = 14 / 90;
-    for (let j = 0; j < 5; j++) {
+    const step = 14 / 45;
+    for (let j = 0; j < 3; j++) {
         const x = Box2D.HEAPF32[pos + 2 * (1 + j)];
-        assert.ok(Math.abs(x - (0.15 + step * (4 - j))) < 1e-5, `partícula ${j}: x=${x}`);
+        assert.ok(Math.abs(x - (0.17 + step * (2 - j))) < 1e-5, `partícula ${j}: x=${x}`);
     }
 });
 
@@ -168,7 +169,7 @@ test("la dispersión es determinista y toma varios valores", () => {
 
 test("cada partícula queda marcada con el id de su tramo de disparo", () => {
     const { system, store, damage, fire } = setup();
-    for (let i = 0; i < 30; i++) fire(true); // 0,5 s
+    for (let i = 0; i < 30; i++) fire(true);
     const seen = new Set();
     for (let i = 0; i < system.GetParticleCount(); i++) {
         const slot = store.slotAt(i);
@@ -178,7 +179,7 @@ test("cada partícula queda marcada con el id de su tramo de disparo", () => {
     }
     assert.ok(!seen.has(0));
     assert.equal(seen.size, damage.shots.size);
-    assert.ok(seen.size >= 5 && seen.size <= 6, `${seen.size} tramos en 0,5 s`);
+    assert.ok(seen.size >= 4 && seen.size <= 6, `${seen.size} tramos en 0,5 s`);
 });
 
 test("soltar el botón lleva el crédito a 0: la ráfaga siguiente arranca con 1", () => {
@@ -195,9 +196,8 @@ test("con el sistema lleno no emite, no descuenta y CreateParticle devuelve -1 s
     for (let i = 0; i < 90; i++) emitted += fire(true);
     assert.equal(system.GetParticleCount(), 40);
     assert.equal(emitted, 40);
-    assert.equal(player.tanks.get(FLUID.ACID), 135 - 40, "no descuenta lo que no pudo emitir");
+    assert.equal(player.tanks.get(FLUID.ACID), 68 - 40, "no descuenta lo que no pudo emitir");
 
-    // el emisor se frena solo antes de pedirle algo al motor; se prueba el motor directo
     const def = new Box2D.b2ParticleDef();
     const index = system.CreateParticle(def);
     Box2D.destroy(def);
@@ -216,9 +216,9 @@ test("si el motor devuelve un índice negativo, el emisor corta sin descontar de
     const real = system.CreateParticle.bind(system);
     system.CreateParticle = (def) => (++calls <= 2 ? real(def) : -1);
     emitter.fire(0, player, true, DT, 1);
-    const made = emitter.fire(0, player, true, 0.25, 2); // pide 5
+    const made = emitter.fire(0, player, true, 0.25, 2);
     assert.equal(made, 1, "una sale, la segunda devuelve -1 y corta");
-    assert.equal(player.tanks.get(FLUID.ACID), 135 - 2);
+    assert.equal(player.tanks.get(FLUID.ACID), 68 - 2);
 });
 
 test("después de reset() no emite hasta un frame con el botón suelto", () => {
@@ -230,7 +230,7 @@ test("después de reset() no emite hasta un frame con el botón suelto", () => {
     assert.equal(system.GetParticleCount(), before);
     fire(false);
     assert.equal(fire(true), 1);
-    assert.ok(player.tanks.get(FLUID.ACID) < 135);
+    assert.ok(player.tanks.get(FLUID.ACID) < 68);
 });
 
 test("un robot muerto no emite", () => {
@@ -250,25 +250,25 @@ test("con raycaster, el chorro se recorta al primer obstáculo y no emite lo que
     const wall = world.CreateBody(bodyDef);
     Box2D.destroy(bodyDef);
     const shape = new Box2D.b2PolygonShape();
-    shape.SetAsBox(0.1, 2, new Box2D.b2Vec2(0.5, 5), 0); // cara cercana en x = 0,4
+    shape.SetAsBox(0.1, 2, new Box2D.b2Vec2(0.5, 5), 0);
     wall.CreateFixture(shape, 0);
     Box2D.destroy(shape);
     const emitter = new ShotEmitter(store, damage, WEAPONS, getRaycaster(world));
-    emitter.fire(0, player, true, DT, 1); // 1 partícula en x = 0,15
-    const made = emitter.fire(0, player, true, 0.25, 2); // pide 5: llegarían hasta x ≈ 0,77
+    emitter.fire(0, player, true, DT, 1);
+    const made = emitter.fire(0, player, true, 0.25, 2);
     const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
     for (let i = 0; i < system.GetParticleCount(); i++) {
-        assert.ok(Box2D.HEAPF32[pos + 2 * i] <= 0.4 - 0.1 + 1e-5, `partícula ${i} en x=${Box2D.HEAPF32[pos + 2 * i]}`);
+        assert.ok(Box2D.HEAPF32[pos + 2 * i] <= 0.4 - SHOT_SYSTEM.radius + 1e-5, `partícula ${i} en x=${Box2D.HEAPF32[pos + 2 * i]}`);
     }
-    assert.ok(made < 5, `emitió ${made}`);
-    assert.equal(player.tanks.get(FLUID.ACID), 135 - system.GetParticleCount(), "solo descuenta lo emitido");
+    assert.ok(made < 3, `emitió ${made}`);
+    assert.equal(player.tanks.get(FLUID.ACID), 68 - system.GetParticleCount(), "solo descuenta lo emitido");
 });
 
 test("con raycaster y sin obstáculos emite igual que sin él", () => {
     const { world, store, damage, player } = setup();
     const emitter = new ShotEmitter(store, damage, WEAPONS, getRaycaster(world));
     emitter.fire(0, player, true, DT, 1);
-    assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
+    assert.equal(emitter.fire(0, player, true, 0.25, 2), 3);
 });
 
 test("el raycaster ignora los cuerpos propios del jugador", () => {
@@ -283,5 +283,38 @@ test("el raycaster ignora los cuerpos propios del jugador", () => {
     player.ownBodies = new Set([Box2D.getPointer(own)]);
     const emitter = new ShotEmitter(store, damage, WEAPONS, getRaycaster(world));
     emitter.fire(0, player, true, DT, 1);
-    assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
+    assert.equal(emitter.fire(0, player, true, 0.25, 2), 3);
+});
+
+test("cada arma emite en un solo carril: rate <= speed / (1,5 r)", () => {
+    for (const weapon of WEAPONS) {
+        const cap = weapon.speed / (1.5 * SHOT_SYSTEM.radius);
+        assert.ok(weapon.rate <= cap, `${weapon.name}: ${weapon.rate}/s contra tope ${cap.toFixed(1)}/s`);
+        assert.ok(weapon.speed / weapon.rate >= 1.5 * SHOT_SYSTEM.radius - 1e-12);
+    }
+});
+
+test("el DPS de cada arma no cambia con el caudal nuevo: dps / caudal por caudal", () => {
+    const dps = new Map([[FLUID.WATER, 0], [FLUID.ACID, 20], [FLUID.LAVA, 12], [FLUID.HONEY, 0]]);
+    for (const weapon of WEAPONS) {
+        assert.equal(weapon.dps, dps.get(weapon.id));
+        assert.ok(Math.abs(particleDamage(weapon) * weapon.rate - dps.get(weapon.id)) < 1e-9);
+    }
+    assert.ok(Math.abs(particleDamage(weaponById(FLUID.ACID)) - 20 / 45) < 1e-12, "se duplicó respecto de 20 / 90");
+});
+
+test("SHOT_SYSTEM es agua pura con la masa física de la rebanada", () => {
+    assert.equal(SHOT_SYSTEM.radius, 0.12);
+    assert.equal(SHOT_SYSTEM.density, SIGMA_W);
+    assert.equal(SHOT_SYSTEM.maxCount, 3000);
+    assert.equal(SHOT_SYSTEM.destroyByAge, false);
+    assert.deepEqual(
+        [SHOT_SYSTEM.dampingStrength, SHOT_SYSTEM.pressureStrength, SHOT_SYSTEM.viscousStrength],
+        [0.5, 0.1, 0.6],
+    );
+    assert.equal(SHOT_SYSTEM.surfaceTensionPressureStrength, 0);
+    assert.equal(SHOT_SYSTEM.surfaceTensionNormalStrength, 0);
+    for (const weapon of WEAPONS) assert.equal(weapon.flags & (1 << 7), 0, `${weapon.name} sin TENSILE`);
+    assert.equal(weaponById(FLUID.HONEY).flags, 1 << 5);
+    assert.equal(MATERIALS.water.SG, 1.0);
 });
