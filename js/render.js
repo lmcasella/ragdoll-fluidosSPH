@@ -15,8 +15,20 @@ const SPARK_COLORS = ["#fff27a", "#e8ffff"];
 /** Radio dibujado de las gotas (0,14 m), apenas mayor que el físico para que el filtro goo una las vecinas sin inflar el chorro. */
 export const PARTICLE_RADIUS = 0.14;
 
-/** Acercamiento de las gotas de disparo a los cuerpos (m): la fila de contacto física queda a 0,192 m y el segundo círculo cierra ese hueco. */
-export const SHOT_DRAW = { radius: PARTICLE_RADIUS, snapReach: 0.3, snapFullReach: 0.22 };
+/**
+ * Dibujo de las gotas de disparo y de lluvia. Acercamiento a los cuerpos (m): la fila de contacto física queda a
+ * 0,192 m y el segundo círculo cierra ese hueco. La lluvia más rápida que `streakSpeed` (m/s) se dibuja como
+ * trazo de largo `rapidez · streakScale` (s), con tope `streakLength` (m) y ancho `streakWidth` (m).
+ */
+export const SHOT_DRAW = {
+    radius: PARTICLE_RADIUS,
+    snapReach: 0.3,
+    snapFullReach: 0.22,
+    streakSpeed: 6,
+    streakScale: 0.05,
+    streakLength: 0.7,
+    streakWidth: 0.05,
+};
 // m que el agua acercada se mete bajo la superficie del cuerpo para que no quede una línea de fondo entre los dos
 const SKIN_OVERLAP = 0.02;
 
@@ -402,11 +414,13 @@ export function rainStroke(vx, vy, draw) {
     return stroke;
 }
 
-// `skin` = LEVEL.pool.draw ({ radius, snapReach, snapFullReach, streak* }): además del círculo en la posición real,
-// las partículas junto a un cuerpo suman un segundo círculo acercado a su superficie (ver skinPosition). Mover la
-// partícula en vez de duplicarla abría huecos en el agua donde estaba.
-// `rain` = { ctx, mark }: las gotas con ese userData que vuelan rápido se dibujan como trazos en `rain.ctx`, un
-// canvas aparte sin el filtro goo (el desenfoque y el umbral borrarían una línea fina).
+/**
+ * Dibuja las partículas de `particleSystem` como círculos de `radius`. Con `skin` (`SHOT_DRAW`), las partículas
+ * junto a un cuerpo suman un segundo círculo acercado a su superficie (ver `skinPosition`): mover la partícula en
+ * vez de duplicarla abría huecos en el agua donde estaba.
+ * `rain` = `{ ctx, store, origin }`: las gotas de `store` con ese `origin` que vuelan rápido se dibujan como
+ * trazos en `rain.ctx`, un canvas aparte sin el filtro goo (el desenfoque y el umbral borrarían una línea fina).
+ */
 export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, rain = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
@@ -414,12 +428,10 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
     const posBase = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
     let velBase = 0;
-    let markBase = 0;
     let rctx = null;
     if (rain) {
         rctx = rain.ctx;
         velBase = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
-        markBase = particleSystem.GetUserDataBuffer() >> 2;
         rctx.lineWidth = skin.streakWidth;
         rctx.lineCap = "round";
     }
@@ -428,7 +440,7 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
         const style = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         const x = positions[posBase + i * 2];
         const y = positions[posBase + i * 2 + 1];
-        if (rctx && Box2D.HEAP32[markBase + i] === rain.mark) {
+        if (rctx && rain.store.origin[rain.store.slotAt(i)] === rain.origin) {
             const s = rainStroke(positions[velBase + i * 2], positions[velBase + i * 2 + 1], skin);
             if (s) {
                 rctx.strokeStyle = style;
@@ -451,4 +463,49 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
         }
         ctx.fill();
     }
+}
+
+/**
+ * Dibuja el campo de alturas (docs/design/14-agua.md §14.3, Render): un polígono relleno por tramo mojado, del
+ * lecho a `η`, con la línea de superficie encima. Va después de los robots, con la opacidad de
+ * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los datos de dibujo son
+ * `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
+ */
+export function drawWater(ctx, water, scale) {
+    const { alpha, color, lineColor, lineWidth } = water.config.draw;
+    const { N, dx, x0, b, h } = water;
+    const wet = water.config.hDry;
+    ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
+    ctx.lineWidth = lineWidth / scale;
+    ctx.lineJoin = "round";
+    let i = 0;
+    while (i < N) {
+        if (h[i] <= wet) {
+            i++;
+            continue;
+        }
+        let end = i;
+        while (end + 1 < N && h[end + 1] > wet) end++;
+        const left = x0 + i * dx;
+        const right = x0 + (end + 1) * dx;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.moveTo(left, b[i]);
+        ctx.lineTo(left, b[i] + h[i]);
+        for (let c = i; c <= end; c++) ctx.lineTo(x0 + (c + 0.5) * dx, b[c] + h[c]);
+        ctx.lineTo(right, b[end] + h[end]);
+        ctx.lineTo(right, b[end]);
+        for (let c = end; c >= i; c--) ctx.lineTo(x0 + (c + 0.5) * dx, b[c]);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.moveTo(left, b[i] + h[i]);
+        for (let c = i; c <= end; c++) ctx.lineTo(x0 + (c + 0.5) * dx, b[c] + h[c]);
+        ctx.lineTo(right, b[end] + h[end]);
+        ctx.stroke();
+        i = end + 1;
+    }
+    ctx.globalAlpha = 1;
 }

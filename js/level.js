@@ -1,8 +1,6 @@
-import { PARTICLE, createParticleSystem } from "./particles.js";
-
 // Nivel en metros, Y hacia arriba, independiente del tamaño de la ventana.
 // Alturas entre plataformas <= 3,5 m: el salto (9 m/s) llega a unos 4 m.
-// El hueco central es la pileta: agua SPH (sistema propio) y un sensor que destruye al robot que se hunde.
+// El hueco central es la pileta: agua del campo de alturas (js/water.js) y un sensor que destruye al robot que se hunde.
 export const LEVEL = {
     bounds: { minX: 0, maxX: 56, minY: 0, maxY: 32 },
     // Rectángulos sólidos: { x, y } = centro, w × h
@@ -21,38 +19,15 @@ export const LEVEL = {
         { x: 43, y: 10.1, w: 8, h: 0.4, kind: "platform" },
         { x: 51.5, y: 6.8, w: 3, h: 0.4, kind: "platform" },
     ],
-    // Pileta: agua entre x1..x2 hasta `surface`; el sensor cubre hasta `killY` (robot medio hundido)
-    // `flags` = flags de toda partícula del agua del nivel; `physics` = fuerzas del sistema (docs/design/07-sph.md §7.5)
+    /** Pileta: el campo de alturas arranca con agua entre `x1` y `x2` hasta `surface` (m); el sensor cubre hasta `killY` (robot medio hundido). */
     pool: {
         x1: 18,
         x2: 38,
         bottom: 0,
         surface: 3,
         killY: 2.2,
-        radius: 0.25,
-        // Dibujo del agua (m): radio del círculo y alcance del acercamiento a los cuerpos (docs/design/07-sph.md §7.4)
-        draw: {
-            radius: 0.28,
-            snapReach: 0.9,
-            snapFullReach: 0.6,
-            streakSpeed: 6, // m/s: la lluvia más rápida se dibuja como trazo, el resto como agua
-            streakScale: 0.05, // s: largo del trazo = rapidez * streakScale
-            streakLength: 0.7, // m: tope del largo
-            streakWidth: 0.05, // m
-        },
-        flags: PARTICLE.VISCOUS | PARTICLE.STATIC_PRESSURE,
-        physics: {
-            gravityScale: 1,
-            dampingStrength: 1.0,
-            pressureStrength: 0.1,
-            viscousStrength: 0.1,
-            staticPressureStrength: 0.2,
-            staticPressureRelaxation: 0.2,
-            staticPressureIterations: 4,
-        },
     },
-    // Inundación (muerte súbita): llueve desde `emitY` y el nivel sube `riseSpeed` m/s a partir de `start` s de ronda.
-    // `density` = gotas por m² de agua en reposo con radio 0,25 m; `drain*` = escurrido de charcos sobre plataformas altas
+    /** Inundación (muerte súbita): llueve desde `emitY` y la fuente sube el nivel `riseSpeed` m/s a partir de `start` s de ronda; `maxRate` en gotas/s. */
     flood: {
         start: 60,
         riseSpeed: 0.15,
@@ -61,11 +36,7 @@ export const LEVEL = {
         emitX1: 1,
         emitX2: 55,
         dropSpeed: 8,
-        maxRate: 90,
-        density: 6.3,
-        drainHeight: 1,
-        drainSpeed: 1,
-        maxParticles: 5500,
+        maxRate: 300,
     },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
     spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
@@ -96,34 +67,4 @@ export function buildLevel(world, level = LEVEL) {
     Box2D.destroy(center);
     Box2D.destroy(shape);
     return { ground, killSensors };
-}
-
-// Agua del nivel (pileta e inundación): sistema de partículas propio, más grueso que el de los disparos.
-// `maxCount` fija el tope de partículas del heap fijo de 16 MiB.
-export function fillPool(world, level = LEVEL) {
-    const system = createParticleSystem(world, {
-        radius: level.pool.radius,
-        maxCount: level.flood?.maxParticles,
-        ...level.pool.physics,
-    });
-    fillPoolWater(system, level);
-    return system;
-}
-
-// Grupo inicial de agua de la pileta; también lo usa Flood.reset para dejarla como al empezar
-export function fillPoolWater(system, level = LEVEL) {
-    const { x1, x2, bottom, surface } = level.pool;
-    const groupDef = new Box2D.b2ParticleGroupDef();
-    const shape = new Box2D.b2PolygonShape();
-    const center = new Box2D.b2Vec2((x1 + x2) / 2, (bottom + surface) / 2);
-    shape.SetAsBox((x2 - x1) / 2 - 0.1, (surface - bottom) / 2, center, 0);
-    groupDef.set_shape(shape);
-    const color = new Box2D.b2ParticleColor(40, 120, 255, 255);
-    groupDef.set_color(color);
-    groupDef.set_flags(level.pool.flags ?? 0);
-    system.CreateParticleGroup(groupDef);
-    Box2D.destroy(color);
-    Box2D.destroy(center);
-    Box2D.destroy(shape);
-    Box2D.destroy(groupDef);
 }

@@ -23,7 +23,8 @@ const PROJ_TOLERANCE = 1e-10;
 
 /**
  * Datos del campo de alturas (docs/design/14-agua.md §14.3): `dx` (m), `cfl`, `maxSubsteps`, `hDry` (m),
- * `manning` (s/m^(1/3)), `ambientT` (°C) y `draw` (datos de dibujo: `alpha` es la transparencia del agua).
+ * `manning` (s/m^(1/3)), `ambientT` (°C) y `draw` (datos de dibujo: `alpha` es la opacidad del agua, `color` y
+ * `lineColor` RGB del relleno y de la línea de superficie, `lineWidth` el grosor de la línea en píxeles).
  */
 export const WATER_FIELD = {
     dx: 0.1,
@@ -32,7 +33,7 @@ export const WATER_FIELD = {
     hDry: 1e-3,
     manning: 0.012,
     ambientT: 20,
-    draw: { alpha: 0.55 },
+    draw: { alpha: 0.55, color: [40, 120, 255], lineColor: [170, 220, 255], lineWidth: 2 },
 };
 
 const minmod = (a, b) => (a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b);
@@ -192,6 +193,11 @@ export class ShallowWater {
     /** Altura de la superficie `η = b + h` en `x` (m); en columnas secas es el lecho. */
     surfaceAt(x) {
         return this.sample(x, (i) => this.b[i] + this.h[i]);
+    }
+
+    /** Espesor de agua `h` en `x` (m). */
+    depthAt(x) {
+        return this.sample(x, (i) => this.h[i]);
     }
 
     /** Velocidad horizontal del agua en `x` (m/s). */

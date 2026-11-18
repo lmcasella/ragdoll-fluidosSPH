@@ -1,189 +1,156 @@
-// Puente agua del nivel -> disparos, en un solo sentido. LiquidFun no hace interactuar sistemas de partículas
-// distintos: una vez por paso fijo, después de stepWorld, se detecta qué disparos están dentro del agua del nivel y
-// se les escribe la velocidad (frenado hacia la corriente local y flotación). Ver docs/design/07-sph.md §7.6.
-import { WEAPONS, fluidFromColor } from "./weapons.js";
-import { LEVEL } from "./level.js";
+import { FLUID } from "./weapons.js";
+import { MATERIALS, SIGMA_W } from "./materials.js";
 
-export const IMMERSION = {
-    cell: 0.5, // m, lado de la grilla
-    calmSpeed: 4, // m/s; el agua más rápida (lluvia en vuelo, salpicadura) no cuenta como agua
-    minNeighbors: 4, // partículas de agua en la vecindad 3x3 para que la celda esté mojada
-    fullDepth: 0.5, // m de profundidad con la que la sumersión llega a 1
+/** Densidad del agua (kg/m³). */
+const RHO_W = 1000;
+
+/**
+ * Material de cada id de fluido del sistema de disparos y fracción en volumen de miel de la partícula (`X_v`).
+ */
+const KIND_MATERIAL = {
+    [FLUID.WATER]: { material: MATERIALS.water, honey: 0 },
+    [FLUID.ACID]: { material: MATERIALS.acid, honey: 0 },
+    [FLUID.HONEY]: { material: MATERIALS.honey, honey: 1 },
+    [FLUID.LAVA]: { material: MATERIALS.lava, honey: 0 },
 };
 
+/**
+ * Acople entre las partículas del sistema de disparos y el campo de alturas `ShallowWater`
+ * (docs/design/14-agua.md §14.4). Una vez por paso fijo, después de `stepWorld` y `store.afterStep()`.
+ *
+ * Absorción: toda partícula miscible con `y ≤ η(x) + r` suma a la columna su volumen, su cantidad de
+ * movimiento horizontal (`SG · A_p · v_x`, Boussinesq), su energía térmica (a la temperatura ambiente más la
+ * pérdida inelástica del choque) y su miel, y se destruye con `store.destroy`. La cantidad de movimiento
+ * vertical no genera ola: se suma a `stats.verticalImpulse` (kg·m/s de la rebanada) como impulso sobre el lecho.
+ *
+ * Inmersión: la partícula inmiscible con `y < η(x)` recibe el empuje de Arquímedes `g ρ_col/(ρ_w SG)` y el
+ * arrastre cuadrático hacia la corriente, integrado en forma exacta (`v ← u_c + (v − u_c)/(1 + k dt)`). La
+ * reacción horizontal va a la columna con `addMomentum`. El impulso del par partícula–columna se recorta a la
+ * masa reducida, así que ninguna velocidad relativa se invierte.
+ *
+ * `submerged`, `columns` y `count` listan las inmersas (índice y celda) y valen hasta el próximo `stepWorld`.
+ * `stats` suma lo absorbido (`absorbed`, `volume` en m²), el impulso vertical y los recortes por masa reducida
+ * (`capped`).
+ */
 export class Immersion {
-    // `gravity` (m/s², positivo) se pasa por constructor para no crear un b2Vec2 al leerla del mundo
-    constructor(shotSystem, levelWater, { weapons = WEAPONS, bounds = LEVEL.bounds, gravity = 10, ...config } = {}) {
-        this.shots = shotSystem;
-        this.water = levelWater;
-        this.config = { ...IMMERSION, ...config };
+    constructor(system, store, water, { gravity = 10 } = {}) {
+        this.system = system;
+        this.store = store;
+        this.water = water;
         this.gravity = gravity;
-        this.minX = bounds.minX;
-        this.minY = bounds.minY;
-        const cell = this.config.cell;
-        this.cols = Math.ceil((bounds.maxX - bounds.minX) / cell);
-        this.rows = Math.ceil((bounds.maxY - bounds.minY) / cell);
-        const cells = this.cols * this.rows;
-        this.n = new Uint16Array(cells);
-        this.sumVx = new Float32Array(cells);
-        this.sumVy = new Float32Array(cells);
-        this.rowN = new Float32Array(cells);
-        this.rowVx = new Float32Array(cells);
-        this.rowVy = new Float32Array(cells);
-        this.n3 = new Float32Array(cells);
-        this.sum3Vx = new Float32Array(cells);
-        this.sum3Vy = new Float32Array(cells);
-        this.depth = new Float32Array(cells);
-
-        // Respuesta por id de fluido (índice directo: los ids son enteros chicos)
-        this.response = [];
-        for (const w of weapons) this.response[w.id] = w.immersion ?? null;
-
-        this.capacity = Math.max(shotSystem.GetMaxParticleCount(), 1);
-        this.submerged = new Int32Array(this.capacity);
-        this.kinds = new Uint8Array(this.capacity);
+        this.radius = system.GetRadius();
+        this.diameter = 1.5 * this.radius;
+        this.area = this.diameter * this.diameter;
+        this.heat = SIGMA_W * MATERIALS.water.c * water.config.ambientT;
+        const capacity = Math.max(system.GetMaxParticleCount(), 1);
+        this.submerged = new Int32Array(capacity);
+        this.columns = new Int32Array(capacity);
         this.count = 0;
+        this.reset();
     }
 
+    /** Vacía las listas y las estadísticas. */
     reset() {
         this.count = 0;
+        this.stats = { absorbed: 0, volume: 0, verticalImpulse: 0, capped: 0 };
     }
 
-    // Una vez por paso fijo, después de stepWorld
+    /** Absorbe las miscibles y aplica la inmersión a las inmiscibles. `dt` es el paso fijo. */
     step(dt) {
         this.count = 0;
-        const shotCount = this.shots.GetParticleCount();
-        if (shotCount === 0) return;
-        this.buildGrid();
-        this.apply(dt, shotCount);
-    }
-
-    buildGrid() {
-        const { cols, rows, n, sumVx, sumVy } = this;
-        const { cell, calmSpeed, minNeighbors } = this.config;
-        const calm2 = calmSpeed * calmSpeed;
-        n.fill(0);
-        sumVx.fill(0);
-        sumVy.fill(0);
-
-        const water = this.water;
-        const total = water.GetParticleCount();
-        const pos = Box2D.getPointer(water.GetPositionBuffer()) >> 2;
-        const vel = Box2D.getPointer(water.GetVelocityBuffer()) >> 2;
-        const heap = Box2D.HEAPF32;
-        const invCell = 1 / cell;
-        for (let i = 0; i < total; i++) {
-            const vx = heap[vel + i * 2];
-            const vy = heap[vel + i * 2 + 1];
-            if (vx * vx + vy * vy >= calm2) continue;
-            const cx = Math.floor((heap[pos + i * 2] - this.minX) * invCell);
-            const cy = Math.floor((heap[pos + i * 2 + 1] - this.minY) * invCell);
-            if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) continue;
-            const c = cy * cols + cx;
-            n[c]++;
-            sumVx[c] += vx;
-            sumVy[c] += vy;
-        }
-
-        // Caja 3x3 separable: primero a lo largo de la fila, después a lo largo de la columna
-        const { rowN, rowVx, rowVy, n3, sum3Vx, sum3Vy, depth } = this;
-        for (let cy = 0; cy < rows; cy++) {
-            const base = cy * cols;
-            for (let cx = 0; cx < cols; cx++) {
-                const c = base + cx;
-                let a = n[c];
-                let b = sumVx[c];
-                let d = sumVy[c];
-                if (cx > 0) {
-                    a += n[c - 1];
-                    b += sumVx[c - 1];
-                    d += sumVy[c - 1];
-                }
-                if (cx < cols - 1) {
-                    a += n[c + 1];
-                    b += sumVx[c + 1];
-                    d += sumVy[c + 1];
-                }
-                rowN[c] = a;
-                rowVx[c] = b;
-                rowVy[c] = d;
-            }
-        }
-        for (let cy = 0; cy < rows; cy++) {
-            const base = cy * cols;
-            for (let cx = 0; cx < cols; cx++) {
-                const c = base + cx;
-                let a = rowN[c];
-                let b = rowVx[c];
-                let d = rowVy[c];
-                if (cy > 0) {
-                    a += rowN[c - cols];
-                    b += rowVx[c - cols];
-                    d += rowVy[c - cols];
-                }
-                if (cy < rows - 1) {
-                    a += rowN[c + cols];
-                    b += rowVx[c + cols];
-                    d += rowVy[c + cols];
-                }
-                n3[c] = a;
-                sum3Vx[c] = b;
-                sum3Vy[c] = d;
-            }
-        }
-
-        // Profundidad por columna, de arriba hacia abajo
-        for (let cx = 0; cx < cols; cx++) {
-            let run = 0;
-            for (let cy = rows - 1; cy >= 0; cy--) {
-                const c = cy * cols + cx;
-                if (n3[c] >= minNeighbors) {
-                    run += cell;
-                    depth[c] = run - cell / 2;
-                } else {
-                    run = 0;
-                    depth[c] = 0;
-                }
-            }
-        }
-    }
-
-    apply(dt, shotCount) {
-        const { cols, rows, n3, sum3Vx, sum3Vy, depth, response, submerged, kinds } = this;
-        const { cell, fullDepth } = this.config;
-        const system = this.shots;
-        // Los punteros se releen en cada paso: el motor puede reubicar los buffers al crear o borrar
+        const { system, store, water } = this;
+        const total = system.GetParticleCount();
+        if (total === 0) return;
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
         const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-        const colors = Box2D.getPointer(system.GetColorBuffer());
         const heap = Box2D.HEAPF32;
-        const bytes = Box2D.HEAPU8;
-        const invCell = 1 / cell;
-        let count = 0;
-        for (let i = 0; i < shotCount && count < this.capacity; i++) {
-            const cx = Math.floor((heap[pos + i * 2] - this.minX) * invCell);
-            const cy = Math.floor((heap[pos + i * 2 + 1] - this.minY) * invCell);
-            if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) continue;
-            const c = cy * cols + cx;
-            const d = depth[c];
-            if (d <= 0) continue;
-            const kind = fluidFromColor(bytes[colors + i * 4], bytes[colors + i * 4 + 1]);
-            submerged[count] = i;
-            kinds[count] = kind;
-            count++;
-            const reaction = response[kind];
-            if (!reaction) continue;
-
-            const s = d >= fullDepth ? 1 : d / fullDepth;
-            const inv = 1 / n3[c];
-            const ux = sum3Vx[c] * inv;
-            const uy = sum3Vy[c] * inv;
-            const keep = Math.exp(-reaction.drag * s * dt);
-            const vx = heap[vel + i * 2];
-            const vy = heap[vel + i * 2 + 1];
-            heap[vel + i * 2] = ux + (vx - ux) * keep;
-            heap[vel + i * 2 + 1] = uy + (vy - uy) * keep + reaction.buoyancy * this.gravity * s * dt;
+        const minX = water.x0;
+        const maxX = water.x0 + water.N * water.dx;
+        for (let i = 0; i < total; i++) {
+            const slot = store.slotAt(i);
+            if (slot < 0 || store.alive[slot] === 0) continue;
+            const entry = KIND_MATERIAL[store.kind[slot]];
+            if (!entry) continue;
+            const x = heap[pos + 2 * i];
+            if (x < minX || x > maxX) continue;
+            const y = heap[pos + 2 * i + 1];
+            const eta = water.surfaceAt(x);
+            if (entry.material.miscible) {
+                if (y <= eta + this.radius) this.absorb(i, entry, x, heap[vel + 2 * i], heap[vel + 2 * i + 1]);
+            } else if (y < eta) {
+                this.immerse(i, entry.material, x, vel, dt);
+            }
         }
-        this.count = count;
+    }
+
+    /** Deposita la partícula `i` en el campo y la destruye. */
+    absorb(i, entry, x, vx, vy) {
+        const { water, area } = this;
+        const sg = entry.material.SG;
+        const momentum = sg * area * vx;
+        const energy = this.heat * area + this.inelasticLoss(x, area, momentum, sg, vx, vy);
+        water.deposit(x, area, momentum, energy, entry.honey * area);
+        this.store.destroy(i);
+        this.stats.absorbed++;
+        this.stats.volume += area;
+        this.stats.verticalImpulse += sg * SIGMA_W * area * vy;
+    }
+
+    /**
+     * Pérdida inelástica del choque (J): `½ m v² − ΔK_col`, con `ΔK_col` el cambio de energía cinética de las dos
+     * columnas vecinas al recibir el volumen y la cantidad de movimiento. No es negativa.
+     */
+    inelasticLoss(x, area, momentum, sg, vx, vy) {
+        const { water } = this;
+        const { N, dx } = water;
+        const s = (x - water.x0) / dx - 0.5;
+        const i = Math.floor(s);
+        const w1 = s - i;
+        const c0 = Math.min(Math.max(i, 0), N - 1);
+        const c1 = Math.min(Math.max(i + 1, 0), N - 1);
+        let deltaK = this.columnKinetic(c0, c0 === c1 ? 1 : 1 - w1, area, momentum);
+        if (c1 !== c0) deltaK += this.columnKinetic(c1, w1, area, momentum);
+        const kinetic = 0.5 * sg * SIGMA_W * area * (vx * vx + vy * vy);
+        return Math.max(0, kinetic - deltaK * 0.5 * SIGMA_W * dx);
+    }
+
+    /** `q²/h` de la celda `c` después de recibir la fracción `w` de la fuente, menos el de antes (m³/s²). */
+    columnKinetic(c, w, area, momentum) {
+        const { water } = this;
+        const hDry = water.config.hDry;
+        const h = water.h[c];
+        const q = water.q[c];
+        const h2 = h + (w * area) / water.dx;
+        const q2 = q + (w * momentum) / water.dx;
+        return (h2 > hDry ? (q2 * q2) / h2 : 0) - (h > hDry ? (q * q) / h : 0);
+    }
+
+    /** Empuje, arrastre y reacción sobre la columna de la partícula inmiscible `i`. */
+    immerse(i, material, x, vel, dt) {
+        const { water, area, diameter } = this;
+        const heap = Box2D.HEAPF32;
+        const sg = material.SG;
+        const rho = water.densityAt(x);
+        const current = water.velocityAt(x);
+        const vx = heap[vel + 2 * i];
+        const vy = heap[vel + 2 * i + 1] + ((this.gravity * rho) / (RHO_W * sg)) * dt;
+        const rx = vx - current;
+        const k = (0.5 * rho * material.Cd * diameter * Math.hypot(rx, vy)) / (sg * RHO_W * area);
+        let f = (k * dt) / (1 + k * dt);
+        const column = Math.min(Math.max(Math.floor((x - water.x0) / water.dx), 0), water.N - 1);
+        const massColumn = SIGMA_W * water.h[column] * water.dx;
+        const massParticle = sg * SIGMA_W * area;
+        const cap = massColumn / (massParticle + massColumn);
+        if (f > cap) {
+            f = cap;
+            this.stats.capped++;
+        }
+        heap[vel + 2 * i] = vx - f * rx;
+        heap[vel + 2 * i + 1] = vy - f * vy;
+        const applied = heap[vel + 2 * i] - vx;
+        water.addMomentum(column, (-sg * area * applied) / water.dx);
+        this.submerged[this.count] = i;
+        this.columns[this.count] = column;
+        this.count++;
     }
 }
