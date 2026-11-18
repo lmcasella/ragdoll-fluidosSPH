@@ -35,7 +35,7 @@ test("waterArea: 0 en la pileta, ancho del hueco sobre ella y total coherente co
 
 test("freeWidth y levelOfArea: el ancho libre es la derivada del área y la inversa la recupera", () => {
     assert.equal(freeWidth(3.5), LEVEL.pool.x2 - LEVEL.pool.x1);
-    assert.equal(freeWidth(10), 40, "a 10 m cruzan dos plataformas de 8 m");
+    assert.equal(freeWidth(10), 56, "las plataformas no son lecho del campo: no descuentan ancho");
     assert.equal(freeWidth(12), 56);
     for (const level of [3, 3.7, 4.2, 9, 14.9]) {
         assert.ok(Math.abs(levelOfArea(waterArea(level)) - level) < 1e-6, `nivel ${level}`);
@@ -111,8 +111,15 @@ test("I7: el volumen total (campo + partículas · A_p) sigue la curva de la inu
         `I7: error máximo del volumen total contra la curva ${fmt(worst * 100, 3)} % del volumen agregado (tolerancia 0,5 %); contra lo emitido ${worstEmitted.toExponential(2)}; ` +
             `retenidas máx ${run.maxRetained} (tope 800), partículas máx ${run.maxCount}; η medio final ${fmt(last.meanLevel, 2)} m (solo del campo ${fmt(last.fieldLevel, 2)} m) contra curva ${fmt(last.curveLevel, 2)} m`,
     );
+    const etaGap = Math.max(...run.samples.map((s) => Math.abs(s.realEta - s.fieldLevel)));
+    t.diagnostic(
+        `I7: η real del campo (media de b + h donde b < η) contra levelOfArea del campo: máx ${fmt(etaGap, 3)} m (tolerancia 0,02 m); ` +
+            `η real final ${fmt(last.realEta, 3)} m con ${last.flying} gotas en vuelo (esperado 15,00 ±0,075 m)`,
+    );
     assert.ok(worstEmitted < 1e-6, `conservación: ${worstEmitted}`);
     assert.ok(worst < 0.005, `error contra la curva ${worst}`);
+    assert.ok(etaGap <= 0.02, `η real contra levelOfArea ${etaGap}`);
+    assert.ok(Math.abs(last.realEta - LEVEL.flood.maxLevel) <= 0.075, `η real final ${last.realEta}`);
     assert.ok(run.maxRetained <= 800, `retenidas ${run.maxRetained}`);
 });
 

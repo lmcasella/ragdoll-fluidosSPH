@@ -214,11 +214,20 @@ export function floodRun({ seconds = 170, sample = 10, makeRecorder = null, stri
             maxRetained = Math.max(maxRetained, retained);
             const level = floodLevel(roundTime);
             const total = water.volume() + (flying + retained) * A_P;
+            const fieldLevel = levelOfArea(water.volume() - volume0);
+            let etaSum = 0;
+            let etaCells = 0;
+            for (let i = 0; i < water.N; i++) {
+                if (water.b[i] >= fieldLevel) continue;
+                etaSum += water.b[i] + water.h[i];
+                etaCells++;
+            }
             samples.push({
+                realEta: etaSum / etaCells,
                 t: s * DT,
                 curveLevel: level,
                 meanLevel: flood.meanLevel,
-                fieldLevel: levelOfArea(water.volume() - volume0),
+                fieldLevel,
                 curveVolume: volume0 + waterArea(level),
                 emittedVolume: volume0 + flood.emitted * A_P,
                 total,

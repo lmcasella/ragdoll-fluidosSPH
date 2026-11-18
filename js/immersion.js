@@ -4,6 +4,9 @@ import { MATERIALS, SIGMA_W } from "./materials.js";
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
 
+/** Repasos de absorción por paso: lo absorbido sube `η` y puede tapar gotas vecinas que todavía no tocaban el agua. */
+const MAX_ABSORB_PASSES = 4;
+
 /**
  * Material de cada id de fluido del sistema de disparos y fracción en volumen de miel de la partícula (`X_v`).
  */
@@ -80,6 +83,21 @@ export class Immersion {
             } else if (y < eta) {
                 this.immerse(i, entry.material, x, vel, dt);
             }
+        }
+        for (let pass = 0; pass < MAX_ABSORB_PASSES; pass++) {
+            const before = this.stats.absorbed;
+            for (let i = 0; i < total; i++) {
+                const slot = store.slotAt(i);
+                if (slot < 0 || store.alive[slot] === 0) continue;
+                const entry = KIND_MATERIAL[store.kind[slot]];
+                if (!entry || !entry.material.miscible) continue;
+                const x = heap[pos + 2 * i];
+                if (x < minX || x > maxX) continue;
+                if (heap[pos + 2 * i + 1] <= water.surfaceAt(x) + this.radius) {
+                    this.absorb(i, entry, x, heap[vel + 2 * i], heap[vel + 2 * i + 1]);
+                }
+            }
+            if (this.stats.absorbed === before) break;
         }
     }
 

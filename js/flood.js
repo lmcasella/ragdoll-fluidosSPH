@@ -19,8 +19,9 @@ export function floodLevel(roundTime, level = LEVEL) {
 const tables = new WeakMap();
 
 /**
- * Ancho libre (m) a cada franja de 0,05 m desde `pool.surface`, descontando los sólidos que la cruzan, y área
- * acumulada. Se calcula una vez por nivel de datos.
+ * Ancho libre (m) a cada franja de 0,05 m desde `pool.surface`, descontando solo los sólidos `floor` (los que el
+ * campo usa como lecho; las plataformas no desplazan agua en el campo), y área acumulada. Se calcula una vez por
+ * nivel de datos.
  */
 function freeWidths(level) {
     let table = tables.get(level);
@@ -35,7 +36,7 @@ function freeWidths(level) {
         const y = base + (k + 0.5) * SLICE;
         spans.length = 0;
         for (const s of level.solids) {
-            if (y > s.y - s.h / 2 && y < s.y + s.h / 2) {
+            if (s.kind === "floor" && y > s.y - s.h / 2 && y < s.y + s.h / 2) {
                 spans.push([Math.max(minX, s.x - s.w / 2), Math.min(maxX, s.x + s.w / 2)]);
             }
         }
