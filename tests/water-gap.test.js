@@ -8,7 +8,7 @@ const { stepWorld } = await import("../lib/ragimporter.js");
 const { createParticleSystem } = await import("../js/particles.js");
 const { LEVEL } = await import("../js/level.js");
 const { SHOT_SYSTEM } = await import("../js/weapons.js");
-const { collectSurfaces, skinPosition, PARTICLE_RADIUS } = await import("../js/render.js");
+const { collectSurfaces, skinPosition, PARTICLE_RADIUS, SHOT_DRAW } = await import("../js/render.js");
 
 const DRAW = LEVEL.pool.draw;
 const SECONDS = 8;
@@ -125,17 +125,23 @@ test("agua del nivel: el segundo círculo de contacto toca los cuerpos y las par
     assert.ok(overlap >= -0.05, `el agua se mete ${(-overlap).toFixed(3)} m bajo el cuerpo`);
 });
 
-test("disparos: el círculo dibujado (1,6 · radio) cubre la distancia al cuerpo, sin hueco", (t) => {
+test("disparos: el círculo acercado de la fila de contacto toca el cuerpo sin inflar la gota", (t) => {
     const { radius, ...params } = SHOT_SYSTEM;
     const { system, box } = settledWater(radius, params, 0);
-    const first = positions(system)
-        .map(([x, y]) => distanceToSolids(x, y, box))
-        .filter((d) => d < 0.3);
-    const standoff = Math.min(...first);
-    t.diagnostic(`disparos: ${first.length} partículas junto a los cuerpos, distancia mínima ${standoff.toFixed(3)} m, dibujo ${PARTICLE_RADIUS.toFixed(3)} m`);
-    assert.ok(first.length >= 20);
-    // Las partículas sueltas por encima de la fila de contacto no cuentan: se mide la fila más cercana
-    assert.ok(standoff <= PARTICLE_RADIUS + TOUCH, `la fila de contacto queda a ${standoff.toFixed(3)} m`);
+    collectSurfaces(playerOf(box), SOLIDS, DRAW.snapReach);
+    let near = 0;
+    let best = Infinity;
+    for (const [x, y] of positions(system)) {
+        const d = distanceToSolids(x, y, box);
+        if (d > SHOT_DRAW.snapFullReach) continue;
+        near++;
+        const p = skinPosition(x, y, SHOT_DRAW.radius, SHOT_DRAW.snapReach, SHOT_DRAW.snapFullReach);
+        best = Math.min(best, distanceToSolids(p.x, p.y, box) - SHOT_DRAW.radius);
+    }
+    t.diagnostic(`disparos: ${near} partículas en la fila de contacto, hueco dibujado mínimo ${best.toFixed(3)} m, dibujo ${PARTICLE_RADIUS.toFixed(3)} m`);
+    assert.ok(near >= 20);
+    assert.ok(PARTICLE_RADIUS < 1.2 * SHOT_SYSTEM.radius);
+    assert.ok(best <= TOUCH, `hueco dibujado ${best.toFixed(3)} m`);
 });
 
 test("robot en la pileta: el agua dibujada toca todas sus piezas", async (t) => {
