@@ -1,64 +1,73 @@
-// Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
-// la tabla. Ver docs/design/04-fluidos.md §4.1 y docs/design/07-sph.md §7.5.
 import { PARTICLE } from "./particles.js";
 import { ORIGIN } from "./particleStore.js";
+import { SIGMA_W } from "./materials.js";
 
-// Ids de arma = tipo de fluido
+/**
+ * Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
+ * la tabla. Ver docs/design/04-fluidos.md §4.1, docs/design/07-sph.md §7.5 y docs/design/14-agua.md §14.6.
+ */
 export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4 };
 
 export const CONTACT_LISTENER_PARTICLE = PARTICLE.CONTACT_LISTENER;
 
 /**
- * Sistema de partículas de los disparos (claves de b2ParticleSystemDef). La fuerza es por sistema; cada arma
- * elige con `flags` qué términos recibe. maxCount fijo y `destroyByAge: false`: `ParticleStore` lanza un error
- * si no es `false`, porque el motor borraría partículas por su cuenta y los slots quedarían colgados.
+ * Sistema de partículas de los disparos (claves de b2ParticleSystemDef): agua pura, con la masa física de la
+ * rebanada (`density` = `σ_w`). La fuerza es por sistema; `flags` de cada arma elige qué términos recibe.
+ * maxCount fijo y `destroyByAge: false`: `ParticleStore` lanza un error si no es `false`, porque el motor
+ * borraría partículas por su cuenta y los slots quedarían colgados.
  */
 export const SHOT_SYSTEM = {
-    radius: 0.1,
-    maxCount: 1500,
+    radius: 0.12,
+    maxCount: 3000,
     destroyByAge: false,
     gravityScale: 1,
-    dampingStrength: 1.0,
-    pressureStrength: 0.005,
-    viscousStrength: 1.0,
+    density: SIGMA_W,
+    dampingStrength: 0.5,
+    pressureStrength: 0.1,
+    viscousStrength: 0.6,
     surfaceTensionPressureStrength: 0,
     surfaceTensionNormalStrength: 0,
 };
 
-// Tope de partículas de armas `persist` (la miel) que quedan en el mapa; las más viejas se destruyen primero
+/** Tope de partículas de armas `persist` (la miel) que quedan en el mapa; las más viejas se destruyen primero. */
 export const PERSIST_MAX = 300;
 
-// rate: partículas/s; speed: m/s; spread: rad (±); tank: partículas; dps: daño por segundo con el chorro entero (0 si el arma aplica un estado)
-// persist: no vence a los 6 s del disparo; queda como charco y cuenta para PERSIST_MAX
-// immersion: respuesta dentro del agua del nivel (docs/design/07-sph.md §7.6); buoyancy = ρ_agua / ρ_fluido, drag en 1/s
+/**
+ * Tabla de armas. `rate`: partículas/s; `speed`: m/s; `spread`: rad (±); `tank`: partículas; `dps`: daño por
+ * segundo con el chorro entero (0 si el arma aplica un estado). Cada arma cumple `rate ≤ speed / (1,5 r)`: un
+ * solo carril sin explosión al crear. `persist`: no vence a los 6 s del disparo; queda como charco y cuenta para
+ * PERSIST_MAX. `immersion`: respuesta dentro del agua del nivel (docs/design/07-sph.md §7.6); `buoyancy` =
+ * ρ_agua / ρ_fluido, `drag` en 1/s.
+ */
 export const WEAPONS = [
-    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.TENSILE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0, immersion: { buoyancy: 1.0, drag: 10 } },
-    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.TENSILE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20, immersion: { buoyancy: 0.95, drag: 10 } },
-    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.TENSILE | PARTICLE.VISCOUS, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12, immersion: { buoyancy: 0.38, drag: 6 } },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 50, speed: 18, spread: 0.017, tank: 75, dps: 0, persist: true, immersion: { buoyancy: 0.7, drag: 14 } },
+    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 50, speed: 14, spread: 0.035, tank: 150, dps: 0, immersion: { buoyancy: 1.0, drag: 10 } },
+    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 45, speed: 14, spread: 0.035, tank: 68, dps: 20, immersion: { buoyancy: 0.95, drag: 10 } },
+    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 30, speed: 10, spread: 0.017, tank: 45, dps: 12, immersion: { buoyancy: 0.38, drag: 6 } },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 25, speed: 18, spread: 0.017, tank: 38, dps: 0, persist: true, immersion: { buoyancy: 0.7, drag: 14 } },
 ];
 
-// Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
-// estén los puntos de aparición (#14) conserva todas las armas para poder probarlas
+/**
+ * Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
+ * estén los puntos de aparición (#14) conserva todas las armas para poder probarlas.
+ */
 export const LOADOUT = { weapon: FLUID.WATER, weapons: [FLUID.WATER, FLUID.ACID, FLUID.LAVA, FLUID.HONEY] };
-
 const byId = new Map(WEAPONS.map((w) => [w.id, w]));
 
 export function weaponById(id) {
     return byId.get(id);
 }
 
-// Tipo de fluido por color de partícula (para las que no tienen disparo asociado). Los pares (r, g) salen de la tabla
+/** Tipo de fluido por color de partícula (para las que no tienen disparo asociado). Los pares (r, g) salen de la tabla. */
 const byColor = new Map(WEAPONS.map((w) => [w.color[0] * 256 + w.color[1], w.id]));
 
-// Ids de las armas con `persist`
+/** Ids de las armas con `persist`. */
 export const PERSIST_FLUIDS = new Set(WEAPONS.filter((w) => w.persist).map((w) => w.id));
 
 export function fluidFromColor(r, g) {
     return byColor.get(r * 256 + g) ?? 0;
 }
 
-// Daño por partícula de las armas de daño por contacto: si cambia el caudal, el DPS no cambia
+/** Daño por partícula de las armas de daño por contacto: si cambia el caudal, el DPS no cambia. */
 export function particleDamage(weapon) {
     return weapon.dps / weapon.rate;
 }
@@ -68,7 +77,7 @@ export function equipLoadout(player) {
     player.weapon = LOADOUT.weapon;
 }
 
-// Siguiente arma del inventario (ordenado como la tabla) en el sentido de `step`, con vuelta
+/** Siguiente arma del inventario (ordenado como la tabla) en el sentido de `step`, con vuelta. */
 export function cycleWeapon(player, step) {
     const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
     if (owned.length === 0) return;
@@ -78,8 +87,10 @@ export function cycleWeapon(player, step) {
 
 const GOLDEN = 0.6180339887498949;
 const PARTICLE_RADIUS = SHOT_SYSTEM.radius;
-const MUZZLE_OFFSET = PARTICLE_RADIUS + 0.05; // no nace dentro del arma
-const MAX_BURST_TIME = 0.05; // s de caudal que puede salir en un solo frame
+/** Distancia de la boca a la primera partícula: no nace dentro del arma. */
+const MUZZLE_OFFSET = PARTICLE_RADIUS + 0.05;
+/** Segundos de caudal que pueden salir en un solo frame. */
+const MAX_BURST_TIME = 0.05;
 
 /**
  * Emite el chorro de cada jugador: partículas sueltas, una vez por frame y fuera de los callbacks de Box2D.
@@ -109,14 +120,13 @@ export class ShotEmitter {
         return (this.players[k] ??= { credit: 0, firing: false, armed: this.armedByDefault, seq: 0 });
     }
 
-    // Después de un reinicio de ronda hay que soltar el botón antes de volver a disparar: los estados
-    // nuevos nacen sin armar y se arman con el primer frame sin disparo
+    /** Después de un reinicio de ronda hay que soltar el botón: los estados nuevos nacen sin armar y se arman con el primer frame sin disparo. */
     reset() {
         this.players.length = 0;
         this.armedByDefault = false;
     }
 
-    // Devuelve cuántas partículas emitió
+    /** Devuelve cuántas partículas emitió. */
     fire(k, player, wants, dt, now) {
         const s = this.state(k);
         if (!wants) {
