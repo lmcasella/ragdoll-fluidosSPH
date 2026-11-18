@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Visor de escenarios</title>
+<style>
+    html, body { margin: 0; background: #181a20; color: #ddd; font: 13px sans-serif; }
+    #bar { display: flex; gap: 8px; align-items: center; padding: 6px 8px; }
+    canvas { display: block; background: #20232b; }
+    input[type=range] { width: 320px; }
+</style>
+<div id="bar">
+    <input type="file" id="file" accept=".json">
+    <button id="play">Play</button>
+    <button id="prev">&lt;</button>
+    <button id="next">&gt;</button>
+    <input type="range" id="seek" min="0" max="0" value="0">
+    <label>Velocidad
+        <select id="speed">
+            <option value="0.1">0,1x</option>
+            <option value="0.25">0,25x</option>
+            <option value="0.5">0,5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+        </select>
+    </label>
+    <span id="info"></span>
+</div>
+<canvas id="view" width="1200" height="520"></canvas>
+<script>
+    /**
+     * Reproduce una grabación de tests/helpers/recorder.js. Metros con Y hacia arriba; solo se pasa a píxeles al dibujar.
+     */
+    const canvas = document.getElementById("view");
+    const ctx = canvas.getContext("2d");
+    const seek = document.getElementById("seek");
+    const info = document.getElementById("info");
+    const playButton = document.getElementById("play");
+    let data = null;
+    let index = 0;
+    let playing = false;
+    let last = 0;
+    let carry = 0;
+
+    function transform() {
+        const [x0, y0, x1, y1] = data.meta.view;
+        const s = Math.min(canvas.width / (x1 - x0), canvas.height / (y1 - y0));
+        return { s, X: (x) => (x - x0) * s, Y: (y) => canvas.height - (y - y0) * s };
+    }
+
+    function drawShape(T, shape, px, py, angle) {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const world = (x, y) => [px + cos * x - sin * y, py + sin * x + cos * y];
+        ctx.beginPath();
+        if (shape.poly) {
+            shape.poly.forEach(([x, y], i) => {
+                const [wx, wy] = world(x, y);
+                if (i) ctx.lineTo(T.X(wx), T.Y(wy));
+                else ctx.moveTo(T.X(wx), T.Y(wy));
+            });
+            ctx.closePath();
+        } else {
+            const [wx, wy] = world(shape.circle[0], shape.circle[1]);
+            ctx.arc(T.X(wx), T.Y(wy), shape.circle[2] * T.s, 0, Math.PI * 2);
+        }
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function draw() {
+        if (!data) return;
+        const f = data.frames[index];
+        const T = transform();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#59606e";
+        for (const { x, y, w, h } of data.meta.solids) ctx.fillRect(T.X(x - w / 2), T.Y(y + h / 2), w * T.s, h * T.s);
+        ctx.fillStyle = "#c9c9d2";
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 1;
+        data.meta.pieces.forEach((piece, i) => {
+            const [px, py, angle] = f.pieces[i];
+            for (const shape of piece.shapes) drawShape(T, shape, px, py, angle);
+        });
+        f.particles.forEach((p, k) => {
+            const r = Math.max(1.2, data.meta.systems[k].radius * T.s);
+            for (let i = 0; i < p.x.length; i++) {
+                const c = p.color[i];
+                ctx.fillStyle = `rgb(${c >> 16},${(c >> 8) & 255},${c & 255})`;
+                ctx.beginPath();
+                ctx.arc(T.X(p.x[i]), T.Y(p.y[i]), r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+        seek.value = index;
+        info.textContent = `${data.meta.name}  t = ${f.t.toFixed(2)} s  frame ${index + 1}/${data.frames.length}`;
+    }
+
+    function go(i) {
+        if (!data) return;
+        index = Math.max(0, Math.min(data.frames.length - 1, i));
+        draw();
+    }
+
+    function tick(now) {
+        if (playing && data) {
+            carry += ((now - last) / 1000) * 60 * Number(document.getElementById("speed").value);
+            const whole = Math.floor(carry);
+            carry -= whole;
+            if (whole) {
+                if (index + whole >= data.frames.length - 1) setPlaying(false);
+                go(index + whole);
+            }
+        }
+        last = now;
+        requestAnimationFrame(tick);
+    }
+
+    function setPlaying(value) {
+        playing = value;
+        playButton.textContent = value ? "Pausa" : "Play";
+    }
+
+    document.getElementById("file").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        data = JSON.parse(await file.text());
+        seek.max = data.frames.length - 1;
+        setPlaying(false);
+        go(0);
+    });
+    playButton.addEventListener("click", () => {
+        if (data && index >= data.frames.length - 1) go(0);
+        setPlaying(!playing);
+    });
+    document.getElementById("prev").addEventListener("click", () => { setPlaying(false); go(index - 1); });
+    document.getElementById("next").addEventListener("click", () => { setPlaying(false); go(index + 1); });
+    seek.addEventListener("input", () => { setPlaying(false); go(Number(seek.value)); });
+    requestAnimationFrame(tick);
+</script>
+</html>
