@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.7] - 2026-11-18
+
+### Fixed
+- El aviso "Inundación en N" aparece 10 s antes de que empiece la inundación, no a los 290 s de ronda.
+
 ## [0.11.6] - 2026-11-18
 
 ### Changed
