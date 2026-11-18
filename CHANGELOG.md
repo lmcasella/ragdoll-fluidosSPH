@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-11-18
+
+### Changed
+- Diseño del agua nueva: campo de alturas para la pileta y la inundación, disparos con agua pura, flotación de Arquímedes e interacciones físicas, aprobado por revisión física (`docs/design/14-agua.md`).
+- Diseño del remapeo del gamepad (salto con A, golpe con B, gancho con X, rueda de armas con LB mantenido) y del gancho.
+
 ## [0.11.3] - 2026-11-19
 
 ### Changed

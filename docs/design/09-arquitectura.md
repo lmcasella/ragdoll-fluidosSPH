@@ -24,7 +24,13 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | `assets/*.rag.json` | Rigs (robot en uso; dino sin uso) |
 | `tests/` | Tests de humo, que corre el CI antes de cada deploy (PR #3) |
 
-Previsto: un módulo de métricas (#29).
+Previsto: un módulo de métricas (#29), que se integra en `js/debug.js` de #62.
+
+**🔨 #62, módulos previstos** (responsabilidad, dependencias y orden del paso fijo en [14.13](14-agua.md#1413-orden-en-el-paso-fijo-y-patrones)): `js/materials.js` (hoja), `js/water.js` (`ShallowWater`, JS puro), `js/particleStore.js` (hoja, único dueño de `CreateParticle`/`DestroyParticle`), `js/bodyShapes.js` (hoja), `js/buoyancy.js`, `js/contacts.js` (hoja, lector del buffer nativo de contactos), `js/evaporation.js` (agua detenida, D7), `js/thermal.js`, `js/mixing.js`, `js/adhesion.js` y `js/debug.js`. Cambian `js/immersion.js` (absorción e inmersión contra el campo), `js/flood.js` (solo fuente de lluvia), `js/damage.js` (lee el estado por slot), `js/level.js` (sin el agua en partículas), `js/weapons.js` (`SHOT_SYSTEM` de agua pura, sin `immersion`) y `js/particles.js` (suma `WALL` y `POWDER`). Lo que se borra está en [14.14](14-agua.md#1414-qué-se-borra).
+
+**🔨 Remapeo y gancho (18/11):** `js/Input.js` suma las intenciones `jump`, `drop`, `grapple`, `wheel`/`wheelPick`, `ragdoll` y `pause` ([10](10-controles.md#102-intenciones-de-input)). Módulos nuevos:
+- `js/grapple.js` (`Grapple`, datos `GRAPPLE`): cuerda `b2RopeJoint` creada y destruida por el juego. Recibe `world`, `ground`, `raycaster` y `damage` por constructor ([03 §3.5](03-robots.md#35-gancho-)).
+- `js/platforms.js` (`OneWayPlatforms`), sin issue todavía: filtro de contactos para las plataformas atravesables ([05 §5.3](05-escenario.md#53-plataformas-atravesables-desde-abajo-)).
 
 **Dependencias de `js/weapons.js`** (#13, con el cambio de #40):
 - `damage.js` → `weapons.js`: solo datos. No hay ciclo: `weapons.js` solo importa `particles.js`, que no importa nada.
@@ -91,4 +97,6 @@ El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 3. Reemplazar el agua quieta del fondo por un bloque estático con sensor (híbrido: "cuándo usar qué").
 4. Render en GPU (#26).
 
-**Panel de métricas** 🔨 #29: partículas por sistema, ms de física y de render, rayos por frame, contactos partícula↔cuerpo y FPS. Base de los benchmarks de la defensa.
+**Presupuesto con #62** 🔨: sin el agua del nivel en partículas, el sistema líquido único (radio 0,12 m, `maxCount` 3.000) cuesta ~3 ms con 8 subpasos (tabla de arriba); `ShallowWater` < 0,3 ms; flotación < 0,15 ms; inmersión < 0,3 ms; térmica y mezcla < 0,3 ms. La meta sigue en física ≤ 8 ms y render de fluidos ≤ 2 ms ([14.16](14-agua.md#1416-criterios-de-aceptación)).
+
+**Panel de métricas** 🔨 #29 (se integra en `js/debug.js`; el resto de las capas es #78. Atajo de gamepad: L3 + R3, [10.5](10-controles.md#105-debug)): partículas por sistema, ms de física y de render, rayos por frame, contactos partícula↔cuerpo y FPS. Base de los benchmarks de la defensa.
