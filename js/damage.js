@@ -5,7 +5,7 @@
 //    por cercanía, una vez por paso (stickHoney).
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
-import { FLUID, WEAPONS, fluidFromColor, particleDamage } from "./weapons.js";
+import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -16,11 +16,12 @@ const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se dest
 const HONEY_REACH = 0.02; // m que la caja de una fixture se agranda, además del radio de la partícula
 
 export class DamageSystem {
-    constructor(world, particleSystem, weapons = WEAPONS) {
+    constructor(world, store, weapons = WEAPONS) {
         this.particleDamage = new Map(weapons.map((w) => [w.id, particleDamage(w)]));
         this.world = world;
-        this.particleSystem = particleSystem;
-        this.particleSystemPtr = Box2D.getPointer(particleSystem);
+        this.store = store;
+        this.particleSystem = store.system;
+        this.particleSystemPtr = Box2D.getPointer(store.system);
         this.players = [];
         this.owners = new Map(); // puntero de cuerpo → { player, index, bodyId }
         this.shots = new Map(); // id de disparo → { owner, weapon, time }
@@ -83,13 +84,7 @@ export class DamageSystem {
         this.openShots.clear();
     }
 
-    // Marca una partícula con su id de disparo (buffer de userData; se lee de nuevo en cada llamada porque
-    // crear partículas puede reubicar los buffers)
-    tagParticle(index, id) {
-        Box2D.HEAP32[(this.particleSystem.GetUserDataBuffer() >> 2) + index] = id;
-    }
-
-    // Id más chico que sigue vivo: las partículas con 0 < userData < liveShotFloor son de disparos vencidos
+    /** Id más chico que sigue vivo: las partículas con 0 < shot < liveShotFloor son de disparos vencidos. */
     get liveShotFloor() {
         for (const id of this.shots.keys()) return id;
         return this.nextShot;
@@ -134,35 +129,37 @@ export class DamageSystem {
         const owner = this.owners.get(Box2D.getPointer(contact.get_body()));
         if (!owner) return;
         const index = contact.get_index();
-        const system = this.particleSystem;
-        const tag = Box2D.HEAP32[(system.GetUserDataBuffer() >> 2) + index];
-        const colors = Box2D.getPointer(system.GetColorBuffer()) + index * 4;
-        const shot = this.shots.get(tag);
-        const kind = shot?.weapon ?? fluidFromColor(Box2D.HEAPU8[colors], Box2D.HEAPU8[colors + 1]);
+        const store = this.store;
+        const slot = store.slotAt(index);
+        if (slot < 0 || store.alive[slot] === 0) return;
+        const shot = this.shots.get(store.shot[slot]);
+        const kind = store.kind[slot];
         if (kind) this.fluidHits.push({ owner, index, shot, kind });
     }
 
-    // Pega a todo robot vivo que tenga el centro de una partícula de miel dentro de alguna de sus cajas agrandadas
-    // `radio + HONEY_REACH`. No encola ni destruye nada: la miel sigue ahí. Una partícula sin tramo vivo (la de más de
-    // 6 s o la del mapa) pega a cualquiera; la propia, dentro de la gracia de SELF_IMMUNITY, no pega a su dueño.
+    /**
+     * Pega a todo robot vivo que tenga el centro de una partícula de miel dentro de alguna de sus cajas agrandadas
+     * `radio + HONEY_REACH`. No encola ni destruye nada: la miel sigue ahí. Una partícula sin tramo vivo (la de más de
+     * 6 s o la del mapa) pega a cualquiera; la propia, dentro de la gracia de SELF_IMMUNITY, no pega a su dueño.
+     */
     stickHoney(now) {
         const system = this.particleSystem;
+        const store = this.store;
         const count = system.GetParticleCount();
         const players = this.players;
         if (count === 0 || players.length === 0) return;
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-        const colors = Box2D.getPointer(system.GetColorBuffer());
-        const tags = system.GetUserDataBuffer() >> 2;
         const pad = system.GetRadius() + HONEY_REACH;
         const boxes = this.honeyBoxes;
         boxes.length = 0;
         for (const player of players) boxes.push(player.dead ? null : player.fixtureBoxes());
         let pending = players.length; // robots que todavía no quedaron pegados en este paso
         for (let i = 0; i < count && pending > 0; i++) {
-            if (fluidFromColor(Box2D.HEAPU8[colors + i * 4], Box2D.HEAPU8[colors + i * 4 + 1]) !== FLUID.HONEY) continue;
+            const slot = store.slotAt(i);
+            if (slot < 0 || store.alive[slot] === 0 || store.kind[slot] !== FLUID.HONEY) continue;
             const x = Box2D.HEAPF32[pos + i * 2];
             const y = Box2D.HEAPF32[pos + i * 2 + 1];
-            const shot = this.shots.get(Box2D.HEAP32[tags + i]);
+            const shot = this.shots.get(store.shot[slot]);
             for (let k = 0; k < players.length; k++) {
                 const b = boxes[k];
                 if (!b) continue;
@@ -181,9 +178,11 @@ export class DamageSystem {
         }
     }
 
-    // Aplica lo encolado durante el paso; llamar después de stepWorld.
-    // `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
-    // robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks).
+    /**
+     * Aplica lo encolado durante el paso; llamar después de stepWorld y de `store.afterStep()`.
+     * `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
+     * robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks).
+     */
     process(now, waterLevel = -Infinity) {
         for (const owner of this.drowned) owner.player.drown(now);
         this.drowned.length = 0;
@@ -218,7 +217,7 @@ export class DamageSystem {
                 owner.player.burn(owner.bodyId);
             }
         }
-        for (const index of consumed) this.particleSystem.DestroyParticle(index);
+        for (const index of consumed) this.store.destroy(index);
         this.stickHoney(now);
 
         this.impacts.length = 0;

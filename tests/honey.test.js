@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 import { loadGame } from "./helpers/game.js";
 
-const { FLUID, PERSIST_MAX, fluidFromColor, weaponById } = await import("../js/weapons.js");
+const { FLUID, PERSIST_MAX, weaponById } = await import("../js/weapons.js");
+const { ORIGIN } = await import("../js/particleStore.js");
 const { PARTICLE } = await import("../js/particles.js");
 
 const A = 0;
@@ -38,7 +39,7 @@ function shift(game, k, dx) {
 
 // Partículas de miel que cuentan como las del mapa (#23): userData 0, flags VISCOUS | CONTACT_LISTENER
 function addPuddle(game, centerX) {
-    const system = game.state.particleSystem;
+    const { store } = game.state;
     const def = new Box2D.b2ParticleDef();
     const [r, g, b] = weaponById(FLUID.HONEY).color;
     const color = new Box2D.b2ParticleColor(r, g, b, 255);
@@ -51,7 +52,7 @@ function addPuddle(game, centerX) {
             position.set_x(x);
             position.set_y(FLOOR_Y + 0.1 + layer * 0.15);
             def.set_position(position);
-            system.CreateParticle(def);
+            store.create(def, { kind: FLUID.HONEY, origin: ORIGIN.MAP });
             made++;
         }
     }
@@ -63,23 +64,21 @@ function addPuddle(game, centerX) {
 
 // Cantidad de partículas del sistema de disparos del tipo dado (por color), con userData opcional
 function count(game, kind, tagAbove = -1) {
-    const system = game.state.particleSystem;
-    const colors = Box2D.getPointer(system.GetColorBuffer());
-    const tags = system.GetUserDataBuffer() >> 2;
+    const { store, particleSystem } = game.state;
     let n = 0;
-    for (let i = 0; i < system.GetParticleCount(); i++) {
-        if (fluidFromColor(Box2D.HEAPU8[colors + i * 4], Box2D.HEAPU8[colors + i * 4 + 1]) === kind && Box2D.HEAP32[tags + i] > tagAbove) n++;
+    for (let i = 0; i < particleSystem.GetParticleCount(); i++) {
+        const slot = store.slotAt(i);
+        if (store.alive[slot] === 1 && store.kind[slot] === kind && store.shot[slot] > tagAbove) n++;
     }
     return n;
 }
 
 function tags(game, kind) {
-    const system = game.state.particleSystem;
-    const colors = Box2D.getPointer(system.GetColorBuffer());
-    const buffer = system.GetUserDataBuffer() >> 2;
+    const { store, particleSystem } = game.state;
     const out = [];
-    for (let i = 0; i < system.GetParticleCount(); i++) {
-        if (fluidFromColor(Box2D.HEAPU8[colors + i * 4], Box2D.HEAPU8[colors + i * 4 + 1]) === kind) out.push(Box2D.HEAP32[buffer + i]);
+    for (let i = 0; i < particleSystem.GetParticleCount(); i++) {
+        const slot = store.slotAt(i);
+        if (store.alive[slot] === 1 && store.kind[slot] === kind) out.push(store.shot[slot]);
     }
     return out;
 }
@@ -155,9 +154,8 @@ test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel"
 
 test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el movimiento", async () => {
     const game = await standing(true);
-    const system = game.state.particleSystem;
     assert.equal(game.state.players[J2].sticky, true);
-    for (let i = system.GetParticleCount() - 1; i >= 0; i--) system.DestroyParticle(i);
+    game.state.store.reset();
     game.frames(15);
     assert.equal(game.state.players[J2].sticky, true, "todavía dentro de la gracia");
     game.frames(7); // 0,3 s + 1 paso (algún frame no completa un paso)
