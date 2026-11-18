@@ -28,5 +28,5 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
 - **Sensor:** un sensor de Box2D cubre la pileta hasta y = 2,2. El robot que se hunde ahí queda **destruido** (vida 0, todo rojo) y pierde la ronda. Con la inundación **no se mueve** ([02-partida](02-partida.md#21-inundación--22)).
 - **Disparos:** los sistemas de disparos y del agua del nivel no interactúan entre sí en LiquidFun.
   - ✅ #22: hasta ahora, las partículas de los disparos que caían al agua se eliminaban (corte `y < max(pool.surface si x está sobre la pileta, nivel de la inundación)`), porque si no la atravesaban.
-  - 🔨 #39: **ya no se eliminan.** El puente detecta los disparos dentro del agua (pileta, inundación o charcos) y los frena y los hace flotar o hundirse según el fluido ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)).
+  - ✅ #39: **ya no se eliminan.** El puente detecta los disparos dentro del agua (pileta, inundación o charcos) y los frena y los hace flotar o hundirse según el fluido ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)).
 - **Inundación:** la lluvia de la muerte súbita cae sobre la pileta y la hace subir (#22, [02-partida](02-partida.md#21-inundación--22)).

@@ -53,7 +53,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 - **Acople bidireccional** ✅: los fluidos empujan cuerpos y los cuerpos desplazan fluidos.
 - **Contactos partícula↔cuerpo** ✅ (*verificado*): `BeginParticleBodyContact` informa qué parte del cuerpo tocó cada partícula. Requiere la flag `1 << 14` (`b2_fixtureContactListenerParticle`) en las partículas.
 - **Etiqueta por disparo** ✅: cada grupo disparado escribe su id en el buffer de `userData` de sus partículas (*por re-verificar*). Así se sabe de quién es cada partícula. Nota: la verificación anterior de que la marca sobrevive se hizo sobre el aliasing de un bug (`Box2D.getPointer` aplicado al número que devuelve `GetUserDataBuffer()`, que leía y escribía en la dirección 0 del heap). Desde #22 se escribe en el buffer real (`GetUserDataBuffer() >> 2`), que es lo que usan `damage.js` y `flood.js`.
-- **Puente entre sistemas** 🔨 #39: frenado y flotación de los disparos que están dentro del agua del nivel, escribiendo el buffer de velocidades del sistema de disparos una vez por paso ([7.6](#76-puente-agua--disparos--39)).
+- **Puente entre sistemas** ✅ #39: frenado y flotación de los disparos que están dentro del agua del nivel, escribiendo el buffer de velocidades del sistema de disparos una vez por paso ([7.6](#76-puente-agua--disparos--39)).
 - **Contactos partícula↔partícula** 🔨 #30: reacciones entre fluidos ([04-fluidos](04-fluidos.md#44-reacciones-entre-fluidos--30)).
 - **Escritura directa de buffers** 🔨: viento (velocidad) y reacciones (flags).
 
@@ -191,7 +191,7 @@ Se mueve **una perilla por vez**, en este orden, y se vuelven a correr los tres 
 - **#45 (hueco entre robot y agua):** #40 no cambia radios ni radio de dibujo, así que el hueco no cambia por este issue. Si #45 cambia el radio de dibujo o de la partícula, repite los bancos 2 y 3.
 - **#39 (puente agua → disparos):** no depende de estas fuerzas; el frenado del puente es aparte ([7.6](#76-puente-agua--disparos--39)). Sí depende del costo: con la presión estática del agua del nivel, la inundación al tope ya cuesta ~7,2 ms y al puente le quedan ~0,8 ms.
 
-## 7.6 Puente agua → disparos 🔨 #39
+## 7.6 Puente agua → disparos ✅ #39
 
 **Problema.** Los disparos (radio 0,1 m) y el agua del nivel (0,25 m) están en sistemas distintos y LiquidFun no los hace interactuar: un disparo atravesaría la pileta o la inundación. Hasta ahora, `limpiarParticulas` borraba los disparos que entraban al agua, y el usuario lo vio como "los disparos desaparecen". El sistema único se rechazó ([arriba](#un-solo-sistema-para-todos-los-líquidos--rechazado-1811)).
 
