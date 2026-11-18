@@ -1,10 +1,17 @@
 // Inundación (muerte súbita): lluvia desde el techo en el sistema de partículas del agua del nivel.
 // El nivel no se mide sobre las partículas: lo da una curva por tiempo de ronda y el emisor repone las gotas
 // necesarias para llenarlo. No aplica daño: expone `level` y DamageSystem moja a los robots que quedan bajo él.
-import { LEVEL } from "./level.js";
+import { LEVEL, fillPoolWater } from "./level.js";
 
 const SLICE = 0.05; // m, paso de integración del ancho libre
 const GOLDEN = 0.6180339887498949;
+// Superficie real bajo un robot: partículas casi quietas en una columna de ±0,5 m; la gota en vuelo o la
+// salpicadura suelta no cuentan, y se toma el percentil 90 para ignorar la espuma de arriba
+const COLUMN_HALF_WIDTH = 0.5;
+const REST_SPEED = 2; // m/s
+const MIN_COLUMN_PARTICLES = 3;
+const SURFACE_PERCENTILE = 0.9;
+const COLUMN_CAPACITY = 1024;
 // GetUserDataBuffer devuelve el puntero como número (no como objeto envuelto): no pasa por getPointer
 export const RAIN_MARK = -1; // userData de las gotas; la pileta queda en 0 y los disparos usan ids positivos
 
@@ -57,7 +64,6 @@ export function waterArea(height, level = LEVEL) {
     const { widths, cumulative, count, base } = freeWidths(level);
     const rel = Math.max(0, height - base) / SLICE;
     const k = Math.min(count - 1, Math.floor(rel));
-    if (k < 0) return 0;
     return cumulative[k] + widths[k] * (rel - k) * SLICE;
 }
 
@@ -89,6 +95,9 @@ export class Flood {
         this.emitted = 0;
         this.credit = 0;
         this.drops = 0;
+        this.column = new Float32Array(COLUMN_CAPACITY);
+        // Propiedad (no método) para pasarla como callback a DamageSystem.process sin crear closures por frame
+        this.surfaceAt = (x) => this.measureSurface(x);
     }
 
     get active() {
@@ -140,6 +149,29 @@ export class Flood {
         this.credit = n < wanted ? this.credit - wanted : this.credit - n;
     }
 
+    // Altura (m) del agua realmente asentada en la columna x, o -Infinity si no hay (o aún no llueve).
+    // El agua real va atrasada respecto de `level` (la lluvia tarda en caer y repartirse), y mojar con la curva
+    // mojaría robots a los que todavía no llegó el agua.
+    measureSurface(x) {
+        if (!this.active) return -Infinity;
+        const system = this.system;
+        const count = system.GetParticleCount();
+        const positions = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+        const velocities = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
+        const column = this.column;
+        const rest2 = REST_SPEED * REST_SPEED;
+        let n = 0;
+        for (let i = 0; i < count && n < COLUMN_CAPACITY; i++) {
+            if (Math.abs(Box2D.HEAPF32[positions + i * 2] - x) > COLUMN_HALF_WIDTH) continue;
+            const vx = Box2D.HEAPF32[velocities + i * 2];
+            const vy = Box2D.HEAPF32[velocities + i * 2 + 1];
+            if (vx * vx + vy * vy < rest2) column[n++] = Box2D.HEAPF32[positions + i * 2 + 1];
+        }
+        if (n < MIN_COLUMN_PARTICLES) return -Infinity;
+        column.subarray(0, n).sort();
+        return column[Math.floor((n - 1) * SURFACE_PERCENTILE)];
+    }
+
     emit() {
         this.position.set_x(rainX(this.emitted++, this.config));
         this.def.set_position(this.position);
@@ -149,13 +181,12 @@ export class Flood {
         this.drops++;
     }
 
-    // Destruye la lluvia y reinicia el estado; llamar fuera de callbacks (entre frames)
+    // Deja el agua del nivel como al empezar: destruye todo (lluvia y pileta, que pudo salpicar fuera del
+    // hueco) y vuelve a llenar la pileta con los mismos datos. Llamar fuera de callbacks (entre frames).
     reset() {
         const count = this.system.GetParticleCount();
-        const marks = this.system.GetUserDataBuffer() >> 2;
-        for (let i = 0; i < count; i++) {
-            if (Box2D.HEAP32[marks + i] === RAIN_MARK) this.system.DestroyParticle(i);
-        }
+        for (let i = 0; i < count; i++) this.system.DestroyParticle(i);
+        fillPoolWater(this.system, this.data);
         this.roundTime = 0;
         this.emitted = 0;
         this.credit = 0;

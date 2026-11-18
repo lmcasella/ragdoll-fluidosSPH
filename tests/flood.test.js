@@ -132,6 +132,9 @@ test("el agua asentada queda a ±0,4 m del nivel y no hay charcos altos", () => 
     }
     const surface = measuredSurface(system);
     assert.ok(Math.abs(surface - level) < 0.4, `superficie ${surface?.toFixed(2)} vs nivel ${level}`);
+    const local = flood.surfaceAt(48.5);
+    assert.ok(Math.abs(local - level) < 0.5, `surfaceAt ${local} vs nivel ${level}`);
+    assert.equal(flood.surfaceAt(48.5), flood.measureSurface(48.5));
     assert.ok(marked(system) <= rainTarget(roundTime), "no hay más gotas que las necesarias");
 
     const marks = system.GetUserDataBuffer() >> 2;
@@ -147,7 +150,24 @@ test("el agua asentada queda a ±0,4 m del nivel y no hay charcos altos", () => 
     flood.dispose();
 });
 
-test("reset destruye la lluvia, deja la pileta y reinicia el estado", () => {
+test("surfaceAt: -Infinity antes de la inundación y sin agua en la columna", () => {
+    const { world, system } = makeWorld();
+    const flood = new Flood(world, system);
+    for (let i = 0; i < 120; i++) {
+        flood.step(10, DT);
+        stepWorld(world, []);
+    }
+    assert.equal(flood.surfaceAt(7.5), -Infinity);
+    // ya activa, pero todavía no cayó agua sobre la isla izquierda (la lluvia tarda en llegar)
+    flood.step(95, DT);
+    assert.equal(flood.active, true);
+    assert.equal(flood.surfaceAt(7.5), -Infinity);
+    // sobre la pileta sí hay agua
+    assert.ok(Math.abs(flood.surfaceAt(28) - LEVEL.pool.surface) < 0.6);
+    flood.dispose();
+});
+
+test("reset destruye la lluvia y devuelve la pileta a su estado inicial, aunque se haya salpicado", () => {
     const { world, system } = makeWorld();
     const flood = new Flood(world, system);
     const poolCount = system.GetParticleCount();
@@ -157,10 +177,34 @@ test("reset destruye la lluvia, deja la pileta y reinicia el estado", () => {
     }
     assert.ok(marked(system) > 100);
     assert.equal(flood.active, true);
+
+    // salpicadura: se sacan 60 partículas de la pileta (las primeras, que no son lluvia) fuera del hueco
+    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+    const marks = system.GetUserDataBuffer() >> 2;
+    let moved = 0;
+    for (let i = 0; i < system.GetParticleCount() && moved < 60; i++) {
+        if (Box2D.HEAP32[marks + i] === RAIN_MARK) continue;
+        Box2D.HEAPF32[pos + 2 * i] = 5 + moved * 0.01;
+        Box2D.HEAPF32[pos + 2 * i + 1] = 9;
+        moved++;
+    }
+    assert.equal(moved, 60);
+    for (let i = 0; i < 30; i++) {
+        flood.step(130, DT);
+        stepWorld(world, []);
+    }
+
     flood.reset();
     stepWorld(world, []);
     assert.equal(marked(system), 0);
     assert.equal(system.GetParticleCount(), poolCount);
+    const { x1, x2, bottom, surface } = LEVEL.pool;
+    const after = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+    for (let i = 0; i < system.GetParticleCount(); i++) {
+        const x = Box2D.HEAPF32[after + 2 * i];
+        const y = Box2D.HEAPF32[after + 2 * i + 1];
+        assert.ok(x > x1 && x < x2 && y > bottom && y < surface + 0.3, `partícula ${i} fuera del hueco: (${x}, ${y})`);
+    }
     assert.equal(flood.active, false);
     assert.equal(flood.level, -Infinity);
     assert.equal(flood.drops, 0);
@@ -193,6 +237,7 @@ async function setupMatch(level) {
     const idle = { left: false, right: false, up: false };
     const instances = players.map((p) => p.rag);
     let now = 0;
+    const timing = { process: 0 };
     const frame = (roundTime) => {
         players.forEach((p) => {
             p.move(idle);
@@ -201,9 +246,11 @@ async function setupMatch(level) {
         flood.step(roundTime, DT);
         stepWorld(world, instances);
         now += DT;
-        damage.process(now, flood.level);
+        const t0 = performance.now();
+        damage.process(now, flood.surfaceAt);
+        timing.process += performance.now() - t0;
     };
-    return { players, flood, system, frame };
+    return { players, flood, system, frame, timing };
 }
 
 test("un robot quieto bajo el agua pierde vida por cortocircuito; en seco, no", async () => {
@@ -211,20 +258,31 @@ test("un robot quieto bajo el agua pierde vida por cortocircuito; en seco, no", 
     for (let i = 0; i < 180; i++) dry.frame(50);
     dry.players.forEach((p) => assert.equal(p.hp, 100));
 
+    // la curva (4,5 m) ya cubre los pies, pero el agua todavía no cayó: no se moja
+    const early = await setupMatch(LEVEL);
+    for (let i = 0; i < 30; i++) early.frame(100);
+    early.players.forEach((p) => assert.equal(p.hp, 100));
+
+    // con el agua asentada a ~7,5 m sobre las islas, un robot quieto pierde 3 de vida por segundo
     const wet = await setupMatch(LEVEL);
-    // t = 110 s: el nivel (6 m) cubre las piezas de los robots parados en las islas
-    for (let i = 0; i < 180; i++) wet.frame(110);
+    for (let i = 0; i < 60 * 50; i++) wet.frame(120);
+    assert.ok(wet.players.every((p) => p.wet), "el agua ya los alcanzó");
+    wet.players.forEach((p) => (p.hp = 100)); // el agua ya los dañó mientras se asentaba
+    const before = wet.players.map((p) => p.hp);
+    for (let i = 0; i < 180; i++) wet.frame(120);
     wet.players.forEach((p, k) => {
-        assert.ok(p.hp < 92 && p.hp > 89, `J${k + 1}: vida ${p.hp.toFixed(2)} tras 3 s (esperada ~91)`);
+        const lost = before[k] - p.hp;
+        assert.ok(lost > 8 && lost < 9.2, `J${k + 1}: perdió ${lost.toFixed(2)} en 3 s (esperado ~9)`);
     });
 });
 
 test("costo: nivel al tope con dos robots (300 pasos)", async () => {
     // maxRate alto solo para llenar rápido el mapa en el test
     const level = levelWith({ maxRate: 1500 });
-    const { players, flood, system, frame } = await setupMatch(level);
+    const { players, flood, system, frame, timing } = await setupMatch(level);
     const roundTime = 170;
     for (let i = 0; i < 60 * 15; i++) frame(roundTime);
+    timing.process = 0;
     const times = [];
     for (let i = 0; i < 300; i++) {
         const t0 = performance.now();
@@ -232,7 +290,10 @@ test("costo: nivel al tope con dos robots (300 pasos)", async () => {
         times.push(performance.now() - t0);
     }
     const average = times.reduce((a, b) => a + b, 0) / times.length;
-    console.log(`costo: ${average.toFixed(2)} ms/frame con ${system.GetParticleCount()} partículas (${flood.drops} gotas)`);
+    console.log(
+        `costo: ${average.toFixed(2)} ms/frame con ${system.GetParticleCount()} partículas (${flood.drops} gotas); ` +
+            `damage.process (agua local + borde inferior, 2 robots): ${(timing.process / 300).toFixed(3)} ms`,
+    );
     assert.ok(system.GetParticleCount() <= F.maxParticles);
     assert.ok(Number.isFinite(players[0].torso.GetPosition().get_x()));
     assert.ok(average < 16, `${average.toFixed(2)} ms por frame`);
