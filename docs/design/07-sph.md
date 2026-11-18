@@ -16,12 +16,14 @@ Partículas de sistemas distintos **no interactúan entre sí**, solo con los cu
 | Sistema | Contenido | Radio | Gravedad | Vida | Estado |
 |---|---|---|---|---|---|
 | Disparos (líquidos) | Agua, ácido, lava, miel | 0,1 m | 1 | Ilimitada | ✅ |
-| Agua del nivel | Pileta ✅ y lluvia de la inundación 🔨 #22 | Hoy 0,2 m (726 partículas); con #22, 0,25 m y `maxCount` 5.500 | 1 | Ilimitada | ✅ / 🔨 #22 |
+| Agua del nivel | Pileta y lluvia de la inundación (#22) | 0,25 m (477 de la pileta; hasta 5.500 con la lluvia). Se dibuja a 0,28 m | 1 | Ilimitada | ✅ #22 |
 | Gases | Fuego, viento, vapor | — | Negativa o 0 | Corta (*verificado*: `set_lifetime` del grupo) | 🔨 #16 |
 
 La lluvia comparte sistema con la pileta para que **suba el agua de la pileta**: si fuera un sistema aparte, las gotas atravesarían el agua de la pileta y quedarían superpuestas en el fondo. Se distinguen por la marca de `userData` (lluvia = −1, pileta = 0).
 
-### Un solo sistema para todos los líquidos 💬
+### Un solo sistema para todos los líquidos ❌ (rechazado 18/11)
+
+**Rechazado por el usuario (18/11):** las partículas de 0,25 m ya se ven demasiado grandes respecto del robot, así que no se llevan los disparos a ese radio. Se mantienen **dos sistemas** (disparos de 0,1 m y agua del nivel de 0,25 m). Igual todos los líquidos tienen que interactuar: un **puente** detecta los disparos dentro del agua y aplica frenado, flotación y reacciones, en un solo sentido (agua → disparos). Se resuelve en #39. El análisis de abajo queda como registro de lo evaluado.
 
 Objetivo del usuario: que **todos los líquidos interactúen entre sí** (disparos, pileta, inundación). Solo pasa si están en el mismo sistema.
 
@@ -40,7 +42,7 @@ Objetivo del usuario: que **todos los líquidos interactúen entre sí** (dispar
 - **Qué no cambia:** los gases (#16) siguen en su propio sistema, porque la gravedad negativa es por sistema. `DamageSystem` sigue identificando cada partícula por su id de disparo o por su color; el agua del nivel no tiene color de arma y no daña por contacto.
 - **Riesgo:** con los disparos en el agua del nivel, los contactos partícula↔cuerpo de los disparos compiten por el mismo `maxCount` (subirlo a ~8.000 y volver a medir).
 
-**Decisión para #22:** la inundación usa el sistema del agua del nivel (radio 0,25 m), que ya es el candidato a sistema único. Unificar los disparos queda **fuera de #22** y es una recomendación para otro issue.
+**Decisión:** la inundación usa el sistema del agua del nivel (radio 0,25 m) ✅ #22. Unificar los disparos en ese sistema se rechazó; la interacción disparos↔agua va por el puente de #39.
 
 **Bindings verificados para la inundación** (lectura de `vendor/liquidfun.js`, 18/11): `b2ParticleSystem.CreateParticle(b2ParticleDef)`; `b2ParticleDef` con `set_position`, `set_velocity`, `set_color`, `set_flags`, `set_userData`; `b2ParticleSystemDef.set_maxCount` y `b2ParticleSystem.SetMaxParticleCount`; `SetPaused`/`GetPaused`; `DestroyParticlesInShape`; `GetVelocityBuffer`. **No** está `GetBodyContactCount` (ver [04-fluidos](04-fluidos.md#cortocircuito-regla-compartida--22)). Falta probar en ejecución que `CreateParticle` devuelve un índice negativo al llegar a `maxCount`: el emisor no depende de eso, porque controla su propio tope.
 
@@ -48,7 +50,7 @@ Objetivo del usuario: que **todos los líquidos interactúen entre sí** (dispar
 
 - **Acople bidireccional** ✅: los fluidos empujan cuerpos y los cuerpos desplazan fluidos.
 - **Contactos partícula↔cuerpo** ✅ (*verificado*): `BeginParticleBodyContact` informa qué parte del cuerpo tocó cada partícula. Requiere la flag `1 << 14` (`b2_fixtureContactListenerParticle`) en las partículas.
-- **Etiqueta por disparo** ✅: cada grupo disparado escribe su id en el buffer de `userData` de sus partículas (*verificado*: sobrevive cuando se destruyen otras). Así se sabe de quién es cada partícula.
+- **Etiqueta por disparo** ✅: cada grupo disparado escribe su id en el buffer de `userData` de sus partículas (*por re-verificar*). Así se sabe de quién es cada partícula. Nota: la verificación anterior de que la marca sobrevive se hizo sobre el aliasing de un bug (`Box2D.getPointer` aplicado al número que devuelve `GetUserDataBuffer()`, que leía y escribía en la dirección 0 del heap). Desde #22 se escribe en el buffer real (`GetUserDataBuffer() >> 2`), que es lo que usan `damage.js` y `flood.js`.
 - **Contactos partícula↔partícula** 🔨 #30: reacciones entre fluidos ([04-fluidos](04-fluidos.md#44-reacciones-entre-fluidos--30)).
 - **Escritura directa de buffers** 🔨: viento (velocidad) y reacciones (flags).
 

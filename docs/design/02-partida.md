@@ -10,11 +10,11 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
 
    Si los dos caen a la vez, es empate y nadie suma.
 3. **Partida** ✅: al mejor de 3 (gana quien llega a 2). El cartel final ofrece **revancha** con disparar (A / RT, Espacio, Enter). El HUD muestra las victorias como puntos y el número de ronda.
-4. **Inundación (muerte súbita)** 🔨 #22: a los 90 s de ronda empieza a **llover desde arriba**. El agua cae, se acumula sobre la pileta y va llenando el mapa desde abajo. Las plataformas bajas quedan bajo el agua, el agua daña por cortocircuito ([04-fluidos](04-fluidos.md#41-armas)) y la pelea se va hacia arriba. Es el uso masivo de partículas del juego; su costo está en [09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas). Detalle en [2.1](#21-inundación--22).
+4. **Inundación (muerte súbita)** ✅ #22: a los 90 s de ronda empieza a **llover desde arriba**. El agua cae, se acumula sobre la pileta y va llenando el mapa desde abajo. Las plataformas bajas quedan bajo el agua, el agua daña por cortocircuito ([04-fluidos](04-fluidos.md#41-armas)) y la pelea se va hacia arriba. Es el uso masivo de partículas del juego; su costo está en [09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas). Detalle en [2.1](#21-inundación--22).
 
-## 2.1 Inundación 🔨 #22
+## 2.1 Inundación ✅ #22
 
-Código previsto: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj de ronda en `Match` (`js/round.js`).
+Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj de ronda en `Match` (`js/round.js`).
 
 **Cómo sube el agua.** La lluvia se crea en el **mismo sistema de partículas que la pileta** (el "agua del nivel", radio 0,25 m). Como comparten sistema, las gotas chocan con el agua de la pileta y la hacen subir de verdad: no hay que simular el ascenso aparte. El nivel no se mide sobre las partículas: se **controla**. Una curva fija da el nivel objetivo según el tiempo de ronda y el emisor agrega gotas hasta que hay las necesarias para llenar ese nivel.
 
@@ -42,6 +42,8 @@ Código previsto: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`
 | `maxParticles` | 5.500 | Tope del sistema del agua del nivel (pileta + lluvia), `maxCount` |
 
 **Reloj de ronda.** `Match` lleva `roundTime`: suma el `dt` real del frame solo en el estado `playing` y vuelve a 0 en cada `"reset"` (ronda nueva o revancha). Durante `roundOver` se congela: deja de subir el objetivo, el agua que cayó se sigue acomodando. `Flood` lee `match.roundTime`; `Match` no sabe nada de la inundación.
+
+**`Flood.level` y `floodLevel()`.** La función pura `floodLevel(t)` devuelve el nivel de la curva: 3 m (`pool.surface`) hasta los 90 s. En cambio, el getter `Flood.level`, que es lo que consume `DamageSystem.process` y el corte de disparos, vale **`-Infinity` mientras la inundación no empezó** (antes de los 90 s). Así la pileta, cuyo agua llega a 3 m, no moja a nadie antes de la muerte súbita.
 
 **Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye solo las partículas marcadas y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. El agua original de la pileta que quedó arriba vuelve a caer al hueco por gravedad; no se recrea el grupo.
 

@@ -7,14 +7,14 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | Archivo | Responsabilidad |
 |---|---|
 | `index.html` | Raíz de composición: crea mundo, sistemas y jugadores; loop; disparos, giro y golpe |
-| `js/ActiveRagdoll.js` | Un jugador: vida, estados (miel, quemadura, aturdido, ahogado; mojado 🔨 #22), movimiento, mira, golpe, clips |
+| `js/ActiveRagdoll.js` | Un jugador: vida, estados (miel, quemadura, aturdido, ahogado; mojado ✅ #22), movimiento, mira, golpe, clips |
 | `js/Input.js` | Gamepad y teclado → estado por jugador |
 | `js/camera.js` | Encuadre compartido y conversión pantalla ↔ mundo |
 | `js/level.js` | Datos del nivel, sólidos, sensor y agua de la pileta |
 | `js/raycast.js` | Rayos con callback reutilizado, uno por mundo |
-| `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (🔨 #22) |
-| `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, 🔨 #22) |
-| `js/flood.js` 🔨 #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` y `DamageSystem` moja |
+| `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22) |
+| `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
+| `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` y `DamageSystem` moja |
 | `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD |
 | `js/clips.js` | Transformaciones de clips antes de `parse` (`walk_back`) |
 | `lib/` | RagImporter, copiado de ragassembler2d `d067775`; no se edita acá |
