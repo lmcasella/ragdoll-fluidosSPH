@@ -136,6 +136,7 @@
                 drawHud,
                 drawLevel,
                 drawParticles,
+                collectSurfaces,
                 drawRobot,
             } from "./js/render.js";
 
@@ -430,6 +431,7 @@
 
             // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
             // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
+            const WATER_DRAW = LEVEL.pool.draw;
             const GOO_BLUR = 0.07;
             const gooBlur = document.getElementById("gooBlur");
             let gooSigma = 0;
@@ -530,7 +532,8 @@
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
                 drawLevel(ctx, LEVEL, scale);
-                drawParticles(fluidCtx, poolSystem, 0.28);
+                collectSurfaces(players, LEVEL.solids);
+                drawParticles(fluidCtx, poolSystem, WATER_DRAW.radius, WATER_DRAW);
                 drawParticles(fluidCtx, particleSystem);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);

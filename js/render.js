@@ -12,6 +12,8 @@ const SPARK_SEGMENT_LENGTH = 0.3; // m; con 0,12 m quedaban dentro del cuerpo y 
 const SPARK_COLORS = ["#fff27a", "#e8ffff"];
 // Algo mayor que el radio físico (0,1 m) para que el filtro goo una las gotas vecinas
 const PARTICLE_RADIUS = 0.14;
+// m que el agua acercada se mete bajo la superficie del cuerpo para que no quede una línea de fondo entre los dos
+const SKIN_OVERLAP = 0.02;
 
 function hexToRgb(hex) {
     const n = parseInt(hex.slice(1), 16);
@@ -242,7 +244,107 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
     ctx.textAlign = "left";
 }
 
-export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS) {
+// Superficies sólidas en metros del mundo (cajas y círculos con su pose), para acercar el agua dibujada a los cuerpos.
+// Se rearma en cada frame con `collectSurfaces`; los objetos se reutilizan.
+const surfacePool = [];
+let surfaceCount = 0;
+
+function addSurface(kind, x, y, angle, hw, hh, radius) {
+    const s = (surfacePool[surfaceCount] ??= {});
+    s.kind = kind; // 0 caja, 1 círculo
+    s.x = x;
+    s.y = y;
+    s.cos = Math.cos(angle);
+    s.sin = Math.sin(angle);
+    s.hw = hw;
+    s.hh = hh;
+    s.radius = radius;
+    // Radio que encierra la pieza: descarta rápido las partículas lejanas
+    s.reach = kind === 0 ? Math.hypot(hw, hh) : radius;
+    surfaceCount++;
+}
+
+// Piezas de los robots (las mismas formas que dibuja drawRobot) y sólidos del nivel. Los polígonos se omiten:
+// los rigs actuales no los usan.
+export function collectSurfaces(players, solids) {
+    surfaceCount = 0;
+    for (const s of solids) addSurface(0, s.x, s.y, 0, s.w / 2, s.h / 2, 0);
+    for (const player of players) {
+        for (const item of player.renderItems) {
+            if (item.type === "polygon") continue;
+            const pos = item.body.GetPosition();
+            const a = item.body.GetAngle();
+            const c = Math.cos(a);
+            const s = Math.sin(a);
+            addSurface(
+                item.type === "box" ? 0 : 1,
+                pos.get_x() + item.cx * c - item.cy * s,
+                pos.get_y() + item.cx * s + item.cy * c,
+                a + item.angle,
+                item.hw,
+                item.hh,
+                item.radius,
+            );
+        }
+    }
+    return surfaceCount;
+}
+
+const skinShift = { x: 0, y: 0 };
+
+// Posición de dibujo de una partícula de agua. LiquidFun deja el centro de la primera fila a ~1,85 radios físicos de
+// la superficie del cuerpo (docs/design/07-sph.md §7.4), más lejos de lo que cubre el círculo dibujado: ahí queda un
+// hueco. Las partículas de esa fila se dibujan acercadas por la normal hasta que su borde toca la superficie; el
+// efecto se apaga entre `fullReach` y `reach` para no mover a las de la segunda fila. Solo cambia el dibujo.
+export function skinPosition(x, y, drawRadius, reach, fullReach) {
+    let best = reach;
+    let gx = 0;
+    let gy = 0;
+    for (let i = 0; i < surfaceCount; i++) {
+        const s = surfacePool[i];
+        const dx = x - s.x;
+        const dy = y - s.y;
+        if (Math.abs(dx) > s.reach + reach || Math.abs(dy) > s.reach + reach) continue;
+        const lx = dx * s.cos + dy * s.sin;
+        const ly = -dx * s.sin + dy * s.cos;
+        let d;
+        let nx;
+        let ny;
+        if (s.kind === 0) {
+            const qx = Math.abs(lx) - s.hw;
+            const qy = Math.abs(ly) - s.hh;
+            const ox = Math.max(qx, 0);
+            const oy = Math.max(qy, 0);
+            d = Math.hypot(ox, oy);
+            if (d === 0) continue;
+            nx = (Math.sign(lx) * ox) / d;
+            ny = (Math.sign(ly) * oy) / d;
+        } else {
+            const len = Math.hypot(lx, ly);
+            d = len - s.radius;
+            if (len === 0) continue;
+            nx = lx / len;
+            ny = ly / len;
+        }
+        if (d <= 0 || d >= best) continue;
+        best = d;
+        gx = nx * s.cos - ny * s.sin;
+        gy = nx * s.sin + ny * s.cos;
+    }
+    const gap = best - (drawRadius - SKIN_OVERLAP);
+    if (best >= reach || gap <= 0) {
+        skinShift.x = x;
+        skinShift.y = y;
+        return skinShift;
+    }
+    const fade = best <= fullReach ? 1 : (reach - best) / (reach - fullReach);
+    skinShift.x = x - gx * gap * fade;
+    skinShift.y = y - gy * gap * fade;
+    return skinShift;
+}
+
+// `skin` = LEVEL.pool.draw ({ radius, snapReach, snapFullReach }) para acercar el agua a los cuerpos (ver skinPosition); sin él, dibujo plano
+export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
@@ -252,7 +354,14 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS) {
         const c = colorBase + i * 4;
         ctx.fillStyle = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         ctx.beginPath();
-        ctx.arc(positions[posBase + i * 2], positions[posBase + i * 2 + 1], radius, 0, Math.PI * 2);
+        let x = positions[posBase + i * 2];
+        let y = positions[posBase + i * 2 + 1];
+        if (skin) {
+            const p = skinPosition(x, y, skin.radius, skin.snapReach, skin.snapFullReach);
+            x = p.x;
+            y = p.y;
+        }
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
     }
 }
