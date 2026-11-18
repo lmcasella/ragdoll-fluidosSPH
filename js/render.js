@@ -2,7 +2,8 @@
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 
 const FLASH_COLOR = [255, 40, 40];
-const PARTICLE_RADIUS = 0.35;
+// Algo mayor que el radio físico (0,1 m) para que el filtro goo una las gotas vecinas
+const PARTICLE_RADIUS = 0.14;
 
 function hexToRgb(hex) {
     const n = parseInt(hex.slice(1), 16);
