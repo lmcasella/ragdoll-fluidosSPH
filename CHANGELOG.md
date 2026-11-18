@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-18
+
+### Changed
+- La lluvia de la inundación se dibuja como trazos finos según su velocidad, en lugar de pelotas que caen; el agua acumulada se ve como antes.
+
 ## [0.8.1] - 2026-11-18
 
 ### Fixed
