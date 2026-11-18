@@ -9,14 +9,9 @@ const { createParticleSystem, PARTICLE } = await import("../js/particles.js");
 
 const fmt = (metrics) => JSON.stringify(metrics, (_, v) => (typeof v === "number" ? Number(v.toFixed(3)) : v));
 
-/** Armas que no cumplen con el contorno inelástico (medido en el banco, ver el diagnóstico de cada una). */
-const SPLASH_TODO = new Map([
-    ["Lava", "con el contorno inelástico quedan 100 % de gotas aisladas (ver informe de #69)"],
-    ["Miel", "con el contorno inelástico llegan 16 de 25 partículas al piso: el resto queda sobre el montículo (ver informe de #69)"],
-]);
-
+/** Una gota es aislada si su vecina más cercana está a más de `4 r`; llegó al piso si y <= `4 r` (ambos umbrales salen del radio del sistema, `tests/helpers/fluid-bench.js`). */
 for (const weapon of WEAPONS) {
-    test(`disparos: ${weapon.name} no deja partículas sueltas (el rebote es P4 de pure-water.test.js)`, { todo: SPLASH_TODO.get(weapon.name) ?? false }, (t) => {
+    test(`disparos: ${weapon.name} no deja partículas sueltas (el rebote es P4 de pure-water.test.js)`, (t) => {
         const m = shotBench(SHOT_SYSTEM, weapon);
         t.diagnostic(fmt(m));
         assert.ok(m.impacted >= 20, `solo ${m.impacted} partículas llegaron al piso`);

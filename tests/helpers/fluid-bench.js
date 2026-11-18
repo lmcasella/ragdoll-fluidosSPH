@@ -22,8 +22,9 @@ const { WallContact } = await import("../../js/wallContact.js");
 const { LEVEL, buildLevel } = await import("../../js/level.js");
 
 const DT = 1 / 60;
-// Una partícula en reposo sobre el piso queda a ~1,65 radios (medido): con radio + 0,02 m la miel nunca "impactaba"
-const IMPACT_HEIGHT = 2;
+/** Una partícula llegó al piso si su y es <= `IMPACT_HEIGHT · r` (en reposo queda a ~1,65 r); una gota es aislada si su vecina más cercana está a más de `ISOLATED_DISTANCE · r`. */
+const IMPACT_HEIGHT = 4;
+const ISOLATED_DISTANCE = 4;
 
 function newWorld() {
     const gravity = new Box2D.b2Vec2(0, -10);
@@ -129,7 +130,7 @@ export function shotBench(systemParams, weapon) {
     for (let i = 0; i < total; i++) {
         let alone = true;
         for (let j = 0; j < total && alone; j++) {
-            if (j !== i && Math.hypot(frame[i * 4] - frame[j * 4], frame[i * 4 + 1] - frame[j * 4 + 1]) < 0.2) alone = false;
+            if (j !== i && Math.hypot(frame[i * 4] - frame[j * 4], frame[i * 4 + 1] - frame[j * 4 + 1]) <= ISOLATED_DISTANCE * radius) alone = false;
         }
         if (alone) isolated++;
     }
