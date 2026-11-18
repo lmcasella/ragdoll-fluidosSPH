@@ -449,7 +449,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { players, particleSystem, poolSystem, flood, damage, emitter, match, immersion };
+                globalThis.game = { world, players, particleSystem, poolSystem, flood, damage, emitter, match, immersion };
             }
 
             function loop(nowMs) {
