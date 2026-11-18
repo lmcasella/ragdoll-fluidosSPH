@@ -20,6 +20,13 @@ const WALK_SPEED = 6;
 const JUMP_SPEED = 9;
 const WALK_FRICTION = 0.85;
 
+/**
+ * Velocidad del clip de caminar: |vx| del torso / `refSpeed`, acotada a [minSpeed, maxSpeed] y suavizada con
+ * `smoothing` (fracción del error que se corrige por paso fijo). `refSpeed` (m/s) es el |vx| que el torso sostiene
+ * al caminar a `WALK_SPEED` (medido: 4,7; el paso de física y el roce con el piso restan al 6 pedido).
+ */
+export const WALK_ANIM = { refSpeed: 4.7, minSpeed: 0.1, maxSpeed: 1.25, smoothing: 0.1 };
+
 // rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
 //        aimOffset: ángulo de reposo del arma relativo al padre, clips: { walk, walkBack, jump, dead, punch },
 //        feet: ids de los pies (rayos de piso), gun: { body, muzzle: [x, y] local },
@@ -44,6 +51,7 @@ export class ActiveRagdoll {
         this.framesGrounded = 0;
         this.jumping = false;
         this.clipState = null;
+        this.animSpeed = 1;
         this.facing = flipX ? -1 : 1;
         this.weapon = 1; // id del arma equipada
         this.tanks = new Map(); // id de arma → partículas que quedan; lo carga la raíz de composición
@@ -342,13 +350,16 @@ export class ActiveRagdoll {
     }
 
     // La versión actual de RagImporter cambia de clip sin fundido (fadeIn/fadeOut aún no implementados)
-    setClip(state) {
-        if (state === this.clipState) return;
+    setClip(state, speed = 1) {
+        if (state === this.clipState) {
+            if (state !== null) this.rag.play(this.rig.clips[state], { speed });
+            return;
+        }
         if (this.clipState !== null) {
             this.rag.stop(this.rig.clips[this.clipState]);
         }
         this.clipState = state;
-        if (state !== null) this.rag.play(this.rig.clips[state]);
+        if (state !== null) this.rag.play(this.rig.clips[state], { speed });
     }
 
     // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld.
@@ -412,7 +423,11 @@ export class ActiveRagdoll {
         } else if (isMoving) {
             // Caminar en contra de hacia donde mira (apunta) reproduce el clip en reversa
             const backwards = this.facing !== (this.flipX ? -1 : 1);
-            this.setClip(backwards && this.rig.clips.walkBack ? "walkBack" : "walk");
+            const target = Math.min(WALK_ANIM.maxSpeed, Math.max(WALK_ANIM.minSpeed, Math.abs(velX) / WALK_ANIM.refSpeed));
+            this.animSpeed = this.clipState === "walk" || this.clipState === "walkBack"
+                ? this.animSpeed + (target - this.animSpeed) * WALK_ANIM.smoothing
+                : target;
+            this.setClip(backwards && this.rig.clips.walkBack ? "walkBack" : "walk", this.animSpeed);
         } else {
             this.setClip(null);
         }
