@@ -47,7 +47,7 @@ Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corr
 1. **Gamepad primero.** Cada mecánica se diseña para stick y botones (Gamepad API, mapeo "standard"). El teclado y el mouse son respaldo, nunca la fuente principal: un input de respaldo no puede pisar al gamepad.
 2. **Sin atribución de IA** en commits, PRs, código ni documentos.
 3. **Idioma:** documentos, issues, commits y PRs en español. **Nombres de rama en inglés** y sin caracteres especiales (ni ñ ni acentos). En el código, seguir el idioma y estilo del archivo que se toca.
-4. **Comentarios:** solo los que explican el porqué (una decisión, una limitación del motor, una unidad). Nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
+4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves. Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
 5. **Confidencialidad:** sin credenciales, tokens ni datos privados en el repo.
 6. **Assets:** solo propios o con licencia libre. Las referencias de estilo (por ejemplo, Unreal Tournament) se usan como inspiración, nunca copiando archivos.
 
