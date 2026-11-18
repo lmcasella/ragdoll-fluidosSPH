@@ -231,17 +231,22 @@ Reemplaza el preset de #40 y #41 (`VISCOUS` + `STATIC_PRESSURE` + damping 1,0 en
 | flags de la miel | `VISCOUS` según `X` | `VISCOUS` | [14.9](#149-mezcla-por-concentración-y-viscosidad) |
 | flags de la lava | **0** | `TENSILE \| VISCOUS` | La lava se diferencia por material (`SG` 2,6, temperatura), no por un preset viscoso |
 
-- **Separación al emitir (arranque sin explosión):** dos partículas del mismo chorro nacen separadas al menos `1,5 r` (0,18 m), el paso de empaquetado. Con un solo carril, el emisor las separa `speed / rate` a lo largo del chorro. Como D2 conserva el caudal y la velocidad actuales, el emisor reparte cada tramo en **`n = ceil(rate · 1,5 r / speed)` carriles paralelos**, separados `1,5 r` en la dirección perpendicular al disparo (la boca tiene ese ancho). Así, cada carril cumple `rate/n ≤ speed / (1,5 r)`: agua (100/s, 14 m/s) 2 carriles; ácido (90/s, 14 m/s) 2; lava (60/s, 10 m/s) 2; miel (50/s, 18 m/s) 1. `MUZZLE_OFFSET` sigue en `r + 0,05`, y el recorte por raycast se aplica a cada carril.
-- **Empuje del chorro:** el flujo de cantidad de movimiento es `ṁ v = rate · σ_w · A_p · v`. **Chorro fuerte** (decidido, [D2](#1418-decisiones-del-usuario)): con `density` = `σ_w` = 12,0 y el caudal y la velocidad actuales, que no cambian:
+- **Separación al emitir (arranque sin explosión):** dos partículas del mismo chorro nacen separadas al menos `1,5 r` (0,18 m), el paso de empaquetado. El emisor las separa `speed / rate` a lo largo del chorro, en **un solo carril**, así que cada arma cumple **`rate ≤ speed / (1,5 r)`**: agua y ácido a 14 m/s ≤ 77/s; lava a 10 m/s ≤ 55/s; miel a 18 m/s ≤ 100/s. Los caudales de D2 (abajo) cumplen todos, y el emisor no necesita carriles paralelos. `MUZZLE_OFFSET` sigue en `r + 0,05`.
+- **Empuje del chorro:** el flujo de cantidad de movimiento es `ṁ v = rate · σ_w · A_p · v`. **Empuje balanceado por caudal** (decidido, [D2](#1418-decisiones-del-usuario)). La densidad sigue siendo física (`density` = `σ_w` = 12,0). Con el caudal y la velocidad de hoy, el agua empujaría 544 N (4,2 veces el peso del robot), y el usuario lo descartó. Criterio:
 
-| Arma | Caudal y velocidad | Empuje `ṁ v` | Respecto del peso del robot (130 N) |
-|---|---|---|---|
-| Agua | 100/s, 14 m/s | **544 N** | 4,2 veces |
-| Ácido | 90/s, 14 m/s | 490 N | 3,8 veces |
-| Lava | 60/s, 10 m/s | 233 N (con masa de agua: límite del motor, [14.1](#141-unidades-rebanada-2d-y-materiales)) | 1,8 veces |
-| Miel | 50/s, 18 m/s | 350 N | 2,7 veces |
+1. **Se conserva la velocidad de cada arma**, que fija el alcance y el arco (la miel a 18 m/s se eligió en #41 por alcance).
+2. **Se baja el caudal a la mitad en todas las armas.** El agua queda en ~270 N (la referencia del usuario), y el resto conserva su proporción de empuje respecto del agua.
+3. **Un solo carril:** cada caudal cumple `rate ≤ speed / (1,5 r)`.
+4. **Los tanques se escalan con el caudal** para conservar la duración del chorro (`tank = rate × duración actual`). El daño por partícula `dps / rate` se duplica solo, así que el DPS no cambia.
 
-Hoy el agua empuja 31,5 N. Es física (un chorro de 0,2 m de ancho a 14 m/s es un cañón de agua) y no se compensa. Los tanques, la duración y el daño por partícula (`dps / rate`) no cambian.
+| Arma | Caudal | Velocidad | Empuje `ṁ v` | Veces el peso del robot (130 N) | Carriles | Tanque (duración) |
+|---|---|---|---|---|---|---|
+| Agua | 50/s (antes 100) | 14 m/s | **272 N** | 2,1 | 1 (tope 77/s) | 150 (3 s) |
+| Ácido | 45/s (antes 90) | 14 m/s | 245 N | 1,9 | 1 (tope 77/s) | 68 (1,5 s) |
+| Lava | 30/s (antes 60) | 10 m/s | 117 N (con masa de agua: límite del motor, [14.1](#141-unidades-rebanada-2d-y-materiales)) | 0,9 | 1 (tope 55/s) | 45 (1,5 s) |
+| Miel | 25/s (antes 50) | 18 m/s | 175 N | 1,35 | 1 (tope 100/s) | 38 (1,5 s) |
+
+`ṁ v = rate · σ_w · A_p · v`, con `σ_w · A_p` = 0,389 kg. Hoy el agua empuja 31,5 N. El empuje sigue siendo físico; lo que se balancea es el caudal. Sigue siendo un chorro que puede sacar a un robot de una plataforma: si en el navegador resulta excesivo, el próximo paso es bajar más el caudal, no la densidad. `PERSIST_MAX` (300) queda como tope de presupuesto aunque el tanque de miel baje a 38.
 - **Qué se borra:** `TENSILE` de los datos de armas y `PARTICLE.STATIC_PRESSURE` del agua del nivel. El banco 1 de #40 se conserva con criterios físicos (P2–P4).
 
 ## 14.7 Inundación con lluvia absorbida
@@ -500,10 +505,10 @@ Para `physics-reviewer`. Cada criterio tiene referencia, valor esperado y tolera
 | Id | Criterio | Referencia | Esperado | Tolerancia |
 |---|---|---|---|---|
 | P1 | Rotura de presa con `SHOT_SYSTEM` dentro de `stepWorld` (8 subpasos), h₀ = 2 m | Ritter: frente a `2√(g h₀)` | ≥ 0,65 × Ritter (≥ −35 %) | Se informa el valor (relevamiento: −20/−35 %) |
-| P2 | Sin explosión al crear: chorro horizontal de cada arma durante 0,5 s, con sus carriles | Separación ≥ `1,5 r` | Rapidez máxima ≤ rapidez de boca + 1 m/s | — |
+| P2 | Sin explosión al crear: chorro horizontal de cada arma, en un carril, durante 0,5 s, con los caudales de D2 | Separación `speed/rate` ≥ `1,5 r` (agua 0,28 m, ácido 0,31, lava 0,33, miel 0,72) | Rapidez máxima ≤ rapidez de boca + 1 m/s | — |
 | P3 | Compresión en reposo (tanque de 12 m, 3 m de agua, 8 s) | Incompresibilidad | Densidad 1,00 del empaquetado ideal | ±10 % |
 | P4 | Coeficiente de restitución del chorro contra el piso | Impacto de líquido con We ≫ 1: se esparce y no rebota | ≤ 0,2 | — |
-| P5 | Chorro de agua contra una placa fija normal | Impacto de chorro: `F = ṁ v` | 544 N (`100 · 12,0 · 0,0324 · 14`) | ±15 % |
+| P5 | Chorro de cada arma contra una placa fija normal | Impacto de chorro: `F = ṁ v = rate · σ_w · A_p · v` | Agua 272 N (`50 · 12,0 · 0,0324 · 14`), ácido 245 N, lava 117 N, miel 175 N | ±15 % |
 | P6 | Costo con 1.500 disparos vivos | Presupuesto | Física ≤ 8 ms con la inundación al tope | Se mide |
 
 ### T. Térmica y fases (#62-H)
@@ -568,6 +573,8 @@ Implementación en serie, un agente a la vez. Cada sub-issue deja el juego jugab
 | #62-J | Adherencia con reacción (retira `STICKY`) | I, F | M5 | No |
 | #62-K2 | Debug completo (temperatura, concentración, contactos, vectores) | H | M5 | No |
 
+**Alcance de #62-C:** `SHOT_SYSTEM` nuevo (radio 0,12 m, `density` 12,0, damping 0,5, presión 0,1, sin tensiones, `maxCount` 3.000, flags 0 en agua, ácido y lava); en `WEAPONS`, los caudales y tanques de D2 con las velocidades actuales; emisión en un carril con la regla `rate ≤ speed/(1,5 r)` verificada por test; criterios P1–P6.
+
 **Orden de recorte** si algo se atrasa (pasa a M5): G → H → K1. **Mínimo de #62 para la entrega:** A, B, C, D1, D2 y F.
 
 **Afecta a otros issues:** #26 (render metaball: solo partículas), #29 (se integra en K), #30 (lo reemplaza H), #31 (sin cambios), #32 (depende de H), #39 y #45 (reemplazados por D2), #41 (`STICKY` se retira en J) y #23 (charcos del mapa como columnas con `M`, [14.11](#1411-arranque-asentado)).
@@ -579,7 +586,7 @@ Decididas por el usuario (19/11). Ninguna bloquea ya a un sub-issue.
 | Id | Tema | Decisión | Efecto en el diseño |
 |---|---|---|---|
 | D1 | Flotación de los robots | **Neutra:** `σ_w` = 12,0 kg/m², sin tocar las masas del rig | Espesor equivalente de 12,0 mm; robot con gravedad específica 1,00; partícula de agua de 0,389 kg; criterios F4 y F4b ([14.1](#141-unidades-rebanada-2d-y-materiales)) |
-| D2 | Empuje del chorro | **Chorro fuerte:** densidad física (`σ_w`) con el caudal y la velocidad actuales; no se baja el empuje | Agua 544 N (4,2 veces el peso del robot); el emisor reparte en carriles paralelos para respetar la separación de `1,5 r`; criterio P5 ([14.6](#146-disparos-con-agua-pura)) |
+| D2 | Empuje del chorro | **Revisada (19/11):** densidad física (`σ_w` = 12,0) y empuje balanceado bajando el caudal; la primera versión (caudal y velocidad actuales, 544 N) se descartó | Velocidades conservadas, caudales a la mitad: agua 50/s → 272 N (2,1 veces el peso del robot), ácido 45/s → 245 N, lava 30/s → 117 N, miel 25/s → 175 N; tanques escalados para conservar la duración; un solo carril; criterios P2 y P5 ([14.6](#146-disparos-con-agua-pura)) |
 | D3 | Tiempos térmicos | **Reales, sin escalar** | La lava tarda ~2,5 min en solidificar en el agua; no hay plataformas de piedra temporales dentro de una ronda ([14.8](#148-térmica-y-fases)) |
 | D4 | Miel pegajosa | **Se retira el estado `pegado`** cuando llegue la adherencia (#62-J); hasta entonces sigue el temporizador actual de #41 | [14.10](#1410-adherencia) |
 | D5 | Charcos en plataformas | **Siguen venciendo a los 6 s**, declarado como regla de presupuesto; los del piso se absorben en el campo | [14.4](#144-absorción-e-inmersión) |
