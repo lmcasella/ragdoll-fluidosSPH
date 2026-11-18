@@ -60,6 +60,7 @@
             <defs>
                 <filter id="goo">
                     <feGaussianBlur
+                        id="gooBlur"
                         in="SourceGraphic"
                         stdDeviation="6"
                         result="blur"
@@ -82,14 +83,19 @@
                 <span class="highlight">3</span> Miel (amarillo)
             </p>
             <p>
-                <span class="highlight">J1</span> A/D mover · W saltar · S
-                apuntar abajo · Espacio disparar · 1/2/3 arma · Mouse apunta y
-                dispara
+                <span class="highlight">Gamepad</span> stick izq. mover ·
+                arriba saltar · stick der. apuntar · A/RT disparar · X golpe ·
+                LB/RB arma
             </p>
             <p>
-                <span class="highlight">J2</span> ←/→ mover · ↑ saltar · ↓
-                apuntar abajo · Enter disparar · Num 1/2/3 arma
+                <span class="highlight">Teclado J1</span> A/D · W · Espacio ·
+                F golpe · 1/2/3 · mouse apunta y dispara
             </p>
+            <p>
+                <span class="highlight">Teclado J2</span> ←/→ · ↑ · Enter ·
+                Shift der. golpe · Num 1/2/3
+            </p>
+            <p>Caer a la pileta = robot destruido · Al mejor de 3 rondas</p>
         </div>
 
         <div id="gameContainer">
@@ -105,6 +111,25 @@
             } from "./lib/ragimporter.js";
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
+            import { Camera } from "./js/camera.js";
+            import { LEVEL, buildLevel, fillPool } from "./js/level.js";
+            import { Match } from "./js/round.js";
+            import { getRaycaster } from "./js/raycast.js";
+            import { withReversedClip } from "./js/clips.js";
+            import {
+                DamageSystem,
+                FLUID,
+                CONTACT_LISTENER_PARTICLE,
+            } from "./js/damage.js";
+            import {
+                buildRenderItems,
+                drawAimLaser,
+                drawHits,
+                drawHud,
+                drawLevel,
+                drawParticles,
+                drawRobot,
+            } from "./js/render.js";
 
             RagImporter.configure({ Box2D, PIXI });
 
@@ -112,60 +137,60 @@
             const VISCOUS_PARTICLE = 1 << 5;
             const TENSILE_PARTICLE = 1 << 7;
 
-            async function loadRag(url) {
+            const PIXELS_PER_METER = 40;
+            const LASER_RANGE = 25;
+            const PLAYER_COLORS = ["#ff9933", "#33b5ff"];
+
+            async function loadRag(url, prepare = (json) => json) {
                 const response = await fetch(url);
-                const json = await response.json();
+                const json = prepare(await response.json());
                 return { json, def: RagImporter.parse(json) };
             }
 
-            const robotRag = await loadRag("./assets/robot.rag.json");
+            const robotRag = await loadRag("./assets/robot.rag.json", (json) =>
+                withReversedClip(json, "walk", "walk_back"),
+            );
             const ROBOT_RIG = {
                 rootBody: robotRag.json.ragdoll.rootBody,
                 aimJoints: ["joint_11", "joint_11_copy"],
+                aimHold: ["joint_10", "joint_10_copy"],
                 aimOffset: 0,
-                clips: { walk: "walk", jump: "jump", dead: "dead" },
+                clips: {
+                    walk: "walk",
+                    walkBack: "walk_back",
+                    jump: "jump",
+                    dead: "dead",
+                    punch: "punch",
+                },
+                feet: ["b_4", "b_16"],
+                gun: { body: "b_3", muzzle: [0.33, 0.035] },
+                damage: { b_1: 1.5, b_2: 1, b_6: 1 },
+                defaultDamage: 0.75,
             };
 
             const canvas = document.getElementById("canvas");
             const ctx = canvas.getContext("2d");
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-
             const fluidCanvas = document.getElementById("fluidCanvas");
             const fluidCtx = fluidCanvas.getContext("2d");
-            fluidCanvas.width = window.innerWidth;
-            fluidCanvas.height = window.innerHeight;
 
-            const w = canvas.width;
-            const h = canvas.height;
-            const SCALE = 40;
-            const toMeters = (px) => px / SCALE;
-            const toPixels = (m) => m * SCALE;
-            const toScreenY = (m) => h - m * SCALE;
-            const toWorldY = (py) => (h - py) / SCALE;
+            const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
+
+            function resize() {
+                for (const c of [canvas, fluidCanvas]) {
+                    c.width = window.innerWidth;
+                    c.height = window.innerHeight;
+                }
+                camera.resize(canvas.width, canvas.height);
+            }
+            resize();
+            window.addEventListener("resize", resize);
 
             const gravity = new Box2D.b2Vec2(0, -10);
             const world = new Box2D.b2World(gravity);
             Box2D.destroy(gravity);
-            const groundBody = world.CreateBody(new Box2D.b2BodyDef());
-            const escenarioVisual = [];
-
-            function crearLineaEstica(x1, y1, x2, y2) {
-                const edge = new Box2D.b2EdgeShape();
-                const v1 = new Box2D.b2Vec2(toMeters(x1), toWorldY(y1));
-                const v2 = new Box2D.b2Vec2(toMeters(x2), toWorldY(y2));
-                edge.Set(v1, v2);
-                groundBody.CreateFixture(edge, 0);
-                Box2D.destroy(v1);
-                Box2D.destroy(v2);
-                Box2D.destroy(edge);
-                escenarioVisual.push({ x1, y1, x2, y2 });
-            }
-
-            crearLineaEstica(0, h * 0.8, w, h * 0.8);
-            crearLineaEstica(0, 0, 0, h);
-            crearLineaEstica(w, 0, w, h);
-            const groundY = toWorldY(h * 0.8);
+            const { killSensors } = buildLevel(world);
+            const poolSystem = fillPool(world);
+            const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
                 let lowest = Infinity;
@@ -184,14 +209,16 @@
                 return lowest;
             }
 
+            // Altura de aparición: un rayo vertical desde el techo encuentra la superficie en x
             function spawnOnGround(def, x) {
+                const hit = raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY);
+                const surface = hit ? hit.y : LEVEL.bounds.minY;
                 const probe = def.spawn(world, { x, y: 0 });
-                const lift = groundY + 0.02 - lowestPoint(probe);
+                const lift = surface + 0.02 - lowestPoint(probe);
                 probe.destroy();
                 return lift;
             }
 
-            // [NUEVO] Encapsulamos la logica de dibujo directamente en la instancia para limpiarla facil al darse vuelta
             function spawnRobotRaw(x, y, flipX) {
                 const robot = new ActiveRagdoll(
                     robotRag.def,
@@ -201,126 +228,211 @@
                     ROBOT_RIG,
                     flipX,
                 );
-                robot.renderItems = [];
-                const mirror = flipX ? -1 : 1;
-
-                for (const b of robotRag.json.bodies) {
-                    const body = robot.rag.bodies.get(b.id);
-                    for (const f of b.fixtures) {
-                        const s = f.shape;
-                        const item = {
-                            body,
-                            type: s.type,
-                            cx: toPixels(s.center?.[0] ?? 0) * mirror,
-                            cy: toPixels(s.center?.[1] ?? 0),
-                            angle: (s.angle ?? 0) * mirror,
-                        };
-                        if (s.type === "box") {
-                            item.width = toPixels(s.width / 2);
-                            item.height = toPixels(s.height / 2);
-                        } else if (s.type === "circle") {
-                            item.radius = toPixels(s.radius);
-                        } else if (s.type === "polygon") {
-                            item.vertices = s.vertices.map(([vx, vy]) => [
-                                toPixels(vx) * mirror,
-                                toPixels(vy),
-                            ]);
-                        }
-                        robot.renderItems.push(item);
-                    }
-                }
+                robot.renderItems = buildRenderItems(
+                    robot.rag,
+                    robotRag.json,
+                    flipX,
+                );
                 return robot;
             }
 
-            function spawnRobot(screenX, flipX) {
-                const x = toMeters(screenX);
-                return spawnRobotRaw(x, spawnOnGround(robotRag.def, x), flipX);
+            function spawnRobot(spawn) {
+                return spawnRobotRaw(
+                    spawn.x,
+                    spawnOnGround(robotRag.def, spawn.x),
+                    spawn.flipX,
+                );
             }
 
-            const players = [
-                spawnRobot(w * 0.3, false),
-                spawnRobot(w * 0.7, true),
-            ];
+            const players = LEVEL.spawns.map(spawnRobot);
             const instances = players.map((p) => p.rag);
             const input = new Input(players.length);
             let inputs = input.poll();
 
             const psDef = new Box2D.b2ParticleSystemDef();
-            psDef.set_radius(toMeters(6));
+            psDef.set_radius(0.1);
             psDef.set_dampingStrength(0.2);
             const particleSystem = world.CreateParticleSystem(psDef);
             Box2D.destroy(psDef);
+
+            const damage = new DamageSystem(world, particleSystem);
+            damage.killSensors = killSensors;
+            damage.register(players);
+            const match = new Match(players.length);
+
+            // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
+            function reiniciarRonda() {
+                players.forEach((player, k) => {
+                    player.destroy();
+                    players[k] = spawnRobot(LEVEL.spawns[k]);
+                    instances[k] = players[k].rag;
+                });
+                damage.register(players);
+                for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
+                    particleSystem.DestroyParticle(i);
+                }
+                accumulator = 0;
+                firstFrame = true;
+            }
+
+            // Golpe melee: 3 rayos en abanico desde el hombro en la dirección de la mira, durante la
+            // ventana activa del clip. El primer cuerpo rival que tocan recibe daño e impulso en ese punto.
+            const PUNCH_REACH = 1.1;
+            const PUNCH_SPREAD = 0.3;
+            const PUNCH_DAMAGE = 8;
+            const PUNCH_IMPULSE = 5; // a la parte golpeada (N·s)
+            const PUNCH_PUSH_SPEED = 4.5; // m/s sumados a todo el robot golpeado
+            const PUNCH_LIFT_SPEED = 3; // m/s hacia arriba: lo despega del piso
+            const PUNCH_STUN = 0.4; // s sin control para el golpeado
+            const punchImpulse = new Box2D.b2Vec2(0, 0);
+            const punchPoint = new Box2D.b2Vec2(0, 0);
+            const golpes = [];
+
+            function golpear(k, now) {
+                const player = players[k];
+                if (player.dead || !player.punchActive(now)) return;
+                const anchor = player.rag.joint(ROBOT_RIG.aimJoints[0]).GetAnchorA();
+                const ax = anchor.get_x();
+                const ay = anchor.get_y();
+                const base = Math.atan2(player.aimDir.y, player.aimDir.x);
+                for (const spread of [0, -PUNCH_SPREAD, PUNCH_SPREAD]) {
+                    const dx = Math.cos(base + spread);
+                    const dy = Math.sin(base + spread);
+                    const hit = raycaster.cast(
+                        ax,
+                        ay,
+                        ax + dx * PUNCH_REACH,
+                        ay + dy * PUNCH_REACH,
+                        player.ownBodies,
+                    );
+                    if (!hit) continue;
+                    const owner = damage.ownerOf(hit.bodyPtr);
+                    if (!owner || owner.index === k) continue;
+                    const victim = owner.player;
+                    victim.hurt(owner.bodyId, PUNCH_DAMAGE, now);
+                    victim.stun(PUNCH_STUN, now);
+                    punchImpulse.set_x(dx * PUNCH_IMPULSE);
+                    punchImpulse.set_y(dy * PUNCH_IMPULSE);
+                    punchPoint.set_x(hit.x);
+                    punchPoint.set_y(hit.y);
+                    victim.rag.bodies
+                        .get(owner.bodyId)
+                        .ApplyLinearImpulse(punchImpulse, punchPoint, true);
+                    victim.knockback(
+                        (Math.sign(dx) || 1) * PUNCH_PUSH_SPEED,
+                        PUNCH_LIFT_SPEED,
+                    );
+                    player.punchHit = true;
+                    golpes.push({ x: hit.x, y: hit.y, time: now });
+                    return;
+                }
+            }
+
             const NOMBRES_ARMAS = ["Ácido", "Lava", "Miel"];
-            let mouse = null;
+            const ARMAS = {
+                [FLUID.ACID]: { flags: WATER_PARTICLE, color: [50, 255, 50] },
+                [FLUID.LAVA]: { flags: TENSILE_PARTICLE, color: [255, 80, 20] },
+                [FLUID.HONEY]: { flags: VISCOUS_PARTICLE, color: [255, 200, 50] },
+            };
 
+            // Mouse: respaldo de teclado para el J1 (el control principal es el gamepad)
+            let mouseScreen = null;
             window.addEventListener("mousemove", (e) => {
-                mouse = { x: toMeters(e.clientX), y: toWorldY(e.clientY) };
+                mouseScreen = { x: e.clientX, y: e.clientY };
             });
-
             window.addEventListener("mousedown", () => {
-                if (mouse) disparar(players[0]);
+                if (mouseScreen) disparar(0);
             });
 
+            // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1),
+            // si no teclado (hacia donde se camina; abajo inclina 45°)
             function actualizarMira(player, state, k) {
                 const pos = player.torso.GetPosition();
                 const x = pos.get_x();
                 const y = pos.get_y();
                 if (state.aim) {
-                    player.aimTarget = {
-                        x: x + state.aim.x * 5,
-                        y: y + state.aim.y * 5,
-                    };
-                } else if (k === 0 && mouse) {
-                    player.aimTarget = mouse;
-                } else {
-                    const facingDir = player.flipX ? -1 : 1; // [NUEVO] Se acopla a la orientacion fisica real
-                    player.aimTarget = {
-                        x: x + facingDir * 5,
-                        y: y + (state.down ? -5 : 0),
-                    };
+                    const len = Math.hypot(state.aim.x, state.aim.y);
+                    player.aimDir = { x: state.aim.x / len, y: state.aim.y / len };
+                } else if (k === 0 && mouseScreen) {
+                    const m = camera.toWorld(mouseScreen.x, mouseScreen.y);
+                    const len = Math.hypot(m.x - x, m.y - y) || 1;
+                    player.aimDir = { x: (m.x - x) / len, y: (m.y - y) / len };
+                } else if (state.left || state.right || state.down) {
+                    const dx = state.left && !state.right ? -1 : state.right && !state.left ? 1 : player.flipX ? -1 : 1;
+                    player.aimDir = state.down
+                        ? { x: dx * Math.SQRT1_2, y: -Math.SQRT1_2 }
+                        : { x: dx, y: 0 };
                 }
-                player.aim(player.aimTarget.x, player.aimTarget.y);
+                player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
+                player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5);
             }
 
-            function disparar(player) {
-                if (player.dead || !player.aimTarget) return;
+            // Gira al robot volviendo a generarlo espejado; conserva posición, velocidades y estado
+            function girar(k, wantsFlipX) {
+                const player = players[k];
                 const torsoPos = player.torso.GetPosition();
-                const torsoX = torsoPos.get_x();
-                const torsoY = torsoPos.get_y();
-                const dirX = player.aimTarget.x - torsoX;
-                const dirY = player.aimTarget.y - torsoY;
-                const length = Math.sqrt(dirX * dirX + dirY * dirY);
-                if (length === 0) return;
+                const velocidades = new Map();
+                for (const [id, body] of player.rag.bodies.entries()) {
+                    const v = body.GetLinearVelocity();
+                    velocidades.set(id, { x: v.get_x(), y: v.get_y() });
+                }
 
+                const rootBodyJson = robotRag.json.bodies.find(
+                    (b) => b.id === robotRag.json.ragdoll.rootBody,
+                );
+                const mirror = wantsFlipX ? -1 : 1;
+                const baseX = torsoPos.get_x() - rootBodyJson.position[0] * mirror;
+                const baseY = torsoPos.get_y() - rootBodyJson.position[1];
+
+                player.destroy();
+                const nuevo = spawnRobotRaw(baseX, baseY, wantsFlipX);
+
+                const tempVec = new Box2D.b2Vec2(0, 0);
+                for (const [id, body] of nuevo.rag.bodies.entries()) {
+                    const vel = velocidades.get(id);
+                    if (vel) {
+                        tempVec.set_x(vel.x);
+                        tempVec.set_y(vel.y);
+                        body.SetLinearVelocity(tempVec);
+                    }
+                }
+                Box2D.destroy(tempVec);
+
+                nuevo.copyStateFrom(player);
+                players[k] = nuevo;
+                instances[k] = nuevo.rag;
+                damage.register(players);
+            }
+
+            function disparar(k) {
+                const player = players[k];
+                if (player.dead) return;
+                const muzzle = player.muzzle();
+                const arma = ARMAS[player.weapon];
                 const fuerzaDisparo = 20;
+                const radio = 0.25;
+                const offset = radio + 0.15;
+
                 const pgDef = new Box2D.b2ParticleGroupDef();
                 const shape = new Box2D.b2CircleShape();
                 const center = new Box2D.b2Vec2(
-                    torsoX + (dirX / length) * 1.5,
-                    torsoY + (dirY / length) * 1.5,
+                    muzzle.x + muzzle.dx * offset,
+                    muzzle.y + muzzle.dy * offset,
                 );
                 shape.set_m_p(center);
-                shape.set_m_radius(toMeters(15));
+                shape.set_m_radius(radio);
                 pgDef.set_shape(shape);
                 const velocity = new Box2D.b2Vec2(
-                    (dirX / length) * fuerzaDisparo,
-                    (dirY / length) * fuerzaDisparo,
+                    muzzle.dx * fuerzaDisparo,
+                    muzzle.dy * fuerzaDisparo,
                 );
                 pgDef.set_linearVelocity(velocity);
-
-                let color;
-                if (player.weapon === 1) {
-                    pgDef.set_flags(WATER_PARTICLE);
-                    color = new Box2D.b2ParticleColor(50, 255, 50, 255);
-                } else if (player.weapon === 2) {
-                    pgDef.set_flags(TENSILE_PARTICLE);
-                    color = new Box2D.b2ParticleColor(255, 80, 20, 255);
-                } else {
-                    pgDef.set_flags(VISCOUS_PARTICLE);
-                    color = new Box2D.b2ParticleColor(255, 200, 50, 255);
-                }
+                pgDef.set_flags(arma.flags | CONTACT_LISTENER_PARTICLE);
+                const color = new Box2D.b2ParticleColor(...arma.color, 255);
                 pgDef.set_color(color);
-                particleSystem.CreateParticleGroup(pgDef);
+
+                const group = particleSystem.CreateParticleGroup(pgDef);
+                damage.tagShot(group, k, player.weapon, performance.now() / 1000);
                 Box2D.destroy(color);
                 Box2D.destroy(velocity);
                 Box2D.destroy(center);
@@ -328,98 +440,72 @@
                 Box2D.destroy(pgDef);
             }
 
+            function laserDe(player) {
+                if (player.dead) return null;
+                const m = player.muzzle();
+                const x2 = m.x + m.dx * LASER_RANGE;
+                const y2 = m.y + m.dy * LASER_RANGE;
+                const hit = raycaster.cast(m.x, m.y, x2, y2, player.ownBodies);
+                return hit
+                    ? { x1: m.x, y1: m.y, x2: hit.x, y2: hit.y, hit: true }
+                    : { x1: m.x, y1: m.y, x2, y2, hit: false };
+            }
+
+            // Partículas de disparos que salieron del mundo o cayeron a la pileta. Los dos sistemas de
+            // partículas no interactúan entre sí: un disparo dentro de la pileta atravesaría el agua.
+            function limpiarParticulas() {
+                const count = particleSystem.GetParticleCount();
+                const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
+                const { minX, maxX, minY } = LEVEL.bounds;
+                const pool = LEVEL.pool;
+                for (let i = 0; i < count; i++) {
+                    const x = Box2D.HEAPF32[pos + i * 2];
+                    const y = Box2D.HEAPF32[pos + i * 2 + 1];
+                    const inPool = x > pool.x1 && x < pool.x2 && y < pool.surface;
+                    if (inPool || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
+                        particleSystem.DestroyParticle(i);
+                    }
+                }
+            }
+
+            // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
+            // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
+            const GOO_BLUR = 0.07;
+            const gooBlur = document.getElementById("gooBlur");
+            let gooSigma = 0;
+            function ajustarGoo(scale) {
+                const sigma = Math.round(GOO_BLUR * scale * 2) / 2;
+                if (sigma === gooSigma) return;
+                gooSigma = sigma;
+                gooBlur.setAttribute("stdDeviation", String(sigma));
+            }
+
             let accumulator = 0;
             let lastTime = performance.now();
+            let firstFrame = true;
 
-            function loop(now) {
-                accumulator = Math.min(
-                    accumulator + (now - lastTime) / 1000,
-                    0.25,
-                );
-                lastTime = now;
+            function loop(nowMs) {
+                const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
+                lastTime = nowMs;
+                const now = nowMs / 1000;
                 inputs = input.poll();
+                raycaster.count = 0;
+
+                if (match.update(players, inputs, frameDt) === "reset") {
+                    reiniciarRonda();
+                }
+                accumulator += frameDt * match.timeScale;
 
                 players.forEach((player, k) => {
                     const state = inputs[k];
+                    actualizarMira(player, state, k);
 
-                    // --- LÓGICA DE ORIENTACIÓN FÍSICA Y VISUAL ---
-                    let aimX = 0;
-                    if (k === 0 && mouse) {
-                        aimX = mouse.x - player.torso.GetPosition().get_x();
-                    } else if (state.aim) {
-                        aimX = state.aim.x;
-                    } else if (state.left && !state.right) {
-                        aimX = -1;
-                    } else if (state.right && !state.left) {
-                        aimX = 1;
+                    const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
+                    if (!player.dead && player.flipX !== wantsFlipX) {
+                        girar(k, wantsFlipX);
+                        actualizarMira(players[k], state, k);
                     }
-
-                    if (Math.abs(aimX) > 0.05 && !player.dead) {
-                        const wantsFlipX = aimX < 0;
-                        if (player.flipX !== wantsFlipX) {
-                            const torsoPos = player.torso.GetPosition();
-
-                            // 1. GUARDAR VELOCIDADES DE TODO EL CUERPO
-                            const velocidades = new Map();
-                            for (const [
-                                id,
-                                body,
-                            ] of player.rag.bodies.entries()) {
-                                const v = body.GetLinearVelocity();
-                                velocidades.set(id, {
-                                    x: v.get_x(),
-                                    y: v.get_y(),
-                                });
-                            }
-
-                            const rootBodyJson = robotRag.json.bodies.find(
-                                (b) => b.id === robotRag.json.ragdoll.rootBody,
-                            );
-                            const rootLocalX = rootBodyJson.position[0];
-                            const rootLocalY = rootBodyJson.position[1];
-                            const mirror = wantsFlipX ? -1 : 1;
-
-                            const baseX =
-                                torsoPos.get_x() - rootLocalX * mirror;
-                            const baseY = torsoPos.get_y() - rootLocalY;
-
-                            const hp = player.hp;
-                            const weapon = player.weapon;
-                            const honey = player.honeyTimer;
-                            const grounded = player.framesGrounded;
-
-                            player.destroy();
-
-                            players[k] = spawnRobotRaw(
-                                baseX,
-                                baseY,
-                                wantsFlipX,
-                            );
-
-                            // 2. RESTAURAR VELOCIDADES A CADA PARTE
-                            const tempVec = new Box2D.b2Vec2(0, 0);
-                            for (const [id, body] of players[
-                                k
-                            ].rag.bodies.entries()) {
-                                const vel = velocidades.get(id);
-                                if (vel) {
-                                    tempVec.set_x(vel.x);
-                                    tempVec.set_y(vel.y);
-                                    body.SetLinearVelocity(tempVec);
-                                }
-                            }
-                            Box2D.destroy(tempVec); // Liberar puntero de memoria de C++
-
-                            players[k].hp = hp;
-                            players[k].weapon = weapon;
-                            players[k].honeyTimer = honey;
-                            players[k].framesGrounded = grounded;
-
-                            player = players[k];
-                            instances[k] = player.rag;
-                        }
-                    }
-                    // -----------------------------------------------------
+                    player = players[k];
 
                     if (state.weapon) player.weapon = state.weapon;
                     if (state.weaponStep) {
@@ -427,135 +513,59 @@
                             ((player.weapon - 1 + state.weaponStep + 3) % 3) +
                             1;
                     }
-                    actualizarMira(player, state, k);
-                    if (state.action) disparar(player);
+                    if (state.punch) player.punch(now);
+                    else if (state.action && !player.isPunching(now)) disparar(k);
                 });
 
                 while (accumulator >= STEP_SETTINGS.dt) {
-                    players.forEach((player, k) => player.move(inputs[k]));
+                    players.forEach((player, k) => {
+                        player.move(inputs[k]);
+                        player.updateStatus(STEP_SETTINGS.dt);
+                    });
                     stepWorld(world, instances);
+                    damage.process(performance.now() / 1000);
+                    players.forEach((player, k) => golpear(k, now));
                     accumulator -= STEP_SETTINGS.dt;
                 }
+                limpiarParticulas();
 
+                camera.update(
+                    players.map((p) => {
+                        const pos = p.torso.GetPosition();
+                        return { x: pos.get_x(), y: pos.get_y() };
+                    }),
+                    frameDt,
+                    firstFrame,
+                );
+                firstFrame = false;
+                const scale = camera.scale;
+                ajustarGoo(scale);
+
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                fluidCtx.setTransform(1, 0, 0, 1, 0, 0);
                 fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
 
-                ctx.strokeStyle = "#444";
-                ctx.lineWidth = 6;
-                ctx.lineCap = "round";
-                ctx.beginPath();
-                for (let linea of escenarioVisual) {
-                    ctx.moveTo(linea.x1, linea.y1);
-                    ctx.lineTo(linea.x2, linea.y2);
-                }
-                ctx.stroke();
-
-                const pCount = particleSystem.GetParticleCount();
-                const posBase =
-                    Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
-                const colorBase = Box2D.getPointer(
-                    particleSystem.GetColorBuffer(),
-                );
-                const positions = Box2D.HEAPF32;
-                const colors = Box2D.HEAPU8;
-
-                const torsos = players.map((player) => {
-                    const pos = player.torso.GetPosition();
-                    return {
-                        player,
-                        x: toPixels(pos.get_x()),
-                        y: toScreenY(pos.get_y()),
-                    };
-                });
-
-                particles: for (let i = pCount - 1; i >= 0; i--) {
-                    const px = toPixels(positions[posBase + i * 2]);
-                    const py = toScreenY(positions[posBase + i * 2 + 1]);
-
-                    if (py > canvas.height) {
-                        particleSystem.DestroyParticle(i);
-                        continue;
-                    }
-
-                    const r = colors[colorBase + i * 4];
-                    const g = colors[colorBase + i * 4 + 1];
-                    const b = colors[colorBase + i * 4 + 2];
-
-                    for (const torso of torsos) {
-                        const dist = Math.hypot(px - torso.x, py - torso.y);
-                        if (dist >= 25) continue;
-                        if (g === 255 && r === 50) {
-                            torso.player.takeDamage(2);
-                            particleSystem.DestroyParticle(i);
-                            continue particles;
-                        } else if (r === 255 && g === 80) {
-                            torso.player.takeDamage(0.1);
-                        } else if (r === 255 && g === 200) {
-                            torso.player.applyHoney();
-                            particleSystem.DestroyParticle(i);
-                            continue particles;
-                        }
-                    }
-                    fluidCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                    fluidCtx.beginPath();
-                    fluidCtx.arc(px, py, 14, 0, Math.PI * 2);
-                    fluidCtx.fill();
-                }
-
-                ctx.fillStyle = "#ff9933";
-                ctx.strokeStyle = "#fff";
-                ctx.lineWidth = 2;
-
-                // [NUEVO] Iteramos sobre cada renderItem instanciado dentro del player
-                players.forEach((player) => {
-                    for (let item of player.renderItems) {
-                        const pos = item.body.GetPosition();
-                        const angle = item.body.GetAngle();
-
-                        ctx.save();
-                        ctx.translate(
-                            toPixels(pos.get_x()),
-                            toScreenY(pos.get_y()),
-                        );
-                        ctx.rotate(-angle);
-                        ctx.translate(item.cx, -item.cy);
-                        ctx.rotate(-item.angle);
-
-                        ctx.beginPath();
-                        if (item.type === "box") {
-                            ctx.rect(
-                                -item.width,
-                                -item.height,
-                                item.width * 2,
-                                item.height * 2,
-                            );
-                        } else if (item.type === "circle") {
-                            ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
-                        } else if (item.type === "polygon") {
-                            item.vertices.forEach(([vx, vy], k) =>
-                                k === 0
-                                    ? ctx.moveTo(vx, -vy)
-                                    : ctx.lineTo(vx, -vy),
-                            );
-                            ctx.closePath();
-                        }
-                        ctx.fill();
-                        ctx.stroke();
-                        ctx.restore();
-                    }
-                });
-
-                ctx.font = "bold 24px Segoe UI";
+                camera.apply(ctx);
+                camera.apply(fluidCtx);
+                drawLevel(ctx, LEVEL, scale);
+                drawParticles(fluidCtx, poolSystem, 0.28);
+                drawParticles(fluidCtx, particleSystem);
                 players.forEach((player, k) => {
-                    ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
-                    ctx.textAlign = k === 0 ? "left" : "right";
-                    ctx.fillText(
-                        `J${k + 1} Salud: ${Math.floor(player.hp)}% · ${NOMBRES_ARMAS[player.weapon - 1]}`,
-                        k === 0 ? 20 : canvas.width - 20,
-                        canvas.height - 30,
-                    );
+                    drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
+                    drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
-                ctx.textAlign = "left";
+                drawHits(ctx, golpes, scale, now);
+
+                drawHud(
+                    ctx,
+                    canvas.width,
+                    canvas.height,
+                    players,
+                    match,
+                    PLAYER_COLORS,
+                    NOMBRES_ARMAS,
+                );
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);
