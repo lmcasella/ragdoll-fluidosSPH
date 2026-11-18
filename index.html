@@ -22,9 +22,12 @@
                 left: 0;
                 display: block;
             }
+            #fluidCanvas,
+            #streakCanvas {
+                pointer-events: none;
+            }
             #fluidCanvas {
                 filter: url("#goo");
-                pointer-events: none;
             }
             #panel {
                 position: absolute;
@@ -103,6 +106,7 @@
         <div id="gameContainer">
             <canvas id="canvas"></canvas>
             <canvas id="fluidCanvas"></canvas>
+            <canvas id="streakCanvas"></canvas>
         </div>
 
         <script type="module">
@@ -115,7 +119,7 @@
             import { Input } from "./js/Input.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel, fillPool } from "./js/level.js";
-            import { Flood } from "./js/flood.js";
+            import { Flood, RAIN_MARK } from "./js/flood.js";
             import { Immersion } from "./js/immersion.js";
             import { Match } from "./js/round.js";
             import { getRaycaster } from "./js/raycast.js";
@@ -180,11 +184,13 @@
             const ctx = canvas.getContext("2d");
             const fluidCanvas = document.getElementById("fluidCanvas");
             const fluidCtx = fluidCanvas.getContext("2d");
+            const streakCanvas = document.getElementById("streakCanvas");
+            const streakCtx = streakCanvas.getContext("2d");
 
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [canvas, fluidCanvas]) {
+                for (const c of [canvas, fluidCanvas, streakCanvas]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }
@@ -449,6 +455,7 @@
             // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
             // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
             const WATER_DRAW = LEVEL.pool.draw;
+            const RAIN_DRAW = { ctx: streakCtx, mark: RAIN_MARK };
             const GOO_BLUR = 0.07;
             const gooBlur = document.getElementById("gooBlur");
             let gooSigma = 0;
@@ -545,12 +552,15 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 fluidCtx.setTransform(1, 0, 0, 1, 0, 0);
                 fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
+                streakCtx.setTransform(1, 0, 0, 1, 0, 0);
+                streakCtx.clearRect(0, 0, streakCanvas.width, streakCanvas.height);
 
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
+                camera.apply(streakCtx);
                 drawLevel(ctx, LEVEL, scale);
                 collectSurfaces(players, LEVEL.solids, WATER_DRAW.snapReach);
-                drawParticles(fluidCtx, poolSystem, WATER_DRAW.radius, WATER_DRAW);
+                drawParticles(fluidCtx, poolSystem, WATER_DRAW.radius, WATER_DRAW, RAIN_DRAW);
                 drawParticles(fluidCtx, particleSystem);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
