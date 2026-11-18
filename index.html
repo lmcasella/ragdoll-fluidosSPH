@@ -111,6 +111,7 @@
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { getRaycaster } from "./js/raycast.js";
+            import { withReversedClip } from "./js/clips.js";
             import {
                 DamageSystem,
                 FLUID,
@@ -134,18 +135,26 @@
             const LASER_RANGE = 25;
             const PLAYER_COLORS = ["#ff9933", "#33b5ff"];
 
-            async function loadRag(url) {
+            async function loadRag(url, prepare = (json) => json) {
                 const response = await fetch(url);
-                const json = await response.json();
+                const json = prepare(await response.json());
                 return { json, def: RagImporter.parse(json) };
             }
 
-            const robotRag = await loadRag("./assets/robot.rag.json");
+            const robotRag = await loadRag("./assets/robot.rag.json", (json) =>
+                withReversedClip(json, "walk", "walk_back"),
+            );
             const ROBOT_RIG = {
                 rootBody: robotRag.json.ragdoll.rootBody,
                 aimJoints: ["joint_11", "joint_11_copy"],
+                aimHold: ["joint_10", "joint_10_copy"],
                 aimOffset: 0,
-                clips: { walk: "walk", jump: "jump", dead: "dead" },
+                clips: {
+                    walk: "walk",
+                    walkBack: "walk_back",
+                    jump: "jump",
+                    dead: "dead",
+                },
                 feet: ["b_4", "b_16"],
                 gun: { body: "b_3", muzzle: [0.33, 0.035] },
                 damage: { b_1: 1.5, b_2: 1, b_6: 1 },
