@@ -8,7 +8,7 @@ const WET_BLINK_HZ = 4;
 const SPARK_TICK_HZ = 12;
 const SPARKS_PER_FRAME = 3;
 const SPARK_SEGMENTS = 3;
-const SPARK_SEGMENT_LENGTH = 0.12; // m
+const SPARK_SEGMENT_LENGTH = 0.3; // m; con 0,12 m quedaban dentro del cuerpo y no se veían al zoom de juego
 const SPARK_COLORS = ["#fff27a", "#e8ffff"];
 // Algo mayor que el radio físico (0,1 m) para que el filtro goo una las gotas vecinas
 const PARTICLE_RADIUS = 0.14;
@@ -79,7 +79,7 @@ function drawSparks(ctx, player, scale, now) {
     const items = player.renderItems;
     if (items.length === 0) return;
     const tick = Math.floor(now * SPARK_TICK_HZ);
-    ctx.lineWidth = 2 / scale;
+    ctx.lineWidth = 3 / scale;
     for (let s = 0; s < SPARKS_PER_FRAME; s++) {
         const seed = tick * 97 + s * 13;
         const pos = items[Math.floor(hash01(seed) * items.length)].body.GetPosition();
