@@ -165,6 +165,19 @@
             crearLineaEstica(0, h * 0.8, w, h * 0.8);
             crearLineaEstica(0, 0, 0, h);
             crearLineaEstica(w, 0, w, h);
+
+            // --- NUEVAS PLATAFORMAS FLOTANTES ---
+            // Plataforma izquierda
+            crearLineaEstica(w * 0.15, h * 0.55, w * 0.35, h * 0.55);
+            // Plataforma chica izquierda
+            crearLineaEstica(w * 0.05, h * 0.7, w * 0.1, h * 0.7);
+            // Plataforma derecha
+            crearLineaEstica(w * 0.65, h * 0.55, w * 0.85, h * 0.55);
+            // Plataforma chica derecha
+            crearLineaEstica(w * 0.9, h * 0.7, w * 0.95, h * 0.7);
+            // Plataforma central superior
+            crearLineaEstica(w * 0.4, h * 0.35, w * 0.6, h * 0.35);
+
             const groundY = toWorldY(h * 0.8);
 
             function lowestPoint(rag) {
