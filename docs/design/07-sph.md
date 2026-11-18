@@ -100,7 +100,7 @@ El build no exporta los nombres de las flags (`b2_tensileParticle`, etc.). Sus v
 | `gravityScale` | 1 | 1 | 1 (por defecto) | Explícito para que el dato sea completo |
 | `dampingStrength` | **1,0** | **1,0** | 0,2 | Choques inelásticos: la velocidad de acercamiento se pierde en lugar de volver como rebote. Es el valor por defecto de LiquidFun; no se pasa de 1 (por encima, el damping invierte la velocidad normal) |
 | `pressureStrength` | **0,005** (final) | **0,1** (final) | 0,05 (por defecto) | Explícito. Más alto = más rígido y más rebote; es la perilla 2 |
-| `viscousStrength` | **0,25** | **0,1** | 0,25 (por defecto) | Disparos: solo afecta a lava y miel (flag `viscous`); #41 lo sube para la miel. Agua del nivel: viscosidad baja, que calma el temblor entre vecinas sin frenar el escurrido |
+| `viscousStrength` | **0,25**; 🔨 #41: **1,0** (a medir, ver abajo) | **0,1** | 0,25 (por defecto) | Disparos: desde #41 solo afecta a la miel (única con flag `viscous`): la espesa para que quede como charco. Agua del nivel: viscosidad baja, que calma el temblor entre vecinas sin frenar el escurrido |
 | `surfaceTensionPressureStrength` | 0,2 | (sin uso) | 0,2 (por defecto) | Cohesión de agua, ácido y lava (flag `tensile`) |
 | `surfaceTensionNormalStrength` | 0,2 | (sin uso) | 0,2 (por defecto) | Ídem; es la primera perilla si quedan gotas sueltas |
 
@@ -114,13 +114,25 @@ La fuerza es por sistema, pero cada partícula elige qué términos recibe. Con 
 |---|---|---|---|---|
 | Agua (#18) | Disparos | `TENSILE` | (sin arma) | El agua real tiene tensión superficial: es lo que mantiene unido un chorro y forma gotas. Sin viscosidad: fluye y salpica |
 | Ácido | Disparos | `TENSILE` | `WATER` | Igual que el agua. No lleva `viscous`, así que el aumento de #41 no lo afecta |
-| Lava | Disparos | `TENSILE \| VISCOUS` | `TENSILE` | "Pesada y pegajosa" ([04](04-fluidos.md#las-armas)): forma gotas gruesas (`tensile`) y se arrastra (`viscous`). Si no lleva `viscous`, con el cambio del ácido se comportaría igual que él |
-| Miel | Disparos | `VISCOUS` | `VISCOUS` | Espesa, sin tensión superficial: se extiende como una capa pegajosa en vez de hacer gotas |
+| Lava | Disparos | `TENSILE \| VISCOUS`; 🔨 #41: **`TENSILE`** | `TENSILE` | #40 le dio `viscous` para que se arrastrara. Con #41 la pierde: como las tensiones del sistema quedaron en 0, `TENSILE \| VISCOUS` se comporta **igual que la miel** y la lava sería otro charco pegajoso (además, `SolveViscous` arrastra cuerpos). Se distingue por su velocidad (10 m/s, arco) y su quemadura. Ver "Convivencia con #41" |
+| Miel | Disparos | `VISCOUS` | `VISCOUS` | Espesa, sin tensión superficial: se extiende como una capa pegajosa en vez de hacer gotas. Con #41 es el único fluido de los disparos con `viscous` |
 | Pileta y lluvia | Agua del nivel | `VISCOUS` | `WATER` | Con una viscosidad baja (0,1) las vecinas se mueven juntas y el agua en reposo se aquieta. No lleva `tensile`: a 0,25 m la tensión junta las partículas en bolas (más "pelotero") |
 
 Todas las de los disparos suman `CONTACT_LISTENER` al emitir, como hoy.
 
-**Convivencia con #41.** `viscousStrength` del sistema de disparos arranca en 0,25 (el valor con el que hoy se juega la miel). #41 lo sube para la miel, y eso también espesa la lava, porque las dos llevan `viscous`. Es coherente con la física (la lava es más viscosa que la miel), pero #41 tiene que repetir el banco con la lava. Si la lava pierde alcance o deja de verse como chorro, vuelve a `TENSILE` sola: es un cambio de datos. El agua y el ácido no llevan `viscous` y no se ven afectados.
+**Convivencia con #41** (🔨 decidido en el diseño de #41). `viscousStrength` del sistema de disparos arranca en 0,25 (el valor con el que se jugaba la miel). #41 lo sube, y con la flag de #40 eso también espesaría la lava. **Decisión: la lava pierde `VISCOUS` y vuelve a `TENSILE`.**
+- Con las tensiones del sistema en 0 (valores finales de #40), la flag `TENSILE` no hace nada: la lava con `TENSILE | VISCOUS` sería físicamente idéntica a la miel. Con `viscousStrength` alto, la lava también quedaría como charco pegajoso y arrastraría al robot (ver abajo), y la miel dejaría de ser única.
+- La lava ya se diferencia del ácido por datos: 10 m/s (no 14), ±1° y caudal 60, así que cae en un arco más corto. Su efecto es la quemadura, no la traba.
+- Es un cambio de datos (`WEAPONS[LAVA].flags`). **Condición:** con `TENSILE` sola, la lava tiene que cumplir el banco 1 con los valores de `SHOT_SYSTEM`. Antes de #40 rebotaba 1,34, pero con damping 0,2; con damping 1,0 y `pressureStrength` 0,005 se espera algo como el ácido (0,11). Si no cumple, se vuelve a `TENSILE | VISCOUS`, se acepta que se espese y se anota la medición de los dos casos en la tabla.
+
+El agua y el ácido no llevan `viscous` y no se ven afectados.
+
+**Valor de `viscousStrength` para la miel** (🔨 #41). En `SolveViscous` (LiquidFun 1.1, `b2ParticleSystem.cpp`), cada contacto entre partículas `viscous` les acerca las velocidades en proporción a `viscousStrength × peso`; con varias vecinas por partícula, un valor mucho mayor que 1 puede sobrecorregir y oscilar (el mismo argumento que el tope de 1 del damping). La misma función arrastra a los cuerpos que tocan partículas `viscous` (impulso de signo contrario). *No verificado en ejecución*: el build no deja leer el C++; se confirma con el banco.
+- **Barrido:** 0,25 (línea base) → 0,5 → 0,75 → 1,0. Se queda el **valor más alto** que cumpla todos los criterios del banco 1 de la miel, incluidos los nuevos de charco. Propuesta inicial: **1,0**. No se pasa de 1,0 sin una medición que muestre que no oscila.
+- **Criterios nuevos del banco 1, solo para la miel** (métricas nuevas de `shotBench`, en el mismo paso `measuredAtStep`):
+  - `spread`: ancho del charco, percentil 95 menos percentil 5 de la `x` de las partículas con `y ≤ 0,5 m`. **Criterio:** ≤ 0,6 × el `spread` de la miel con `viscousStrength` 0,25 (se corren las dos en el mismo test: el criterio es relativo y no depende de cuánto mida hoy).
+  - `restSpeedP95`: percentil 95 de la rapidez de esas partículas. **Criterio:** < 0,1 m/s (el charco no oscila ni "hierve").
+- La lava se corre con sus flags nuevas y también con `TENSILE | VISCOUS` y el valor nuevo, para dejar registrada la alternativa descartada.
 
 ### Banco de pruebas
 
@@ -147,6 +159,9 @@ Archivo nuevo `tests/fluid-feel.test.js`, con el armado en `tests/helpers/fluid-
 |---|---|---|---|
 | Rebote, agua / ácido / lava / miel | 0,52 / 0,58 / 1,34 / 0,29 | 0,12 / 0,11 / 0,06 / 0,11 | ≤ 0,20 |
 | Aisladas a 1 s, agua / ácido / lava / miel | 38 % / 22 % / 2 % / 0 % | 5 % / 9 % / 0 % / 0 % | ≤ 10 % |
+| 🔨 #41: rebote y aisladas de la lava `TENSILE` / miel con el `viscousStrength` final | — | (a medir) | ≤ 0,20 y ≤ 10 % |
+| 🔨 #41: `spread` de la miel, 0,25 → final | — | (a medir) | final ≤ 0,6 × con 0,25 |
+| 🔨 #41: `restSpeedP95` de la miel | — | (a medir) | < 0,1 m/s |
 | Agua del nivel: frente en x 37 | 0,87 s | 1,22 s | ≤ 2 s |
 | Agua del nivel: desvío / rango de la superficie | 0,138 / 0,476 m | 0,094 / 0,328 m | < 0,10 m / < 0,375 m |
 | Agua del nivel: velocidad media / p95 | 0,25 / 0,55 m/s | 0,020 / 0,040 m/s | < 0,05 / < 0,2 m/s |
@@ -185,7 +200,7 @@ Se mueve **una perilla por vez**, en este orden, y se vuelven a correr los tres 
 ### Efectos sobre otros sistemas y coordinación
 
 - **Empuje del agua (#18) y del ácido sobre los robots:** con damping 1,0, el choque partícula↔cuerpo también es más inelástico. La partícula le transfiere su cantidad de movimiento en lugar de rebotar, así que el empuje por partícula puede bajar. #18 mide el empuje después de #40.
-- **#41 (miel muy viscosa):** sube `SHOT_SYSTEM.viscousStrength` y repite el banco 1 con la miel **y la lava**.
+- **#41 (miel muy viscosa)** 🔨: sube `SHOT_SYSTEM.viscousStrength` (barrido hasta 1,0), le quita `VISCOUS` a la lava y repite el banco 1 con la miel **y la lava**, más las métricas de charco de la miel (ver "Convivencia con #41"). La regla de juego que pega al robot está en [04-fluidos](04-fluidos.md#miel-pegajosa-regla-compartida--41).
 - **#26 (render metaball):** el umbral y el radio del kernel se calibran con la cohesión de #40 ya aplicada. Si #40 todavía no está en `main`, #26 no fija valores visuales.
 - **#45 (hueco entre robot y agua):** #40 no cambia radios ni radio de dibujo, así que el hueco no cambia por este issue. Si #45 cambia el radio de dibujo o de la partícula, repite los bancos 2 y 3.
 - **#39 (puente agua → disparos):** no depende de estas fuerzas; el frenado del puente es aparte.
