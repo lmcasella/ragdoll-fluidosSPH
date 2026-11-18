@@ -11,8 +11,20 @@ Código: `js/ActiveRagdoll.js` (un jugador), rig `ROBOT_RIG` en `index.html`, mo
 | Pegado (miel) ✅ #41 | Estado `stickyTimer` (s), renovado por `stick()` cada paso que toca miel y 0,3 s después. Suma gravedad extra a todas las piezas | `STICKY` en `js/ActiveRagdoll.js`: `speed` 0,1, `brake` 0,5, `jump` 0,3, `down` 10 m/s², `grace` 0,3 s. Reemplaza `honeyTimer`. Regla en [04-fluidos](04-fluidos.md#miel-pegajosa-regla-compartida--41) |
 | Girar | Al cambiar el lado de la mira, se vuelve a generar el ragdoll espejado (`flipX`), conservando posición, velocidades y estado. RagImporter no permite espejar una instancia viva | — |
 | Caminar hacia atrás | Si se camina en contra de la mira, se reproduce `walk_back`: una copia de `walk` con las claves invertidas, generada al cargar (`js/clips.js`) | Provisorio hasta Gann4Life/RagAssembler2D#231 |
-| Apuntar | El hombro (`joint_11`) gira para que **la línea del cañón** pase por el objetivo (corrige el paralaje). El codo queda en reposo y el override va con fuerza 1, así que ningún clip mueve la cadena del arma | Error medido: 0° quieto, ~4,5° de media caminando. Exacto: #8 |
+| Apuntar | El hombro (`joint_11`) gira para que **la línea del cañón** pase por el objetivo (corrige el paralaje). El codo queda en reposo y el override va con fuerza 1, así que ningún clip mueve la cadena del arma | Error medido: 0,3–0,9° quieto, ~4,5° de media caminando, ≤ 12° en el salto (✅ #57, ver abajo). Exacto: #8 |
 | Animación | Máquina de estados: `dead` > `punch` > `jump` > `walk` / `walk_back` > reposo. Los cambios son sin fundido (la librería aún no los tiene) | — |
+
+**Apuntar en el salto ✅ #57.** Causa medida: el clip `jump` trae claves de hombro y codo (`joint_11`/`joint_11_copy` llegan a 2,94 y 2,42 rad en t = 0,3 s, el brazo "tirado hacia arriba"). El override de mira gana en ángulo y velocidad, pero RagImporter suma `shortestDelta(clip, override)` al ángulo del clip sin normalizar: si el clip y la mira difieren más de π (mira abajo, por ejemplo −0,46 rad contra 2,94), el motor recibe un error de ~2π y, como el hombro no tiene límites, da la vuelta casi completa por el otro lado. Solución en el juego: `withoutJointTracks` (`js/clips.js`) quita al cargar las pistas de `aimJoints` y `aimHold` del clip `jump`; las piernas y el torso conservan la animación. No se tocó `lib/` ni el rig. El impulso de 9 m/s a todas las piezas se mantiene: es lo que hace saltar al robot (sin el de los brazos, el torso sube 1,9 m en vez de 4,0).
+
+| Mira (Y arriba) | Error medio en el aire, antes → después | Error máximo, antes → después | Subida del torso, antes → después |
+|---|---|---|---|
+| (1, 0) | 3,4° → 3,4° | 7,9° → 7,9° | 4,02 m → 4,02 m |
+| (1, −0,5) | 5,6° → 2,9° | 15,9° → 8,8° | 4,02 m → 4,02 m |
+| (0,3, −1) | 33,2° → 3,6° | 129,5° → 11,3° | 4,01 m → 4,01 m |
+
+Umbral de regresión (`tests/aim-jump.test.js`): error máximo ≤ 15°, medio ≤ 5° y subida ≥ 95 % de 4,02 m. Queda un resto de hasta ~12° apuntando hacia abajo, por el golpe de las piernas del clip al plegarse (t = 0,3 s).
+
+Propuesta para el robot, sin urgencia (no hace falta si el juego quita las pistas): borrar de `jump` las pistas de `j_10`, `j_11`, `j_12` y `j_13` en `assets/robot.rag.json`, o llevar las claves de `j_11`/`j_13` a ±π de la pose de mira. El mismo defecto de librería (ángulo sin normalizar al aplicar un override) quedaría para #8 y RagAssembler2D#232.
 
 **Mira:** gamepad primero. La dirección viene del stick derecho y se conserva al soltarlo. El mouse (solo J1) y el teclado son respaldo. El mouse solo retoma la mira si se mueve después del último uso del stick.
 
