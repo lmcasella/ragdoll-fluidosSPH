@@ -3,17 +3,17 @@
 //  - BeginParticleBodyContact: cada partícula informa qué parte del cuerpo tocó (requiere CONTACT_LISTENER_PARTICLE).
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
-export const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
+import { FLUID, particleDamage, weaponById } from "./weapons.js";
 
-// Ids de arma = tipo de fluido
-export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3 };
+export { FLUID };
+export const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
 const IMPACT_COOLDOWN = 0.25;
-const ACID_DAMAGE = 2;
 const SELF_IMMUNITY = 0.4; // s en que un disparo no daña a quien lo disparó
-const SHOT_MEMORY = 20;
+const SHOT_SLICE = 0.1; // s que dura un id de disparo abierto
+const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se destruyen
 
 export class DamageSystem {
     constructor(world, particleSystem) {
@@ -23,6 +23,7 @@ export class DamageSystem {
         this.players = [];
         this.owners = new Map(); // puntero de cuerpo → { player, index, bodyId }
         this.shots = new Map(); // id de disparo → { owner, weapon, time }
+        this.openShots = new Map(); // jugador → id del tramo abierto
         this.nextShot = 1;
         this.impacts = [];
         this.fluidHits = [];
@@ -59,15 +60,31 @@ export class DamageSystem {
         return this.owners.get(bodyPtr);
     }
 
-    // Marca las partículas de un grupo recién disparado con su id de disparo (buffer de userData)
-    tagShot(group, owner, weapon, now) {
+    // Id de disparo para lo que `owner` emite ahora con `weapon`: reutiliza el tramo abierto de ese jugador si
+    // es del mismo arma y se abrió hace menos de SHOT_SLICE; si no, abre uno. `time` queda en la última emisión.
+    shotId(owner, weapon, now) {
+        const open = this.openShots.get(owner);
+        const shot = open && this.shots.get(open);
+        if (shot && shot.weapon === weapon && now - shot.start < SHOT_SLICE) {
+            shot.time = now;
+            return open;
+        }
         const id = this.nextShot++;
-        this.shots.set(id, { owner, weapon, time: now });
-        const start = group.GetBufferIndex();
-        const end = start + group.GetParticleCount();
-        const userData = this.particleSystem.GetUserDataBuffer() >> 2;
-        for (let i = start; i < end; i++) Box2D.HEAP32[userData + i] = id;
+        this.shots.set(id, { owner, weapon, time: now, start: now });
+        this.openShots.set(owner, id);
         return id;
+    }
+
+    // Marca una partícula con su id de disparo (buffer de userData; se lee de nuevo en cada llamada porque
+    // crear partículas puede reubicar los buffers)
+    tagParticle(index, id) {
+        Box2D.HEAP32[(this.particleSystem.GetUserDataBuffer() >> 2) + index] = id;
+    }
+
+    // Id más chico que sigue vivo: las partículas con 0 < userData < liveShotFloor son de disparos vencidos
+    get liveShotFloor() {
+        for (const id of this.shots.keys()) return id;
+        return this.nextShot;
     }
 
     onBeginContact(contactPtr) {
@@ -146,7 +163,7 @@ export class DamageSystem {
             if (consumed.has(index)) continue;
             if (shot && shot.owner === owner.index && now - shot.time < SELF_IMMUNITY) continue;
             if (kind === FLUID.ACID) {
-                owner.player.hurt(owner.bodyId, ACID_DAMAGE, now);
+                owner.player.hurt(owner.bodyId, particleDamage(weaponById(FLUID.ACID)), now);
                 consumed.add(index);
             } else if (kind === FLUID.LAVA) {
                 owner.player.burn(owner.bodyId);
@@ -159,8 +176,10 @@ export class DamageSystem {
 
         this.impacts.length = 0;
         this.fluidHits.length = 0;
+        // Los ids crecen con el tiempo: se poda desde el más viejo, así liveShotFloor es siempre el primero
         for (const [id, shot] of this.shots) {
-            if (now - shot.time > SHOT_MEMORY) this.shots.delete(id);
+            if (now - shot.time <= SHOT_LIFETIME) break;
+            this.shots.delete(id);
         }
     }
 }
