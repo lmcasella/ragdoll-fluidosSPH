@@ -10,7 +10,7 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
 
    Si los dos caen a la vez, es empate y nadie suma.
 3. **Partida** ✅: al mejor de 3 (gana quien llega a 2). El cartel final ofrece **revancha** con disparar (A / RT, Espacio, Enter). El HUD muestra las victorias como puntos y el número de ronda.
-4. **Inundación (muerte súbita)** ✅ #22: a los 90 s de ronda empieza a **llover desde arriba**. El agua cae, se acumula sobre la pileta y va llenando el mapa desde abajo. Las plataformas bajas quedan bajo el agua, el agua daña por cortocircuito ([04-fluidos](04-fluidos.md#41-armas)) y la pelea se va hacia arriba. Es el uso masivo de partículas del juego; su costo está en [09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas). Detalle en [2.1](#21-inundación--22).
+4. **Inundación (muerte súbita)** ✅ #22: a los 60 s de ronda empieza a **llover desde arriba**. El agua cae, se acumula sobre la pileta y va llenando el mapa desde abajo. Las plataformas bajas quedan bajo el agua, el agua daña por cortocircuito ([04-fluidos](04-fluidos.md#41-armas)) y la pelea se va hacia arriba. Es el uso masivo de partículas del juego; su costo está en [09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas). Detalle en [2.1](#21-inundación--22).
 
 ## 2.1 Inundación ✅ #22
 
@@ -32,8 +32,8 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 
 | Dato | Valor | Nota |
 |---|---|---|
-| `start` | 90 s | Tiempo de ronda en que empieza a llover |
-| `riseSpeed` | 0,15 m/s | Islas (4 m) a los ~97 s, plataformas bajas (7,6 m) a los ~121 s, la más alta (13,4 m) a los ~159 s, tope a los 170 s |
+| `start` | 60 s | Tiempo de ronda en que empieza a llover |
+| `riseSpeed` | 0,15 m/s | Islas (4 m) a los ~67 s, plataformas bajas (7,6 m) a los ~91 s, la más alta (13,4 m) a los ~129 s, tope a los 140 s (la curva; el agua real va 0,7–1,7 m atrás) |
 | `maxLevel` | 15 m | Por encima de todas las plataformas |
 | `emitY` | 31,5 m | Medio metro bajo el techo |
 | `emitX1`, `emitX2` | 1 m, 55 m | Todo el ancho, sin tocar las paredes |
@@ -45,10 +45,10 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 
 **Reloj de ronda.** `Match` lleva `roundTime`: suma el `dt` real del frame solo en el estado `playing` y vuelve a 0 en cada `"reset"` (ronda nueva o revancha). Durante `roundOver` se congela: deja de subir el objetivo, el agua que cayó se sigue acomodando. `Flood` lee `match.roundTime`; `Match` no sabe nada de la inundación.
 
-**`Flood.level` y `floodLevel()`.** La función pura `floodLevel(t)` devuelve el nivel de la curva: 3 m (`pool.surface`) hasta los 90 s. En cambio, el getter `Flood.level`, que usa el corte de disparos (y `Flood.surfaceAt`, que consume `DamageSystem.process`), vale **`-Infinity` mientras la inundación no empezó** (antes de los 90 s). Así la pileta, cuyo agua llega a 3 m, no moja a nadie antes de la muerte súbita.
+**`Flood.level` y `floodLevel()`.** La función pura `floodLevel(t)` devuelve el nivel de la curva: 3 m (`pool.surface`) hasta los 60 s. En cambio, el getter `Flood.level`, que usa el corte de disparos (y `Flood.surfaceAt`, que consume `DamageSystem.process`), vale **`-Infinity` mientras la inundación no empezó** (antes de los 60 s). Así la pileta, cuyo agua llega a 3 m, no moja a nadie antes de la muerte súbita.
 
 **Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye solo las partículas marcadas y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. El agua original de la pileta que quedó arriba vuelve a caer al hueco por gravedad; no se recrea el grupo.
 
 **Al jugador:**
-- HUD: reloj de ronda arriba al centro; desde los 80 s, "Inundación en N"; desde los 90 s, "¡INUNDACIÓN!".
+- HUD: reloj de ronda arriba al centro; desde los 50 s, "Inundación en N"; desde los 60 s, "¡INUNDACIÓN!".
 - Robot mojado: tinte cian intermitente en todas sus piezas mientras dure el estado (las chispas quedan para #18).
