@@ -202,6 +202,8 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 ## 4.4 Reacciones entre fluidos 🔨 #30
 
+> **🔨 #62 reemplaza este diseño:** las reacciones se modelan con entalpía y calor latente (lava → piedra, agua ↔ vapor) y con concentración (miel diluida), no con reglas de contacto. Con valores reales, la lava tarda minutos en solidificar ([14.8](14-agua.md#148-térmica-y-fases), [14.9](14-agua.md#149-mezcla-por-concentración-y-viscosidad)). El estado `pegado` de la miel (#41) se retira con la adherencia de #62-J (decisión D4); hasta entonces sigue el temporizador ([14.10](14-agua.md#1410-adherencia)).
+
 Hay dos fuentes de detección, según dónde está el agua:
 
 - **Entre disparos** (lava disparada + agua disparada): contactos **partícula↔partícula** (`BeginParticleContact`) dentro del sistema de disparos. Se identifican por color o por flags.

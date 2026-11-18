@@ -16,6 +16,8 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
 
 Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj de ronda en `Match` (`js/round.js`).
 
+> **🔨 #62:** la lluvia pasa al sistema líquido y se absorbe en un campo de alturas. El emisor deja de controlar el nivel: el caudal sale de `riseSpeed` y el nivel resulta de la conservación de la masa. Se borran el escurrido y la calibración de `density` ([14.7](14-agua.md#147-inundación-con-lluvia-absorbida)).
+
 **Cómo sube el agua.** La lluvia se crea en el **mismo sistema de partículas que la pileta** (el "agua del nivel", radio 0,25 m). Como comparten sistema, las gotas chocan con el agua de la pileta y la hacen subir de verdad: no hay que simular el ascenso aparte. El nivel no se mide sobre las partículas: se **controla**. Una curva fija da el nivel objetivo según el tiempo de ronda y el emisor agrega gotas hasta que hay las necesarias para llenar ese nivel.
 
 - **Nivel objetivo:** `nivel(t) = min(maxLevel, pool.surface + riseSpeed · (t − start))` para `t ≥ start`; antes, `pool.surface`.

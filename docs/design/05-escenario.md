@@ -22,6 +22,8 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
 
 ## 5.2 Pileta ✅
 
+> **🔨 #62:** el agua de la pileta pasa a ser un campo de alturas (Saint-Venant 1D) que arranca en reposo exacto. Los robots flotan por Arquímedes, y el sensor se mantiene como regla de juego ([14.3](14-agua.md#143-campo-de-alturas-saint-venant-1d-shallowwater), [14.5](14-agua.md#145-flotación-de-arquímedes-por-pieza)).
+
 - **Agua:** SPH real en el hueco central (x 18–38, del fondo hasta y = 3), en un **sistema de partículas propio** Un robot que cae salpica.
   - ✅ #22: es el **agua del nivel**, compartido con la lluvia de la inundación. Radio **0,25 m** (`LEVEL.pool.radius`; 477 partículas en la pileta, medido) y `maxCount` = `LEVEL.flood.maxParticles` (5.500) al crearlo en `fillPool`. Se dibuja con radio **0,28 m** (decisión del usuario: no agrandar las partículas).
   - ✅ #40: las fuerzas del sistema (`LEVEL.pool.physics`: damping 1,0, viscosidad 0,1) y las flags de sus partículas (`LEVEL.pool.flags`: `VISCOUS | STATIC_PRESSURE`) son datos, para que el agua en reposo quede quieta y se nivele en lugar de verse como un pelotero ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)).

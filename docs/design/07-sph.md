@@ -1,5 +1,7 @@
 # 7. Fluidos / SPH (LiquidFun)
 
+> **🔨 #62: se reemplaza por partes.** Esta sección describe lo que está hoy en `main`. El rediseño está en [14-agua](14-agua.md): el agua del nivel pasa a ser un campo de alturas (Saint-Venant 1D) y los disparos pasan a ser agua pura con radio 0,12 m, en un solo sistema líquido con identidad estable por slot. También se reemplazan el puente de §7.6 (#39), el parche del hueco de §7.4 (#45) y el agua del nivel y los presets de §7.5. Cada subsección se marca como reemplazada cuando se mergea su sub-issue.
+
 ## 7.1 Modelo
 
 LiquidFun es una variante de SPH:
@@ -16,7 +18,7 @@ Partículas de sistemas distintos **no interactúan entre sí**, solo con los cu
 | Sistema | Contenido | Radio | Gravedad | Vida | Estado |
 |---|---|---|---|---|---|
 | Disparos (líquidos) | Agua, ácido, lava, miel | 0,1 m | 1 | Ilimitada | ✅ |
-| Agua del nivel | Pileta y lluvia de la inundación (#22) | 0,25 m (477 de la pileta; hasta 5.500 con la lluvia). Se dibuja a 0,28 m | 1 | Ilimitada | ✅ #22 |
+| Agua del nivel | Pileta y lluvia de la inundación (#22) | 0,25 m (477 de la pileta; hasta 5.500 con la lluvia). Se dibuja a 0,28 m | 1 | Ilimitada | ✅ #22; 🔨 #62 la reemplaza por un campo de alturas ([14.3](14-agua.md#143-campo-de-alturas-saint-venant-1d-shallowwater)) |
 | Gases | Fuego, viento, vapor | — | Negativa o 0 | Corta (*verificado*: `set_lifetime` del grupo) | 🔨 #16 |
 
 La lluvia comparte sistema con la pileta para que **suba el agua de la pileta**: si fuera un sistema aparte, las gotas atravesarían el agua de la pileta y quedarían superpuestas en el fondo. Se distinguen por la marca de `userData` (lluvia = −1, pileta = 0).

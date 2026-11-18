@@ -22,5 +22,6 @@ Documento de diseño del juego para la materia Simulación 1 (UNAHUR). Este arch
 | 11 | [Cronograma](docs/design/11-cronograma.md) | Fechas, milestones, orden de recorte, mínimo para entregar |
 | 12 | [Decisiones y preguntas abiertas](docs/design/12-decisiones.md) | Registro de decisiones y lo que falta decidir |
 | 13 | [Arte](docs/design/13-arte.md) | Estilo, placeholders e imágenes necesarias |
+| 14 | [Agua física](docs/design/14-agua.md) | Rediseño del agua (#62): campo de alturas Saint-Venant, absorción, flotación, disparos con agua pura, térmica, mezcla, adherencia, debug, criterios físicos y sub-issues |
 
 Los patrones de arquitectura y las convenciones de trabajo están en `CLAUDE.md`.
