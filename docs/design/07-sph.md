@@ -23,7 +23,7 @@ La lluvia comparte sistema con la pileta para que **suba el agua de la pileta**:
 
 ### Un solo sistema para todos los líquidos ❌ (rechazado 18/11)
 
-**Rechazado por el usuario (18/11):** las partículas de 0,25 m ya se ven demasiado grandes respecto del robot, así que no se llevan los disparos a ese radio. Se mantienen **dos sistemas** (disparos de 0,1 m y agua del nivel de 0,25 m). Igual todos los líquidos tienen que interactuar: un **puente** detecta los disparos dentro del agua y aplica frenado, flotación y reacciones, en un solo sentido (agua → disparos). Se resuelve en #39. El análisis de abajo queda como registro de lo evaluado.
+**Rechazado por el usuario (18/11):** las partículas de 0,25 m ya se ven demasiado grandes respecto del robot, así que no se llevan los disparos a ese radio. Se mantienen **dos sistemas** (disparos de 0,1 m y agua del nivel de 0,25 m). Igual todos los líquidos tienen que interactuar: un **puente** detecta los disparos dentro del agua y aplica frenado, flotación y reacciones, en un solo sentido (agua → disparos). Se resuelve en #39 ([7.6](#76-puente-agua--disparos--39)). El análisis de abajo queda como registro de lo evaluado.
 
 Objetivo del usuario: que **todos los líquidos interactúen entre sí** (disparos, pileta, inundación). Solo pasa si están en el mismo sistema.
 
@@ -53,6 +53,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 - **Acople bidireccional** ✅: los fluidos empujan cuerpos y los cuerpos desplazan fluidos.
 - **Contactos partícula↔cuerpo** ✅ (*verificado*): `BeginParticleBodyContact` informa qué parte del cuerpo tocó cada partícula. Requiere la flag `1 << 14` (`b2_fixtureContactListenerParticle`) en las partículas.
 - **Etiqueta por disparo** ✅: cada grupo disparado escribe su id en el buffer de `userData` de sus partículas (*por re-verificar*). Así se sabe de quién es cada partícula. Nota: la verificación anterior de que la marca sobrevive se hizo sobre el aliasing de un bug (`Box2D.getPointer` aplicado al número que devuelve `GetUserDataBuffer()`, que leía y escribía en la dirección 0 del heap). Desde #22 se escribe en el buffer real (`GetUserDataBuffer() >> 2`), que es lo que usan `damage.js` y `flood.js`.
+- **Puente entre sistemas** 🔨 #39: frenado y flotación de los disparos que están dentro del agua del nivel, escribiendo el buffer de velocidades del sistema de disparos una vez por paso ([7.6](#76-puente-agua--disparos--39)).
 - **Contactos partícula↔partícula** 🔨 #30: reacciones entre fluidos ([04-fluidos](04-fluidos.md#44-reacciones-entre-fluidos--30)).
 - **Escritura directa de buffers** 🔨: viento (velocidad) y reacciones (flags).
 
@@ -188,4 +189,69 @@ Se mueve **una perilla por vez**, en este orden, y se vuelven a correr los tres 
 - **#41 (miel muy viscosa):** sube `SHOT_SYSTEM.viscousStrength` y repite el banco 1 con la miel **y la lava**.
 - **#26 (render metaball):** el umbral y el radio del kernel se calibran con la cohesión de #40 ya aplicada. Si #40 todavía no está en `main`, #26 no fija valores visuales.
 - **#45 (hueco entre robot y agua):** #40 no cambia radios ni radio de dibujo, así que el hueco no cambia por este issue. Si #45 cambia el radio de dibujo o de la partícula, repite los bancos 2 y 3.
-- **#39 (puente agua → disparos):** no depende de estas fuerzas; el frenado del puente es aparte.
+- **#39 (puente agua → disparos):** no depende de estas fuerzas; el frenado del puente es aparte ([7.6](#76-puente-agua--disparos--39)). Sí depende del costo: con la presión estática del agua del nivel, la inundación al tope ya cuesta ~7,2 ms y al puente le quedan ~0,8 ms.
+
+## 7.6 Puente agua → disparos 🔨 #39
+
+**Problema.** Los disparos (radio 0,1 m) y el agua del nivel (0,25 m) están en sistemas distintos y LiquidFun no los hace interactuar: un disparo atravesaría la pileta o la inundación. Hasta ahora, `limpiarParticulas` borraba los disparos que entraban al agua, y el usuario lo vio como "los disparos desaparecen". El sistema único se rechazó ([arriba](#un-solo-sistema-para-todos-los-líquidos--rechazado-1811)).
+
+**Decisión.** Un **puente en un solo sentido**. Una vez por paso fijo, después de `stepWorld`, se detectan los disparos que están dentro del agua del nivel y se les escribe la velocidad: frenado hacia la velocidad local del agua y flotación según el fluido. El agua del nivel no se toca: los disparos no la desplazan. Los disparos ya no se borran al entrar al agua.
+
+### Detección: grilla de agua por paso
+
+- **Grilla** de celdas de `cell` = 0,5 m sobre `LEVEL.bounds` (56 × 32 m → 112 × 64 = 7.168 celdas). Los buffers son arrays tipados de JS que se crean una vez en el constructor: `count` (`Uint16Array`), `sumVx`/`sumVy` (`Float32Array`), sus sumas vecinas y `depth` (`Float32Array`). Se limpian con `fill(0)` en cada paso.
+- **Pasos**, una vez por paso fijo:
+  1. **Agua tranquila.** Una pasada por las partículas del agua del nivel (posición y velocidad leídas de `HEAPF32`). Solo cuentan las que tienen |v| < `calmSpeed` = 4 m/s. Cada una suma 1 y su velocidad a su celda. Así **la lluvia en vuelo y la salpicadura no son agua**, sin depender de la marca de `userData`.
+  2. **Vecindad.** Una caja 3×3 separable (dos pasadas sobre la grilla) da `n3` (partículas en 1,5 × 1,5 m) y la velocidad media local `u = sumV3 / n3`. Con `density` 6,3/m², una vecindad llena tiene ~14 partículas y una de superficie, ~7.
+  3. **Celda mojada** si `n3 ≥ minNeighbors` = 4. Una celda suelta con una gota o dos (lluvia que cae, salpicadura) no moja.
+  4. **Profundidad** por columna, de arriba hacia abajo: `run = mojada ? run + cell : 0`; `depth = mojada ? run − cell/2 : 0`.
+- **Por qué no la superficie por columna** (`Flood.surfaceAt`): cada consulta recorre toda el agua del nivel, O(N). Con ~1.200 disparos serían ~6,6 M lecturas por paso. Además, una altura por columna no distingue capas: con un charco sobre una plataforma y agua más abajo, un disparo que está en el aire debajo de la plataforma se tomaría como sumergido. La grilla sirve igual para la pileta (antes de la inundación), la inundación y los charcos, y no necesita `flood.level`.
+- **Costo estimado:** ~5.500 lecturas de agua, ~3 × 7.168 operaciones de grilla y ≤ 1.500 disparos: **~0,1–0,15 ms por paso**, ≤ 0,3 ms por frame con dos pasos. Entra en el margen de ~0,8 ms que deja la inundación al tope (~7,2 ms con #40). Es una estimación: se mide en el test.
+
+### Respuesta por fluido (datos en `WEAPONS[].immersion`)
+
+Para cada disparo dentro de una celda mojada (salvo zombis):
+
+- **Sumersión:** `s = clamp(depth / fullDepth, 0, 1)`, con `fullDepth` = 0,5 m. Crece con la profundidad cerca de la superficie y se satura bajo el agua, como el empuje de Arquímedes, que es constante una vez sumergido. La transición evita que los disparos reboten en la superficie.
+- **Frenado lineal hacia el agua:** `v ← u + (v − u) · exp(−drag · s · dt)`. Es exacto para el arrastre lineal y estable con cualquier `dt`. Como frena hacia la velocidad local `u`, las corrientes y los chapuzones arrastran los disparos.
+- **Flotación:** `vy += buoyancy · g · s · dt`, con `buoyancy` = ρ_agua / ρ_fluido (adimensional). La gravedad ya la aplica el motor: con `buoyancy` = 1 el fluido queda neutro bajo el agua. `g` = 10 m/s² llega por constructor, no se lee del mundo, para no crear un `b2Vec2`.
+- **Velocidad terminal bajo el agua:** `g · (buoyancy − 1) / drag` (negativa = se hunde).
+
+| Fluido | `buoyancy` | `drag` (1/s) | Terminal | Resultado |
+|---|---|---|---|---|
+| Agua | 1,0 | 10 | 0 | Neutra: entra a 14 m/s, se frena en ~1,4 m y deriva con el agua |
+| Ácido | 0,95 | 10 | −0,05 m/s | Casi neutro: se mezcla y se asienta despacio en el fondo |
+| Lava | 0,38 | 6 | −1 m/s | **Se hunde** (densidad ~2,6). Con #30 se vuelve piedra |
+| Miel | 0,7 | 14 | −0,2 m/s | Se hunde lento |
+
+Se descartó el **arrastre cuadrático**: con pasos de 1/60 s y velocidades de entrada de 8–14 m/s necesita limitarse para no invertir la velocidad, y en el juego no se nota la diferencia. Los valores son perillas de datos: si se ven mal en el navegador, se cambian en la tabla.
+
+### Cuándo y dónde
+
+- **Paso fijo:** es física, como el movimiento, así que se aplica **una vez por paso** dentro del `while` del loop, con `dt` = `STEP_SETTINGS.dt`. El orden queda `flood.step` → `stepWorld` → **`immersion.step(dt)`** → `damage.process` → golpes. Como va después de `stepWorld`, los índices son los del paso que terminó y no se crea ni se destruye nada. *Verificado* que escribir el buffer de velocidad persiste (viento, [04-fluidos](04-fluidos.md#las-armas)).
+- **Zombis:** `DestroyParticle` marca la partícula y el motor la quita en el próximo `Step`; los índices del paso siguen valiendo (lo mismo supone `damage.process`). *Por verificar en el test:* la partícula consumida por el daño no rompe el puente.
+- **Agua disparada que entra al agua del nivel:** **se queda** como partícula de disparo, frenada y neutra, y vence con su tramo a los 6 s (`liveShotFloor`), como cualquier charco. No se "funde" ni se borra, porque el usuario se quejó de que los disparos desaparecen. El tope de 1.500 no se ve afectado: el presupuesto ya suponía 6 s de vida ([09](09-arquitectura.md#93-presupuestos-y-métricas)).
+- **Contactos:** un disparo sumergido sigue tocando cuerpos. El ácido dentro de la inundación sigue dañando, y el agua sigue mojando.
+
+### Interfaz para #30
+
+- `immersion.submerged`: `Int32Array` de índices de disparos sumergidos, con capacidad `GetMaxParticleCount()` del sistema de disparos (1.500).
+- `immersion.kinds`: `Uint8Array` paralelo, con el id de `FLUID`.
+- `immersion.count`: cuántos son válidos.
+- Valen desde `immersion.step` hasta el próximo `stepWorld` (el motor compacta los índices al borrar). El tipo sale del color de la partícula con `fluidFromColor`, que pasa a `js/weapons.js` y se deriva de los colores de `WEAPONS`. Así el puente no depende de `DamageSystem`.
+
+### Módulo
+
+`js/immersion.js` (nuevo), clase `Immersion`. Ver [09-arquitectura](09-arquitectura.md#91-módulos).
+
+### Verificación esperada (`tests/immersion.test.js`, LiquidFun real)
+
+1. **Por fluido:** nivel real, pileta asentada 2 s y sistema de disparos con `SHOT_SYSTEM`. Se crean 10 partículas de cada fluido en (28, 6), a (0, −10) m/s y con las flags y el color de la tabla. Se avanza con `stepWorld` + `immersion.step`.
+   - No se destruye ninguna: el conteo se mantiene.
+   - A 1 s, la rapidez media es < 2 m/s.
+   - A 3 s: el agua y el ácido quedan entre y 0,5 y 3; la miel baja con una media < 0,5 m/s entre 1 y 3 s; la lava llega al fondo (y < 0,6).
+   - Control sin puente: llegan al fondo en < 1 s.
+2. **Lluvia no es agua:** con la inundación emitiendo, un disparo quieto a y = 10, lejos del agua asentada, no figura en `submerged`.
+3. **Interfaz:** `submerged`/`kinds` contienen los índices y tipos de los disparos dentro de la pileta, y ninguno de los que están fuera.
+4. **Costo (gameplay, `tests/helpers/game.js`):** inundación al tope, como en `tests/flood.test.js`, y los dos jugadores disparando agua hacia el agua durante 300 frames con gamepad simulado. Se mide el promedio de `stepWorld` + `flood.step` + `immersion.step` + `damage.process`. Falla por encima de 16 ms y la meta de 8 ms se revisa a mano. `immersion.step` solo: < 0,5 ms de media. Los valores se anotan en [9.2](09-arquitectura.md#92-rendimiento-medido).
+5. **Sin borrado:** en esa partida, los disparos que entran al agua siguen vivos hasta su vencimiento.
