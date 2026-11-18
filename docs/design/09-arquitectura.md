@@ -28,6 +28,7 @@ Previstos: un módulo de armas y emisores (#13) y uno de métricas (#29).
 | Escenario | Física + lógica por frame |
 |---|---|
 | Dos robots, pileta (726 partículas) | ~1,4 ms (Node, 18/11) |
+| Dos robots, inundación al nivel máximo (4.430 partículas: 3.953 gotas + 477 de la pileta) | ~5,0 ms: `stepWorld` + `flood.step` + `damage.process` + `move`/`updateStatus` (Node, 300 frames, `tests/flood.test.js`) |
 
 El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 
@@ -51,7 +52,7 @@ El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 - Techo razonable: **8.000–10.000 partículas** en total.
 
 **Presupuesto de la inundación** (#22):
-- **Partículas:** a nivel máximo (15 m) hay ~636 m² de agua sobre la pileta → ~4.500 gotas a 7,1/m², más ~450 de la pileta: **~5.000** en el agua del nivel. Tope `maxCount` = 5.500. Con los disparos, el total queda por debajo del techo de 8.000.
+- **Partículas:** a nivel máximo (15 m) hay ~636 m² de agua sobre la pileta → ~4.000 gotas a 6,4/m² (calibrado), más 477 de la pileta (medido): **~4.500** en el agua del nivel (medido: 4.430 con el nivel al tope). Tope `maxCount` = 5.500. Con los disparos, el total queda por debajo del techo de 8.000.
 - **Tiempo esperado:** ~4,5 ms de física con 5.000 partículas (tabla de arriba) más robots y disparos: **~6 ms**, dentro de los 8 ms. Con radio 0,2 m serían ~7.800 partículas y no entraría.
 - **Memoria:** 5.500 partículas están muy por debajo de las 20.000 medidas dentro de los 16 MiB.
 - **Código por paso sin memoria nativa nueva:** `Flood` crea en el constructor un `b2ParticleDef`, dos `b2Vec2` y un `b2ParticleColor`, los reutiliza en cada gota y los libera en `dispose()`. Las posiciones, velocidades y marcas se leen directo del heap (`HEAPF32`/`HEAP32`), como `limpiarParticulas`.

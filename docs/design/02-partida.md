@@ -37,7 +37,7 @@ Código previsto: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`
 | `emitX1`, `emitX2` | 1 m, 55 m | Todo el ancho, sin tocar las paredes |
 | `dropSpeed` | 8 m/s | Velocidad inicial hacia abajo |
 | `maxRate` | 90 partículas/s | Tope del caudal; el necesario a 0,15 m/s es ~60/s |
-| `density` | 7,1 partículas/m² | Agua en reposo con radio 0,25 m (paso de grilla 0,75 × diámetro, coherente con las 726 partículas medidas a 0,2 m). Se calibra midiendo la superficie real |
+| `density` | 6,4 partículas/m² | Agua en reposo con radio 0,25 m. **Calibrado** (18/11, Node, LiquidFun real): con 7,1 la superficie quedaba hasta +1,5 m sobre el nivel a 13,5 m; con 6,4 queda a −0,04…+0,3 m en 7,5, 10,5 y 13,5 m |
 | `drainHeight`, `drainSpeed` | 1 m, 1 m/s | Escurrido de charcos altos |
 | `maxParticles` | 5.500 | Tope del sistema del agua del nivel (pileta + lluvia), `maxCount` |
 
