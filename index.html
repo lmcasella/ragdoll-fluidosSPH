@@ -60,6 +60,7 @@
             <defs>
                 <filter id="goo">
                     <feGaussianBlur
+                        id="gooBlur"
                         in="SourceGraphic"
                         stdDeviation="6"
                         result="blur"
@@ -233,7 +234,7 @@
             let inputs = input.poll();
 
             const psDef = new Box2D.b2ParticleSystemDef();
-            psDef.set_radius(0.15);
+            psDef.set_radius(0.1);
             psDef.set_dampingStrength(0.2);
             const particleSystem = world.CreateParticleSystem(psDef);
             Box2D.destroy(psDef);
@@ -323,7 +324,7 @@
                 const muzzle = player.muzzle();
                 const arma = ARMAS[player.weapon];
                 const fuerzaDisparo = 20;
-                const radio = 0.375;
+                const radio = 0.25;
                 const offset = radio + 0.15;
 
                 const pgDef = new Box2D.b2ParticleGroupDef();
@@ -376,6 +377,18 @@
                         particleSystem.DestroyParticle(i);
                     }
                 }
+            }
+
+            // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
+            // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
+            const GOO_BLUR = 0.07;
+            const gooBlur = document.getElementById("gooBlur");
+            let gooSigma = 0;
+            function ajustarGoo(scale) {
+                const sigma = Math.round(GOO_BLUR * scale * 2) / 2;
+                if (sigma === gooSigma) return;
+                gooSigma = sigma;
+                gooBlur.setAttribute("stdDeviation", String(sigma));
             }
 
             let accumulator = 0;
@@ -431,6 +444,7 @@
                 );
                 firstFrame = false;
                 const scale = camera.scale;
+                ajustarGoo(scale);
 
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
