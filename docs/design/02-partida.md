@@ -39,7 +39,7 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 | `emitX1`, `emitX2` | 1 m, 55 m | Todo el ancho, sin tocar las paredes |
 | `dropSpeed` | 8 m/s | Velocidad inicial hacia abajo |
 | `maxRate` | 90 partículas/s | Tope del caudal; el necesario a 0,15 m/s es ~60/s |
-| `density` | 6,4 partículas/m² | Agua en reposo con radio 0,25 m. **Calibrado** (18/11, Node, LiquidFun real): con 7,1 la superficie quedaba hasta +1,5 m sobre el nivel a 13,5 m; con 6,4 queda a −0,04…+0,3 m en 7,5, 10,5 y 13,5 m. 🔨 #40 cambia las fuerzas y flags del agua del nivel: se recalibra con el procedimiento de [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40) |
+| `density` | 6,3 partículas/m² | Agua en reposo con radio 0,25 m. **Calibrado** (18/11, Node, LiquidFun real): con 7,1 la superficie quedaba hasta +1,5 m sobre el nivel a 13,5 m; con 6,4 queda a −0,04…+0,3 m en 7,5, 10,5 y 13,5 m. **Recalibrado en #40** (19/11, 60 s de asentado) con las fuerzas y flags nuevas del agua del nivel: 6,3 queda a +0,44, +0,29 y −0,03 m a 7,5, 10,5 y 13,5 m. **No cumple la meta de −0,1…+0,3 m a 7,5 m** (el agua nueva comprime distinto según la profundidad: bajar `density` acerca los 7,5 m y aleja los 13,5 m; medidas en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)) |
 | `drainHeight`, `drainSpeed` | 1 m, 1 m/s | Escurrido de charcos altos |
 | `maxParticles` | 5.500 | Tope del sistema del agua del nivel (pileta + lluvia), `maxCount` |
 

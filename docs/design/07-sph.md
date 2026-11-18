@@ -79,7 +79,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 
 *Verificado* por lectura de `vendor/liquidfun.js` (18/11): `b2ParticleSystemDef` expone `set_`/`get_` de `radius`, `maxCount`, `destroyByAge`, `gravityScale`, `density`, `pressureStrength`, `dampingStrength`, `viscousStrength`, `surfaceTensionPressureStrength`, `surfaceTensionNormalStrength`, `repulsiveStrength`, `powderStrength`, `elasticStrength`, `springStrength`, `ejectionStrength`, `staticPressureStrength`, `staticPressureRelaxation`, `staticPressureIterations`, `colorMixingStrength`, `lifetimeGranularity` y `strictContactCheck`. En el sistema ya creado solo se pueden cambiar `SetDamping`, `SetDensity`, `SetGravityScale`, `SetRadius` y `SetStaticPressureIterations` (con sus `Get…`). El resto de las fuerzas **se fija al crear el sistema**. Las flags por partícula se escriben con `b2ParticleDef.set_flags` y `b2ParticleGroupDef.set_flags` (los dos existen).
 
-El build no exporta los nombres de las flags (`b2_tensileParticle`, etc.). Sus valores salen de `b2Particle.h` de LiquidFun 1.1: `water` 0, `viscous` 1 << 5, `tensile` 1 << 7, `staticPressure` 1 << 11, `fixtureContactListener` 1 << 14. Las tres que ya usa el juego (`viscous`, `tensile` y el contact listener) se comprobaron en ejecución con #13. **Falta comprobar** `staticPressure`, que solo se usa si hace falta la perilla 3 del agua del nivel.
+El build no exporta los nombres de las flags (`b2_tensileParticle`, etc.). Sus valores salen de `b2Particle.h` de LiquidFun 1.1: `water` 0, `viscous` 1 << 5, `tensile` 1 << 7, `staticPressure` 1 << 11, `fixtureContactListener` 1 << 14. Las tres que ya usa el juego (`viscous`, `tensile` y el contact listener) se comprobaron en ejecución con #13. `staticPressure` se comprobó en ejecución (#40): agregar la flag y `staticPressure*` cambia el resultado del banco 2.
 
 ### Dónde viven
 
@@ -99,7 +99,7 @@ El build no exporta los nombres de las flags (`b2_tensileParticle`, etc.). Sus v
 | `destroyByAge` | `false` | (por defecto) | igual | Ver [04-fluidos](04-fluidos.md#tope-de-partículas-del-sistema-de-disparos) |
 | `gravityScale` | 1 | 1 | 1 (por defecto) | Explícito para que el dato sea completo |
 | `dampingStrength` | **1,0** | **1,0** | 0,2 | Choques inelásticos: la velocidad de acercamiento se pierde en lugar de volver como rebote. Es el valor por defecto de LiquidFun; no se pasa de 1 (por encima, el damping invierte la velocidad normal) |
-| `pressureStrength` | 0,05 | 0,05 | 0,05 (por defecto) | Explícito. Más alto = más rígido y más rebote; es la perilla 2 |
+| `pressureStrength` | **0,005** (final) | **0,1** (final) | 0,05 (por defecto) | Explícito. Más alto = más rígido y más rebote; es la perilla 2 |
 | `viscousStrength` | **0,25** | **0,1** | 0,25 (por defecto) | Disparos: solo afecta a lava y miel (flag `viscous`); #41 lo sube para la miel. Agua del nivel: viscosidad baja, que calma el temblor entre vecinas sin frenar el escurrido |
 | `surfaceTensionPressureStrength` | 0,2 | (sin uso) | 0,2 (por defecto) | Cohesión de agua, ácido y lava (flag `tensile`) |
 | `surfaceTensionNormalStrength` | 0,2 | (sin uso) | 0,2 (por defecto) | Ídem; es la primera perilla si quedan gotas sueltas |
@@ -145,14 +145,20 @@ Archivo nuevo `tests/fluid-feel.test.js`, con el armado en `tests/helpers/fluid-
 
 | Métrica | Línea base (antes de #40) | Con #40 | Criterio |
 |---|---|---|---|
-| Rebote, ácido / lava / miel | *a medir* | *a medir* | ≤ 0,20 |
-| Aisladas a 1 s, ácido / lava / miel | *a medir* | *a medir* | ≤ 10 % |
-| Agua del nivel: frente en x 37 | *a medir* | *a medir* | ≤ 2 s |
-| Agua del nivel: desvío / rango de la superficie | *a medir* | *a medir* | < 0,10 m / < 0,375 m |
-| Agua del nivel: velocidad media / p95 | *a medir* | *a medir* | < 0,05 / < 0,2 m/s |
-| Inundación: `density` y error a 7,5 / 10,5 / 13,5 m | 6,4; −0,04…+0,3 m | *a medir* | −0,1…+0,3 m |
-| Costo con la inundación al tope | ~5,0 ms | *a medir* | ≤ 8 ms |
+| Rebote, agua / ácido / lava / miel | 0,52 / 0,58 / 1,34 / 0,29 | 0,12 / 0,11 / 0,06 / 0,11 | ≤ 0,20 |
+| Aisladas a 1 s, agua / ácido / lava / miel | 38 % / 22 % / 2 % / 0 % | 5 % / 9 % / 0 % / 0 % | ≤ 10 % |
+| Agua del nivel: frente en x 37 | 0,87 s | 1,22 s | ≤ 2 s |
+| Agua del nivel: desvío / rango de la superficie | 0,138 / 0,476 m | 0,094 / 0,328 m | < 0,10 m / < 0,375 m |
+| Agua del nivel: velocidad media / p95 | 0,25 / 0,55 m/s | 0,020 / 0,040 m/s | < 0,05 / < 0,2 m/s |
+| Inundación: `density` y error a 7,5 / 10,5 / 13,5 m | 6,4; −0,04…+0,3 m | 6,3; +0,44 / +0,29 / −0,03 m (60 s) | −0,1…+0,3 m (**no cumple a 7,5 m**) |
+| Costo con la inundación al tope | ~5,0 ms | ~7,2 ms (4.368 partículas) | ≤ 8 ms |
 
+Notas de la medición (19/11):
+- **Línea base** con `dampingStrength` 0,2, el resto por defecto y las flags de antes (agua sin flags, ácido `WATER`, lava `TENSILE`, miel `VISCOUS`). El agua con la flag de antes no existía como arma.
+- **Impacto:** se mide con `y ≤ 2 × radio`, no con `radio + 0,02 m`: una partícula en reposo sobre el piso queda a ~1,65 radios, y con el umbral original la miel nunca "impactaba". Las partículas que caen sobre otras (no sobre el piso) no cuentan: impactan 99 de 99 (agua), 89 de 89 (ácido), 39 de 60 (lava) y 24 de 50 (miel).
+- **Valores finales de los disparos:** `pressureStrength` **0,005** y las dos tensiones **0**. Con los valores iniciales (0,05 y 0,2) el rebote era 0,87 (agua) y 0,71 (ácido): **peor** que la línea base, porque la tensión superficial empuja hacia afuera al comprimirse el chorro. Barrido con `dampingStrength` 1,0: la tensión (cualquier valor ≥ 0,05) deja el rebote de agua y ácido en 0,26–0,60 aun con `pressureStrength` 0,005; sin tensión y con 0,02 el rebote es 0,27–0,28, con 0,01 es 0,19–0,20 y con 0,005 es 0,11–0,12. Con tensión 0 y `pressureStrength` 0,05 la tensión solo se queda en `TENSILE` como flag sin efecto. **Consecuencia:** el chorro no tiene cohesión real; las gotas no se agrupan por tensión. Se cumplen los dos criterios medibles, pero la cohesión visual hay que mirarla en el navegador, y #41 y #26 parten de estos valores. Si se prefiere cohesión, hay que relajar el criterio de rebote.
+- **Agua del nivel:** los valores iniciales (`pressureStrength` 0,05, solo `VISCOUS`) daban desvío 0,216 / rango 0,79 m (peor que la línea base en la nivelación, pero con velocidad media 0,029). Se llegó a los valores finales con la perilla 3 (`STATIC_PRESSURE`, verificado en ejecución: cambia el resultado) y `pressureStrength` 0,1. El resultado es sensible: con 0,07 / 0,085 / 0,12 / 0,15 el desvío va de 0,12 a 0,16, y solo 0,1 cumple (la métrica depende de las capas de la grilla de 0,25 m).
+- **Costo:** sube de ~5,0 a ~7,2 ms por la presión estática (4 iteraciones por subpaso).
 ### Procedimiento de ajuste
 
 Se mueve **una perilla por vez**, en este orden, y se vuelven a correr los tres bancos.
