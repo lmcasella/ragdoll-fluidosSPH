@@ -30,6 +30,8 @@ export const LEVEL = {
         surface: 3,
         killY: 2.2,
         radius: 0.25,
+        // Dibujo del agua (m): radio del círculo y alcance del acercamiento a los cuerpos (docs/design/07-sph.md §7.4)
+        draw: { radius: 0.28, snapReach: 0.9, snapFullReach: 0.6 },
         flags: PARTICLE.VISCOUS | PARTICLE.STATIC_PRESSURE,
         physics: {
             gravityScale: 1,
