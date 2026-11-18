@@ -13,6 +13,13 @@ Los ragdolls se cargan con RagImporter (`lib/`, copiado de [ragassembler2d](http
 
 Requiere servidor HTTP (módulos ES): `npx http-server -c-1 .`
 
+## Tests y deploy
+
+- Tests: `node --test tests/` (Node 24, sin dependencias).
+- Cada push a `main` (merge de PR) corre `.github/workflows/pages.yml`: tests → build → deploy a GitHub Pages (https://lmcasella.github.io/ragdoll-fluidosSPH/). Los PRs a `main` corren solo los tests.
+- La versión sale del primer `## [x.y.z]` de `CHANGELOG.md`. Si es nueva, se crea el tag `vX.Y.Z` con su release; si ya existe, se publica igual, sin release nueva.
+- `version.json` en el sitio publicado indica versión y commit.
+
 ## Controles
 
 | | Mover | Saltar | Apuntar | Disparar | Arma |
