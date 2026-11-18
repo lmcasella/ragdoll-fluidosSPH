@@ -135,22 +135,39 @@ export class ActiveRagdoll {
 
     // Ángulo nativo de la articulación (sin espejar); el objetivo se toma por el camino más corto
     // desde el ángulo actual para que el brazo no salte al cruzar ±π
-    aim(mouseX, mouseY) {
+    // Con rig.gun: el ángulo se resuelve para que la línea del cañón (no la del hombro) pase por el objetivo.
+    // Los joints de rig.aimHold (codos) quedan en reposo para que ningún clip mueva la cadena del arma.
+    aim(targetX, targetY) {
         if (this.dead) return;
         const mirror = this.flipX ? -1 : 1;
         const forward = this.flipX ? Math.PI : 0;
+        const muzzle = this.muzzle();
+        for (const name of this.rig.aimHold ?? []) {
+            this.rag.setJointAngle(name, 0, { strength: 1 });
+        }
         for (const name of this.rig.aimJoints) {
             const joint = this.rag.joint(name);
             const anchor = joint.GetAnchorA();
             const ax = anchor.get_x();
             const ay = anchor.get_y();
-            const parentAngle = joint.GetBodyA().GetAngle();
-            const desired =
-                Math.atan2(mouseY - ay, mouseX - ax) -
-                parentAngle -
-                forward -
-                this.rig.aimOffset * mirror;
             const current = joint.GetJointAngle();
+            let desired;
+            if (muzzle) {
+                // Distancia (con signo) de la línea del cañón al pivote del hombro
+                const gunAngle = Math.atan2(muzzle.dy, muzzle.dx);
+                const offset = -(muzzle.x - ax) * muzzle.dy + (muzzle.y - ay) * muzzle.dx;
+                const dist = Math.hypot(targetX - ax, targetY - ay);
+                const toTarget = Math.atan2(targetY - ay, targetX - ax);
+                const wanted = dist > Math.abs(offset) ? toTarget - Math.asin(offset / dist) : toTarget;
+                desired = current + (wanted - gunAngle);
+            } else {
+                const parentAngle = joint.GetBodyA().GetAngle();
+                desired =
+                    Math.atan2(targetY - ay, targetX - ax) -
+                    parentAngle -
+                    forward -
+                    this.rig.aimOffset * mirror;
+            }
             const delta = desired - current;
             let target = current + Math.atan2(Math.sin(delta), Math.cos(delta));
             // RagImporter normaliza el objetivo a (-π, π]: cerca de ±π se frena del lado actual
@@ -161,7 +178,7 @@ export class ActiveRagdoll {
             } else if (overshoot > 0) {
                 target = Math.sign(target) * AIM_LIMIT;
             }
-            this.rag.setJointAngle(name, target * mirror);
+            this.rag.setJointAngle(name, target * mirror, { strength: 1 });
         }
     }
 
@@ -235,7 +252,9 @@ export class ActiveRagdoll {
         if (this.jumping) {
             this.setClip("jump");
         } else if (isMoving) {
-            this.setClip("walk");
+            // Caminar en contra de hacia donde mira (apunta) reproduce el clip en reversa
+            const backwards = this.facing !== (this.flipX ? -1 : 1);
+            this.setClip(backwards && this.rig.clips.walkBack ? "walkBack" : "walk");
         } else {
             this.setClip(null);
         }
