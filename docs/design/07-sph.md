@@ -108,7 +108,7 @@ El build no exporta los nombres de las flags (`b2_tensileParticle`, etc.). Sus v
 | `gravityScale` | 1 | 1 | 1 (por defecto) | Explícito para que el dato sea completo |
 | `dampingStrength` | **1,0** | **1,0** | 0,2 | Choques inelásticos: la velocidad de acercamiento se pierde en lugar de volver como rebote. Es el valor por defecto de LiquidFun; no se pasa de 1 (por encima, el damping invierte la velocidad normal) |
 | `pressureStrength` | **0,005** (final) | **0,1** (final) | 0,05 (por defecto) | Explícito. Más alto = más rígido y más rebote; es la perilla 2 |
-| `viscousStrength` | **0,25**; 🔨 #41: **1,0** (a medir, ver abajo) | **0,1** | 0,25 (por defecto) | Disparos: desde #41 solo afecta a la miel (única con flag `viscous`): la espesa para que quede como charco. Agua del nivel: viscosidad baja, que calma el temblor entre vecinas sin frenar el escurrido |
+| `viscousStrength` | **1,0** (✅ #41; antes 0,25, ver abajo) | **0,1** | 0,25 (por defecto) | Disparos: desde #41 solo afecta a la miel (única con flag `viscous`): la espesa para que quede como charco. Agua del nivel: viscosidad baja, que calma el temblor entre vecinas sin frenar el escurrido |
 | `surfaceTensionPressureStrength` | 0,2 | (sin uso) | 0,2 (por defecto) | Cohesión de agua, ácido y lava (flag `tensile`) |
 | `surfaceTensionNormalStrength` | 0,2 | (sin uso) | 0,2 (por defecto) | Ídem; es la primera perilla si quedan gotas sueltas |
 
@@ -122,7 +122,7 @@ La fuerza es por sistema, pero cada partícula elige qué términos recibe. Con 
 |---|---|---|---|---|
 | Agua (#18) | Disparos | `TENSILE` | (sin arma) | El agua real tiene tensión superficial: es lo que mantiene unido un chorro y forma gotas. Sin viscosidad: fluye y salpica |
 | Ácido | Disparos | `TENSILE` | `WATER` | Igual que el agua. No lleva `viscous`, así que el aumento de #41 no lo afecta |
-| Lava | Disparos | `TENSILE \| VISCOUS`; 🔨 #41: **`TENSILE`** | `TENSILE` | #40 le dio `viscous` para que se arrastrara. Con #41 la pierde: como las tensiones del sistema quedaron en 0, `TENSILE \| VISCOUS` se comporta **igual que la miel** y la lava sería otro charco pegajoso (además, `SolveViscous` arrastra cuerpos). Se distingue por su velocidad (10 m/s, arco) y su quemadura. Ver "Convivencia con #41" |
+| Lava | Disparos | `TENSILE \| VISCOUS` (✅ #41 la conserva, ver abajo) | `TENSILE` | #40 le dio `viscous` para que se arrastrara. #41 propuso quitársela: como las tensiones del sistema quedaron en 0, `TENSILE \| VISCOUS` se comporta **igual que la miel** y la lava sería otro charco pegajoso (además, `SolveViscous` arrastra cuerpos). Se distingue por su velocidad (10 m/s, arco) y su quemadura. Ver "Convivencia con #41" |
 | Miel | Disparos | `VISCOUS` | `VISCOUS` | Espesa, sin tensión superficial: se extiende como una capa pegajosa en vez de hacer gotas. Con #41 es el único fluido de los disparos con `viscous` |
 | Pileta y lluvia | Agua del nivel | `VISCOUS` | `WATER` | Con una viscosidad baja (0,1) las vecinas se mueven juntas y el agua en reposo se aquieta. No lleva `tensile`: a 0,25 m la tensión junta las partículas en bolas (más "pelotero") |
 
@@ -135,12 +135,29 @@ Todas las de los disparos suman `CONTACT_LISTENER` al emitir, como hoy.
 
 El agua y el ácido no llevan `viscous` y no se ven afectados.
 
-**Valor de `viscousStrength` para la miel** (🔨 #41). En `SolveViscous` (LiquidFun 1.1, `b2ParticleSystem.cpp`), cada contacto entre partículas `viscous` les acerca las velocidades en proporción a `viscousStrength × peso`; con varias vecinas por partícula, un valor mucho mayor que 1 puede sobrecorregir y oscilar (el mismo argumento que el tope de 1 del damping). La misma función arrastra a los cuerpos que tocan partículas `viscous` (impulso de signo contrario). *No verificado en ejecución*: el build no deja leer el C++; se confirma con el banco.
+**Resultado de #41 ✅.** Lava: con `TENSILE` sola el banco 1 da aisladas 13,3 % (> 10 %) y rebote 0,135, así que se **vuelve a `TENSILE | VISCOUS`**, como pedía la condición de arriba; con `viscousStrength` 1,0 queda más espesa que antes (rebote 0,025, aisladas 0 %, `spread` 2,06 m). Miel: ver el barrido en el párrafo siguiente.
+
+**Valor de `viscousStrength` para la miel** (✅ #41: **1,0**). En `SolveViscous` (LiquidFun 1.1, `b2ParticleSystem.cpp`), cada contacto entre partículas `viscous` les acerca las velocidades en proporción a `viscousStrength × peso`; con varias vecinas por partícula, un valor mucho mayor que 1 puede sobrecorregir y oscilar (el mismo argumento que el tope de 1 del damping). La misma función arrastra a los cuerpos que tocan partículas `viscous` (impulso de signo contrario). *No verificado en ejecución*: el build no deja leer el C++; se confirma con el banco.
 - **Barrido:** 0,25 (línea base) → 0,5 → 0,75 → 1,0. Se queda el **valor más alto** que cumpla todos los criterios del banco 1 de la miel, incluidos los nuevos de charco. Propuesta inicial: **1,0**. No se pasa de 1,0 sin una medición que muestre que no oscila.
 - **Criterios nuevos del banco 1, solo para la miel** (métricas nuevas de `shotBench`, en el mismo paso `measuredAtStep`):
   - `spread`: ancho del charco, percentil 95 menos percentil 5 de la `x` de las partículas con `y ≤ 0,5 m`. **Criterio:** ≤ 0,6 × el `spread` de la miel con `viscousStrength` 0,25 (se corren las dos en el mismo test: el criterio es relativo y no depende de cuánto mida hoy).
   - `restSpeedP95`: percentil 95 de la rapidez de esas partículas. **Criterio:** < 0,1 m/s (el charco no oscila ni "hierve").
 - La lava se corre con sus flags nuevas y también con `TENSILE | VISCOUS` y el valor nuevo, para dejar registrada la alternativa descartada.
+- **Medido (✅ #41, `shotBench` en `tests/fluid-feel.test.js`):**
+
+  | `viscousStrength` | `spread` (m) | `restSpeedP95` (m/s) | Rebote | Aisladas | Alcance de la miel desde la boca (m) |
+  |---|---|---|---|---|---|
+  | 0,25 | 3,23 | 0,103 | 0,111 | 0 % | 3,65 |
+  | 0,5 | 2,76 | 0,068 | 0,079 | 0 % | 2,84 |
+  | 0,75 | 2,82 | 0,055 | 0,068 | 0 % | 2,61 |
+  | **1,0** | **2,84** | **0,051** | **0,052** | **0 %** | **2,15** |
+  | 1,5 (informativo) | 2,55 | 0,046 | 0,034 | 0 % | — |
+  | 2,0 (informativo) | 2,24 | 0,048 | 0,026 | 0 % | — |
+  | 4,0 (informativo) | 13,4 | 0,030 | 0,052 | 4 % | — |
+  | 8,0 (informativo) | 70 | 33 | 1,39 | 84 % | — |
+
+  - **El criterio de ancho no se cumple:** ningún valor hasta 1,0 baja el `spread` a 0,6 × el de 0,25 (1,94 m); con 1,0 es 0,88 ×. El ancho lo fija sobre todo la cantidad de movimiento del disparo (la miel patina por el piso), no la viscosidad. Con 2,0 llega a 0,69 × y con 4,0 oscila y explota (la miel se dispersa a 13 m), de modo que el tope de 1,0 del diseño se respeta y no se probó nada intermedio entre 2,0 y 4,0. Se quedó en 1,0 (el más alto permitido que cumple rebote, aisladas y `restSpeedP95`). El test exige que reduzca el ancho (< 1 ×) y que `restSpeedP95` sea < 0,1; el 0,6 × queda como pendiente de decisión.
+  - **Costo de la viscosidad alta:** el alcance de la miel cae de 3,65 m (0,25) a 2,15 m (1,0). El diseño suponía ~3–4 m para el arma; por eso los tests de disparo usan J2 a 2 m.
 
 ### Banco de pruebas
 
@@ -167,9 +184,11 @@ Archivo nuevo `tests/fluid-feel.test.js`, con el armado en `tests/helpers/fluid-
 |---|---|---|---|
 | Rebote, agua / ácido / lava / miel | 0,52 / 0,58 / 1,34 / 0,29 | 0,12 / 0,11 / 0,06 / 0,11 | ≤ 0,20 |
 | Aisladas a 1 s, agua / ácido / lava / miel | 38 % / 22 % / 2 % / 0 % | 5 % / 9 % / 0 % / 0 % | ≤ 10 % |
-| 🔨 #41: rebote y aisladas de la lava `TENSILE` / miel con el `viscousStrength` final | — | (a medir) | ≤ 0,20 y ≤ 10 % |
-| 🔨 #41: `spread` de la miel, 0,25 → final | — | (a medir) | final ≤ 0,6 × con 0,25 |
-| 🔨 #41: `restSpeedP95` de la miel | — | (a medir) | < 0,1 m/s |
+| ✅ #41: rebote / aisladas de la miel con 1,0 | — | 0,052 / 0 % | ≤ 0,20 y ≤ 10 % |
+| ✅ #41: rebote / aisladas de la lava con `TENSILE \| VISCOUS` y 1,0 (la que se conserva) | — | 0,025 / 0 % | ≤ 0,20 y ≤ 10 % |
+| ✅ #41: rebote / aisladas de la lava con `TENSILE` sola (descartada) | — | 0,135 / **13,3 %** | ≤ 0,20 y ≤ 10 %: **no cumple** |
+| ✅ #41: `spread` de la miel, 0,25 → 1,0 | — | 3,23 → 2,84 m (0,88 ×) | final ≤ 0,6 × con 0,25: **no cumple** |
+| ✅ #41: `restSpeedP95` de la miel con 1,0 | — | 0,051 m/s (con 0,25: 0,103) | < 0,1 m/s |
 | Agua del nivel: frente en x 37 | 0,87 s | 1,22 s | ≤ 2 s |
 | Agua del nivel: desvío / rango de la superficie | 0,138 / 0,476 m | 0,094 / 0,328 m | < 0,10 m / < 0,375 m |
 | Agua del nivel: velocidad media / p95 | 0,25 / 0,55 m/s | 0,020 / 0,040 m/s | < 0,05 / < 0,2 m/s |
@@ -208,7 +227,7 @@ Se mueve **una perilla por vez**, en este orden, y se vuelven a correr los tres 
 ### Efectos sobre otros sistemas y coordinación
 
 - **Empuje del agua (#18) y del ácido sobre los robots:** con damping 1,0, el choque partícula↔cuerpo también es más inelástico. La partícula le transfiere su cantidad de movimiento en lugar de rebotar, así que el empuje por partícula puede bajar. #18 mide el empuje después de #40.
-- **#41 (miel muy viscosa)** 🔨: sube `SHOT_SYSTEM.viscousStrength` (barrido hasta 1,0), le quita `VISCOUS` a la lava y repite el banco 1 con la miel **y la lava**, más las métricas de charco de la miel (ver "Convivencia con #41"). La regla de juego que pega al robot está en [04-fluidos](04-fluidos.md#miel-pegajosa-regla-compartida--41).
+- **#41 (miel muy viscosa)** ✅: sube `SHOT_SYSTEM.viscousStrength` (barrido hasta 1,0), le quita `VISCOUS` a la lava y repite el banco 1 con la miel **y la lava**, más las métricas de charco de la miel (ver "Convivencia con #41"). La regla de juego que pega al robot está en [04-fluidos](04-fluidos.md#miel-pegajosa-regla-compartida--41).
 - **#26 (render metaball):** el umbral y el radio del kernel se calibran con la cohesión de #40 ya aplicada. Si #40 todavía no está en `main`, #26 no fija valores visuales.
 - **#45 (hueco entre robot y agua):** #40 no cambia radios ni radio de dibujo, así que el hueco no cambia por este issue. Si #45 cambia el radio de dibujo o de la partícula, repite los bancos 2 y 3.
 - **#39 (puente agua → disparos):** no depende de estas fuerzas; el frenado del puente es aparte ([7.6](#76-puente-agua--disparos--39)). Sí depende del costo: con la presión estática del agua del nivel, la inundación al tope ya cuesta ~7,2 ms y al puente le quedan ~0,8 ms.

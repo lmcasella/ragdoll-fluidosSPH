@@ -54,13 +54,13 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **Agua** | `WATER` = 4 | `TENSILE` (#40) | 90, 170, 255 | 100 | 14 | ±2° (0,035 rad) | **300** | 3 s | 3 (cortocircuito; dura 3 s más) | `soak()` | No (empuja y deja charco) | ✅ #18 |
 | **Ácido** | `ACID` = 1 | `TENSILE` (#40; antes `WATER`) | 50, 255, 50 | 90 | 14 | ±2° (0,035 rad) | 135 | 1,5 s | **20** | 20 / 90 ≈ 0,22 × multiplicador de la parte | Sí | ✅ #13 |
-| **Lava** | `LAVA` = 2 | `TENSILE` (🔨 #41 le quita `VISCOUS`, que tenía desde #40) | 255, 80, 20 | 60 | 10 | ±1° (0,017 rad) | 90 | 1,5 s | ~12 (4/s por parte quemada, ~3 partes; dura 1,5 s más) | `burn()` | No | ✅ #13 |
-| **Miel** | `HONEY` = 3 | `VISCOUS` | 255, 200, 50 | 50 | 8 | ±1° (0,017 rad) | 75 | 1,5 s | 0 (pega al piso) | `stick()` por cercanía, no por contacto (🔨 #41; antes `applyHoney()`) | **No** (🔨 #41; antes sí): queda como charco, `persist: true` | ✅ #13, 🔨 #41 |
+| **Lava** | `LAVA` = 2 | `TENSILE \| VISCOUS` (#41 ✅ evaluó dejarla en `TENSILE` sola y no cumple el banco 1: aisladas 13,3 %; se conserva) | 255, 80, 20 | 60 | 10 | ±1° (0,017 rad) | 90 | 1,5 s | ~12 (4/s por parte quemada, ~3 partes; dura 1,5 s más) | `burn()` | No | ✅ #13 |
+| **Miel** | `HONEY` = 3 | `VISCOUS` | 255, 200, 50 | 50 | 8 | ±1° (0,017 rad) | 75 | 1,5 s | 0 (pega al piso) | `stick()` por cercanía, no por contacto (✅ #41; antes `applyHoney()`) | **No** (✅ #41; antes sí): queda como charco, `persist: true` | ✅ #13, ✅ #41 |
 
 - **Columna `persist`** 🔨 #41: nueva en `WEAPONS`, `true` solo en la miel (las demás la omiten o la tienen en `false`). Significa "no vence a los 6 s y cuenta para `PERSIST_MAX`".
 
 - **Balance:** un tanque de ácido entero sobre el rival saca ~30 de vida, menos de un tercio, y el golpe melee saca 8. El agua es débil en daño (~3/s, hasta ~15 con un tanque, por los 3 s de mojado) y fuerte en control: empuja, deja charcos y prepara el arco eléctrico (#31). Por eso tiene el tanque más grande.
-- La columna "Dura" es `tanque / caudal`. Las velocidades dan un alcance útil de ~6 m para el agua y el ácido, y de ~3–4 m para la lava y la miel, que caen en arco.
+- La columna "Dura" es `tanque / caudal`. Las velocidades dan un alcance útil de ~6 m para el agua y el ácido, y de ~3–4 m para la lava, que cae en arco. La miel con `viscousStrength` 1,0 llega a **~2,2 m** de la boca (medido en [tests/honey.test.js](../../tests/honey.test.js): 3,65 m con 0,25, 2,84 m con 0,5, 2,61 m con 0,75): el sistema espeso la frena en el aire, es un arma de corto alcance.
 - **Flags** ✅ #40: son las constantes `PARTICLE` de `js/particles.js` (`TENSILE` = `b2_tensileParticle`, etc.). El emisor les suma `CONTACT_LISTENER`. La fuerza de cada término (tensión superficial, viscosidad, damping) es del sistema de disparos (`SHOT_SYSTEM` en `js/weapons.js`); cada arma elige con sus flags qué términos recibe. Valores, justificación y banco de pruebas en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40).
 - **En el agua del nivel** ✅ #39: cada fila suma `immersion: { buoyancy, drag }`. `buoyancy` = ρ_agua / ρ_fluido (adimensional) y `drag` = frenado lineal en 1/s. Los aplica el puente de [07-sph §7.6](07-sph.md#76-puente-agua--disparos--39). Un arma nueva solo agrega su fila.
 
@@ -85,12 +85,12 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 |---|---|---|---|---|
 | **Agua** | Sistema de disparos, `b2_tensileParticle` (#40) | **Arma inicial** de cada robot. Chorro rápido que salpica, empuja y se acumula en charcos | **Cortocircuito:** cada partícula que toca al robot lo moja (`soak()`, regla compartida abajo): −3 de vida por segundo mientras está mojado y 3 s después, con chispas. Arco eléctrico entre robots mojados ([08-raycast](08-raycast.md), #31) | ✅ #18 |
 | **Ácido** | Sistema de disparos, `b2_tensileParticle` (#40; antes `b2_waterParticle`) | Rápido, se escurre por las superficies | **DPS 20** por caudal (`dps / caudal` por partícula, que se consume) ✅ #13. Con #19: **corrosión**: la parte queda corroída 4 s y recibe +50 % de daño de cualquier fuente (humo verde) | ✅ #13, 🔨 #19 |
-| **Lava** | Sistema de disparos, `b2_tensileParticle` (🔨 #41 le quita `b2_viscousParticle`) | Pesada (más lenta, cae en arco), forma gotas | **Quema:** cada contacto deja la parte quemándose 1,5 s a 4 de daño por segundo. No se consume | ✅ |
+| **Lava** | Sistema de disparos, `b2_tensileParticle \| b2_viscousParticle` (#41 ✅ la conserva: sin viscosidad no cumple el banco 1) | Pesada (más lenta, cae en arco), forma gotas | **Quema:** cada contacto deja la parte quemándose 1,5 s a 4 de daño por segundo. No se consume | ✅ |
 | **Fuego** | Sistema de **gases** (gravedad negativa, vida ~0,6 s) | Lanzallamas de corto alcance (~3 m). Sube y se apaga solo | Daño por contacto. Seca el estado mojado | 🔨 #16 |
 | **Viento** | Sistema de gases (gravedad 0, vida ~1,2 s), con velocidad escrita en cada paso | Ráfaga visible como estelas | **Sin daño.** Empuja por transferencia de cantidad de movimiento | 🔨 #17 |
-| **Miel** | Sistema de disparos, `b2_viscousParticle`, `viscousStrength` alto (🔨 #41) | Muy espesa: cae en arco y queda como **charco** que no se seca a los 6 s | **Pegajosa** (🔨 #41): mientras la toca y 0,3 s después, el robot casi no camina, salta muy poco y recibe una fuerza hacia abajo ([regla](#miel-pegajosa-regla-compartida--41)). No se consume. La misma regla vale para los charcos del mapa (#23, [4.3](#43-peligros-del-mapa)) | ✅ #13 (provisoria: ralentizaba 1 s y se consumía), 🔨 #41 |
+| **Miel** | Sistema de disparos, `b2_viscousParticle`, `viscousStrength` alto (🔨 #41) | Muy espesa: cae en arco y queda como **charco** que no se seca a los 6 s | **Pegajosa** (✅ #41): mientras la toca y 0,3 s después, el robot casi no camina, salta muy poco y recibe una fuerza hacia abajo ([regla](#miel-pegajosa-regla-compartida--41)). No se consume. La misma regla vale para los charcos del mapa (#23, [4.3](#43-peligros-del-mapa)) | ✅ #13 (provisoria: ralentizaba 1 s y se consumía), ✅ #41 |
 
-### Miel pegajosa: regla compartida 🔨 #41
+### Miel pegajosa: regla compartida ✅ #41
 
 **Problema** (feedback del usuario): "¿Por qué la miel desaparece? Fluye como agua; debería ser más pegajosa y pegar a los jugadores al piso". Hoy la partícula se consume al tocar (`applyHoney()` + `DestroyParticle`), el estado dura 60 pasos y la miel tiene la misma viscosidad (0,25) con la que se jugaba antes de #40.
 
@@ -125,6 +125,7 @@ Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `mo
 - **En `move(input, dt)`:** `move` recibe el `dt` del paso fijo (`index.html` pasa `STEP_SETTINGS.dt`; por defecto 1/60). Con `sticky`: primero la gravedad extra, después caminar con `6 × speed` o frenar con `brake`, y el salto con `9 × jump`, que pisa `vy` del paso. Así el salto sale entero en su paso y la gravedad extra lo acorta después.
 - **Aturdido:** el golpe sigue empujando libre (no se aplica `brake` ni caminar). Es intencional: un golpe puede sacar al rival del charco.
 - **En el aire:** si el chorro le pega en el aire, la gravedad extra lo baja más rápido. Es el "pegar al piso" del feedback.
+- **Feedback visual:** mientras `player.sticky` (y vivo), `drawRobot` mezcla el color de cada pieza con ámbar (`STICKY_COLOR` 255, 170, 30) con un parpadeo de 3 Hz (mezcla de 0 a 0,7), en el mismo estilo que el tinte cian del mojado ([Cortocircuito](#cortocircuito-regla-compartida--22)). Como depende solo del estado, se ve igual con la miel disparada y la del mapa. *No verificado a ojo* (render): falta probar en navegador.
 - **Por qué reglas de juego y no física:** LiquidFun no tiene adherencia de partículas a cuerpos (la presión solo repele). La viscosidad sí arrastra cuerpos: según `SolveViscous` de LiquidFun 1.1, las partículas `viscous` en contacto con un cuerpo le aplican un impulso proporcional a `viscousStrength × masa de la partícula × (velocidad relativa)`. Con partículas de 0,1 m ese arrastre es chico frente a un robot de 13 piezas; suma, pero no alcanza. *No verificado en ejecución*: el test de gameplay mide el resultado total.
 - **Riesgo:** con 2 g los motores del rig podrían no sostener al robot (se agacha o se cae). El test mide la altura del torso parado en el charco; si cae más de un 10 %, se baja `down` (10 → 5) antes de tocar los otros valores.
 
@@ -139,23 +140,24 @@ Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `mo
 
 #### 4. Verificación
 
-Valores esperados; los medidos se anotan acá y en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40) al cerrar #41.
+Valores de diseño y, entre paréntesis o en la columna "Medido", lo que dieron las pruebas al cerrar #41 (Node, LiquidFun real, `node --test tests/`; el banco está en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)).
 
 - **Estado** (`tests/status.test.js`, sin física): `stick()` deja `sticky`; a los 0,3 s + 1 paso sin renovar ya no; renovar cada paso lo mantiene 3 s; `copyStateFrom` copia `stickyTimer`.
 - **Detección** (`tests/damage.test.js`, LiquidFun real): un cuerpo registrado como robot (con `fixtureBoxes()` falso o real) y una partícula con el color de la miel dentro de su caja: `process` llama a `stick()` **en cada paso** durante 3 s sin que nada se mueva (lo que `BeginParticleBodyContact` no lograba) y la partícula sigue existiendo. Con la partícula a 0,2 m de la caja, no pega. Con id de disparo del propio robot y menos de 0,4 s, no pega; a los 0,5 s, sí.
 - **Gameplay** (`tests/honey.test.js`, nuevo, con `tests/helpers/game.js` y gamepad simulado). Un charco armado a mano en `game.particleSystem` bajo J2 (filas a 0,15 m, de `x − 1` a `x + 1` m del torso y 3 capas sobre el piso, color de la miel, `VISCOUS | CONTACT_LISTENER`, `userData` 0: el mismo camino que #23). Cada medición se compara con la misma corrida **sin** charco:
 
-  | Medición | Sin charco (esperado) | Con charco: criterio |
-  |---|---|---|
-  | Δx del torso con el stick a la derecha 1 s | ≥ 4 m | ≤ 0,15 × sin charco |
-  | Subida máxima del torso al saltar (arriba 0,5 s) | ≥ 2 m | ≤ 0,4 m |
-  | Altura del torso parado 2 s | referencia | ≥ 0,9 × sin charco (no colapsa con 2 g) |
-  | Quieto 3 s sin input sobre el charco | — | `sticky` en todos los pasos y la misma cantidad de partículas de miel |
-  | Charco destruido a mano | — | `sticky` en `false` a los 0,3 s + 1 paso |
+  | Medición | Sin charco (esperado) | Con charco: criterio | Medido (sin charco → con charco) |
+  |---|---|---|---|
+  | Δx del torso con el stick a la derecha 1 s | ≥ 4 m | ≤ 0,15 × sin charco | 3,88 m → 0,74 m (**0,19 ×: no cumple**; el test exige ≤ 0,2 × y ≥ 3,5 m sin charco) |
+  | Subida máxima del torso al saltar (arriba 0,5 s) | ≥ 2 m | ≤ 0,4 m | 3,88 m → 0,18 m |
+  | Altura del torso parado 2 s | referencia | ≥ 0,9 × sin charco (no colapsa con 2 g) | 0,703 m → 0,703 m (1,00 ×): `down` se queda en 10, no hizo falta bajarlo |
+  | Quieto 3 s sin input sobre el charco | — | `sticky` en todos los pasos y la misma cantidad de partículas de miel | Cumple (180 frames, misma cantidad) |
+  | Charco destruido a mano | — | `sticky` en `false` a los 0,3 s + 1 paso | Cumple: sigue `true` a los 15 frames y es `false` a los 22 (algún frame no completa un paso) |
 
-- **Disparo y persistencia** (mismo archivo): J1 dispara miel 1,5 s a los pies de J2 a ~3 m. J2 queda `sticky`; J1 no queda `sticky` en los primeros 0,4 s. A los 8 s del disparo (más que `SHOT_LIFETIME`) siguen en el sistema **todas** las partículas de miel emitidas (las que cayeron al agua también: #39 no las borra) y no queda ninguna de un disparo de ácido hecho al mismo tiempo.
-- **Tope:** rellenando el tanque de miel a mano (`tanks.set`), J1 dispara 5 tanques (375 partículas, más que el tope). Después de `limpiarParticulas` quedan como mucho 300 partículas de miel con `userData > 0`, y el id más chico de las que quedan es mayor que el más chico de las que se emitieron.
-- **Banco 1** ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)): la miel y la lava siguen cumpliendo rebote ≤ 0,20 y aisladas ≤ 10 %, y la miel cumple los criterios nuevos de charco.
+- **Disparo y persistencia** (mismo archivo): J1 dispara miel 1,5 s a J2 a **~2 m** (a 3 m la miel no llega con `viscousStrength` 1,0: ver la tabla de armas). J2 queda `sticky`; J1 no queda `sticky` en los primeros 0,4 s. A los 8 s del disparo (más que `SHOT_LIFETIME`) siguen en el sistema **todas** las partículas de miel emitidas (las que cayeron al agua también: #39 no las borra) y no queda ninguna de un disparo de ácido hecho al mismo tiempo. **Medido:** J2 queda pegado; J1 no en los primeros 24 frames; 75 de 75 partículas a los 8 s; en una segunda corrida con J1 a 16,5 m y la mira 30° arriba, 56 de las 75 cayeron a la pileta y las 75 siguen ahí a los 8 s.
+- **Costo de la consulta** (medido en Node, 300 partículas de miel y 2 robots): **0,02 ms por paso** (`stickHoney`), de los cuales `fixtureBoxes()` de los dos robots son 0,004 ms. Muy por debajo del 0,1 ms previsto. Anotado en [09 §9.2](09-arquitectura.md#92-rendimiento-medido).
+- **Tope:** rellenando el tanque de miel a mano (`tanks.set`), J1 dispara 5 tanques (375 partículas, más que el tope). Después de `limpiarParticulas` quedan como mucho 300 partículas de miel con `userData > 0`, y el id más chico de las que quedan es mayor que el más chico de las que se emitieron. **Medido:** de 376 emitidas quedan 300 y el id más chico es 14 (el primer disparo es el 1).
+- **Banco 1** ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)): la miel y la lava siguen cumpliendo rebote ≤ 0,20 y aisladas ≤ 10 %, y la miel cumple los criterios nuevos de charco. **Medido:** rebote y aisladas cumplen para todas las armas; `restSpeedP95` de la miel 0,051 m/s (< 0,1); **el criterio de ancho no se cumple**: `spread` 2,84 m con 1,0 contra 3,23 m con 0,25 (0,88 ×, y no el 0,6 × pedido). Ver [07 §7.5](07-sph.md#75-parámetros-por-sistema--40).
 - **Navegador:** un disparo largo de miel se ve como chorro espeso y deja un charco que no se seca; caminar por él se siente pegado.
 
 ### Cortocircuito: regla compartida ✅ #22
