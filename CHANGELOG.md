@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-18
+
+### Changed
+- Controles nuevos del gamepad: el stick izquierdo mueve (la cruceta ya no mueve), A salta (arriba ya no salta), RT dispara (A ya no dispara), B golpea y X queda reservado para el gancho.
+- Armas: LB con un toque corto elige el arma anterior, RB la siguiente y la cruceta elige directo (arriba 1, derecha 2, abajo 3, izquierda 4).
+- Teclado de respaldo: salto en W (J1) y flecha arriba (J2); gancho en E (J1) y Num 0 (J2); arma anterior en Q (J1) y Ctrl derecho (J2), siguiente en R y Num +. El botón derecho del mouse ya no abre el menú contextual.
+
 ## [0.12.0] - 2026-11-18
 
 ### Changed
