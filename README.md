@@ -9,10 +9,10 @@ Gana la ronda el último robot en pie; la partida es al mejor de 3. Caer a la pi
 | | Mover | Saltar | Apuntar | Disparar | Golpe | Arma |
 |---|---|---|---|---|---|---|
 | Gamepad | stick izq. / cruceta | arriba | stick der. | A / RT | X | LB / RB |
-| J1 teclado | A / D | W | hacia donde camina (S: abajo) o mouse (si se movió después de usar el stick) | Espacio (o clic) | F | 1 / 2 / 3 |
-| J2 teclado | ← / → | ↑ | hacia donde camina (↓: abajo) | Enter | Shift der. | Num 1 / 2 / 3 |
+| J1 teclado | A / D | W | hacia donde camina (S: abajo) o mouse (si se movió después de usar el stick) | Espacio (o clic) | F | 1 / 2 / 3 / 4 |
+| J2 teclado | ← / → | ↑ | hacia donde camina (↓: abajo) | Enter | Shift der. | Num 1 / 2 / 3 / 4 |
 
-El juego está pensado para gamepad; el teclado es respaldo. Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador. Disparar es **mantener** el botón: sale un chorro continuo hasta soltarlo o vaciar el tanque. Cada arma (ácido, lava, miel) tiene su tanque, que no se recarga solo y se llena al empezar cada ronda; la barra del HUD muestra lo que queda ("VACÍO" en rojo si se acaba). Después de reiniciar la ronda o de una revancha hay que soltar el botón antes de volver a disparar. Al final de la partida, disparar inicia la revancha.
+El juego está pensado para gamepad; el teclado es respaldo. Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador. Disparar es **mantener** el botón: sale un chorro continuo hasta soltarlo o vaciar el tanque. Cada robot arranca con **agua** (moja al rival y lo deja en cortocircuito, con chispas); ácido, lava y miel también están en el inventario. Cada arma tiene su tanque, que no se recarga solo y se llena al empezar cada ronda; la barra del HUD muestra lo que queda ("VACÍO" en rojo si se acaba). Después de reiniciar la ronda o de una revancha hay que soltar el botón antes de volver a disparar. Al final de la partida, disparar inicia la revancha.
 
 ## Correr
 

@@ -219,3 +219,46 @@ test("el daño por partícula sale de la tabla de armas dada, calculado una vez"
     damage.process(1);
     assert.deepEqual(hurts, [0.2]);
 });
+
+// Agua: no daña, aplica soak() y no se consume (el charco sigue mojando)
+function waterSetup() {
+    const { damage, destroyed } = setup();
+    const soaks = [];
+    const player = { soak: () => soaks.push(1), hurt: () => assert.fail("el agua no daña") };
+    const owner = { player, index: 0, bodyId: "torso" };
+    const hit = (shotOwner, shotTime) => {
+        const id = damage.shotId(shotOwner, FLUID.WATER, shotTime);
+        damage.fluidHits.push({ owner, index: 1, shot: damage.shots.get(id), kind: FLUID.WATER });
+    };
+    return { damage, hit, soaks, destroyed };
+}
+
+test("el agua del rival moja con soak() y la partícula no se consume", () => {
+    const { damage, hit, soaks, destroyed } = waterSetup();
+    hit(1, 10);
+    damage.process(10.01);
+    assert.equal(soaks.length, 1);
+    assert.equal(destroyed.length, 0);
+});
+
+test("el agua propia no moja antes de 0,4 s y sí después", () => {
+    const { damage, hit, soaks } = waterSetup();
+    hit(0, 10);
+    damage.process(10.3);
+    assert.equal(soaks.length, 0);
+    hit(0, 10);
+    damage.process(10.5);
+    assert.equal(soaks.length, 1);
+});
+
+test("el agua sin disparo asociado se reconoce por el color", () => {
+    const { damage, soaks } = waterSetup();
+    const owner = { player: { soak: () => soaks.push(1) }, index: 0, bodyId: "torso" };
+    damage.fluidHits.push({ owner, index: 2, shot: undefined, kind: FLUID.WATER });
+    damage.process(10);
+    assert.equal(soaks.length, 1);
+});
+
+test("el daño por partícula del agua es 0", () => {
+    assert.equal(particleDamage(weaponById(FLUID.WATER)), 0);
+});

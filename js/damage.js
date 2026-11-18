@@ -166,7 +166,9 @@ export class DamageSystem {
             this.stats.fluidContacts++;
             if (consumed.has(index)) continue;
             if (shot && shot.owner === owner.index && now - shot.time < SELF_IMMUNITY) continue;
-            if (kind === FLUID.ACID) {
+            if (kind === FLUID.WATER) {
+                owner.player.soak();
+            } else if (kind === FLUID.ACID) {
                 owner.player.hurt(owner.bodyId, this.particleDamage.get(kind), now);
                 consumed.add(index);
             } else if (kind === FLUID.LAVA) {
@@ -190,6 +192,7 @@ export class DamageSystem {
 
 // Partículas sin disparo asociado (por ejemplo, peligros del mapa): el tipo se deduce del color
 function fluidFromColor(r, g) {
+    if (r === 90 && g === 170) return FLUID.WATER;
     if (r === 50 && g === 255) return FLUID.ACID;
     if (r === 255 && g === 80) return FLUID.LAVA;
     if (r === 255 && g === 200) return FLUID.HONEY;

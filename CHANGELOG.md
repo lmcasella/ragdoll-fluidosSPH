@@ -5,6 +5,16 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-18
+
+### Added
+- Arma de agua: es el arma con la que arranca cada robot (tanque de 300). Moja al rival y lo deja en cortocircuito (−3 de vida por segundo, hasta 3 s después).
+- Chispas eléctricas sobre el robot mojado, tanto por el arma de agua como por la inundación.
+- Teclas 4 y Num 4 para elegir la cuarta arma.
+
+### Changed
+- El orden de armas pasa a ser agua, ácido, lava y miel.
+
 ## [0.5.0] - 2026-11-18
 
 ### Added

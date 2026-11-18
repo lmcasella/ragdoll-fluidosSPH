@@ -13,10 +13,10 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | `js/camera.js` | Encuadre compartido y conversión pantalla ↔ mundo |
 | `js/level.js` | Datos del nivel, sólidos, sensor y agua de la pileta |
 | `js/raycast.js` | Rayos con callback reutilizado, uno por mundo |
-| `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22). Desde #13 ✅: tramos de disparo (`shotId`, `tagParticle`, `liveShotFloor`, `SHOT_SLICE` 0,1 s, `SHOT_LIFETIME` 6 s) y daño del ácido por caudal. Importa de `weapons.js` solo datos (`FLUID`, `WEAPONS`). Con #18: agua → `soak()` |
+| `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22). Desde #13 ✅: tramos de disparo (`shotId`, `tagParticle`, `liveShotFloor`, `SHOT_SLICE` 0,1 s, `SHOT_LIFETIME` 6 s) y daño del ácido por caudal. Importa de `weapons.js` solo datos (`FLUID`, `WEAPONS`). Desde #18 ✅: agua → `soak()` sin consumir la partícula |
 | `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
 | `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja |
-| `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD. Desde #13 ✅, barra de tanque (recibe la tabla de armas como parámetro y no la importa). Con #18, chispas de mojado |
+| `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD. Desde #13 ✅, barra de tanque (recibe la tabla de armas como parámetro y no la importa). Desde #18 ✅, chispas de mojado |
 | `js/clips.js` | Transformaciones de clips antes de `parse` (`walk_back`) |
 | `lib/` | RagImporter, copiado de ragassembler2d `d067775`; no se edita acá |
 | `assets/*.rag.json` | Rigs (robot en uso; dino sin uso) |

@@ -7,7 +7,7 @@ export const KEYBOARD_LAYOUTS = [
         down: ["KeyS"],
         action: ["Space"],
         punch: ["KeyF"],
-        weapons: ["Digit1", "Digit2", "Digit3"],
+        weapons: ["Digit1", "Digit2", "Digit3", "Digit4"],
     },
     {
         left: ["ArrowLeft"],
@@ -16,7 +16,7 @@ export const KEYBOARD_LAYOUTS = [
         down: ["ArrowDown"],
         action: ["Enter", "NumpadEnter"],
         punch: ["ShiftRight"],
-        weapons: ["Numpad1", "Numpad2", "Numpad3"],
+        weapons: ["Numpad1", "Numpad2", "Numpad3", "Numpad4"],
     },
 ];
 
@@ -35,7 +35,7 @@ const STICK_DEADZONE = 0.35;
 const AIM_DEADZONE = 0.4;
 
 // Estado por jugador, leído una vez por frame con poll():
-// { left, right, up, down, fire } mantenidos; action y punch (flanco) y weapon (1-3) o weaponStep (±1) del frame;
+// { left, right, up, down, fire } mantenidos; action y punch (flanco) y weapon (1-4) o weaponStep (±1) del frame;
 // aim: dirección { x, y } del stick derecho (Y hacia arriba) o null;
 // pointer (solo J1): { x, y } del mouse en píxeles de pantalla mientras el mouse es la fuente de mira, o null.
 // fire es el botón de disparo mantenido (chorro); action es su flanco (menús, revancha).

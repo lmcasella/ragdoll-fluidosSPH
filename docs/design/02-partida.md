@@ -51,4 +51,4 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 
 **Al jugador:**
 - HUD: reloj de ronda arriba al centro; desde los 50 s, "Inundación en N"; desde los 60 s, "¡INUNDACIÓN!".
-- Robot mojado: tinte cian intermitente en todas sus piezas mientras dure el estado; chispas eléctricas también, sea cual sea la fuente del mojado (🔨 #18, [04-fluidos](04-fluidos.md#cortocircuito-regla-compartida--22)).
+- Robot mojado: tinte cian intermitente en todas sus piezas mientras dure el estado; chispas eléctricas también, sea cual sea la fuente del mojado (✅ #18, [04-fluidos](04-fluidos.md#cortocircuito-regla-compartida--22)).
