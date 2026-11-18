@@ -311,9 +311,9 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
 
   - `e_r` = 3,5·10⁻⁸ m/s es la tasa real de evaporación de agua quieta al aire (~3 mm por día, orden de magnitud de referencia);
   - `P` = 0,638 m es el perímetro del círculo de área `A_p`;
-  - `F_evap` = **3·10⁵** es el **factor de aceleración**, una aproximación nombrada (`MATERIALS.water.evaporationScale`). La tasa real es de milímetros por día y no se vería en una ronda. Con este valor, una gota totalmente expuesta (`f` = 1) dura `A_p / (F_evap e_r P)` = **4,9 s**.
+  - `F_evap` = **3·10⁵** es el **factor de aceleración**, una aproximación nombrada (`MATERIALS.water.evaporationScale`). La tasa real es de milímetros por día y no se vería en una ronda. Con este valor, una gota totalmente expuesta (`f` = 1) dura `A_p / (F_evap e_r P)` = **4,8 s**.
 - **Remoción discreta:** cuando `φ ≥ 1`, `store.destroy(i)`. Mientras tanto, la partícula sigue en el motor con su masa entera (LiquidFun no deja achicarla), pero los monitores cuentan `m (1 − φ)` como agua y `m φ` como evaporada.
-- **Energía:** el calor latente `L_v · m dφ` lo aporta el aire ambiente y se contabiliza en `E_perdida` con signo negativo. La partícula no se enfría por evaporar: el aire se toma como reservorio. Es una simplificación declarada.
+- **Energía:** el calor latente `L_v · m dφ` lo aporta el aire ambiente y se contabiliza en `E_perdida` con signo negativo. La partícula no se enfría por evaporar: el aire se toma como reservorio. Es una simplificación declarada. En los monitores, la energía de la partícula se cuenta como `m (1 − φ) e`, la que sale como vapor como `m φ e_v` (con `e_v = e + L_v`) y se mantiene `−L_v m φ` en `E_perdida`: el balance cierra por construcción, porque `m (1 − φ) e + m φ (e + L_v) − L_v m φ = m e`.
 - **Predicción para un charco:** al inicio, el tiempo de vida de un charco de N partículas es `τ_N = N A_p / (F_evap e_r P Σ f_i)`. Solo evaporan las partículas de la superficie y los bordes, así que `τ_N / τ_1 = N f_1 / Σ f_i` y crece con el espesor del charco. A medida que se evapora la capa de arriba, las de abajo quedan expuestas, y la predicción se toma como tasa inicial.
 - **Paso:** una vez por paso fijo, después de `immersion.step`. Costo: un recorrido de los contactos (ya medido en 0,05–0,2 ms) y uno de las partículas detenidas.
 - **Relación con D5:** reemplaza el vencimiento de 6 s para el agua y el ácido ([14.18](#1418-decisiones-del-usuario)).
@@ -413,7 +413,7 @@ El diseño de reacciones de #30 ([04-fluidos §4.4](04-fluidos.md#44-reacciones-
 **Módulo nuevo `js/debug.js`**, que integra el panel de métricas de #29. Es una herramienta de desarrollo, no una mecánica: se conmuta con teclado (F3 el panel, F4 el modo de capa) y con el botón Select del gamepad mantenido junto con LB. No viola "gamepad primero" porque no es una mecánica.
 
 - **Panel:** partículas por material y por origen, slots libres y pendientes, offset del buffer de contactos, ms por subsistema (`flood`, `buoyancy`, `stepWorld`, `immersion`, `thermal`, `mixing`, `adhesion`, `water`, `damage` y el render de fluidos), subpasos CFL del campo y FPS.
-- **Monitores de conservación:** volumen de agua (columnas + partículas · `A_p (1 − φ)` + evaporado + vapor), pérdidas por fricción y por el `q` = 0 de las celdas secas, activaciones del tope de subpasos y repeticiones con `dt/2`, energía (`Σ m e` + `Σ E` + `E_perdida`) y miel (`Σ m X` + `Σ ρ_miel M dx`), con su deriva desde el inicio de la ronda.
+- **Monitores de conservación:** volumen de agua (columnas + partículas · `A_p (1 − φ)` + evaporado + vapor), pérdidas por fricción y por el `q` = 0 de las celdas secas, activaciones del tope de subpasos y repeticiones con `dt/2`, energía (`Σ m (1 − φ) e` + `Σ m φ e_v` + `Σ E` + `E_perdida`) y miel (`Σ m X` + `Σ ρ_miel M dx`), con su deriva desde el inicio de la ronda.
 - **Capas:**
   - columnas del campo (barras de `h`, vectores de `u`, color por `T` o `X_v`);
   - partículas coloreadas por temperatura o concentración;
@@ -557,14 +557,14 @@ Para `physics-reviewer`. Cada criterio tiene referencia, valor esperado y tolera
 | Id | Criterio | Referencia | Esperado | Tolerancia |
 |---|---|---|---|---|
 | F1 | Cuadrados con SG 0,25, 0,5 y 0,75 en agua quieta. Un cuadrado solo flota derecho si `s(1 − s)` < 1/6, así que estos se inclinan: se mide la **fracción de área sumergida** `Σ A_i / A`, sin importar la orientación | Arquímedes: fracción sumergida = SG | 0,25 / 0,50 / 0,75, promediada entre 8 y 10 s | ±10 %; se informa la amplitud de oscilación |
-| F1b | Estabilidad de flotación: cuadrado con SG 0,5 y tablón 4:1 con SG 0,5 | Altura metacéntrica `GM = I/V − BG` (> 0: estable) | Cuadrado estable a 45°; tablón derecho (lado largo horizontal; GM = 2,42 m) | Cuadrado 45° ±5°; tablón ±5° |
+| F1b | Estabilidad de flotación: cuadrado de 1 m de lado con SG 0,5 y tablón de 4 × 1 m con SG 0,5 | Altura metacéntrica `GM = I/V − BG` (> 0: estable) | Cuadrado estable a 45° (independiente del tamaño); tablón derecho (lado largo horizontal; `GM = W²/(6H) − H/4` = 2,42 m) | Cuadrado 45° ±5°; tablón ±5° |
 | F2 | Círculo con SG 0,5 | Arquímedes | Fracción sumergida 0,5, promediada entre 8 y 10 s | ±10 %; se informa la amplitud |
 | F3 | Caja con SG 2 que se hunde | Velocidad terminal `√(2 (SG − 1) g A / (C_d ℓ))` | Según datos | ±15 % |
 | F4 | Robot totalmente sumergido en la inundación (más de 5 m de agua), soltado en reposo, con el estado del ragdoll fijo durante el test (motores en reposo, sin clip activo; o KO) | Arquímedes con gravedad específica 1,002: fuerza neta = `(m − σ_w A) g` ≈ 0,2 N hacia abajo | Velocidad vertical del centro de masa casi nula; queda con el torso arriba | \|v_y\| < 0,1 m/s a los 5 s; torso por encima de los pies (video) |
 | F4b | Mismo robot, con una masa de prueba que lleva la gravedad específica a 0,9 y a 1,1 | Arquímedes | 0,9 sube y flota con 90 % del área sumergida; 1,1 se hunde | Fracción sumergida ±10 % |
 | F5 | Reacción horizontal del arrastre | Tercera ley de Newton | `Σ` impulsos sobre cuerpos + cantidad de movimiento agregada al agua = 0 | < 10⁻⁶ |
 | F6 | Caja soltada en la superficie: sin crecimiento de energía. `E = ½ m v² + ½ I ω² + m g y + U_b`, con `U_b(y, θ) = σ_w g ∫_y^{y_ref} A_sub(y', θ) dy'` (`y_ref` con la caja fuera del agua; `−∂U_b/∂y` es el empuje) | Estabilidad del acople | Sin arrastre (`C_d` = 0, `μ` = 0): `E` constante; con arrastre: `E` no creciente después de 2 s. Alternativa si `U_b` no se puede evaluar: envolvente de cabeceo no creciente | Sin arrastre ±2 % en 10 s; con arrastre, sin picos > 1 % sobre la envolvente (video) |
-| F8 | Fuerza de Froude–Krylov: caja fija en una onda larga | `F_x = −ρ g A_i ∂η/∂x` por franja | Fuerza horizontal medida contra la integral analítica sobre la caja | ±10 % |
+| F8 | Fuerza de Froude–Krylov: caja fija en una onda larga | Componente de Froude–Krylov de la fuerza inercial de Morison, `F_x = −ρ g A_i ∂η/∂x` por franja; falta la de masa agregada (`C_a ρ V du/dt`, no modelada, §14.5): la fuerza total queda subestimada en un factor 1 + C_a. La tolerancia verifica la implementación | Fuerza horizontal medida contra la integral analítica sobre la caja | ±10 % |
 | F9 | Arrastre de presión por arista: caja y círculo arrastrados a velocidad fija en agua quieta (sin campo de velocidad) | `F = ½ ρ C_d D_proy v² b` con `C_d` caja 2,0 y círculo 1,2 | Según datos | ±10 % |
 | F7 | `world.GetAutoClearForces()` es `true` | Supuesto de impulsos | `true` | — |
 
@@ -593,7 +593,7 @@ Para `physics-reviewer`. Cada criterio tiene referencia, valor esperado y tolera
 
 | Id | Criterio | Referencia | Esperado | Tolerancia |
 |---|---|---|---|---|
-| T1 | Lava en la pileta, 30 s (incluye el calor por pérdida inelástica de la absorción y el latente de la evaporación) | Primera ley: `Σ m e + Σ E + E_perdida = E₀` | Constante | < 0,1 % (relevamiento: ~0 %) |
+| T1 | Lava en la pileta, 30 s (incluye el calor por pérdida inelástica de la absorción y el latente de la evaporación) | Primera ley: `Σ m (1 − φ) e + Σ m φ e_v + Σ E + E_perdida = E₀` | Constante | < 0,1 % (relevamiento: ~0 %) |
 | T2 | Masa en cambios de fase | Conservación | Partículas + volumen de las columnas · `σ_w` constante (salvo el vapor que sale por arriba, contado) | < 10⁻⁶ |
 | T3 | Partícula de lava aislada en agua a 20 °C hasta solidificar | Modelo concentrado (enfriamiento de Newton + `L_f`) con los datos `h_b` y `P` | ~2,5 min con `h_b` = 500 | ±10 % del valor analítico con los mismos datos |
 | T4 | Columna a 100 °C con aporte de calor Q | Calor latente | Volumen evaporado `Q/(σ_w L_v)` | ±1 % |
@@ -625,10 +625,10 @@ Para `physics-reviewer`. Cada criterio tiene referencia, valor esperado y tolera
 
 | Id | Criterio | Referencia | Esperado | Tolerancia |
 |---|---|---|---|---|
-| E1 | Gota aislada en reposo sobre una plataforma | Modelo de [14.7b](#147b-evaporación-de-agua-detenida-d7): `τ_1 = A_p / (F_evap e_r P f_1)` con la `f_1` medida | Con `f_1` = 1 serían 4,9 s; se compara contra la `f_1` real del apoyo | ±15 % |
+| E1 | Gota aislada en reposo sobre una plataforma | Modelo de [14.7b](#147b-evaporación-de-agua-detenida-d7): `τ_1 = A_p / (F_evap e_r P f_1)` con la `f_1` medida | Con `f_1` = 1 serían 4,8 s; se compara contra la `f_1` real del apoyo | ±15 % |
 | E2 | Charco de N = 40 partículas sobre una plataforma | Tasa inicial `dV/dt = F_evap e_r P Σ f_i`; relación `τ_N / τ_1 = N f_1 / Σ f_i` | Tasa inicial y relación según las `f` medidas al inicio | ±15 % |
 | E3 | Volumen total con evaporación, 60 s | Conservación: `Σ m (1 − φ)` + campo + evaporado = inicial | Constante | < 10⁻⁶ |
-| E4 | Lluvia y chorros en vuelo (\|v\| ≥ 1 m/s) | Regla de aplicación | `φ` = 0 al llegar al campo | 0 partículas con `φ` > 0 en vuelo |
+| E4 | Lluvia y chorros en vuelo (\|v\| ≥ 1 m/s) | Regla de aplicación | `φ` no aumenta mientras \|v\| ≥ 1 m/s (dφ = 0 en vuelo); la lluvia y los chorros que llegan al campo sin haberse detenido llegan con `φ` = 0 | 0 partículas con dφ > 0 en vuelo |
 
 ### D. Debug (#62-K)
 
@@ -683,4 +683,4 @@ Decididas por el usuario (19/11). Ninguna bloquea ya a un sub-issue. D7 llegó c
 | D4 | Miel pegajosa | **Se retira el estado `pegado`** cuando llegue la adherencia (#62-J); hasta entonces sigue el temporizador actual de #41 | [14.10](#1410-adherencia) |
 | D5 | Charcos en plataformas | **Siguen venciendo a los 6 s**, como regla de presupuesto; los del piso se absorben en el campo. **Desde #62-E, D7 la reemplaza para el agua y el ácido**: D5 queda solo para la lava, hasta que #62-H la haga solidificar; la miel sigue con `PERSIST_MAX` | [14.4](#144-absorción-e-inmersión) |
 | D6 | Reglas de la pileta | **Se mantienen:** el sensor mata y la pileta no moja antes de la inundación | [14.5](#145-flotación-de-arquímedes-por-pieza) |
-| D7 | Lluvia y gotas sobre plataformas | Siguen como partículas: escurren por física, se juntan y se absorben si llegan al campo. **Se evaporan** con una tasa proporcional a su superficie expuesta (fracción del contorno sin vecinas), acelerada respecto de la real con un factor nombrado; el volumen evaporado entra en los monitores | Modelo, módulo y criterios en [14.7b](#147b-evaporación-de-agua-detenida-d7) (`F_evap` = 3·10⁵, gota expuesta 4,9 s; E1–E4). **Reemplaza a D5 para el agua y el ácido:** es un modelo físico aproximado, con un factor nombrado, en lugar de una desaparición por reloj; trata igual a la lluvia y a los disparos; un charco grande dura más que una gota, como se pidió; y el tope de `maxCount` sigue protegiendo el presupuesto. D5 queda como respaldo si #62-E no llega |
+| D7 | Lluvia y gotas sobre plataformas | Siguen como partículas: escurren por física, se juntan y se absorben si llegan al campo. **Se evaporan** con una tasa proporcional a su superficie expuesta (fracción del contorno sin vecinas), acelerada respecto de la real con un factor nombrado; el volumen evaporado entra en los monitores | Modelo, módulo y criterios en [14.7b](#147b-evaporación-de-agua-detenida-d7) (`F_evap` = 3·10⁵, gota expuesta 4,8 s; E1–E4). **Reemplaza a D5 para el agua y el ácido:** es un modelo físico aproximado, con un factor nombrado, en lugar de una desaparición por reloj; trata igual a la lluvia y a los disparos; un charco grande dura más que una gota, como se pidió; y el tope de `maxCount` sigue protegiendo el presupuesto. D5 queda como respaldo si #62-E no llega |
