@@ -3,7 +3,7 @@
 //  - BeginParticleBodyContact: cada partícula informa qué parte del cuerpo tocó (requiere CONTACT_LISTENER_PARTICLE).
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
-import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
+import { FLUID, WEAPONS, fluidFromColor, particleDamage } from "./weapons.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -188,13 +188,4 @@ export class DamageSystem {
             this.shots.delete(id);
         }
     }
-}
-
-// Partículas sin disparo asociado (por ejemplo, peligros del mapa): el tipo se deduce del color
-function fluidFromColor(r, g) {
-    if (r === 90 && g === 170) return FLUID.WATER;
-    if (r === 50 && g === 255) return FLUID.ACID;
-    if (r === 255 && g === 80) return FLUID.LAVA;
-    if (r === 255 && g === 200) return FLUID.HONEY;
-    return 0;
 }

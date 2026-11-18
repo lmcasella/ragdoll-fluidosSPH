@@ -23,11 +23,12 @@ export const SHOT_SYSTEM = {
 };
 
 // rate: partículas/s; speed: m/s; spread: rad (±); tank: partículas; dps: daño por segundo con el chorro entero (0 si el arma aplica un estado)
+// immersion: respuesta dentro del agua del nivel (docs/design/07-sph.md §7.6); buoyancy = ρ_agua / ρ_fluido, drag en 1/s
 export const WEAPONS = [
-    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.TENSILE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0 },
-    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.TENSILE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20 },
-    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.TENSILE | PARTICLE.VISCOUS, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12 },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0 },
+    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.TENSILE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0, immersion: { buoyancy: 1.0, drag: 10 } },
+    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.TENSILE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20, immersion: { buoyancy: 0.95, drag: 10 } },
+    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.TENSILE | PARTICLE.VISCOUS, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12, immersion: { buoyancy: 0.38, drag: 6 } },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0, immersion: { buoyancy: 0.7, drag: 14 } },
 ];
 
 // Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
@@ -38,6 +39,13 @@ const byId = new Map(WEAPONS.map((w) => [w.id, w]));
 
 export function weaponById(id) {
     return byId.get(id);
+}
+
+// Tipo de fluido por color de partícula (para las que no tienen disparo asociado). Los pares (r, g) salen de la tabla
+const byColor = new Map(WEAPONS.map((w) => [w.color[0] * 256 + w.color[1], w.id]));
+
+export function fluidFromColor(r, g) {
+    return byColor.get(r * 256 + g) ?? 0;
 }
 
 // Daño por partícula de las armas de daño por contacto: si cambia el caudal, el DPS no cambia
