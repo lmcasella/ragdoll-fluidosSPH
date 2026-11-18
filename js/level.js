@@ -1,3 +1,5 @@
+import { PARTICLE, createParticleSystem } from "./particles.js";
+
 // Nivel en metros, Y hacia arriba, independiente del tamaño de la ventana.
 // Alturas entre plataformas <= 3,5 m: el salto (9 m/s) llega a unos 4 m.
 // El hueco central es la pileta: agua SPH (sistema propio) y un sensor que destruye al robot que se hunde.
@@ -20,7 +22,25 @@ export const LEVEL = {
         { x: 51.5, y: 6.8, w: 3, h: 0.4, kind: "platform" },
     ],
     // Pileta: agua entre x1..x2 hasta `surface`; el sensor cubre hasta `killY` (robot medio hundido)
-    pool: { x1: 18, x2: 38, bottom: 0, surface: 3, killY: 2.2, radius: 0.25 },
+    // `flags` = flags de toda partícula del agua del nivel; `physics` = fuerzas del sistema (docs/design/07-sph.md §7.5)
+    pool: {
+        x1: 18,
+        x2: 38,
+        bottom: 0,
+        surface: 3,
+        killY: 2.2,
+        radius: 0.25,
+        flags: PARTICLE.VISCOUS | PARTICLE.STATIC_PRESSURE,
+        physics: {
+            gravityScale: 1,
+            dampingStrength: 1.0,
+            pressureStrength: 0.1,
+            viscousStrength: 0.1,
+            staticPressureStrength: 0.2,
+            staticPressureRelaxation: 0.2,
+            staticPressureIterations: 4,
+        },
+    },
     // Inundación (muerte súbita): llueve desde `emitY` y el nivel sube `riseSpeed` m/s a partir de `start` s de ronda.
     // `density` = gotas por m² de agua en reposo con radio 0,25 m; `drain*` = escurrido de charcos sobre plataformas altas
     flood: {
@@ -32,7 +52,7 @@ export const LEVEL = {
         emitX2: 55,
         dropSpeed: 8,
         maxRate: 90,
-        density: 6.4,
+        density: 6.3,
         drainHeight: 1,
         drainSpeed: 1,
         maxParticles: 5500,
@@ -71,13 +91,11 @@ export function buildLevel(world, level = LEVEL) {
 // Agua del nivel (pileta e inundación): sistema de partículas propio, más grueso que el de los disparos.
 // `maxCount` fija el tope de partículas del heap fijo de 16 MiB.
 export function fillPool(world, level = LEVEL) {
-    const { radius } = level.pool;
-    const def = new Box2D.b2ParticleSystemDef();
-    def.set_radius(radius);
-    def.set_dampingStrength(0.2);
-    if (level.flood) def.set_maxCount(level.flood.maxParticles);
-    const system = world.CreateParticleSystem(def);
-    Box2D.destroy(def);
+    const system = createParticleSystem(world, {
+        radius: level.pool.radius,
+        maxCount: level.flood?.maxParticles,
+        ...level.pool.physics,
+    });
     fillPoolWater(system, level);
     return system;
 }
@@ -92,6 +110,7 @@ export function fillPoolWater(system, level = LEVEL) {
     groupDef.set_shape(shape);
     const color = new Box2D.b2ParticleColor(40, 120, 255, 255);
     groupDef.set_color(color);
+    groupDef.set_flags(level.pool.flags ?? 0);
     system.CreateParticleGroup(groupDef);
     Box2D.destroy(color);
     Box2D.destroy(center);

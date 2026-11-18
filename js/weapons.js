@@ -1,20 +1,33 @@
-// Armas de fluido (datos) y emisor de chorros. Sin imports: el emisor recibe el sistema de partículas, el
-// sistema de daño y la tabla. Ver docs/design/04-fluidos.md §4.1.
+// Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
+// la tabla. Ver docs/design/04-fluidos.md §4.1 y docs/design/07-sph.md §7.5.
+import { PARTICLE } from "./particles.js";
 
 // Ids de arma = tipo de fluido
 export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4 };
 
-const WATER_PARTICLE = 0;
-const VISCOUS_PARTICLE = 1 << 5;
-const TENSILE_PARTICLE = 1 << 7;
-export const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
+export const CONTACT_LISTENER_PARTICLE = PARTICLE.CONTACT_LISTENER;
+
+// Sistema de partículas de los disparos (claves de b2ParticleSystemDef). La fuerza es por sistema; cada arma
+// elige con `flags` qué términos recibe. maxCount fijo y sin destroyByAge: sin vencimientos en las partículas
+// el motor no la soporta
+export const SHOT_SYSTEM = {
+    radius: 0.1,
+    maxCount: 1500,
+    destroyByAge: false,
+    gravityScale: 1,
+    dampingStrength: 1.0,
+    pressureStrength: 0.005,
+    viscousStrength: 0.25,
+    surfaceTensionPressureStrength: 0,
+    surfaceTensionNormalStrength: 0,
+};
 
 // rate: partículas/s; speed: m/s; spread: rad (±); tank: partículas; dps: daño por segundo con el chorro entero (0 si el arma aplica un estado)
 export const WEAPONS = [
-    { id: FLUID.WATER, name: "Agua", flags: WATER_PARTICLE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0 },
-    { id: FLUID.ACID, name: "Ácido", flags: WATER_PARTICLE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20 },
-    { id: FLUID.LAVA, name: "Lava", flags: TENSILE_PARTICLE, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12 },
-    { id: FLUID.HONEY, name: "Miel", flags: VISCOUS_PARTICLE, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0 },
+    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.TENSILE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0 },
+    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.TENSILE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20 },
+    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.TENSILE | PARTICLE.VISCOUS, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12 },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0 },
 ];
 
 // Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
@@ -46,8 +59,8 @@ export function cycleWeapon(player, step) {
 }
 
 const GOLDEN = 0.6180339887498949;
-const MUZZLE_OFFSET = 0.15; // radio de la partícula (0,1) más 5 cm: no nace dentro del arma
-const PARTICLE_RADIUS = 0.1; // m, el del sistema de disparos
+const PARTICLE_RADIUS = SHOT_SYSTEM.radius;
+const MUZZLE_OFFSET = PARTICLE_RADIUS + 0.05; // no nace dentro del arma
 const MAX_BURST_TIME = 0.05; // s de caudal que puede salir en un solo frame
 
 // Emite el chorro de cada jugador: partículas sueltas, una vez por frame y fuera de los callbacks de Box2D
