@@ -352,7 +352,7 @@
             // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
             // solo si se movió después del último uso del stick), si no teclado (hacia donde se camina;
             // abajo inclina 45°)
-            function actualizarMira(player, state, k) {
+            function actualizarMira(player, state, k, now) {
                 const pos = player.torso.GetPosition();
                 const x = pos.get_x();
                 const y = pos.get_y();
@@ -370,7 +370,7 @@
                         : { x: dx, y: 0 };
                 }
                 player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
-                player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5);
+                player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5, now);
             }
 
             // Gira al robot volviendo a generarlo espejado; conserva posición, velocidades y estado
@@ -495,12 +495,12 @@
 
                 players.forEach((player, k) => {
                     const state = inputs[k];
-                    actualizarMira(player, state, k);
+                    actualizarMira(player, state, k, now);
 
                     const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
                     if (!player.dead && player.flipX !== wantsFlipX) {
                         girar(k, wantsFlipX);
-                        actualizarMira(players[k], state, k);
+                        actualizarMira(players[k], state, k, now);
                     }
                     player = players[k];
 
@@ -522,7 +522,7 @@
 
                 while (accumulator >= STEP_SETTINGS.dt) {
                     players.forEach((player, k) => {
-                        player.move(inputs[k], STEP_SETTINGS.dt);
+                        player.move(inputs[k], STEP_SETTINGS.dt, now);
                         if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
