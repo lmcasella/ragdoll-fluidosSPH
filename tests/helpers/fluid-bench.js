@@ -18,6 +18,7 @@ const { stepWorld } = await import("../../lib/ragimporter.js");
 const { createParticleSystem } = await import("../../js/particles.js");
 const { ShotEmitter } = await import("../../js/weapons.js");
 const { ParticleStore } = await import("../../js/particleStore.js");
+const { WallContact } = await import("../../js/wallContact.js");
 const { LEVEL, buildLevel } = await import("../../js/level.js");
 
 const DT = 1 / 60;
@@ -66,6 +67,7 @@ export function shotBench(systemParams, weapon) {
     buildBox(world);
     const system = createParticleSystem(world, systemParams);
     const radius = system.GetRadius();
+    const wall = new WallContact(system);
     const fakeDamage = { shotId: () => 1 };
     const emitter = new ShotEmitter(new ParticleStore(system, systemParams), fakeDamage, [weapon]);
     const angle = (-30 * Math.PI) / 180;
@@ -82,7 +84,7 @@ export function shotBench(systemParams, weapon) {
     for (let step = 0; step < STEPS; step++) {
         now += DT;
         emitter.fire(0, player, step < 60, DT, now);
-        stepWorld(world, []);
+        stepWorld(world, [wall]);
         const n = system.GetParticleCount();
         const { pos, vel } = buffers(system);
         const frame = new Float32Array(n * 4);
@@ -148,6 +150,7 @@ export function shotBench(systemParams, weapon) {
         isolatedPct: total ? (100 * isolated) / total : 0,
         measuredAtStep: at,
     };
+    wall.dispose();
     emitter.dispose();
     return metrics;
 }

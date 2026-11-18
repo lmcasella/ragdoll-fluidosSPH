@@ -93,10 +93,7 @@ async function standing(puddle) {
 
 const fmt = (n) => n.toFixed(3);
 
-/** Con partículas de 0,12 m y presión 0,1 la miel en reposo queda a más de 0,2 m de las piezas, fuera del alcance de `HONEY_REACH`: pendiente de decisión del diseño. */
-const PUDDLE_TODO = "la miel en reposo no alcanza a pegar con SHOT_SYSTEM de #69 (ver informe de #69)";
-
-test("sobre el charco, el stick 1 s mueve el torso como máximo 0,2 veces lo que sin charco", { todo: PUDDLE_TODO }, async (t) => {
+test("sobre el charco, el stick 1 s mueve el torso como máximo 0,2 veces lo que sin charco", async (t) => {
     const run = async (puddle) => {
         const game = await standing(puddle);
         const x0 = torso(game, J2).get_x();
@@ -144,7 +141,7 @@ test("parado en el charco con 2 g el torso no colapsa: altura >= 0,9 de la de si
     assert.ok(stuck >= 0.9 * free, `${stuck} contra ${free}`);
 });
 
-test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel", { todo: PUDDLE_TODO }, async () => {
+test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel", async () => {
     const game = await standing(true);
     const honey = count(game, FLUID.HONEY);
     assert.ok(honey > 0);
@@ -155,7 +152,7 @@ test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel"
     assert.equal(count(game, FLUID.HONEY), honey);
 });
 
-test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el movimiento", { todo: PUDDLE_TODO }, async () => {
+test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el movimiento", async () => {
     const game = await standing(true);
     assert.equal(game.state.players[J2].sticky, true);
     game.state.store.reset();

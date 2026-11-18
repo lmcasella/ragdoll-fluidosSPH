@@ -16,6 +16,7 @@ const { stepWorld } = await import("../../lib/ragimporter.js");
 const { createParticleSystem } = await import("../../js/particles.js");
 const { ShotEmitter, SHOT_SYSTEM } = await import("../../js/weapons.js");
 const { ParticleStore } = await import("../../js/particleStore.js");
+const { WallContact } = await import("../../js/wallContact.js");
 const { SIGMA_W } = await import("../../js/materials.js");
 
 /**
@@ -84,54 +85,79 @@ function positionsOf(system) {
 }
 
 /**
- * P1: rotura de presa. Columna de agua de `length` × `h0` contra la pared izquierda, con una compuerta a la
- * derecha y una tapa (el choque inicial del grupo lanza partículas hacia arriba), asentada `settle` s y soltada
- * al sacar compuerta y tapa en t = 0. El frente es la x más lejana de un bin de 0,1 m cuya altura de agua
- * (partículas · A_p / 0,1) llega a 0,01 h₀ (la x del centro del bin). Devuelve la curva frente medido / Ritter
- * (`2√(g h₀) t`, con el frente medido desde la pared de la presa) de cada frame.
+ * Contorno inelástico del juego (`js/wallContact.js`) para `system`: todos los bancos lo usan igual que la raíz de
+ * composición, como pseudo-instancia de `stepWorld`.
  */
-export function damBreak({ h0 = 2, length = 8, seconds = 1.6, settle = 3, makeRecorder = null } = {}) {
+function wallFor(system) {
+    return new WallContact(system);
+}
+
+/**
+ * P1: rotura de presa. Columna de agua de `length` × `h0` separada `r` de las paredes (relleno de `length − 2 r`
+ * de ancho, con la altura corregida para conservar `h0` de agua), contra la pared izquierda y con una compuerta a
+ * la derecha sin tapa, asentada `settle` s y soltada al sacar la compuerta en t = 0. Devuelve `vmaxSettle`, la
+ * rapidez máxima al soltar (precondición ≤ 0,2 m/s). El frente es la x más lejana con profundidad (partículas ·
+ * A_p / bin) ≥ δ = `1,5 r` (una capa) en bins de 0,36 m (la x del centro del bin, desde la pared de la presa).
+ * `ratio` es frente medido / `x_δ = (2√(g h₀) − 3√(g δ)) t` de Ritter a profundidad δ; `tipRatio` es la punta
+ * (cualquier partícula) contra `2√(g h₀) t`, solo informativo.
+ */
+export function damBreak({ h0 = 2, length = 8, seconds = 1.6, settle = 4, makeRecorder = null } = {}) {
     const world = newWorld();
     addSolids(world, [
         { x: 20, y: -0.5, w: 60, h: 1 },
         { x: -0.5, y: 4, w: 1, h: 8 },
     ]);
-    const gate = addSolids(world, [{ x: length + 0.5, y: 4, w: 1, h: 8 }, { x: length / 2, y: h0 + 2, w: length + 2, h: 1 }]);
+    const gate = addSolids(world, [{ x: length + 0.5, y: 4, w: 1, h: 8 }]);
     const system = createParticleSystem(world, SHOT_SYSTEM);
-    fillBox(system, 0, 0, length, h0);
+    const wall = wallFor(system);
+    const inset = RADIUS;
+    const fill = (h0 * length) / (length - 2 * inset);
+    fillBox(system, inset, inset, length - inset, inset + fill);
     const initial = system.GetParticleCount();
     const recorder = makeRecorder?.({ system });
-    for (let step = 0; step < Math.round(settle / DT); step++) stepWorld(world, []);
+    const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
+    const maxSpeed = () => {
+        let v = 0;
+        for (let i = 0; i < system.GetParticleCount(); i++) v = Math.max(v, Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]));
+        return v;
+    };
+    for (let step = 0; step < Math.round(settle / DT); step++) stepWorld(world, [wall]);
+    const vmaxSettle = maxSpeed();
     world.DestroyBody(gate);
+    wall.invalidate();
     const curve = [];
-    const BIN = 0.1;
-    const bins = new Int32Array(700);
+    const BIN = 0.36;
+    const delta = 1.5 * RADIUS;
+    const bins = new Int32Array(Math.ceil(40 / BIN));
+    const c0 = 2 * Math.sqrt(G * h0);
     recorder?.capture();
     for (let step = 1; step <= Math.round(seconds / DT); step++) {
-        stepWorld(world, []);
+        stepWorld(world, [wall]);
         recorder?.capture();
         const t = step * DT;
         const pos = positionsOf(system);
         bins.fill(0);
+        let tip = -Infinity;
         for (let i = 0; i < pos.length; i += 2) {
+            tip = Math.max(tip, pos[i]);
             const b = Math.floor(pos[i] / BIN);
             if (b < 0 || b >= bins.length) continue;
             bins[b]++;
         }
         let last = 0;
         for (let b = bins.length - 1; b >= 0; b--) {
-            if ((bins[b] * A_P) / BIN >= 0.01 * h0) {
+            if ((bins[b] * A_P) / BIN >= delta) {
                 last = b;
                 break;
             }
         }
         const front = (last + 0.5) * BIN - length;
-        const ritter = 2 * Math.sqrt(G * h0) * t;
-        curve.push({ t, front, ritter, ratio: front / ritter });
+        const ritter = (c0 - 3 * Math.sqrt(G * delta)) * t;
+        curve.push({ t, front, ritter, ratio: front / ritter, tipRatio: (tip - length) / (c0 * t) });
     }
-    return { initial, curve, system, world };
+    wall.dispose();
+    return { initial, vmaxSettle, curve, system, world };
 }
-
 /**
  * Registra en cada `ShotEmitter.fire` la posición y la velocidad de nacimiento de las partículas nuevas, por slot
  * de `ParticleStore`.
@@ -178,6 +204,7 @@ export function jetBench(weapon, { emit = 0.5, makeRecorder = null } = {}) {
     const world = newWorld();
     const muzzle = { x: 0, y: 12, dx: 1, dy: 0 };
     const { system, store, emitter, player } = emitterOn(world, weapon, muzzle);
+    const wall = wallFor(system);
     const recorder = makeRecorder?.({ system, store });
     const births = new Map();
     const clock = { step: 0 };
@@ -194,7 +221,7 @@ export function jetBench(weapon, { emit = 0.5, makeRecorder = null } = {}) {
         clock.step = step;
         now += DT;
         if (step < Math.round(emit / DT)) emitter.fire(0, player, true, DT, now);
-        stepWorld(world, []);
+        stepWorld(world, [wall]);
         store.afterStep();
         recorder?.capture();
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
@@ -220,6 +247,7 @@ export function jetBench(weapon, { emit = 0.5, makeRecorder = null } = {}) {
         }
     }
     const result = { emitted: births.size, checked, outSpeed, outDeviation, maxExcess, maxDeviation };
+    wall.dispose();
     emitter.dispose();
     return result;
 }
@@ -256,6 +284,7 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
         { x: width + 0.5, y: 4, w: 1, h: 8 },
     ]);
     const system = createParticleSystem(world, SHOT_SYSTEM);
+    const wall = wallFor(system);
     fillBox(system, 0, 0, width, depth);
     const recorder = makeRecorder?.({ system });
     const window = { x0: width / 2 - 2, x1: width / 2 + 2, y0: 1, y1: 2 };
@@ -265,7 +294,7 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
     let weightSamples = 0;
     const steps = Math.round(8 / DT);
     for (let step = 1; step <= steps; step++) {
-        stepWorld(world, []);
+        stepWorld(world, [wall]);
         recorder?.capture();
         if (step <= Math.round(6 / DT)) continue;
         const pos = positionsOf(system);
@@ -288,6 +317,7 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
             }
         }
     }
+    wall.dispose();
     return {
         density: densitySum / samples,
         particles: system.GetParticleCount(),
@@ -326,6 +356,7 @@ export function plateBench(weapon, { gap = 1, from = 1, to = 2, makeRecorder = n
     Box2D.destroy(at);
 
     const { system, store, emitter, player } = emitterOn(world, weapon, muzzle);
+    const wall = wallFor(system);
     const recorder = makeRecorder?.({ system, store, plate });
     const invDt = 8 / DT;
     let sum = 0;
@@ -336,7 +367,7 @@ export function plateBench(weapon, { gap = 1, from = 1, to = 2, makeRecorder = n
     for (let step = 1; step <= Math.round(to / DT); step++) {
         now += DT;
         emitter.fire(0, player, true, DT, now);
-        stepWorld(world, []);
+        stepWorld(world, [wall]);
         store.afterStep();
         recorder?.capture();
         const t = step * DT;
@@ -347,6 +378,7 @@ export function plateBench(weapon, { gap = 1, from = 1, to = 2, makeRecorder = n
         travel = Math.max(travel, Math.abs(plate.GetPosition().get_x() - (gap + 0.1)));
     }
     const result = { force: sum / samples, travel, particles: system.GetParticleCount(), plate };
+    wall.dispose();
     emitter.dispose();
     return result;
 }

@@ -10,24 +10,26 @@ const { LEVEL } = await import("../js/level.js");
 
 const fmt = (value) => JSON.stringify(value, (_, v) => (typeof v === "number" ? Number(v.toFixed(3)) : v));
 
+const P1_TODO = "P1 no cumple: el cociente baja a 0,75 entre t = 0,87 y 0,97 s (ver diagnóstico)";
+
 /**
- * Criterios de #69 (docs/design/14-agua.md §14.16, P1 a P6) con LiquidFun real. Los que no cumplen con los
- * valores del diseño quedan como `todo`: el valor medido está en el diagnóstico y no se ajustan parámetros.
+ * Criterios de #69 (docs/design/14-agua.md §14.16, P1 a P5) con LiquidFun real y el contorno inelástico del juego
+ * (`js/wallContact.js`).
  */
-const P1_TODO = "P1 no cumple (ver informe de #69)";
-const P4_TODO = "P4 no cumple (ver informe de #69)";
-const P5_TODO = "P5 no cumple (ver informe de #69)";
-
-test("P1: rotura de presa, frente medido / Ritter >= 0,65 en toda la ventana 0,3 a 1,5 s", { todo: P1_TODO }, (t) => {
-    const { curve, initial } = damBreak();
-    const window = curve.filter((c) => c.t >= 0.3 - 1e-9 && c.t <= 1.5 + 1e-9);
-    const worst = window.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-    const samples = [0.3, 0.6, 0.9, 1.2, 1.5].map((s) => window.find((c) => Math.abs(c.t - s) < 1e-6));
-    t.diagnostic(`P1: ${initial} partículas; curva ${samples.map((c) => `t ${c.t.toFixed(1)}: ${c.ratio.toFixed(3)}`).join(", ")}; mínimo ${worst.ratio.toFixed(3)} en t ${worst.t.toFixed(2)}`);
-    assert.ok(window.length > 60);
-    assert.ok(worst.ratio >= 0.65, `mínimo ${worst.ratio.toFixed(3)} en t ${worst.t.toFixed(2)} s`);
+test("P1: rotura de presa, frente medido / x_δ de Ritter entre 0,8 y 1,2 en t = 0,9 a 1,5 s", { todo: P1_TODO }, (t) => {
+    const { curve, initial, vmaxSettle } = damBreak();
+    const window = curve.filter((c) => c.t >= 0.9 - 1e-9 && c.t <= 1.5 + 1e-9);
+    const lo = window.reduce((a, b) => (b.ratio < a.ratio ? b : a));
+    const hi = window.reduce((a, b) => (b.ratio > a.ratio ? b : a));
+    const samples = [0.3, 0.6, 0.9, 1.2, 1.5].map((s) => curve.find((c) => Math.abs(c.t - s) < 1e-6));
+    t.diagnostic(
+        `P1: ${initial} partículas, |v|max al soltar ${vmaxSettle.toFixed(3)} m/s; frente/x_δ ${samples.map((c) => `t ${c.t.toFixed(1)}: ${c.ratio.toFixed(3)}`).join(", ")}; ` +
+            `ventana ${lo.ratio.toFixed(3)} (t ${lo.t.toFixed(2)}) a ${hi.ratio.toFixed(3)} (t ${hi.t.toFixed(2)}); punta/Ritter ${samples.map((c) => c.tipRatio.toFixed(2)).join(", ")}`,
+    );
+    assert.ok(vmaxSettle <= 0.2, `|v|max al soltar ${vmaxSettle.toFixed(3)} m/s`);
+    assert.ok(window.length > 30);
+    assert.ok(lo.ratio >= 0.8 && hi.ratio <= 1.2, `cociente entre ${lo.ratio.toFixed(3)} y ${hi.ratio.toFixed(3)}`);
 });
-
 for (const weapon of WEAPONS) {
     test(`P2: chorro de ${weapon.name} sin explosión al crear (rapidez y parábola)`, (t) => {
         const m = jetBench(weapon);
@@ -45,7 +47,7 @@ test("P3: compresión en reposo, densidad 1,00 del empaquetado ideal ±10 % en l
 });
 
 for (const weapon of WEAPONS) {
-    test(`P4: ${weapon.name} contra el piso, e = Σ rebote / Σ llegada <= 0,2`, { todo: P4_TODO }, (t) => {
+    test(`P4: ${weapon.name} contra el piso, e = Σ rebote / Σ llegada <= 0,2`, (t) => {
         const m = shotBench(SHOT_SYSTEM, weapon);
         t.diagnostic(`P4 ${weapon.name}: e ${m.rebound.toFixed(3)} con ${m.impacted} partículas`);
         assert.ok(m.impacted >= 10, `solo ${m.impacted} partículas llegaron al piso`);
@@ -53,10 +55,8 @@ for (const weapon of WEAPONS) {
     });
 }
 
-const THRUST_TODO = new Map([[FLUID.WATER, P5_TODO], [FLUID.ACID, P5_TODO], [FLUID.LAVA, P5_TODO]]);
-
 for (const weapon of WEAPONS) {
-    test(`P5: empuje del chorro de ${weapon.name} sobre la placa = rate · σ_w · A_p · v ±15 %`, { todo: THRUST_TODO.get(weapon.id) }, (t) => {
+    test(`P5: empuje del chorro de ${weapon.name} sobre la placa = rate · σ_w · A_p · v ±15 %`, (t) => {
         const expected = weapon.rate * M_P * weapon.speed;
         const m = plateBench(weapon);
         t.diagnostic(`P5 ${weapon.name}: ${m.force.toFixed(1)} N medidos contra ${expected.toFixed(1)} N (${((m.force / expected - 1) * 100).toFixed(1)} %), recorrido de la placa ${m.travel.toExponential(1)} m`);
