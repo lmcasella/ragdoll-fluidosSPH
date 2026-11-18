@@ -301,6 +301,7 @@ export class ActiveRagdoll {
     // Con rig.gun: el ángulo se resuelve para que la línea del cañón (no la del hombro) pase por el objetivo.
     // Los joints de rig.aimHold (codos) quedan en reposo para que ningún clip mueva la cadena del arma.
     /**
+     * El primer joint de `rig.aimJoints` lleva el arma y apunta por la línea del cañón; los demás apuntan con su propia geometría, para que ninguno quede trabado donde lo dejó un clip.
      * @param {number} targetX Punto a apuntar, m.
      * @param {number} targetY Punto a apuntar, m.
      * @param {number} [now] Reloj de simulación, s; el mismo que reciben `punch`, `stun` y `hurt`.
@@ -314,14 +315,14 @@ export class ActiveRagdoll {
         for (const name of this.rig.aimHold ?? []) {
             this.rag.setJointAngle(name, 0, { strength: 1 });
         }
-        for (const name of this.rig.aimJoints) {
+        this.rig.aimJoints.forEach((name, index) => {
             const joint = this.rag.joint(name);
             const anchor = joint.GetAnchorA();
             const ax = anchor.get_x();
             const ay = anchor.get_y();
             const current = joint.GetJointAngle();
             let desired;
-            if (muzzle) {
+            if (muzzle && index === 0) {
                 // Distancia (con signo) de la línea del cañón al pivote del hombro
                 const gunAngle = Math.atan2(muzzle.dy, muzzle.dx);
                 const offset = -(muzzle.x - ax) * muzzle.dy + (muzzle.y - ay) * muzzle.dx;
@@ -348,7 +349,7 @@ export class ActiveRagdoll {
                 target = Math.sign(target) * AIM_LIMIT;
             }
             this.rag.setJointAngle(name, target * mirror, { strength: 1 });
-        }
+        });
     }
 
     setVelocity(x, y) {
