@@ -63,6 +63,11 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 
 **Estado** ✅ #13: chorro continuo de partículas sueltas de 0,1 m con los caudales, velocidades y tanques de la tabla. Verificado en Node con gamepad simulado: 1 s de A con el ácido emitió 89 partículas (el tanque bajó 89) y el tanque se vacía a los ~1,5 s. En navegador headless el chorro sale en arco, la barra baja y aparece "VACÍO". Las gotas todavía se separan: se ajusta en #40. El agua (#18) sigue 🔨.
 
+- **Reloj de simulación:** los ids de disparo, la gracia de 0,4 s, la vida de 6 s, el golpe, los estados y la inundación usan un único `simTime` (suma de `frameDt × timeScale`), no `performance.now()`. Así una pestaña oculta o la cámara lenta no vencen disparos ni borran charcos.
+- **Recorte por raycaster:** una vez por frame y por jugador que dispara, el emisor lanza un rayo con el raycaster compartido (ignorando el propio robot) y no crea partículas a más de `impacto − 0,1 m`. El chorro no atraviesa paredes ni nace dentro del rival; con el rival pegado al cañón (< ~0,25 m) no sale chorro: a esa distancia se usa el golpe.
+- **Golpe:** mientras dura el golpe el emisor recibe "no disparar"; al terminar, volver a apretar es una ráfaga nueva.
+- **Reinicio:** `reiniciarRonda` llama a `emitter.reset()` y `damage.resetShots()` (vacía los tramos abiertos sin reusar ids).
+
 ### Las armas
 
 | Fluido | Implementación LiquidFun | Comportamiento | Efecto en el robot | Estado |
