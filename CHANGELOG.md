@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-18
+
+### Fixed
+- Las gotas del disparo vuelven a su tamaño anterior: se dibujaban un 37 % más grandes desde el cambio a agua pura. Siguen tocando a los robots y las paredes sin hueco.
+
 ## [0.13.0] - 2026-11-18
 
 ### Changed

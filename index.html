@@ -144,6 +144,7 @@
                 drawHud,
                 drawLevel,
                 drawParticles,
+                SHOT_DRAW,
                 collectSurfaces,
                 drawRobot,
             } from "./js/render.js";
@@ -577,7 +578,7 @@
                 drawLevel(ctx, LEVEL, scale);
                 collectSurfaces(players, LEVEL.solids, WATER_DRAW.snapReach);
                 drawParticles(fluidCtx, poolSystem, WATER_DRAW.radius, WATER_DRAW, RAIN_DRAW);
-                drawParticles(fluidCtx, particleSystem);
+                drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                     drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
