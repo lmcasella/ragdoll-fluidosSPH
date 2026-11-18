@@ -18,10 +18,14 @@ test("la tabla de armas tiene los valores del diseño", () => {
         const w = weaponById(id);
         return [w.rate, w.speed, w.spread, w.tank, w.dps];
     };
+    assert.deepEqual(row(FLUID.WATER), [100, 14, 0.035, 300, 0]);
     assert.deepEqual(row(FLUID.ACID), [90, 14, 0.035, 135, 20]);
     assert.deepEqual(row(FLUID.LAVA), [60, 10, 0.017, 90, 12]);
     assert.deepEqual(row(FLUID.HONEY), [50, 8, 0.017, 75, 0]);
-    assert.deepEqual(WEAPONS.map((w) => w.id), LOADOUT);
+    assert.equal(WEAPONS[0].id, FLUID.WATER, "el agua es la primera fila");
+    assert.deepEqual(WEAPONS[0].color, [90, 170, 255]);
+    assert.deepEqual(WEAPONS.map((w) => w.id), LOADOUT.weapons);
+    assert.equal(LOADOUT.weapon, FLUID.WATER);
 });
 
 test("particleDamage es dps / caudal", () => {
@@ -29,24 +33,29 @@ test("particleDamage es dps / caudal", () => {
     assert.equal(particleDamage(weaponById(FLUID.HONEY)), 0);
 });
 
-test("equipLoadout llena los tanques y equipa la primera arma", () => {
+test("equipLoadout llena los tanques y equipa el agua", () => {
     const player = {};
     equipLoadout(player);
-    assert.equal(player.weapon, FLUID.ACID);
-    assert.deepEqual([...player.tanks], [[1, 135], [2, 90], [3, 75]]);
+    assert.equal(player.weapon, FLUID.WATER);
+    assert.equal(player.tanks.get(FLUID.WATER), 300);
+    assert.deepEqual([...player.tanks], [[4, 300], [1, 135], [2, 90], [3, 75]]);
 });
 
 test("cycleWeapon da la vuelta sobre el inventario en el orden de la tabla", () => {
     const player = {};
     equipLoadout(player);
     cycleWeapon(player, 1);
-    assert.equal(player.weapon, FLUID.LAVA);
-    cycleWeapon(player, 1);
-    cycleWeapon(player, 1);
     assert.equal(player.weapon, FLUID.ACID);
+    cycleWeapon(player, 1);
+    cycleWeapon(player, 1);
+    assert.equal(player.weapon, FLUID.HONEY);
+    cycleWeapon(player, 1);
+    assert.equal(player.weapon, FLUID.WATER);
     cycleWeapon(player, -1);
     assert.equal(player.weapon, FLUID.HONEY);
     player.tanks.delete(FLUID.LAVA);
+    cycleWeapon(player, 1);
+    assert.equal(player.weapon, FLUID.WATER);
     cycleWeapon(player, 1);
     assert.equal(player.weapon, FLUID.ACID);
     cycleWeapon(player, 1);
@@ -68,6 +77,7 @@ function setup({ maxCount = 1500, gravity = 0 } = {}) {
     const emitter = new ShotEmitter(system, damage, WEAPONS);
     const player = { dead: false, muzzle: () => ({ x: 0, y: 5, dx: 1, dy: 0 }) };
     equipLoadout(player);
+    player.weapon = FLUID.ACID; // la mayoría de las pruebas miden el chorro de ácido; el agua se prueba aparte
     let now = 100;
     const fire = (wants, k = 0, p = player) => {
         now += DT;

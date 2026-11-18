@@ -2,22 +2,24 @@
 // sistema de daño y la tabla. Ver docs/design/04-fluidos.md §4.1.
 
 // Ids de arma = tipo de fluido
-export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3 };
+export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4 };
 
 const WATER_PARTICLE = 0;
 const VISCOUS_PARTICLE = 1 << 5;
 const TENSILE_PARTICLE = 1 << 7;
 export const CONTACT_LISTENER_PARTICLE = 1 << 14; // b2_fixtureContactListenerParticle
 
-// rate: partículas/s; speed: m/s; spread: rad (±); tank: partículas; dps: daño por segundo con el chorro entero
+// rate: partículas/s; speed: m/s; spread: rad (±); tank: partículas; dps: daño por segundo con el chorro entero (0 si el arma aplica un estado)
 export const WEAPONS = [
+    { id: FLUID.WATER, name: "Agua", flags: WATER_PARTICLE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0 },
     { id: FLUID.ACID, name: "Ácido", flags: WATER_PARTICLE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20 },
     { id: FLUID.LAVA, name: "Lava", flags: TENSILE_PARTICLE, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12 },
     { id: FLUID.HONEY, name: "Miel", flags: VISCOUS_PARTICLE, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0 },
 ];
 
-// Inventario inicial de cada robot; arranca equipada la primera
-export const LOADOUT = [FLUID.ACID, FLUID.LAVA, FLUID.HONEY];
+// Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
+// estén los puntos de aparición (#14) conserva todas las armas para poder probarlas
+export const LOADOUT = { weapon: FLUID.WATER, weapons: [FLUID.WATER, FLUID.ACID, FLUID.LAVA, FLUID.HONEY] };
 
 const byId = new Map(WEAPONS.map((w) => [w.id, w]));
 
@@ -31,8 +33,8 @@ export function particleDamage(weapon) {
 }
 
 export function equipLoadout(player) {
-    player.tanks = new Map(LOADOUT.map((id) => [id, byId.get(id).tank]));
-    player.weapon = LOADOUT[0];
+    player.tanks = new Map(LOADOUT.weapons.map((id) => [id, byId.get(id).tank]));
+    player.weapon = LOADOUT.weapon;
 }
 
 // Siguiente arma del inventario (ordenado como la tabla) en el sentido de `step`, con vuelta
