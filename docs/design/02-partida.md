@@ -39,7 +39,7 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 | `emitX1`, `emitX2` | 1 m, 55 m | Todo el ancho, sin tocar las paredes |
 | `dropSpeed` | 8 m/s | Velocidad inicial hacia abajo |
 | `maxRate` | 90 partículas/s | Tope del caudal; el necesario a 0,15 m/s es ~60/s |
-| `density` | 6,4 partículas/m² | Agua en reposo con radio 0,25 m. **Calibrado** (18/11, Node, LiquidFun real): con 7,1 la superficie quedaba hasta +1,5 m sobre el nivel a 13,5 m; con 6,4 queda a −0,04…+0,3 m en 7,5, 10,5 y 13,5 m |
+| `density` | 6,4 partículas/m² | Agua en reposo con radio 0,25 m. **Calibrado** (18/11, Node, LiquidFun real): con 7,1 la superficie quedaba hasta +1,5 m sobre el nivel a 13,5 m; con 6,4 queda a −0,04…+0,3 m en 7,5, 10,5 y 13,5 m. 🔨 #40 cambia las fuerzas y flags del agua del nivel: se recalibra con el procedimiento de [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40) |
 | `drainHeight`, `drainSpeed` | 1 m, 1 m/s | Escurrido de charcos altos |
 | `maxParticles` | 5.500 | Tope del sistema del agua del nivel (pileta + lluvia), `maxCount` |
 
@@ -47,7 +47,7 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 
 **`Flood.level` y `floodLevel()`.** La función pura `floodLevel(t)` devuelve el nivel de la curva: 3 m (`pool.surface`) hasta los 60 s. En cambio, el getter `Flood.level`, que usa el corte de disparos (y `Flood.surfaceAt`, que consume `DamageSystem.process`), vale **`-Infinity` mientras la inundación no empezó** (antes de los 60 s). Así la pileta, cuyo agua llega a 3 m, no moja a nadie antes de la muerte súbita.
 
-**Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye solo las partículas marcadas y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. El agua original de la pileta que quedó arriba vuelve a caer al hueco por gravedad; no se recrea el grupo.
+**Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye **toda** el agua del nivel (lluvia y pileta, que pudo salpicar fuera del hueco), vuelve a llenar la pileta con `fillPoolWater` y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. La marca sirve para contar y escurrir las gotas en `Flood.step`.
 
 **Al jugador:**
 - HUD: reloj de ronda arriba al centro; desde los 50 s, "Inundación en N"; desde los 60 s, "¡INUNDACIÓN!".
