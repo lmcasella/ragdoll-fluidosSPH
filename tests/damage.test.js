@@ -51,3 +51,38 @@ test("el ácido del rival daña sin período de gracia", () => {
     damage.process(10.01);
     assert.equal(hurts.length, 1);
 });
+
+// Mojado por nivel de inundación: process(now, waterLevel) moja a quien tenga alguna parte por debajo
+function wetSetup(partHeights) {
+    const { damage } = setup();
+    const soaked = [];
+    const bodies = new Map(partHeights.map((y, i) => [`b${i}`, { GetPosition: () => ({ get_y: () => y }) }]));
+    const player = { dead: false, rag: { bodies }, soak: (now) => soaked.push(now) };
+    damage.players = [player];
+    return { damage, soaked, player };
+}
+
+test("una parte bajo el nivel moja al robot", () => {
+    const { damage, soaked } = wetSetup([6, 4.9, 5.5]);
+    damage.process(10, 5);
+    assert.deepEqual(soaked, [10]);
+});
+
+test("con todas las partes sobre el nivel no se moja", () => {
+    const { damage, soaked } = wetSetup([6, 5.2]);
+    damage.process(10, 5);
+    assert.equal(soaked.length, 0);
+});
+
+test("sin nivel de agua (por defecto) no se moja a nadie", () => {
+    const { damage, soaked } = wetSetup([-3, 0]);
+    damage.process(10);
+    assert.equal(soaked.length, 0);
+});
+
+test("un robot muerto no se moja", () => {
+    const { damage, soaked, player } = wetSetup([1]);
+    player.dead = true;
+    damage.process(10, 5);
+    assert.equal(soaked.length, 0);
+});

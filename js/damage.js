@@ -20,6 +20,7 @@ export class DamageSystem {
         this.world = world;
         this.particleSystem = particleSystem;
         this.particleSystemPtr = Box2D.getPointer(particleSystem);
+        this.players = [];
         this.owners = new Map(); // puntero de cuerpo → { player, index, bodyId }
         this.shots = new Map(); // id de disparo → { owner, weapon, time }
         this.nextShot = 1;
@@ -46,6 +47,7 @@ export class DamageSystem {
     // Volver a llamar cada vez que cambian las instancias (al girar se regenera el ragdoll)
     register(players) {
         this.owners.clear();
+        this.players = players;
         players.forEach((player, index) => {
             for (const [bodyId, body] of player.rag.bodies) {
                 this.owners.set(Box2D.getPointer(body), { player, index, bodyId });
@@ -63,7 +65,7 @@ export class DamageSystem {
         this.shots.set(id, { owner, weapon, time: now });
         const start = group.GetBufferIndex();
         const end = start + group.GetParticleCount();
-        const userData = Box2D.getPointer(this.particleSystem.GetUserDataBuffer()) >> 2;
+        const userData = this.particleSystem.GetUserDataBuffer() >> 2;
         for (let i = start; i < end; i++) Box2D.HEAP32[userData + i] = id;
         return id;
     }
@@ -108,17 +110,30 @@ export class DamageSystem {
         if (!owner) return;
         const index = contact.get_index();
         const system = this.particleSystem;
-        const tag = Box2D.HEAP32[(Box2D.getPointer(system.GetUserDataBuffer()) >> 2) + index];
+        const tag = Box2D.HEAP32[(system.GetUserDataBuffer() >> 2) + index];
         const colors = Box2D.getPointer(system.GetColorBuffer()) + index * 4;
         const shot = this.shots.get(tag);
         const kind = shot?.weapon ?? fluidFromColor(Box2D.HEAPU8[colors], Box2D.HEAPU8[colors + 1]);
         if (kind) this.fluidHits.push({ owner, index, shot, kind });
     }
 
-    // Aplica lo encolado durante el paso; llamar después de stepWorld
-    process(now) {
+    // Aplica lo encolado durante el paso; llamar después de stepWorld.
+    // `waterLevel` (m): el robot con alguna parte por debajo queda mojado (inundación, sin callbacks).
+    process(now, waterLevel = -Infinity) {
         for (const owner of this.drowned) owner.player.drown(now);
         this.drowned.length = 0;
+
+        if (waterLevel > -Infinity) {
+            for (const player of this.players) {
+                if (player.dead) continue;
+                for (const body of player.rag.bodies.values()) {
+                    if (body.GetPosition().get_y() < waterLevel) {
+                        player.soak(now);
+                        break;
+                    }
+                }
+            }
+        }
 
         for (const { owner, speed } of this.impacts) {
             const key = `${owner.index}:${owner.bodyId}`;

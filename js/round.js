@@ -11,6 +11,7 @@ export class Match {
         this.round = 1;
         this.state = "playing"; // "playing" | "roundOver" | "matchOver"
         this.timer = 0;
+        this.roundTime = 0; // s de juego real de la ronda en curso; solo avanza en "playing"
         this.roundWinner = null;
         this.matchWinner = null;
     }
@@ -24,6 +25,7 @@ export class Match {
     // Avanza con tiempo real; devuelve "reset" cuando hay que volver a armar la ronda
     update(players, inputs, dt) {
         if (this.state === "playing") {
+            this.roundTime += dt;
             const alive = players.filter((p) => !p.dead);
             if (alive.length <= 1) {
                 this.roundWinner = alive.length === 1 ? players.indexOf(alive[0]) : null;
@@ -45,6 +47,7 @@ export class Match {
             }
             this.round++;
             this.state = "playing";
+            this.roundTime = 0;
             return "reset";
         }
 
@@ -54,6 +57,7 @@ export class Match {
             this.round = 1;
             this.state = "playing";
             this.matchWinner = null;
+            this.roundTime = 0;
             return "reset";
         }
         return null;
