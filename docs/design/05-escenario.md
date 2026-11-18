@@ -1,0 +1,28 @@
+# 5. Escenario
+
+Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
+
+## 5.1 Mapa y cámara
+
+- **Mundo de tamaño fijo** ✅: 56 × 32 m, en metros e independiente de la ventana. Definido como datos en `LEVEL`.
+- **Geometría actual** ✅:
+  - dos islas de piso (x 0–18 y 38–56, tope a y = 4);
+  - el hueco central es la pileta;
+  - paredes a los costados;
+  - plataformas a varias alturas, cada una a ≤ 3,5 m de la anterior para que se alcancen saltando (el salto llega a ~4 m);
+  - plataformas chicas sobre la pileta para cruzarla.
+- **Aparición** ✅: J1 en x = 7,5 y J2 en x = 48,5. La altura sale de un rayo vertical desde el techo ([08-raycast](08-raycast.md)).
+- **Cámara compartida** ✅: encuadra a los dos robots con margen (6 × 4 m), hace zoom según la distancia (máximo ×1,6), nunca muestra fuera del mapa y se suaviza en el tiempo.
+- **Pendiente:**
+  - mapa definitivo con puntos de armas (#25);
+  - plataformas **cinemáticas** (#33);
+  - plataformas de **piedra temporal** (lava + agua, #30).
+
+**Limitación:** el build no expone `PreSolve`, así que no hay plataformas atravesables desde abajo. Todas son sólidas.
+
+## 5.2 Pileta ✅
+
+- **Agua:** SPH real en el hueco central (x 18–38, del fondo hasta y = 3), en un **sistema de partículas propio** de radio 0,2 m (726 partículas). Un robot que cae salpica.
+- **Sensor:** un sensor de Box2D cubre la pileta hasta y = 2,2. El robot que se hunde ahí queda **destruido** (vida 0, todo rojo) y pierde la ronda.
+- **Disparos:** los dos sistemas de partículas no interactúan entre sí. Por eso las partículas de los disparos que caen a la pileta se eliminan; si no, la atravesarían.
+- **Inundación:** la lluvia de la muerte súbita cae sobre la pileta y la hace subir (#22, [02-partida](02-partida.md)).
