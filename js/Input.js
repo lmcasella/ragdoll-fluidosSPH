@@ -6,6 +6,7 @@ export const KEYBOARD_LAYOUTS = [
         up: ["KeyW"],
         down: ["KeyS"],
         action: ["Space"],
+        punch: ["KeyF"],
         weapons: ["Digit1", "Digit2", "Digit3"],
     },
     {
@@ -14,6 +15,7 @@ export const KEYBOARD_LAYOUTS = [
         up: ["ArrowUp"],
         down: ["ArrowDown"],
         action: ["Enter", "NumpadEnter"],
+        punch: ["ShiftRight"],
         weapons: ["Numpad1", "Numpad2", "Numpad3"],
     },
 ];
@@ -21,6 +23,7 @@ export const KEYBOARD_LAYOUTS = [
 // Mapeo "standard" de la Gamepad API
 const PAD = {
     action: [0, 7], // A / RT
+    punch: 2, // X
     prevWeapon: 4, // LB
     nextWeapon: 5, // RB
     up: 12,
@@ -32,7 +35,7 @@ const STICK_DEADZONE = 0.35;
 const AIM_DEADZONE = 0.4;
 
 // Estado por jugador, leído una vez por frame con poll():
-// { left, right, up, down } mantenidos; action (flanco) y weapon (1-3) o weaponStep (±1) del frame;
+// { left, right, up, down } mantenidos; action y punch (flanco) y weapon (1-3) o weaponStep (±1) del frame;
 // aim: dirección { x, y } del stick derecho (Y hacia arriba) o null
 export class Input {
     constructor(playerCount) {
@@ -76,6 +79,7 @@ export class Input {
                 up: isHeld(layout.up),
                 down: isHeld(layout.down),
                 action: wasPressed(layout.action),
+                punch: wasPressed(layout.punch),
                 weapon: null,
                 weaponStep: 0,
                 aim: null,
@@ -104,6 +108,7 @@ export class Input {
         state.up ||= down(PAD.up) || ly < -STICK_DEADZONE;
         state.down ||= down(PAD.down) || ly > STICK_DEADZONE;
         state.action ||= PAD.action.some(edge);
+        state.punch ||= edge(PAD.punch);
         if (edge(PAD.prevWeapon)) state.weaponStep = -1;
         if (edge(PAD.nextWeapon)) state.weaponStep = 1;
         if (Math.hypot(rx, ry) > AIM_DEADZONE) state.aim = { x: rx, y: -ry };

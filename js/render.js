@@ -107,7 +107,70 @@ export function drawAimLaser(ctx, laser, color, scale) {
     }
 }
 
-export function drawParticles(ctx, particleSystem) {
+// Impacto del golpe: un destello blanco que se agranda y se apaga en HIT_TIME
+const HIT_TIME = 0.2;
+
+export function drawHits(ctx, hits, scale, now) {
+    for (let i = hits.length - 1; i >= 0; i--) {
+        const k = (now - hits[i].time) / HIT_TIME;
+        if (k >= 1) {
+            hits.splice(i, 1);
+            continue;
+        }
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 3 / scale;
+        ctx.beginPath();
+        ctx.arc(hits[i].x, hits[i].y, 0.15 + k * 0.4, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+}
+
+// HUD en pantalla (sin cámara): vida, arma y rondas ganadas por jugador; cartel central entre rondas
+export function drawHud(ctx, width, height, players, match, colors, weaponNames) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.font = "bold 24px Segoe UI";
+    ctx.textBaseline = "alphabetic";
+    players.forEach((player, k) => {
+        const left = k === 0;
+        const x = left ? 20 : width - 20;
+        ctx.textAlign = left ? "left" : "right";
+        ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
+        ctx.fillText(
+            `J${k + 1} Salud: ${Math.ceil(player.hp)}% · ${weaponNames[player.weapon - 1]}`,
+            x,
+            height - 30,
+        );
+        for (let w = 0; w < match.winsNeeded; w++) {
+            const cx = left ? x + 10 + w * 26 : x - 10 - w * 26;
+            ctx.beginPath();
+            ctx.arc(cx, height - 70, 9, 0, Math.PI * 2);
+            ctx.fillStyle = w < match.wins[k] ? colors[k] : "rgba(255, 255, 255, 0.15)";
+            ctx.fill();
+        }
+    });
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#cccccc";
+    ctx.font = "bold 18px Segoe UI";
+    ctx.fillText(`Ronda ${match.round}`, width / 2, 36);
+
+    const banner = match.banner;
+    if (banner) {
+        ctx.fillStyle = "rgba(10, 10, 16, 0.7)";
+        ctx.fillRect(0, height / 2 - 70, width, 130);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 48px Segoe UI";
+        ctx.fillText(banner.title, width / 2, height / 2);
+        ctx.font = "20px Segoe UI";
+        ctx.fillStyle = "#cccccc";
+        ctx.fillText(banner.subtitle, width / 2, height / 2 + 40);
+    }
+    ctx.textAlign = "left";
+}
+
+export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
@@ -117,7 +180,7 @@ export function drawParticles(ctx, particleSystem) {
         const c = colorBase + i * 4;
         ctx.fillStyle = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         ctx.beginPath();
-        ctx.arc(positions[posBase + i * 2], positions[posBase + i * 2 + 1], PARTICLE_RADIUS, 0, Math.PI * 2);
+        ctx.arc(positions[posBase + i * 2], positions[posBase + i * 2 + 1], radius, 0, Math.PI * 2);
         ctx.fill();
     }
 }

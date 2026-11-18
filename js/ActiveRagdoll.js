@@ -6,9 +6,13 @@ const GROUND_RAY = 0.3;
 const FLASH_TIME = 1;
 const BURN_TIME = 1.5;
 const BURN_DPS = 4;
+// Golpe: el clip `punch` carga hasta 0,3 s y pega entre 0,3 y 0,5 s; los rayos solo dañan en esa ventana
+const PUNCH_TIME = 0.55;
+const PUNCH_ACTIVE = [0.3, 0.5];
+const PUNCH_COOLDOWN = 0.6;
 
 // rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
-//        aimOffset: ángulo de reposo del arma relativo al padre, clips: { walk, jump, dead },
+//        aimOffset: ángulo de reposo del arma relativo al padre, clips: { walk, walkBack, jump, dead, punch },
 //        feet: ids de los pies (rayos de piso), gun: { body, muzzle: [x, y] local },
 //        damage: { [bodyId]: multiplicador }, defaultDamage: multiplicador del resto }
 export class ActiveRagdoll {
@@ -34,10 +38,64 @@ export class ActiveRagdoll {
         this.weapon = 1;
         this.flashes = new Map(); // bodyId → instante del último golpe (s)
         this.burns = new Map(); // bodyId → segundos de quemadura restantes
+        this.drowned = false;
+        this.punchStart = -Infinity;
+        this.punchReadyAt = 0;
+        this.punchHit = false;
     }
 
     get dead() {
         return this.hp <= 0;
+    }
+
+    // Cayó a la pileta: cortocircuito total
+    drown(now = performance.now() / 1000) {
+        if (this.dead) return;
+        this.drowned = true;
+        this.hp = 0;
+        for (const id of this.rag.bodies.keys()) this.flashes.set(id, now);
+    }
+
+    // Inicia un golpe si no está en enfriamiento; el clip `punch` toma los brazos (se sueltan los overrides de mira)
+    punch(now = performance.now() / 1000) {
+        if (this.dead || now < this.punchReadyAt) return false;
+        this.punchStart = now;
+        this.punchReadyAt = now + PUNCH_COOLDOWN;
+        this.punchHit = false;
+        for (const name of [...this.rig.aimJoints, ...(this.rig.aimHold ?? [])]) {
+            this.rag.clearJointOverride(name);
+        }
+        return true;
+    }
+
+    // Empuje del robot entero: suma la misma velocidad a todas sus piezas (como el salto). Un impulso
+    // sobre una sola pieza de 1 kg apenas mueve a un robot de 13 piezas.
+    knockback(vx, vy) {
+        for (const body of this.rag.bodies.values()) {
+            const v = body.GetLinearVelocity();
+            this.scratch.set_x(v.get_x() + vx);
+            this.scratch.set_y(v.get_y() + vy);
+            body.SetLinearVelocity(this.scratch);
+        }
+    }
+
+    // Tras recibir un golpe, el control no pisa la velocidad durante `duration`: deja actuar al empuje
+    stun(duration, now = performance.now() / 1000) {
+        this.stunnedUntil = Math.max(this.stunnedUntil ?? 0, now + duration);
+    }
+
+    isStunned(now = performance.now() / 1000) {
+        return now < (this.stunnedUntil ?? 0);
+    }
+
+    isPunching(now = performance.now() / 1000) {
+        return now - this.punchStart < PUNCH_TIME;
+    }
+
+    // Ventana en la que el golpe puede conectar (una sola vez por golpe)
+    punchActive(now = performance.now() / 1000) {
+        const t = now - this.punchStart;
+        return !this.punchHit && t >= PUNCH_ACTIVE[0] && t <= PUNCH_ACTIVE[1];
     }
 
     // Copia el estado de juego desde la instancia anterior (al girar se vuelve a generar el ragdoll)
@@ -50,6 +108,9 @@ export class ActiveRagdoll {
         this.flashes = old.flashes;
         this.burns = old.burns;
         this.aimDir = old.aimDir;
+        this.punchStart = old.punchStart;
+        this.punchReadyAt = old.punchReadyAt;
+        this.punchHit = old.punchHit;
     }
 
     takeDamage(amount) {
@@ -138,7 +199,7 @@ export class ActiveRagdoll {
     // Con rig.gun: el ángulo se resuelve para que la línea del cañón (no la del hombro) pase por el objetivo.
     // Los joints de rig.aimHold (codos) quedan en reposo para que ningún clip mueva la cadena del arma.
     aim(targetX, targetY) {
-        if (this.dead) return;
+        if (this.dead || this.isPunching()) return;
         const mirror = this.flipX ? -1 : 1;
         const forward = this.flipX ? Math.PI : 0;
         const muzzle = this.muzzle();
@@ -221,7 +282,9 @@ export class ActiveRagdoll {
         }
 
         let isMoving = false;
-        if (input.left && !input.right) {
+        if (this.isStunned()) {
+            // Aturdido: sin control horizontal ni frenado; el empuje del golpe actúa libre
+        } else if (input.left && !input.right) {
             this.setVelocity(-currentSpeed, velY);
             this.facing = -1;
             isMoving = true;
@@ -235,7 +298,7 @@ export class ActiveRagdoll {
         }
 
         // Y hacia arriba: el salto es velocidad positiva
-        if (input.up && this.framesGrounded > 5) {
+        if (input.up && this.framesGrounded > 5 && !this.isStunned()) {
             // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
             const jumpPower = this.honeyTimer > 0 ? 3 : 9;
             for (const body of this.rag.bodies.values()) {
@@ -249,7 +312,9 @@ export class ActiveRagdoll {
             this.jumping = false;
         }
 
-        if (this.jumping) {
+        if (this.isPunching() && this.rig.clips.punch) {
+            this.setClip("punch");
+        } else if (this.jumping) {
             this.setClip("jump");
         } else if (isMoving) {
             // Caminar en contra de hacia donde mira (apunta) reproduce el clip en reversa

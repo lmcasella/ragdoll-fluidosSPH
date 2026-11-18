@@ -25,6 +25,8 @@ export class DamageSystem {
         this.nextShot = 1;
         this.impacts = [];
         this.fluidHits = [];
+        this.drowned = [];
+        this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };
         this.manifold = new Box2D.b2WorldManifold();
@@ -51,6 +53,10 @@ export class DamageSystem {
         });
     }
 
+    ownerOf(bodyPtr) {
+        return this.owners.get(bodyPtr);
+    }
+
     // Marca las partículas de un grupo recién disparado con su id de disparo (buffer de userData)
     tagShot(group, owner, weapon, now) {
         const id = this.nextShot++;
@@ -66,6 +72,14 @@ export class DamageSystem {
         const contact = Box2D.wrapPointer(contactPtr, Box2D.b2Contact);
         const fixtureA = contact.GetFixtureA();
         const fixtureB = contact.GetFixtureB();
+        const killA = this.killSensors.has(Box2D.getPointer(fixtureA));
+        const killB = this.killSensors.has(Box2D.getPointer(fixtureB));
+        if (killA || killB) {
+            const other = killA ? fixtureB : fixtureA;
+            const owner = this.owners.get(Box2D.getPointer(other.GetBody()));
+            if (owner) this.drowned.push(owner);
+            return;
+        }
         if (fixtureA.IsSensor() || fixtureB.IsSensor()) return;
         const bodyA = fixtureA.GetBody();
         const bodyB = fixtureB.GetBody();
@@ -103,6 +117,9 @@ export class DamageSystem {
 
     // Aplica lo encolado durante el paso; llamar después de stepWorld
     process(now) {
+        for (const owner of this.drowned) owner.player.drown(now);
+        this.drowned.length = 0;
+
         for (const { owner, speed } of this.impacts) {
             const key = `${owner.index}:${owner.bodyId}`;
             if (now - (this.lastImpact.get(key) ?? -Infinity) < IMPACT_COOLDOWN) continue;

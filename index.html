@@ -84,16 +84,18 @@
             </p>
             <p>
                 <span class="highlight">Gamepad</span> stick izq. mover ·
-                arriba saltar · stick der. apuntar · A/RT disparar · LB/RB arma
+                arriba saltar · stick der. apuntar · A/RT disparar · X golpe ·
+                LB/RB arma
             </p>
             <p>
                 <span class="highlight">Teclado J1</span> A/D · W · Espacio ·
-                1/2/3 · mouse apunta y dispara
+                F golpe · 1/2/3 · mouse apunta y dispara
             </p>
             <p>
                 <span class="highlight">Teclado J2</span> ←/→ · ↑ · Enter ·
-                Num 1/2/3
+                Shift der. golpe · Num 1/2/3
             </p>
+            <p>Caer a la pileta = robot destruido · Al mejor de 3 rondas</p>
         </div>
 
         <div id="gameContainer">
@@ -110,7 +112,8 @@
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
             import { Camera } from "./js/camera.js";
-            import { LEVEL, buildLevel } from "./js/level.js";
+            import { LEVEL, buildLevel, fillPool } from "./js/level.js";
+            import { Match } from "./js/round.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip } from "./js/clips.js";
             import {
@@ -121,6 +124,8 @@
             import {
                 buildRenderItems,
                 drawAimLaser,
+                drawHits,
+                drawHud,
                 drawLevel,
                 drawParticles,
                 drawRobot,
@@ -155,6 +160,7 @@
                     walkBack: "walk_back",
                     jump: "jump",
                     dead: "dead",
+                    punch: "punch",
                 },
                 feet: ["b_4", "b_16"],
                 gun: { body: "b_3", muzzle: [0.33, 0.035] },
@@ -182,7 +188,8 @@
             const gravity = new Box2D.b2Vec2(0, -10);
             const world = new Box2D.b2World(gravity);
             Box2D.destroy(gravity);
-            buildLevel(world);
+            const { killSensors } = buildLevel(world);
+            const poolSystem = fillPool(world);
             const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
@@ -249,7 +256,77 @@
             Box2D.destroy(psDef);
 
             const damage = new DamageSystem(world, particleSystem);
+            damage.killSensors = killSensors;
             damage.register(players);
+            const match = new Match(players.length);
+
+            // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
+            function reiniciarRonda() {
+                players.forEach((player, k) => {
+                    player.destroy();
+                    players[k] = spawnRobot(LEVEL.spawns[k]);
+                    instances[k] = players[k].rag;
+                });
+                damage.register(players);
+                for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
+                    particleSystem.DestroyParticle(i);
+                }
+                accumulator = 0;
+                firstFrame = true;
+            }
+
+            // Golpe melee: 3 rayos en abanico desde el hombro en la dirección de la mira, durante la
+            // ventana activa del clip. El primer cuerpo rival que tocan recibe daño e impulso en ese punto.
+            const PUNCH_REACH = 1.1;
+            const PUNCH_SPREAD = 0.3;
+            const PUNCH_DAMAGE = 8;
+            const PUNCH_IMPULSE = 5; // a la parte golpeada (N·s)
+            const PUNCH_PUSH_SPEED = 4.5; // m/s sumados a todo el robot golpeado
+            const PUNCH_LIFT_SPEED = 3; // m/s hacia arriba: lo despega del piso
+            const PUNCH_STUN = 0.4; // s sin control para el golpeado
+            const punchImpulse = new Box2D.b2Vec2(0, 0);
+            const punchPoint = new Box2D.b2Vec2(0, 0);
+            const golpes = [];
+
+            function golpear(k, now) {
+                const player = players[k];
+                if (player.dead || !player.punchActive(now)) return;
+                const anchor = player.rag.joint(ROBOT_RIG.aimJoints[0]).GetAnchorA();
+                const ax = anchor.get_x();
+                const ay = anchor.get_y();
+                const base = Math.atan2(player.aimDir.y, player.aimDir.x);
+                for (const spread of [0, -PUNCH_SPREAD, PUNCH_SPREAD]) {
+                    const dx = Math.cos(base + spread);
+                    const dy = Math.sin(base + spread);
+                    const hit = raycaster.cast(
+                        ax,
+                        ay,
+                        ax + dx * PUNCH_REACH,
+                        ay + dy * PUNCH_REACH,
+                        player.ownBodies,
+                    );
+                    if (!hit) continue;
+                    const owner = damage.ownerOf(hit.bodyPtr);
+                    if (!owner || owner.index === k) continue;
+                    const victim = owner.player;
+                    victim.hurt(owner.bodyId, PUNCH_DAMAGE, now);
+                    victim.stun(PUNCH_STUN, now);
+                    punchImpulse.set_x(dx * PUNCH_IMPULSE);
+                    punchImpulse.set_y(dy * PUNCH_IMPULSE);
+                    punchPoint.set_x(hit.x);
+                    punchPoint.set_y(hit.y);
+                    victim.rag.bodies
+                        .get(owner.bodyId)
+                        .ApplyLinearImpulse(punchImpulse, punchPoint, true);
+                    victim.knockback(
+                        (Math.sign(dx) || 1) * PUNCH_PUSH_SPEED,
+                        PUNCH_LIFT_SPEED,
+                    );
+                    player.punchHit = true;
+                    golpes.push({ x: hit.x, y: hit.y, time: now });
+                    return;
+                }
+            }
 
             const NOMBRES_ARMAS = ["Ácido", "Lava", "Miel"];
             const ARMAS = {
@@ -374,15 +451,18 @@
                     : { x1: m.x, y1: m.y, x2, y2, hit: false };
             }
 
-            // Partículas que salieron del mundo
+            // Partículas de disparos que salieron del mundo o cayeron a la pileta. Los dos sistemas de
+            // partículas no interactúan entre sí: un disparo dentro de la pileta atravesaría el agua.
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
                 const { minX, maxX, minY } = LEVEL.bounds;
+                const pool = LEVEL.pool;
                 for (let i = 0; i < count; i++) {
                     const x = Box2D.HEAPF32[pos + i * 2];
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
-                    if (y < minY - 1 || x < minX - 1 || x > maxX + 1) {
+                    const inPool = x > pool.x1 && x < pool.x2 && y < pool.surface;
+                    if (inPool || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
                         particleSystem.DestroyParticle(i);
                     }
                 }
@@ -406,11 +486,15 @@
 
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
-                accumulator += frameDt;
                 lastTime = nowMs;
                 const now = nowMs / 1000;
                 inputs = input.poll();
                 raycaster.count = 0;
+
+                if (match.update(players, inputs, frameDt) === "reset") {
+                    reiniciarRonda();
+                }
+                accumulator += frameDt * match.timeScale;
 
                 players.forEach((player, k) => {
                     const state = inputs[k];
@@ -429,7 +513,8 @@
                             ((player.weapon - 1 + state.weaponStep + 3) % 3) +
                             1;
                     }
-                    if (state.action) disparar(k);
+                    if (state.punch) player.punch(now);
+                    else if (state.action && !player.isPunching(now)) disparar(k);
                 });
 
                 while (accumulator >= STEP_SETTINGS.dt) {
@@ -439,6 +524,7 @@
                     });
                     stepWorld(world, instances);
                     damage.process(performance.now() / 1000);
+                    players.forEach((player, k) => golpear(k, now));
                     accumulator -= STEP_SETTINGS.dt;
                 }
                 limpiarParticulas();
@@ -463,24 +549,23 @@
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
                 drawLevel(ctx, LEVEL, scale);
+                drawParticles(fluidCtx, poolSystem, 0.28);
                 drawParticles(fluidCtx, particleSystem);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                     drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
+                drawHits(ctx, golpes, scale, now);
 
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.font = "bold 24px Segoe UI";
-                players.forEach((player, k) => {
-                    ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
-                    ctx.textAlign = k === 0 ? "left" : "right";
-                    ctx.fillText(
-                        `J${k + 1} Salud: ${Math.ceil(player.hp)}% · ${NOMBRES_ARMAS[player.weapon - 1]}`,
-                        k === 0 ? 20 : canvas.width - 20,
-                        canvas.height - 30,
-                    );
-                });
-                ctx.textAlign = "left";
+                drawHud(
+                    ctx,
+                    canvas.width,
+                    canvas.height,
+                    players,
+                    match,
+                    PLAYER_COLORS,
+                    NOMBRES_ARMAS,
+                );
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);
