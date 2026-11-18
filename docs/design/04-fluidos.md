@@ -86,8 +86,8 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 | **Agua** | Sistema de disparos, `b2_tensileParticle` (#40) | **Arma inicial** de cada robot. Chorro rápido que salpica, empuja y se acumula en charcos | **Cortocircuito:** cada partícula que toca al robot lo moja (`soak()`, regla compartida abajo): −3 de vida por segundo mientras está mojado y 3 s después, con chispas. Arco eléctrico entre robots mojados ([08-raycast](08-raycast.md), #31) | ✅ #18 |
 | **Ácido** | Sistema de disparos, `b2_tensileParticle` (#40; antes `b2_waterParticle`) | Rápido, se escurre por las superficies | **DPS 20** por caudal (`dps / caudal` por partícula, que se consume) ✅ #13. Con #19: **corrosión**: la parte queda corroída 4 s y recibe +50 % de daño de cualquier fuente (humo verde) | ✅ #13, 🔨 #19 |
 | **Lava** | Sistema de disparos, `b2_tensileParticle \| b2_viscousParticle` (#41 ✅ la conserva: sin viscosidad no cumple el banco 1) | Pesada (más lenta, cae en arco), forma gotas | **Quema:** cada contacto deja la parte quemándose 1,5 s a 4 de daño por segundo. No se consume | ✅ |
-| **Fuego** | Sistema de **gases** (gravedad negativa, vida ~0,6 s) | Lanzallamas de corto alcance (~3 m). Sube y se apaga solo | Daño por contacto. Seca el estado mojado | 🔨 #16 |
-| **Viento** | Sistema de gases (gravedad 0, vida ~1,2 s), con velocidad escrita en cada paso | Ráfaga visible como estelas | **Sin daño.** Empuja por transferencia de cantidad de movimiento | 🔨 #17 |
+| **Fuego** | 🔨 #62: **sistema líquido único** ([14.6](14-agua.md#146-disparos-con-agua-pura)), sin sistema de gases propio. Gas caliente (~800 °C) que sube por empuje de Arquímedes en el aire (`+g ρ_a/ρ_gas`, más arrastre en aire), igual que el vapor ([14.8](14-agua.md#148-térmica-y-fases)); se apaga por enfriamiento o al tocar agua (con #75), y como tope a los 0,6 s (`MATERIALS.fire.maxLife`) | Lanzallamas de corto alcance (~3 m). Sube y se apaga solo | Daño por contacto. Seca el estado mojado | 🔨 #16 |
+| **Viento** | 🔨 #62: sistema líquido único. Es aire: su empuje en el aire compensa exactamente la gravedad (`ρ_gas = ρ_a`), así que no hace falta una gravedad 0 por sistema. Velocidad escrita en cada paso; tope de vida de 1,2 s por `ParticleStore` | Ráfaga visible como estelas | **Sin daño.** Empuja por transferencia de cantidad de movimiento | 🔨 #17 |
 | **Miel** | Sistema de disparos, `b2_viscousParticle`, `viscousStrength` alto (✅ #41) | Muy espesa: cae en arco y queda como **charco** que no se seca a los 6 s | **Pegajosa** (✅ #41): mientras la toca y 0,3 s después, el robot casi no camina, salta muy poco y recibe una fuerza hacia abajo ([regla](#miel-pegajosa-regla-compartida--41)). No se consume. La misma regla vale para los charcos del mapa (#23, [4.3](#43-peligros-del-mapa)) | ✅ #13 (provisoria: ralentizaba 1 s y se consumía), ✅ #41 |
 
 ### Miel pegajosa: regla compartida ✅ #41
@@ -186,7 +186,13 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
   - **#14:** el inventario inicial queda **solo con el agua**; el ácido, la lava, la miel y el fuego se recogen.
 - **Inventario en el jugador:** `player.weapon` (id del arma equipada) y `player.tanks` (`Map` id → partículas que quedan). Viven en `ActiveRagdoll` porque son estado del jugador: se copian en `copyStateFrom` al girar y se pierden al recrear el robot en cada ronda. `ActiveRagdoll` no conoce la tabla: el inventario lo carga la raíz de composición con `equipLoadout(robot)` de `js/weapons.js` al crear cada robot.
 - **Puntos de aparición** (#14): las armas están en puntos fijos del mapa, definidos como datos del nivel. Al tocar un arma (sensor de Box2D), se suma al inventario con el tanque lleno; si ya estaba, se rellena. Reaparece en su punto a los 15 s. **El agua también aparece como recogible**: es su única recarga dentro de la ronda (ver 12.1).
-- **Rueda de armas** (#15): mantener LB (Q / Ctrl derecho de respaldo) abre un círculo con las armas del inventario. Se elige con el stick o las direcciones y se equipa al soltar. El juego sigue corriendo. Reemplaza las teclas 1/2/3 y el teclado numérico.
+- **Rueda de armas** (#15, revisada con el remapeo del 18/11; controles en [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)):
+  - mantener LB ≥ 0,25 s (`TAP_MAX`; Q o Ctrl derecho de respaldo) abre un círculo con las armas del inventario, repartidas en sectores iguales desde arriba en sentido horario;
+  - se elige con el **stick derecho** (W/A/S/D o flechas de respaldo) y se equipa al **soltar LB**; con el stick al centro se cancela;
+  - mientras está abierta, el stick no apunta (la mira conserva la dirección) y el juego sigue corriendo;
+  - un toque corto de LB (< 0,25 s) es arma anterior y RB es arma siguiente;
+  - **ya no reemplaza** a la elección directa: la cruceta (y 1–4 / Num 1–4) sigue eligiendo por posición en la tabla;
+  - `Input` entrega `wheel` y `wheelPick`; el sector lo calcula la raíz de composición, que conoce el inventario.
 
 ## 4.3 Peligros del mapa
 
@@ -202,7 +208,7 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 ## 4.4 Reacciones entre fluidos 🔨 #30
 
-> **🔨 #62 reemplaza este diseño:** las reacciones se modelan con entalpía y calor latente (lava → piedra, agua ↔ vapor) y con concentración (miel diluida), no con reglas de contacto. Con valores reales, la lava tarda minutos en solidificar ([14.8](14-agua.md#148-térmica-y-fases), [14.9](14-agua.md#149-mezcla-por-concentración-y-viscosidad)). El estado `pegado` de la miel (#41) se retira con la adherencia de #62-J (decisión D4); hasta entonces sigue el temporizador ([14.10](14-agua.md#1410-adherencia)).
+> **🔨 #62 reemplaza este diseño:** las reacciones se modelan con entalpía y calor latente (lava → piedra, agua ↔ vapor) y con concentración (miel diluida), no con reglas de contacto. Con valores reales, la lava tarda minutos en solidificar ([14.8](14-agua.md#148-térmica-y-fases), [14.9](14-agua.md#149-mezcla-por-concentración-y-viscosidad)). El estado `pegado` de la miel (#41) se retira con la adherencia de #77 (decisión D4); hasta entonces sigue el temporizador ([14.10](14-agua.md#1410-adherencia)).
 
 Hay dos fuentes de detección, según dónde está el agua:
 

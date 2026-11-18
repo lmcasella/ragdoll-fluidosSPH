@@ -19,7 +19,7 @@ Partículas de sistemas distintos **no interactúan entre sí**, solo con los cu
 |---|---|---|---|---|---|
 | Disparos (líquidos) | Agua, ácido, lava, miel | 0,1 m | 1 | Ilimitada | ✅ |
 | Agua del nivel | Pileta y lluvia de la inundación (#22) | 0,25 m (477 de la pileta; hasta 5.500 con la lluvia). Se dibuja a 0,28 m | 1 | Ilimitada | ✅ #22; 🔨 #62 la reemplaza por un campo de alturas ([14.3](14-agua.md#143-campo-de-alturas-saint-venant-1d-shallowwater)) |
-| Gases | Fuego, viento, vapor | — | Negativa o 0 | Corta (*verificado*: `set_lifetime` del grupo) | 🔨 #16 |
+| Gases | Fuego, viento, vapor | — | Negativa o 0 | Corta (*verificado*: `set_lifetime` del grupo) | 🔨 #16. **Reemplazado por #62:** no hay sistema de gases; fuego, viento y vapor van en el sistema líquido único con empuje en aire calculado ([14.6](14-agua.md#146-disparos-con-agua-pura)) |
 
 La lluvia comparte sistema con la pileta para que **suba el agua de la pileta**: si fuera un sistema aparte, las gotas atravesarían el agua de la pileta y quedarían superpuestas en el fondo. Se distinguen por la marca de `userData` (lluvia = −1, pileta = 0).
 
@@ -67,10 +67,11 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - el desenfoque se escala con el zoom de la cámara.
 
   El resultado son **manchas planas**, sin brillo ni volumen, y no escala a miles de partículas.
-- **Diseño** 🔨 #26: el render metaball de la materia (`metaball.frag.glsl`).
-  - Se acumulan los kernels de las partículas en una textura y un shader aplica umbral, borde, brillo y sombreado por densidad.
-  - Un color por fluido, con brillo propio en lava y fuego.
-  - Va en GPU (WebGL, PIXI ya está cargado) y reemplaza al filtro SVG.
+- **Diseño** 🔨 #26 (revisado con #62): **Canvas2D, sin WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).
+  - Se mantiene el filtro goo (desenfoque más umbral de transparencia) sobre un canvas de partículas, que es lo que funde las gotas.
+  - Mejoras sobre lo de hoy: un color por material y por temperatura (lo escribe la térmica), brillo propio en lava y fuego con un segundo canvas aditivo (`globalCompositeOperation = "lighter"`), y borde más claro por un segundo pase con el umbral corrido.
+  - Presupuesto: ≤ 2 ms con GPU hasta ~4.000 círculos (relevamiento `F` de #62; el costo escala con la cantidad de círculos, no con el goo).
+  - Se descartó el metaball en shader (`metaball.frag.glsl`): exige WebGL propio, que el usuario descartó para el examen.
 - **Lluvia en vuelo** ✅ #44: una gota con la marca de lluvia (−1) y rapidez ≥ `streakSpeed` se dibuja como un **trazo fino** y no como círculo.
   - **Forma:** una línea desde la posición de la gota hacia atrás, opuesta a su velocidad. Largo = `min(rapidez · streakScale, streakLength)`; ancho `streakWidth`. La decisión es `rainStroke(vx, vy, draw)` en `js/render.js`, función pura y testeada (`tests/rain-streak.test.js`).
   - **Datos** en `LEVEL.pool.draw`: `streakSpeed` 6 m/s, `streakScale` 0,05 s, `streakLength` 0,7 m, `streakWidth` 0,05 m. Las gotas más lentas y toda la pileta siguen como círculos y se funden con el agua.

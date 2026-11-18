@@ -15,23 +15,46 @@
 | M5 – Pulido y defensa | 1/12 | Métricas (#29), reacciones (#30), arco (#31), explosión (#32), plataformas cinemáticas (#33), sprites (#34), sonido (#35), apuntado exacto (#8) | 🔨 |
 
 **Rediseño del agua (#62)** 🔨, sub-issues en [14.17](14-agua.md#1417-división-en-sub-issues-y-prioridades):
-- **M2:** grabador de escenarios (A), identidad estable de partículas (B), disparos con agua pura (C) y módulo `ShallowWater` (D1);
-- **M3:** pileta e inundación como campo de alturas con absorción (D2), flotación por pieza (F) y debug básico (K1);
-- **M4:** evaporación de agua detenida (E, D7), reacción de los cuerpos sobre el agua (G) y térmica y fases (H);
-- **M5:** mezcla (I), adherencia (J) y debug completo (K2).
+- **M2:** grabador de escenarios (#67), identidad estable de partículas (#68), disparos con agua pura (#69) y módulo `ShallowWater` (#70);
+- **M3:** pileta e inundación como campo de alturas con absorción (#71), flotación por pieza (#72) y debug básico (#29);
+- **M4:** evaporación de agua detenida (#73, D7), reacción de los cuerpos sobre el agua (#74) y térmica y fases (#75);
+- **M5:** mezcla (#76), adherencia (#77) y debug completo (#78).
 
-El mínimo de #62 para entregar es A, B, C, D1, D2 y F.
+**Remapeo del gamepad y gancho** 🔨 (pedido del usuario, 18/11): el remapeo base va con #14 y el gancho después de #72; los dos entran en la entrega. El modo ragdoll y la pausa consensuada son M5. Las plataformas atravesables no tienen issue todavía.
 
-**Si algo se atrasa, se recorta en este orden** (pasa a M5):
-1. Ventiladores (#24).
-2. Viento como arma (#17).
-3. Rueda de armas (#15), dejando LB/RB.
-4. Reacción de los cuerpos sobre el agua (#62-G).
-5. Térmica y fases (#62-H).
-6. Evaporación de agua detenida (#62-E); sin ella, los disparos en plataformas vencen a los 6 s (D5).
-7. Debug básico (#62-K1).
+Los sub-issues son #67 (A), #68 (B), #69 (C), #70 (D1), #71 (D2), #72 (F), #29 (K1), #73 (E), #74 (G), #75 (H), #76 (I), #77 (J) y #78 (K2). El mínimo de #62 para entregar es #67, #68, #69, #70, #71 y #72.
 
-Si D2 no llega a tiempo, `main` se queda con el agua en partículas de hoy: la rama no se mergea a medias.
+**Orden de trabajo acordado** (18/11), en serie:
+
+1. Diseño (esta rama).
+2. #67 grabador de escenarios.
+3. #68 identidad estable de partículas.
+4. #69 disparos con agua pura.
+5. #14 armas recogibles + remapeo base del gamepad ([10](10-controles.md)).
+6. #70 `ShallowWater`.
+7. #71 campo de alturas con absorción.
+8. #72 flotación.
+9. Gancho ([03 §3.5](03-robots.md#35-gancho-)).
+10. #15 rueda de armas.
+11. #26 render de partículas en Canvas2D.
+12. #53 HUD.
+13. #29 debug básico.
+14. #73 evaporación.
+15. #75 térmica.
+16. #74 reacción de los cuerpos sobre el agua.
+17. M5.
+
+**Si algo se atrasa, se recorta desde el final del orden** (pasa a M5), en este orden:
+1. #74 reacción de los cuerpos sobre el agua.
+2. #75 térmica y fases.
+3. #73 evaporación (sin ella, los disparos en plataformas vencen a los 6 s, D5).
+4. #29 debug básico.
+5. #53 HUD.
+6. #26 render de partículas (queda el dibujo actual con goo).
+7. #15 rueda de armas (quedan LB/RB y la cruceta).
+8. Gancho.
+
+Los ventiladores (#24) y el viento como arma (#17) ya están fuera del orden: pasan a M5. Si #71 no llega a tiempo, `main` se queda con el agua en partículas de hoy: la rama no se mergea a medias. La pausa consensuada, el modo ragdoll y las plataformas atravesables (sin issue) quedan para M5 o después.
 
 **Mínimo para entregar:**
 - rondas completas ✅;
