@@ -237,8 +237,8 @@ test("costo: inundación al tope y dos jugadores disparando agua al agua (300 fr
         };
 
         // Cada jugador apunta hacia abajo y al centro: el chorro cae al agua; los tanques se reponen
-        game.setPad(0, { buttons: [0], axes: [0, 0, 0.7, 0.7] });
-        game.setPad(1, { buttons: [0], axes: [0, 0, -0.7, 0.7] });
+        game.setPad(0, { buttons: [7], axes: [0, 0, 0.7, 0.7] });
+        game.setPad(1, { buttons: [7], axes: [0, 0, -0.7, 0.7] });
         let maxShots = 0;
         let wallMs = 0;
         for (let i = 0; i < 300; i++) {

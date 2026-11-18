@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { LEVEL } from "../js/level.js";
 
-const A = 0;
+const RT = 7;
 
 // Los dos robots en el suelo de la isla izquierda, a 7,5 m, para que el chorro llegue sin tocar los datos reales
 // del nivel. A menos distancia el salpicado del rival vuelve a J1 pasada la gracia de 0,4 s y también lo moja
@@ -31,7 +31,7 @@ test("el agua de J1 moja a J2, le baja ~3/s y J1 no se moja", async () => {
     assert.equal(p1.weapon, 4);
     assert.equal(p1.tanks.get(4), 150);
     assert.equal(p2.hp, 100);
-    game.setPad(0, { buttons: [A], axes: [0, 0, 1, 0] });
+    game.setPad(0, { buttons: [RT], axes: [0, 0, 1, 0] });
     game.frames(30);
     assert.ok(p2.wet, "J2 ya está mojado a los 0,5 s");
     const hpMid = p2.hp;
@@ -53,7 +53,7 @@ test("tras reiniciar la ronda y en la revancha los dos arrancan con agua y 150",
         game.frames(1);
         game.frames(190);
     };
-    game.setPad(0, { buttons: [A], axes: [0, 0, 1, 0] });
+    game.setPad(0, { buttons: [RT], axes: [0, 0, 1, 0] });
     game.frames(20);
     game.setPad(0);
     assert.ok(players[0].tanks.get(4) < 150);
@@ -62,7 +62,7 @@ test("tras reiniciar la ronda y en la revancha los dos arrancan con agua y 150",
     for (const p of game.state.players) assert.deepEqual([p.weapon, p.tanks.get(4)], [4, 150]);
     finishRound();
     assert.equal(match.state, "matchOver");
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(1);
     assert.equal(match.state, "playing");
     for (const p of game.state.players) assert.deepEqual([p.weapon, p.tanks.get(4)], [4, 150]);

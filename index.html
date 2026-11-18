@@ -267,6 +267,7 @@
             const instances = players.map((p) => p.rag);
             const input = new Input(players.length);
             let inputs = input.poll();
+            const jumpPending = players.map(() => false);
 
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
@@ -491,6 +492,9 @@
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
                 inputs = input.poll();
+                inputs.forEach((s, k) => {
+                    if (s.jump || s.drop) jumpPending[k] = true;
+                });
                 raycaster.count = 0;
 
                 if (match.update(players, inputs, frameDt) === "reset") {
@@ -529,6 +533,8 @@
 
                 while (accumulator >= STEP_SETTINGS.dt) {
                     players.forEach((player, k) => {
+                        inputs[k].jump = jumpPending[k];
+                        jumpPending[k] = false;
                         player.move(inputs[k], STEP_SETTINGS.dt, now);
                         if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);

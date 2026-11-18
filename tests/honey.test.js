@@ -9,7 +9,7 @@ const { FLUID, PERSIST_MAX, weaponById } = await import("../js/weapons.js");
 const { ORIGIN } = await import("../js/particleStore.js");
 const { PARTICLE } = await import("../js/particles.js");
 
-const A = 0;
+const RT = 7;
 const J2 = 1;
 const FLOOR_Y = 4; // tope de la plataforma de aparición (LEVEL.solids)
 const STICK_RIGHT = [1, 0, 0, 0];
@@ -114,7 +114,7 @@ test("sobre el charco, el salto sube como máximo 0,4 m (sin charco, 2 m o más)
         const game = await standing(puddle);
         const y0 = torso(game, J2).get_y();
         let peak = 0;
-        game.setPad(J2, { axes: STICK_UP });
+        game.setPad(J2, { buttons: [0] });
         for (let i = 0; i < 45; i++) {
             if (i === 30) game.setPad(J2);
             game.frame();
@@ -175,8 +175,8 @@ test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s;
     const firstTag = damage.nextShot;
     players[0].weapon = FLUID.HONEY;
     players[J2].weapon = FLUID.ACID;
-    game.setPad(0, { buttons: [A] });
-    game.setPad(J2, { buttons: [A], axes: [0, 0, -0.7, -0.7] }); // el ácido sale hacia arriba: no cruza el chorro de miel
+    game.setPad(0, { buttons: [RT] });
+    game.setPad(J2, { buttons: [RT], axes: [0, 0, -0.7, -0.7] }); // el ácido sale hacia arriba: no cruza el chorro de miel
     let j2Stuck = false;
     for (let i = 0; i < 24; i++) {
         game.frame();
@@ -209,7 +209,7 @@ test("la miel que cae al agua del nivel no se destruye y sigue ahí a los 8 s", 
     game.frames(30);
     const firstTag = damage.nextShot;
     players[0].weapon = FLUID.HONEY;
-    game.setPad(0, { buttons: [A], axes: [0, 0, 0.87, -0.5] }); // stick derecho a 30° sobre la horizontal: cae en la pileta
+    game.setPad(0, { buttons: [RT], axes: [0, 0, 0.87, -0.5] }); // stick derecho a 30° sobre la horizontal: cae en la pileta
     game.frames(90);
     game.setPad(0);
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
@@ -233,7 +233,7 @@ test(`tope: con 375 partículas de miel disparadas quedan como mucho ${PERSIST_M
     const firstTag = damage.nextShot;
     players[0].weapon = FLUID.HONEY;
     let emitted = 0;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     for (let i = 0; i < 60 * 16 && emitted < 375; i++) {
         const tank = players[0].tanks.get(FLUID.HONEY);
         if (tank === 0) {

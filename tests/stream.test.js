@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const A = 0;
+const RT = 7;
 
 async function start() {
     const game = await loadGame();
@@ -15,16 +15,16 @@ async function start() {
 
 const tank = (game, k = 0) => game.state.players[k].tanks.get(game.state.players[k].weapon);
 
-test("mantener A 1 s emite el caudal del agua y el tanque baja lo mismo", async () => {
+test("mantener RT 1 s emite el caudal del agua y el tanque baja lo mismo", async () => {
     const game = await start();
     const { particleSystem, players } = game.state;
     const before = particleSystem.GetParticleCount();
     const full = tank(game);
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(60);
     const grown = particleSystem.GetParticleCount() - before;
     const spent = full - tank(game);
-    console.log(`1 s de A: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 50)`);
+    console.log(`1 s de RT: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 50)`);
     assert.ok(Math.abs(spent - 50) <= 2, `tanque -${spent}`);
     assert.ok(grown <= spent && grown >= spent - 3, `creció ${grown}`);
     assert.equal(players[0].tanks.get(2), 45, "el resto del inventario conserva lo suyo");
@@ -34,7 +34,7 @@ test("mantener A 1 s emite el caudal del agua y el tanque baja lo mismo", async 
 test("mantener hasta vaciar: el tanque llega a 0 y deja de emitir", async () => {
     const game = await start();
     const { damage } = game.state;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(200);
     assert.equal(tank(game), 0);
     const shotsOpened = damage.nextShot;
@@ -46,17 +46,17 @@ test("mantener hasta vaciar: el tanque llega a 0 y deja de emitir", async () => 
 test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma sí", async () => {
     const game = await start();
     const { players, damage } = game.state;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(200);
     game.setPad(0);
     game.frames(2);
     const opened = damage.nextShot;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(10);
     assert.equal(damage.nextShot, opened);
     game.setPad(0, { buttons: [5] }); // RB: arma siguiente (ácido)
     game.frames(1);
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(30);
     assert.equal(players[0].weapon, 1);
     assert.ok(players[0].tanks.get(4) < 150);
@@ -65,20 +65,20 @@ test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma
 test("durante el golpe no sale chorro, y al terminar arranca como una pulsación nueva", async () => {
     const game = await start();
     const { players } = game.state;
-    game.setPad(0, { buttons: [A, 2] }); // A + X
+    game.setPad(0, { buttons: [RT, 1] }); // RT + B
     game.frames(1);
     const during = tank(game);
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(28); // el golpe dura 0,55 s (33 frames)
     assert.equal(tank(game), during, "sin chorro mientras pega");
     game.frames(40);
-    assert.ok(tank(game) < during, "después del golpe, con A apretado, el chorro sigue");
+    assert.ok(tank(game) < during, "después del golpe, con RT apretado, el chorro sigue");
     assert.equal(players[0].tanks.get(2), 45);
 });
 test("un salto grande del reloj real sin frames no vence los disparos", async () => {
     const game = await start();
     const { damage, particleSystem } = game.state;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(20);
     game.setPad(0);
     const shots = damage.shots.size;
@@ -93,7 +93,7 @@ test("un salto grande del reloj real sin frames no vence los disparos", async ()
 test("la cámara lenta alarga la vida de los disparos igual que a la física", async () => {
     const game = await start();
     const { damage, match } = game.state;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(5);
     game.setPad(0);
     const first = damage.liveShotFloor;
@@ -106,7 +106,7 @@ test("la cámara lenta alarga la vida de los disparos igual que a la física", a
 test("al reiniciar la ronda se olvidan los disparos", async () => {
     const game = await start();
     const { damage, particleSystem } = game.state;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(20);
     game.setPad(0);
     assert.ok(damage.shots.size > 0);
@@ -127,7 +127,7 @@ function finishRound(game, loser = 1) {
 test("al empezar la ronda siguiente los tanques están llenos y el botón apretado no dispara hasta soltarlo", async () => {
     const game = await start();
     const { match, players } = game.state;
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(30);
     assert.ok(tank(game) < 150);
     finishRound(game);
@@ -135,16 +135,16 @@ test("al empezar la ronda siguiente los tanques están llenos y el botón apreta
     assert.equal(match.state, "playing");
     assert.equal(tank(game), 150, "el robot nuevo trae el inventario lleno");
     assert.equal(players[0].tanks.get(3), 38);
-    game.frames(30); // A sigue apretado desde la ronda anterior
+    game.frames(30); // RT sigue apretado desde la ronda anterior
     assert.equal(tank(game), 150);
     game.setPad(0);
     game.frames(2);
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(10);
     assert.ok(tank(game) < 150);
 });
 
-test("la revancha con A funciona, no gasta el tanque y hay que soltar A antes de disparar", async () => {
+test("la revancha con RT funciona, no gasta el tanque y hay que soltar RT antes de disparar", async () => {
     const game = await start();
     const { match, players } = game.state;
     finishRound(game);
@@ -152,16 +152,16 @@ test("la revancha con A funciona, no gasta el tanque y hay que soltar A antes de
     assert.equal(match.state, "matchOver");
     assert.equal(match.matchWinner, 0);
 
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(1);
     assert.equal(match.state, "playing");
     assert.equal(match.round, 1);
     assert.deepEqual(match.wins, [0, 0]);
     game.frames(40);
-    assert.equal(players[0].tanks.get(4), 150, "A de la revancha no dispara");
+    assert.equal(players[0].tanks.get(4), 150, "RT de la revancha no dispara");
     game.setPad(0);
     game.frames(2);
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     game.frames(10);
     assert.ok(players[0].tanks.get(4) < 150);
 });

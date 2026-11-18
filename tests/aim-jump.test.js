@@ -29,7 +29,7 @@ async function jumpWithAim(aim, { walk = false } = {}) {
     let maxY = startY;
     for (let f = 0; f < 150; f++) {
         const jumping = f >= 10 && f < 12;
-        game.setPad(0, { axes: [right[0], jumping ? -1 : 0, right[2], right[3]] });
+        game.setPad(0, { buttons: jumping ? [0] : [], axes: right });
         game.frame();
         const player = game.state.players[0];
         maxY = Math.max(maxY, player.torso.GetPosition().get_y());

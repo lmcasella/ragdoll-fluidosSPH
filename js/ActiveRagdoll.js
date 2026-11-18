@@ -417,7 +417,7 @@ export class ActiveRagdoll {
         }
 
         // Y hacia arriba: el salto es velocidad positiva
-        if (input.up && this.framesGrounded > 5 && !this.isStunned()) {
+        if (input.jump && this.framesGrounded > 5 && !this.isStunned()) {
             // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
             const jumpPower = sticky ? JUMP_SPEED * STICKY.jump : JUMP_SPEED;
             for (const body of this.rag.bodies.values()) {
