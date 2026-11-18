@@ -124,6 +124,9 @@
             import { createParticleSystem } from "./js/particles.js";
             import {
                 WEAPONS,
+                PERSIST_MAX,
+                PERSIST_FLUIDS,
+                fluidFromColor,
                 SHOT_SYSTEM,
                 ShotEmitter,
                 cycleWeapon,
@@ -412,19 +415,33 @@
 
             // Partículas de disparos que salieron del mundo o son de un disparo vencido (charcos que se
             // secan). Los que caen al agua del nivel no se borran: Immersion los frena y los hace flotar.
+            // Las de armas `persist` (miel) no vencen, pero si pasan PERSIST_MAX se destruyen las más viejas
+            // (id de disparo menor). La del mapa (userData 0) ni vence ni cuenta.
+            const persistentes = [];
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
                 const tags = particleSystem.GetUserDataBuffer() >> 2;
                 const floor = damage.liveShotFloor;
+                const colors = Box2D.getPointer(particleSystem.GetColorBuffer());
                 const { minX, maxX, minY } = LEVEL.bounds;
+                persistentes.length = 0;
                 for (let i = 0; i < count; i++) {
                     const x = Box2D.HEAPF32[pos + i * 2];
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
                     const tag = Box2D.HEAP32[tags + i];
-                    const expired = tag > 0 && tag < floor;
+                    const persist = PERSIST_FLUIDS.has(fluidFromColor(Box2D.HEAPU8[colors + i * 4], Box2D.HEAPU8[colors + i * 4 + 1]));
+                    const expired = tag > 0 && tag < floor && !persist;
                     if (expired || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
                         particleSystem.DestroyParticle(i);
+                    } else if (persist && tag > 0) {
+                        persistentes.push(i);
+                    }
+                }
+                if (persistentes.length > PERSIST_MAX) {
+                    persistentes.sort((a, b) => Box2D.HEAP32[tags + a] - Box2D.HEAP32[tags + b]);
+                    for (let n = persistentes.length - PERSIST_MAX - 1; n >= 0; n--) {
+                        particleSystem.DestroyParticle(persistentes[n]);
                     }
                 }
             }
@@ -496,7 +513,7 @@
 
                 while (accumulator >= STEP_SETTINGS.dt) {
                     players.forEach((player, k) => {
-                        player.move(inputs[k]);
+                        player.move(inputs[k], STEP_SETTINGS.dt);
                         if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
@@ -549,6 +566,9 @@
                     match,
                     PLAYER_COLORS,
                     WEAPONS,
+                PERSIST_MAX,
+                PERSIST_FLUIDS,
+                fluidFromColor,
                     LEVEL.flood.start,
                 );
                 requestAnimationFrame(loop);

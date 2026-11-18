@@ -13,6 +13,12 @@ const SHORT_CIRCUIT_DPS = 3;
 const PUNCH_TIME = 0.55;
 const PUNCH_ACTIVE = [0.3, 0.5];
 const PUNCH_COOLDOWN = 0.6;
+// Pegado (miel, docs/design/04-fluidos.md): factores sobre la velocidad de caminar, el frenado sin input y el
+// salto; `down` es gravedad extra (m/s²) y `grace` los s que dura tras la última cercanía a la miel
+export const STICKY = { speed: 0.1, brake: 0.5, jump: 0.3, down: 10, grace: 0.3 };
+const WALK_SPEED = 6;
+const JUMP_SPEED = 9;
+const WALK_FRICTION = 0.85;
 
 // rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
 //        aimOffset: ángulo de reposo del arma relativo al padre, clips: { walk, walkBack, jump, dead, punch },
@@ -33,7 +39,8 @@ export class ActiveRagdoll {
 
         // Estados del jugador
         this.hp = 100;
-        this.honeyTimer = 0;
+        this.stickyTimer = 0; // s restantes de pegado
+        this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
         this.clipState = null;
@@ -108,7 +115,7 @@ export class ActiveRagdoll {
         this.hp = old.hp;
         this.weapon = old.weapon;
         this.tanks = old.tanks;
-        this.honeyTimer = old.honeyTimer;
+        this.stickyTimer = old.stickyTimer;
         this.framesGrounded = old.framesGrounded;
         this.jumping = old.jumping;
         this.flashes = old.flashes;
@@ -176,12 +183,61 @@ export class ActiveRagdoll {
         return this.wetTimer > 0;
     }
 
-    applyHoney() {
-        this.honeyTimer = 60;
+    // Lo pega al piso por miel (renueva el tiempo); lo dispara DamageSystem.process
+    stick() {
+        this.stickyTimer = STICKY.grace;
+    }
+
+    get sticky() {
+        return this.stickyTimer > 0;
+    }
+
+    countFixtures() {
+        let n = 0;
+        for (const body of this.rag.bodies.values()) {
+            for (let f = body.GetFixtureList(); Box2D.getPointer(f) !== 0; f = f.GetNext()) n++;
+        }
+        return n;
+    }
+
+    // [minX, minY, maxX, maxY] de cada fixture y, al final, de la caja que las une. Devuelve un buffer
+    // reutilizado (sin memoria nativa nueva) que vale hasta la próxima llamada
+    fixtureBoxes() {
+        const out = this.boxes;
+        let n = 0;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const body of this.rag.bodies.values()) {
+            for (let f = body.GetFixtureList(); Box2D.getPointer(f) !== 0; f = f.GetNext()) {
+                const aabb = f.GetAABB(0);
+                const lo = aabb.get_lowerBound();
+                const hi = aabb.get_upperBound();
+                const x0 = lo.get_x();
+                const y0 = lo.get_y();
+                const x1 = hi.get_x();
+                const y1 = hi.get_y();
+                out[n++] = x0;
+                out[n++] = y0;
+                out[n++] = x1;
+                out[n++] = y1;
+                if (x0 < minX) minX = x0;
+                if (y0 < minY) minY = y0;
+                if (x1 > maxX) maxX = x1;
+                if (y1 > maxY) maxY = y1;
+            }
+        }
+        out[n++] = minX;
+        out[n++] = minY;
+        out[n++] = maxX;
+        out[n++] = maxY;
+        return out;
     }
 
     // Estados con duración (quemaduras); una vez por paso fijo
     updateStatus(dt) {
+        if (this.stickyTimer > 0) this.stickyTimer = Math.max(0, this.stickyTimer - dt);
         for (const [bodyId, left] of this.burns) {
             this.hurt(bodyId, BURN_DPS * dt);
             if (left - dt <= 0) this.burns.delete(bodyId);
@@ -297,15 +353,16 @@ export class ActiveRagdoll {
 
     // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld.
     // input: { left, right, up } (ver Input.js); el salto es la dirección arriba
-    move(input) {
+    move(input, dt = 1 / 60) {
         if (this.dead) {
             if (this.clipState !== "dead") this.rag.clearAllOverrides();
             this.setClip("dead");
             return;
         }
 
-        let currentSpeed = this.honeyTimer > 0 ? 3 : 6;
-        if (this.honeyTimer > 0) this.honeyTimer--;
+        const sticky = this.sticky;
+        if (sticky) this.pull(STICKY.down * dt);
+        const currentSpeed = sticky ? WALK_SPEED * STICKY.speed : WALK_SPEED;
 
         const vel = this.torso.GetLinearVelocity();
         const velX = vel.get_x();
@@ -329,14 +386,14 @@ export class ActiveRagdoll {
             this.facing = 1;
             isMoving = true;
         } else {
-            const friction = this.honeyTimer > 0 ? 0.95 : 0.85;
+            const friction = sticky ? STICKY.brake : WALK_FRICTION;
             this.setVelocity(velX * friction, velY);
         }
 
         // Y hacia arriba: el salto es velocidad positiva
         if (input.up && this.framesGrounded > 5 && !this.isStunned()) {
             // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
-            const jumpPower = this.honeyTimer > 0 ? 3 : 9;
+            const jumpPower = sticky ? JUMP_SPEED * STICKY.jump : JUMP_SPEED;
             for (const body of this.rag.bodies.values()) {
                 this.scratch.set_x(body.GetLinearVelocity().get_x());
                 this.scratch.set_y(jumpPower);
@@ -358,6 +415,16 @@ export class ActiveRagdoll {
             this.setClip(backwards && this.rig.clips.walkBack ? "walkBack" : "walk");
         } else {
             this.setClip(null);
+        }
+    }
+
+    // Resta `dv` m/s a la velocidad vertical de todas las piezas (gravedad extra)
+    pull(dv) {
+        for (const body of this.rag.bodies.values()) {
+            const v = body.GetLinearVelocity();
+            this.scratch.set_x(v.get_x());
+            this.scratch.set_y(v.get_y() - dv);
+            body.SetLinearVelocity(this.scratch);
         }
     }
 
