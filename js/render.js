@@ -110,7 +110,7 @@ export function drawRobot(ctx, player, color, scale, now) {
     // Mojado: tinte cian que parpadea
     const wet = player.wet && !player.dead ? 0.35 + 0.35 * Math.sin(now * WET_BLINK_HZ * Math.PI * 2) : 0;
     // Pegado por miel: tinte ámbar que parpadea
-    const sticky = player.sticky && !player.dead ? 0.35 + 0.35 * Math.sin(now * STICKY_BLINK_HZ * Math.PI * 2) : 0;
+    const sticky = player.sticky && !player.dead ? 0.5 + 0.4 * Math.sin(now * STICKY_BLINK_HZ * Math.PI * 2) : 0;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5 / scale;
     for (const item of player.renderItems) {
