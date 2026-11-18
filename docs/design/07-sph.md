@@ -1,6 +1,6 @@
 # 7. Fluidos / SPH (LiquidFun)
 
-> **🔨 #62: se reemplaza por partes.** Esta sección describe lo que está hoy en `main`. El rediseño está en [14-agua](14-agua.md): el agua del nivel pasa a ser un campo de alturas (Saint-Venant 1D) y los disparos pasan a ser agua pura con radio 0,12 m, en un solo sistema líquido con identidad estable por slot. También se reemplazan el puente de §7.6 (#39), el parche del hueco de §7.4 (#45) y el agua del nivel y los presets de §7.5. Cada subsección se marca como reemplazada cuando se mergea su sub-issue.
+> **🔨 #62: se reemplaza por partes.** Esta sección describe lo que está hoy en `main`. El rediseño está en [14-agua](14-agua.md): el agua del nivel pasa a ser un campo de alturas (Saint-Venant 1D) y los disparos pasan a ser agua pura con radio 0,12 m, en un solo sistema líquido con identidad estable por slot. También se reemplazan el puente de §7.6 (#39), el parche del hueco de §7.4 (#45) y el agua del nivel y los presets de §7.5. Cada subsección se marca como reemplazada cuando se mergea su sub-issue. **✅ #71 (0.15.0):** ya no existe el agua del nivel en partículas (pileta e inundación son el campo de alturas), ni el puente de §7.6 (lo reemplaza `js/immersion.js`, [14.4](14-agua.md#144-absorción-e-inmersión--71)), ni el dibujo del agua del nivel de §7.4; lo que sigue vigente de §7.4 es el acercamiento del dibujo de las gotas de disparo a los cuerpos. Las partes de §7.2 a §7.6 sobre el agua del nivel quedan como historia.
 
 ## 7.1 Modelo
 

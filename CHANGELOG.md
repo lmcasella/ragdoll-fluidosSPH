@@ -5,6 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-18
+
+### Changed
+- La pileta y la inundación son agua con volumen y superficie continua: el nivel sube por conservación del agua que llueve, y las ondas viajan a la velocidad física. Las gotas que caen en ella se suman al agua.
+- La lava que cae al agua se hunde despacio a velocidad terminal y arrastra la corriente; el agua, el ácido y la miel que caen se vuelven parte del agua.
+- La lluvia sale del techo al caudal que pide la curva de la inundación (hasta 300 gotas/s) y se corta cuando el agua llega a 15 m. La que cae sobre una plataforma sigue como gotas hasta que escurre.
+- Las reglas de la pileta no cambian: el sensor mata y la pileta no moja antes de la inundación.
+- La miel que cae al piso o al agua deja de ser gotas y pasa a ser parte del agua: pega al robot que la pisa mientras sea la mitad o más del agua de esa zona.
+
 ## [0.14.0] - 2026-11-18
 
 ### Added
