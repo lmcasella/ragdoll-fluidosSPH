@@ -5,6 +5,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-19
+
+### Changed
+- La animación de caminar acompaña la velocidad real del robot: más lenta al frenar o al quedar pegado en miel.
 ## [0.10.3] - 2026-11-19
 
 ### Added
