@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-18
+
+### Changed
+- El chorro de agua, ácido, lava y miel se ve y se comporta como agua: las gotas son más grandes y pesadas y se esparcen al chocar, en vez de pegarse como un líquido espeso.
+- Caudales y tanques nuevos: agua 50 gotas/s con tanque de 150; ácido 45/s y 68; lava 30/s y 45; miel 25/s y 38. Cada tanque dura lo mismo que antes y el daño por segundo de cada arma no cambia.
+- Las gotas ya no rebotan contra paredes y robots.
+
 ## [0.11.7] - 2026-11-18
 
 ### Fixed

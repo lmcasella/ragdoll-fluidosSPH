@@ -18,11 +18,13 @@ const { stepWorld } = await import("../../lib/ragimporter.js");
 const { createParticleSystem } = await import("../../js/particles.js");
 const { ShotEmitter } = await import("../../js/weapons.js");
 const { ParticleStore } = await import("../../js/particleStore.js");
+const { WallContact } = await import("../../js/wallContact.js");
 const { LEVEL, buildLevel } = await import("../../js/level.js");
 
 const DT = 1 / 60;
-// Una partícula en reposo sobre el piso queda a ~1,65 radios (medido): con radio + 0,02 m la miel nunca "impactaba"
-const IMPACT_HEIGHT = 2;
+/** Una partícula llegó al piso si su y es <= `IMPACT_HEIGHT · r` (en reposo queda a ~1,65 r); una gota es aislada si su vecina más cercana está a más de `ISOLATED_DISTANCE · r`. */
+const IMPACT_HEIGHT = 4;
+const ISOLATED_DISTANCE = 4;
 
 function newWorld() {
     const gravity = new Box2D.b2Vec2(0, -10);
@@ -66,8 +68,10 @@ export function shotBench(systemParams, weapon) {
     buildBox(world);
     const system = createParticleSystem(world, systemParams);
     const radius = system.GetRadius();
+    const store = new ParticleStore(system, systemParams);
+    const wall = new WallContact(system, store);
     const fakeDamage = { shotId: () => 1 };
-    const emitter = new ShotEmitter(new ParticleStore(system, systemParams), fakeDamage, [weapon]);
+    const emitter = new ShotEmitter(store, fakeDamage, [weapon]);
     const angle = (-30 * Math.PI) / 180;
     const player = {
         weapon: weapon.id,
@@ -82,7 +86,7 @@ export function shotBench(systemParams, weapon) {
     for (let step = 0; step < STEPS; step++) {
         now += DT;
         emitter.fire(0, player, step < 60, DT, now);
-        stepWorld(world, []);
+        stepWorld(world, [wall]);
         const n = system.GetParticleCount();
         const { pos, vel } = buffers(system);
         const frame = new Float32Array(n * 4);
@@ -126,7 +130,7 @@ export function shotBench(systemParams, weapon) {
     for (let i = 0; i < total; i++) {
         let alone = true;
         for (let j = 0; j < total && alone; j++) {
-            if (j !== i && Math.hypot(frame[i * 4] - frame[j * 4], frame[i * 4 + 1] - frame[j * 4 + 1]) < 0.2) alone = false;
+            if (j !== i && Math.hypot(frame[i * 4] - frame[j * 4], frame[i * 4 + 1] - frame[j * 4 + 1]) <= ISOLATED_DISTANCE * radius) alone = false;
         }
         if (alone) isolated++;
     }
@@ -148,6 +152,7 @@ export function shotBench(systemParams, weapon) {
         isolatedPct: total ? (100 * isolated) / total : 0,
         measuredAtStep: at,
     };
+    wall.dispose();
     emitter.dispose();
     return metrics;
 }

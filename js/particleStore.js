@@ -3,7 +3,8 @@
  * es el único que llama a `CreateParticle` y `DestroyParticle` en ese sistema.
  * `DestroyParticle` deja una zombi que el motor compacta al principio del siguiente `Step`, y los índices
  * cambian. Por eso `userData` guarda solo `slot + 1` (el 0 es "sin slot") y el estado por partícula vive en
- * arreglos tipados indexados por slot. El slot de una destruida se libera en `afterStep()`.
+ * arreglos tipados indexados por slot (`vx`, `vy` guardan la velocidad del último subpaso para el contorno
+ * inelástico, `js/wallContact.js`). El slot de una destruida se libera en `afterStep()`.
  */
 
 /** Origen de cada partícula, para el dibujo y la limpieza. */
@@ -23,6 +24,8 @@ export class ParticleStore {
         this.kind = new Uint8Array(capacity);
         this.origin = new Uint8Array(capacity);
         this.shot = new Int32Array(capacity);
+        this.vx = new Float32Array(capacity);
+        this.vy = new Float32Array(capacity);
         this.free = new Int32Array(capacity);
         this.pending = new Int32Array(capacity);
         this.freeCount = capacity;
@@ -44,6 +47,9 @@ export class ParticleStore {
         this.kind[slot] = props.kind ?? 0;
         this.origin[slot] = props.origin ?? ORIGIN.SHOT;
         this.shot[slot] = props.shot ?? 0;
+        const vel = (Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2) + 2 * index;
+        this.vx[slot] = Box2D.HEAPF32[vel];
+        this.vy[slot] = Box2D.HEAPF32[vel + 1];
         return index;
     }
 

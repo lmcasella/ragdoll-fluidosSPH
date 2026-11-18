@@ -195,7 +195,7 @@ test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s;
     }
     j2Stuck ||= game.state.players[J2].sticky;
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
-    assert.ok(emitted >= 70, `emitió ${emitted}`);
+    assert.ok(emitted >= 35, `emitió ${emitted}`);
     game.frames(60 * 8);
     assert.equal(j2Stuck, true, "J2 quedó pegado");
     assert.equal(count(game, FLUID.HONEY, firstTag - 1), emitted, "toda la miel disparada sigue en el sistema");
@@ -213,7 +213,7 @@ test("la miel que cae al agua del nivel no se destruye y sigue ahí a los 8 s", 
     game.frames(90);
     game.setPad(0);
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
-    assert.ok(emitted >= 70);
+    assert.ok(emitted >= 35);
     game.frames(60 * 8);
     const inWater = (() => {
         const system = game.state.particleSystem;
@@ -234,7 +234,7 @@ test(`tope: con 375 partículas de miel disparadas quedan como mucho ${PERSIST_M
     players[0].weapon = FLUID.HONEY;
     let emitted = 0;
     game.setPad(0, { buttons: [A] });
-    for (let i = 0; i < 60 * 9 && emitted < 375; i++) {
+    for (let i = 0; i < 60 * 16 && emitted < 375; i++) {
         const tank = players[0].tanks.get(FLUID.HONEY);
         if (tank === 0) {
             emitted += weaponById(FLUID.HONEY).tank;

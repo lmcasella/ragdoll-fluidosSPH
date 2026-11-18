@@ -8,7 +8,7 @@ const { stepWorld } = await import("../lib/ragimporter.js");
 const { createParticleSystem } = await import("../js/particles.js");
 const { LEVEL } = await import("../js/level.js");
 const { SHOT_SYSTEM } = await import("../js/weapons.js");
-const { collectSurfaces, skinPosition } = await import("../js/render.js");
+const { collectSurfaces, skinPosition, PARTICLE_RADIUS } = await import("../js/render.js");
 
 const DRAW = LEVEL.pool.draw;
 const SECONDS = 8;
@@ -125,17 +125,17 @@ test("agua del nivel: el segundo círculo de contacto toca los cuerpos y las par
     assert.ok(overlap >= -0.05, `el agua se mete ${(-overlap).toFixed(3)} m bajo el cuerpo`);
 });
 
-test("disparos: el círculo dibujado (0,14 m) cubre la distancia al cuerpo, sin hueco", (t) => {
+test("disparos: el círculo dibujado (1,6 · radio) cubre la distancia al cuerpo, sin hueco", (t) => {
     const { radius, ...params } = SHOT_SYSTEM;
     const { system, box } = settledWater(radius, params, 0);
     const first = positions(system)
         .map(([x, y]) => distanceToSolids(x, y, box))
         .filter((d) => d < 0.3);
     const standoff = Math.min(...first);
-    t.diagnostic(`disparos: ${first.length} partículas junto a los cuerpos, distancia mínima ${standoff.toFixed(3)} m, dibujo 0.14 m`);
+    t.diagnostic(`disparos: ${first.length} partículas junto a los cuerpos, distancia mínima ${standoff.toFixed(3)} m, dibujo ${PARTICLE_RADIUS.toFixed(3)} m`);
     assert.ok(first.length >= 20);
     // Las partículas sueltas por encima de la fila de contacto no cuentan: se mide la fila más cercana
-    assert.ok(standoff < 0.14, `la fila de contacto queda a ${standoff.toFixed(3)} m`);
+    assert.ok(standoff <= PARTICLE_RADIUS + TOUCH, `la fila de contacto queda a ${standoff.toFixed(3)} m`);
 });
 
 test("robot en la pileta: el agua dibujada toca todas sus piezas", async (t) => {

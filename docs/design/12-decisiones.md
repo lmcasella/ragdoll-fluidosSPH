@@ -39,6 +39,7 @@
 | 18/11 | Conciliaciones del diseño | El borrado de `STATIC_PRESSURE` del agua del nivel es de #71, no de #69. #26 pasa a Canvas2D sin WebGL propio y solo para partículas. Los gases de #16 (fuego, viento) van en el sistema líquido único, con empuje en aire calculado en lugar de gravedad por sistema |
 | 18/11 | Caminar hacia atrás y apuntado | Arreglos provisorios en el juego (`walk_back`, cañón alineado). Lo definitivo depende de la librería: Gann4Life/RagAssembler2D#231 y #232 |
 | 18/11 | Gancho y controles | El gancho solo engancha el escenario (`hookRival` = `false`). Las plataformas atravesables usan `JSContactFilter` + `Fixture.Refilter()` sobre las piezas de la instancia, aceptado como excepción del contrato de RagImporter. Se aceptan los defaults: abajo + A salta fuera de una atravesable, el ragdoll (M5) entra y sale con un toque de Y y el respaldo de J2 de [10](10-controles.md) |
+| 18/11 | D8: contorno inelástico | El contacto partícula–cuerpo de LiquidFun rebota como un resorte (`e` ≈ 0,63). Se anula la velocidad normal saliente de cada partícula en contacto con un sólido, por subpaso, con el impulso opuesto sobre el cuerpo ([14 §14.6](14-agua.md#146-disparos-con-agua-pura)) |
 
 ## 12.2 Preguntas abiertas
 

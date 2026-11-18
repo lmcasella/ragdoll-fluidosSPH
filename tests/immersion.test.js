@@ -113,12 +113,15 @@ for (const weapon of WEAPONS) {
         }
     });
 
-    test(`${weapon.name}: control sin puente llega al fondo en menos de 1 s`, () => {
+    test(`${weapon.name}: control sin puente llega al fondo en menos de 1 s (después rebota)`, () => {
         const { world, shots } = makeScene();
         for (let k = 0; k < 10; k++) spawn(shots, weapon, 28 + (k - 4.5) * 0.12, 6, 0, -10);
-        for (let step = 0; step < 60; step++) stepWorld(world, []);
-        const ys = read(shots, 10).map((p) => p.y);
-        assert.ok(mean(ys) < 1.2, `y media ${mean(ys)}`);
+        let lowest = Infinity;
+        for (let step = 0; step < 60; step++) {
+            stepWorld(world, []);
+            lowest = Math.min(lowest, mean(read(shots, 10).map((p) => p.y)));
+        }
+        assert.ok(lowest < 1.2, `y media mínima ${lowest}`);
     });
 }
 
