@@ -81,3 +81,87 @@ test("el clic es action del J1 solo en un frame", () => {
     assert.equal(j2.action, false);
     assert.equal(input.poll()[0].action, false);
 });
+
+const padWith = (...pressed) => {
+    const p = pad();
+    for (const i of pressed) p.buttons[i].pressed = true;
+    return p;
+};
+
+test("fire del gamepad se mantiene en varios polls y action es solo el flanco", () => {
+    pads = [padWith(0)];
+    const first = input.poll()[0];
+    assert.equal(first.fire, true);
+    assert.equal(first.action, true);
+    for (let i = 0; i < 3; i++) {
+        const held = input.poll()[0];
+        assert.equal(held.fire, true);
+        assert.equal(held.action, false);
+    }
+    pads = [pad()];
+    assert.equal(input.poll()[0].fire, false);
+});
+
+test("RT también mantiene fire", () => {
+    pads = [padWith(7)];
+    input.poll();
+    const held = input.poll()[0];
+    assert.equal(held.fire, true);
+    assert.equal(held.action, false);
+});
+
+test("fire del teclado se mantiene mientras la tecla está apretada", () => {
+    emit("keydown", { code: "Space", preventDefault() {} });
+    const first = input.poll()[0];
+    assert.equal(first.fire, true);
+    assert.equal(first.action, true);
+    const held = input.poll()[0];
+    assert.equal(held.fire, true);
+    assert.equal(held.action, false);
+    emit("keyup", { code: "Space" });
+    assert.equal(input.poll()[0].fire, false);
+});
+
+test("el teclado del J2 dispara solo al J2", () => {
+    emit("keydown", { code: "Enter", preventDefault() {} });
+    const [j1, j2] = input.poll();
+    assert.equal(j1.fire, false);
+    assert.equal(j2.fire, true);
+    emit("keyup", { code: "Enter" });
+});
+
+test("el mouse mantenido da fire solo al J1 y mouseup lo apaga", () => {
+    emit("mousedown");
+    let [j1, j2] = input.poll();
+    assert.equal(j1.fire, true);
+    assert.equal(j2.fire, false);
+    [j1, j2] = input.poll();
+    assert.equal(j1.fire, true, "sigue apretado");
+    assert.equal(j1.action, false);
+    assert.equal(j2.fire, false);
+    emit("mouseup");
+    assert.equal(input.poll()[0].fire, false);
+});
+
+test("blur apaga el fire del mouse", () => {
+    emit("mousedown");
+    input.poll();
+    emit("blur");
+    assert.equal(input.poll()[0].fire, false);
+});
+
+test("soltar el teclado no apaga el fire del gamepad", () => {
+    pads = [padWith(0)];
+    emit("keydown", { code: "Space", preventDefault() {} });
+    input.poll();
+    emit("keyup", { code: "Space" });
+    assert.equal(input.poll()[0].fire, true);
+});
+
+test("soltar el mouse no apaga el fire del gamepad", () => {
+    pads = [padWith(0)];
+    emit("mousedown");
+    input.poll();
+    emit("mouseup");
+    assert.equal(input.poll()[0].fire, true);
+});
