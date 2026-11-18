@@ -75,7 +75,7 @@ test("el pointer es solo del J1", () => {
 });
 
 test("el clic es action del J1 solo en un frame", () => {
-    emit("mousedown");
+    emit("mousedown", { button: 0 });
     const [j1, j2] = input.poll();
     assert.equal(j1.action, true);
     assert.equal(j2.action, false);
@@ -131,7 +131,7 @@ test("el teclado del J2 dispara solo al J2", () => {
 });
 
 test("el mouse mantenido da fire solo al J1 y mouseup lo apaga", () => {
-    emit("mousedown");
+    emit("mousedown", { button: 0 });
     let [j1, j2] = input.poll();
     assert.equal(j1.fire, true);
     assert.equal(j2.fire, false);
@@ -139,12 +139,12 @@ test("el mouse mantenido da fire solo al J1 y mouseup lo apaga", () => {
     assert.equal(j1.fire, true, "sigue apretado");
     assert.equal(j1.action, false);
     assert.equal(j2.fire, false);
-    emit("mouseup");
+    emit("mouseup", { button: 0 });
     assert.equal(input.poll()[0].fire, false);
 });
 
 test("blur apaga el fire del mouse", () => {
-    emit("mousedown");
+    emit("mousedown", { button: 0 });
     input.poll();
     emit("blur");
     assert.equal(input.poll()[0].fire, false);
@@ -160,8 +160,31 @@ test("soltar el teclado no apaga el fire del gamepad", () => {
 
 test("soltar el mouse no apaga el fire del gamepad", () => {
     pads = [padWith(0)];
-    emit("mousedown");
+    emit("mousedown", { button: 0 });
     input.poll();
-    emit("mouseup");
+    emit("mouseup", { button: 0 });
     assert.equal(input.poll()[0].fire, true);
+});
+
+test("solo el botón principal del mouse dispara", () => {
+    emit("mousedown", { button: 2 });
+    let [j1] = input.poll();
+    assert.equal(j1.fire, false);
+    assert.equal(j1.action, false);
+    emit("mousedown", { button: 1 });
+    assert.equal(input.poll()[0].fire, false);
+});
+
+test("soltar otro botón del mouse no apaga el fire del botón principal", () => {
+    emit("mousedown", { button: 0 });
+    input.poll();
+    emit("mouseup", { button: 2 });
+    assert.equal(input.poll()[0].fire, true);
+});
+
+test("el menú contextual apaga el fire del mouse (se come el mouseup)", () => {
+    emit("mousedown", { button: 0 });
+    input.poll();
+    emit("contextmenu", { button: 2 });
+    assert.equal(input.poll()[0].fire, false);
 });

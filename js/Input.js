@@ -73,11 +73,16 @@ export class Input {
             this.mouseActive = true;
         });
         this.mouseHeld = false;
-        window.addEventListener("mousedown", () => {
+        window.addEventListener("mousedown", (e) => {
+            if (e.button !== 0) return; // solo el botón principal dispara
             this.mouseClicked = true;
             this.mouseHeld = true;
         });
-        window.addEventListener("mouseup", () => {
+        window.addEventListener("mouseup", (e) => {
+            if (e.button === 0) this.mouseHeld = false;
+        });
+        // El menú contextual se come el mouseup: sin esto el chorro quedaría trabado
+        window.addEventListener("contextmenu", () => {
             this.mouseHeld = false;
         });
         window.addEventListener("blur", () => {
