@@ -4,7 +4,7 @@ import { loadGame } from "./helpers/game.js";
 import { LEVEL } from "../js/level.js";
 
 /** Botón X del mapeo "standard": golpe. */
-const X = 2;
+const B = 1;
 
 /**
  * Carga el juego con los dos robots enfrentados a corta distancia en la isla izquierda, sin tocar los datos reales.
@@ -29,7 +29,7 @@ test("el golpe reproduce su clip, pega al rival cercano y lo aturde (reloj de si
     const game = await start(1.2);
     const [p1, p2] = game.state.players;
     const hp0 = p2.hp;
-    game.setPad(0, { buttons: [X], axes: [0, 0, 1, 0] });
+    game.setPad(0, { buttons: [B], axes: [0, 0, 1, 0] });
     game.frames(1);
     game.setPad(0, { axes: [0, 0, 1, 0] });
     let clipSeen = false;
@@ -55,7 +55,7 @@ test("después del golpe los dos brazos vuelven a apuntar (ninguno queda trabado
         game.setPad(0, { axes });
         game.frames(60);
         const before = shoulders();
-        game.setPad(0, { buttons: [X], axes });
+        game.setPad(0, { buttons: [B], axes });
         game.frames(1);
         game.setPad(0, { axes });
         game.frames(150);

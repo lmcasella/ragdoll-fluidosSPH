@@ -1,12 +1,19 @@
-// Teclas físicas (KeyboardEvent.code), independientes de la distribución del teclado
+/**
+ * Teclas físicas (KeyboardEvent.code), independientes de la distribución del teclado. `up` y `down` mueven en
+ * mantenido; `jump` es la tecla de salto (también `drop` si `down` está apretada).
+ */
 export const KEYBOARD_LAYOUTS = [
     {
         left: ["KeyA"],
         right: ["KeyD"],
         up: ["KeyW"],
         down: ["KeyS"],
-        action: ["Space"],
+        jump: ["KeyW"],
+        fire: ["Space"],
         punch: ["KeyF"],
+        grapple: ["KeyE"],
+        prevWeapon: ["KeyQ"],
+        nextWeapon: ["KeyR"],
         weapons: ["Digit1", "Digit2", "Digit3", "Digit4"],
     },
     {
@@ -14,38 +21,54 @@ export const KEYBOARD_LAYOUTS = [
         right: ["ArrowRight"],
         up: ["ArrowUp"],
         down: ["ArrowDown"],
-        action: ["Enter", "NumpadEnter"],
+        jump: ["ArrowUp"],
+        fire: ["Enter", "NumpadEnter"],
         punch: ["ShiftRight"],
+        grapple: ["Numpad0"],
+        prevWeapon: ["ControlRight"],
+        nextWeapon: ["NumpadAdd"],
         weapons: ["Numpad1", "Numpad2", "Numpad3", "Numpad4"],
     },
 ];
 
-// Mapeo "standard" de la Gamepad API
+/**
+ * Botones del mapeo "standard" de la Gamepad API. `weapons` es la cruceta en el orden de la posición en la tabla de
+ * armas: arriba 1, derecha 2, abajo 3, izquierda 4.
+ */
 const PAD = {
-    action: [0, 7], // A / RT
-    punch: 2, // X
-    prevWeapon: 4, // LB
-    nextWeapon: 5, // RB
-    up: 12,
-    down: 13,
-    left: 14,
-    right: 15,
+    jump: 0,
+    punch: 1,
+    grapple: 2,
+    prevWeapon: 4,
+    nextWeapon: 5,
+    fire: 7,
+    weapons: [12, 15, 13, 14],
 };
 const STICK_DEADZONE = 0.35;
 const AIM_DEADZONE = 0.4;
 
-// Estado por jugador, leído una vez por frame con poll():
-// { left, right, up, down, fire } mantenidos; action y punch (flanco) y weapon (1-4) o weaponStep (±1) del frame;
-// aim: dirección { x, y } del stick derecho (Y hacia arriba) o null;
-// pointer (solo J1): { x, y } del mouse en píxeles de pantalla mientras el mouse es la fuente de mira, o null.
-// fire es el botón de disparo mantenido (chorro); action es su flanco (menús, revancha).
-// El clic del mouse cuenta como fire y action del J1
+/** Umbral de `ly` para `drop`: más alto que la zona muerta para que caminar en diagonal no baje sin querer. */
+export const DROP_THRESHOLD = 0.6;
+
+/** Segundos máximos de LB (o su tecla) apretado para que al soltar cuente como toque corto (arma anterior). */
+export const TAP_MAX = 0.25;
+
+/**
+ * Estado por jugador, leído una vez por frame con poll():
+ * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`;
+ * - flancos del frame: `jump`, `drop`, `action`, `punch`, `weapon` (1-4 o null) y `weaponStep` (-1, 0 o +1);
+ * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null;
+ * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
+ * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `fire` es el disparo mantenido.
+ * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
+ */
 export class Input {
     constructor(playerCount) {
         this.layouts = KEYBOARD_LAYOUTS.slice(0, playerCount);
         this.held = new Set();
         this.pressed = new Set();
         this.prevButtons = [];
+        this.prevHold = this.layouts.map(() => null);
         this.states = this.layouts.map(() => ({}));
 
         const gameCodes = new Set(
@@ -63,8 +86,6 @@ export class Input {
         });
         window.addEventListener("blur", () => this.held.clear());
 
-        // Mouse: respaldo solo del J1. Es fuente de mira hasta que el stick derecho se use;
-        // después solo vuelve con un mousemove posterior.
         this.mousePos = null;
         this.mouseActive = false;
         this.mouseClicked = false;
@@ -73,25 +94,28 @@ export class Input {
             this.mouseActive = true;
         });
         this.mouseHeld = false;
+        this.mouseGrapple = false;
         window.addEventListener("mousedown", (e) => {
-            if (e.button !== 0) return; // solo el botón principal dispara
+            if (e.button === 2) this.mouseGrapple = true;
+            if (e.button !== 0) return;
             this.mouseClicked = true;
             this.mouseHeld = true;
         });
         window.addEventListener("mouseup", (e) => {
             if (e.button === 0) this.mouseHeld = false;
+            if (e.button === 2) this.mouseGrapple = false;
         });
-        // El menú contextual se come el mouseup: sin esto el chorro quedaría trabado
-        window.addEventListener("contextmenu", () => {
-            this.mouseHeld = false;
-        });
+        window.addEventListener("contextmenu", (e) => e.preventDefault());
         window.addEventListener("blur", () => {
             this.mouseHeld = false;
+            this.mouseGrapple = false;
         });
     }
 
-    poll() {
-        // Gamepads en orden de conexión: el primero es J1, el segundo J2
+    /**
+     * Lee teclado, mouse y gamepads. `now` (segundos) mide cuánto estuvo apretado LB para distinguir el toque corto.
+     */
+    poll(now = performance.now() / 1000) {
         const pads = navigator.getGamepads
             ? [...navigator.getGamepads()].filter(
                   (p) => p && p.connected,
@@ -107,8 +131,11 @@ export class Input {
                 right: isHeld(layout.right),
                 up: isHeld(layout.up),
                 down: isHeld(layout.down),
-                action: wasPressed(layout.action),
-                fire: isHeld(layout.action),
+                jump: wasPressed(layout.jump),
+                drop: false,
+                action: wasPressed(layout.fire),
+                fire: isHeld(layout.fire),
+                grapple: isHeld(layout.grapple),
                 punch: wasPressed(layout.punch),
                 weapon: null,
                 weaponStep: 0,
@@ -118,15 +145,34 @@ export class Input {
             layout.weapons.forEach((code, i) => {
                 if (this.pressed.has(code)) state.weapon = i + 1;
             });
+            let strongDown = isHeld(layout.down);
+            let prevHold = isHeld(layout.prevWeapon) || wasPressed(layout.prevWeapon);
+            if (wasPressed(layout.nextWeapon)) state.weaponStep = 1;
 
             const pad = pads[k];
-            if (pad) this.readPad(pad, k, state);
+            if (pad) {
+                const read = this.readPad(pad, k, state);
+                strongDown ||= read.strongDown;
+                prevHold ||= read.prevHold;
+            }
             if (k === 0) {
                 if (this.mouseClicked) state.action = true;
                 if (this.mouseHeld) state.fire = true;
-                // El stick usado en este poll gana sobre cualquier mousemove anterior o del mismo intervalo
+                if (this.mouseGrapple) state.grapple = true;
                 if (state.aim) this.mouseActive = false;
                 if (this.mouseActive) state.pointer = { ...this.mousePos };
+            }
+
+            if (state.jump && strongDown) {
+                state.jump = false;
+                state.drop = true;
+            }
+
+            const before = this.prevHold[k];
+            if (prevHold && before === null) this.prevHold[k] = now;
+            else if (!prevHold && before !== null) {
+                if (now - before < TAP_MAX) state.weaponStep = -1;
+                this.prevHold[k] = null;
             }
             this.states[k] = state;
         });
@@ -136,23 +182,32 @@ export class Input {
         return this.states;
     }
 
+    /**
+     * Combina el gamepad en `state` y devuelve lo que `poll` necesita aparte: si el stick izquierdo está
+     * fuertemente hacia abajo y si LB está apretado.
+     */
     readPad(pad, k, state) {
         const prev = this.prevButtons[k] ?? [];
         const down = (i) => pad.buttons[i]?.pressed ?? false;
         const edge = (i) => down(i) && !prev[i];
         const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
 
-        state.left ||= down(PAD.left) || lx < -STICK_DEADZONE;
-        state.right ||= down(PAD.right) || lx > STICK_DEADZONE;
-        state.up ||= down(PAD.up) || ly < -STICK_DEADZONE;
-        state.down ||= down(PAD.down) || ly > STICK_DEADZONE;
-        state.action ||= PAD.action.some(edge);
-        state.fire ||= PAD.action.some(down);
+        state.left ||= lx < -STICK_DEADZONE;
+        state.right ||= lx > STICK_DEADZONE;
+        state.up ||= ly < -STICK_DEADZONE;
+        state.down ||= ly > STICK_DEADZONE;
+        state.jump ||= edge(PAD.jump);
+        state.action ||= edge(PAD.jump) || edge(PAD.fire);
+        state.fire ||= down(PAD.fire);
+        state.grapple ||= down(PAD.grapple);
         state.punch ||= edge(PAD.punch);
-        if (edge(PAD.prevWeapon)) state.weaponStep = -1;
         if (edge(PAD.nextWeapon)) state.weaponStep = 1;
+        PAD.weapons.forEach((button, i) => {
+            if (edge(button)) state.weapon = i + 1;
+        });
         if (Math.hypot(rx, ry) > AIM_DEADZONE) state.aim = { x: rx, y: -ry };
 
         this.prevButtons[k] = pad.buttons.map((b) => b.pressed);
+        return { strongDown: ly > DROP_THRESHOLD, prevHold: down(PAD.prevWeapon) };
     }
 }

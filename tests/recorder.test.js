@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { loadGame } from "./helpers/game.js";
 import { recordGame } from "./helpers/recorder.js";
 
-const A = 0;
+const RT = 7;
 
 test("graba 60 frames con partículas, piezas y sólidos, y el JSON se relee entero", async () => {
     const game = await loadGame();
@@ -15,7 +15,7 @@ test("graba 60 frames con partículas, piezas y sólidos, y el JSON se relee ent
     game.setPad(1);
     game.frames(30);
     const recorder = recordGame(game, "chorro");
-    game.setPad(0, { buttons: [A] });
+    game.setPad(0, { buttons: [RT] });
     for (let i = 0; i < 60; i++) {
         game.frame();
         recorder.capture();
