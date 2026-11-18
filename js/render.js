@@ -378,20 +378,58 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
     return skinShift;
 }
 
-// `skin` = LEVEL.pool.draw ({ radius, snapReach, snapFullReach }): además del círculo en la posición real, las
-// partículas junto a un cuerpo suman un segundo círculo acercado a su superficie (ver skinPosition). Mover la
+const stroke = { dx: 0, dy: 0 };
+
+// Decide si una gota de lluvia se dibuja como trazo: rápida (>= draw.streakSpeed, m/s). Devuelve el vector del
+// trazo en metros (de la cabeza hacia atrás, opuesto a la velocidad) o null si va como círculo. Largo proporcional
+// a la rapidez (draw.streakScale, s) con tope draw.streakLength. Devuelve un objeto compartido: no se retiene.
+export function rainStroke(vx, vy, draw) {
+    const speed = Math.hypot(vx, vy);
+    if (speed < draw.streakSpeed) return null;
+    const length = Math.min(speed * draw.streakScale, draw.streakLength);
+    stroke.dx = (-vx / speed) * length;
+    stroke.dy = (-vy / speed) * length;
+    return stroke;
+}
+
+// `skin` = LEVEL.pool.draw ({ radius, snapReach, snapFullReach, streak* }): además del círculo en la posición real,
+// las partículas junto a un cuerpo suman un segundo círculo acercado a su superficie (ver skinPosition). Mover la
 // partícula en vez de duplicarla abría huecos en el agua donde estaba.
-export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null) {
+// `rain` = { ctx, mark }: las gotas con ese userData que vuelan rápido se dibujan como trazos en `rain.ctx`, un
+// canvas aparte sin el filtro goo (el desenfoque y el umbral borrarían una línea fina).
+export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, rain = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
     const posBase = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
+    let velBase = 0;
+    let markBase = 0;
+    let rctx = null;
+    if (rain) {
+        rctx = rain.ctx;
+        velBase = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
+        markBase = particleSystem.GetUserDataBuffer() >> 2;
+        rctx.lineWidth = skin.streakWidth;
+        rctx.lineCap = "round";
+    }
     for (let i = 0; i < count; i++) {
         const c = colorBase + i * 4;
-        ctx.fillStyle = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
+        const style = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         const x = positions[posBase + i * 2];
         const y = positions[posBase + i * 2 + 1];
+        if (rctx && Box2D.HEAP32[markBase + i] === rain.mark) {
+            const s = rainStroke(positions[velBase + i * 2], positions[velBase + i * 2 + 1], skin);
+            if (s) {
+                rctx.strokeStyle = style;
+                rctx.beginPath();
+                rctx.moveTo(x, y);
+                rctx.lineTo(x + s.dx, y + s.dy);
+                rctx.stroke();
+                continue;
+            }
+        }
+        ctx.fillStyle = style;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         if (skin) {
