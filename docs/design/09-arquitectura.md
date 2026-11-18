@@ -44,7 +44,7 @@ Previsto: un módulo de métricas (#29).
 | Dos robots, pileta (726 partículas) | ~1,4 ms (Node, 18/11) |
 | Dos robots, inundación al nivel máximo (4.430 partículas: 3.953 gotas + 477 de la pileta) | ~5,0 ms: `stepWorld` + `flood.step` + `damage.process` + `move`/`updateStatus` (Node, 300 frames, `tests/flood.test.js`) |
 | Ídem con #40 (presión estática en el agua del nivel; 4.368 partículas) | ~7,2 ms ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)) |
-| Ídem con #39 y los dos jugadores disparando al agua | *a medir* (meta ≤ 8 ms; `immersion.step` < 0,5 ms) |
+| Ídem con #39 ✅ y los dos jugadores disparando agua al agua (4.368 partículas de agua, hasta 476 disparos, ~225 sumergidos de media) | ~8,2 ms (8,9 con la suite en paralelo) de física y lógica por frame: `world.Step` 7,91 + `flood.step` 0,10 + `immersion.step` 0,135 (un paso por frame, 0,135 ms/paso) + `damage.process` 0,10 (Node, 300 frames, `tests/immersion.test.js`). El puente cuesta ~0,14 ms, dentro de lo estimado; la meta de 8 ms queda apenas superada por `world.Step`, no por el puente |
 
 El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 
