@@ -80,16 +80,17 @@
             <p>
                 <span class="highlight">1</span> Ácido (verde) ·
                 <span class="highlight">2</span> Lava (naranja) ·
-                <span class="highlight">3</span> Miel (amarillo)
+                <span class="highlight">3</span> Miel (amarillo) · mantener
+                el botón para el chorro (el tanque no se recarga)
             </p>
             <p>
                 <span class="highlight">Gamepad</span> stick izq. mover ·
-                arriba saltar · stick der. apuntar · A/RT disparar · X golpe ·
+                arriba saltar · stick der. apuntar · mantener A/RT para disparar · X golpe ·
                 LB/RB arma
             </p>
             <p>
                 <span class="highlight">Teclado J1</span> A/D · W · Espacio ·
-                F golpe · 1/2/3 · mouse apunta y dispara
+                F golpe · 1/2/3 · mouse apunta, clic mantenido dispara
             </p>
             <p>
                 <span class="highlight">Teclado J2</span> ←/→ · ↑ · Enter ·
@@ -117,11 +118,13 @@
             import { Match } from "./js/round.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip } from "./js/clips.js";
+            import { DamageSystem } from "./js/damage.js";
             import {
-                DamageSystem,
-                FLUID,
-                CONTACT_LISTENER_PARTICLE,
-            } from "./js/damage.js";
+                WEAPONS,
+                ShotEmitter,
+                cycleWeapon,
+                equipLoadout,
+            } from "./js/weapons.js";
             import {
                 buildRenderItems,
                 drawAimLaser,
@@ -133,10 +136,6 @@
             } from "./js/render.js";
 
             RagImporter.configure({ Box2D, PIXI });
-
-            const WATER_PARTICLE = 0;
-            const VISCOUS_PARTICLE = 1 << 5;
-            const TENSILE_PARTICLE = 1 << 7;
 
             const PIXELS_PER_METER = 40;
             const LASER_RANGE = 25;
@@ -238,11 +237,13 @@
             }
 
             function spawnRobot(spawn) {
-                return spawnRobotRaw(
+                const robot = spawnRobotRaw(
                     spawn.x,
                     spawnOnGround(robotRag.def, spawn.x),
                     spawn.flipX,
                 );
+                equipLoadout(robot);
+                return robot;
             }
 
             const players = LEVEL.spawns.map(spawnRobot);
@@ -253,12 +254,16 @@
             const psDef = new Box2D.b2ParticleSystemDef();
             psDef.set_radius(0.1);
             psDef.set_dampingStrength(0.2);
+            // Tope fijo y sin destrucción por edad: sin vencimientos en las partículas, el motor no la soporta
+            psDef.set_maxCount(1500);
+            psDef.set_destroyByAge(false);
             const particleSystem = world.CreateParticleSystem(psDef);
             Box2D.destroy(psDef);
 
             const damage = new DamageSystem(world, particleSystem);
             damage.killSensors = killSensors;
             damage.register(players);
+            const emitter = new ShotEmitter(particleSystem, damage, WEAPONS, raycaster);
             const match = new Match(players.length);
             const flood = new Flood(world, poolSystem);
 
@@ -271,6 +276,8 @@
                 });
                 damage.register(players);
                 flood.reset();
+                emitter.reset();
+                damage.resetShots();
                 for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
                     particleSystem.DestroyParticle(i);
                 }
@@ -330,13 +337,6 @@
                     return;
                 }
             }
-
-            const NOMBRES_ARMAS = ["Ácido", "Lava", "Miel"];
-            const ARMAS = {
-                [FLUID.ACID]: { flags: WATER_PARTICLE, color: [50, 255, 50] },
-                [FLUID.LAVA]: { flags: TENSILE_PARTICLE, color: [255, 80, 20] },
-                [FLUID.HONEY]: { flags: VISCOUS_PARTICLE, color: [255, 200, 50] },
-            };
 
             // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
             // solo si se movió después del último uso del stick), si no teclado (hacia donde se camina;
@@ -399,42 +399,6 @@
                 damage.register(players);
             }
 
-            function disparar(k) {
-                const player = players[k];
-                if (player.dead) return;
-                const muzzle = player.muzzle();
-                const arma = ARMAS[player.weapon];
-                const fuerzaDisparo = 20;
-                const radio = 0.25;
-                const offset = radio + 0.15;
-
-                const pgDef = new Box2D.b2ParticleGroupDef();
-                const shape = new Box2D.b2CircleShape();
-                const center = new Box2D.b2Vec2(
-                    muzzle.x + muzzle.dx * offset,
-                    muzzle.y + muzzle.dy * offset,
-                );
-                shape.set_m_p(center);
-                shape.set_m_radius(radio);
-                pgDef.set_shape(shape);
-                const velocity = new Box2D.b2Vec2(
-                    muzzle.dx * fuerzaDisparo,
-                    muzzle.dy * fuerzaDisparo,
-                );
-                pgDef.set_linearVelocity(velocity);
-                pgDef.set_flags(arma.flags | CONTACT_LISTENER_PARTICLE);
-                const color = new Box2D.b2ParticleColor(...arma.color, 255);
-                pgDef.set_color(color);
-
-                const group = particleSystem.CreateParticleGroup(pgDef);
-                damage.tagShot(group, k, player.weapon, performance.now() / 1000);
-                Box2D.destroy(color);
-                Box2D.destroy(velocity);
-                Box2D.destroy(center);
-                Box2D.destroy(shape);
-                Box2D.destroy(pgDef);
-            }
-
             function laserDe(player) {
                 if (player.dead) return null;
                 const m = player.muzzle();
@@ -446,11 +410,14 @@
                     : { x1: m.x, y1: m.y, x2, y2, hit: false };
             }
 
-            // Partículas de disparos que salieron del mundo o cayeron al agua (pileta o inundación). Los dos
-            // sistemas de partículas no interactúan entre sí: un disparo dentro del agua la atravesaría.
+            // Partículas de disparos que salieron del mundo, cayeron al agua (pileta o inundación) o son de un
+            // disparo vencido (charcos que se secan). Los dos sistemas de partículas no interactúan entre sí:
+            // un disparo dentro del agua la atravesaría.
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
+                const tags = particleSystem.GetUserDataBuffer() >> 2;
+                const floor = damage.liveShotFloor;
                 const { minX, maxX, minY } = LEVEL.bounds;
                 const pool = LEVEL.pool;
                 for (let i = 0; i < count; i++) {
@@ -458,7 +425,9 @@
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
                     const overPool = x > pool.x1 && x < pool.x2;
                     const inWater = y < Math.max(overPool ? pool.surface : -Infinity, flood.level);
-                    if (inWater || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
+                    const tag = Box2D.HEAP32[tags + i];
+                    const expired = tag > 0 && tag < floor;
+                    if (expired || inWater || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
                         particleSystem.DestroyParticle(i);
                     }
                 }
@@ -476,14 +445,21 @@
                 gooBlur.setAttribute("stdDeviation", String(sigma));
             }
 
+            // Reloj de simulación (s): avanza con el dt del frame por la escala de tiempo. Lo usan los disparos, el daño
+            // y los efectos, así una pestaña oculta no vence los charcos y la cámara lenta los alarga igual que a la física.
+            let simTime = 0;
             let accumulator = 0;
             let lastTime = performance.now();
             let firstFrame = true;
 
+            // Solo para las pruebas en Node (tests/helpers/game.js)
+            if (globalThis.__TEST_HOOKS__) {
+                globalThis.game = { players, particleSystem, damage, emitter, match };
+            }
+
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
-                const now = nowMs / 1000;
                 inputs = input.poll();
                 raycaster.count = 0;
 
@@ -491,6 +467,8 @@
                     reiniciarRonda();
                 }
                 accumulator += frameDt * match.timeScale;
+                simTime += frameDt * match.timeScale;
+                const now = simTime;
 
                 players.forEach((player, k) => {
                     const state = inputs[k];
@@ -503,14 +481,20 @@
                     }
                     player = players[k];
 
-                    if (state.weapon) player.weapon = state.weapon;
-                    if (state.weaponStep) {
-                        player.weapon =
-                            ((player.weapon - 1 + state.weaponStep + 3) % 3) +
-                            1;
+                    if (state.weapon && WEAPONS[state.weapon - 1]) {
+                        const id = WEAPONS[state.weapon - 1].id;
+                        if (player.tanks.has(id)) player.weapon = id;
                     }
+                    if (state.weaponStep) cycleWeapon(player, state.weaponStep);
                     if (state.punch) player.punch(now);
-                    else if (state.action && !player.isPunching(now)) disparar(k);
+                    // Con golpe en curso el emisor ve el botón suelto: al terminar, el chorro arranca como una pulsación nueva
+                    emitter.fire(
+                        k,
+                        player,
+                        state.fire && match.state === "playing" && !player.isPunching(now),
+                        frameDt * match.timeScale,
+                        now,
+                    );
                 });
 
                 while (accumulator >= STEP_SETTINGS.dt) {
@@ -522,7 +506,7 @@
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
                     stepWorld(world, instances);
                     damage.process(
-                        performance.now() / 1000,
+                        now,
                         match.hazardsActive ? flood.surfaceAt : -Infinity,
                     );
                     players.forEach((player, k) => golpear(k, now));
@@ -565,7 +549,7 @@
                     players,
                     match,
                     PLAYER_COLORS,
-                    NOMBRES_ARMAS,
+                    WEAPONS,
                     LEVEL.flood.start,
                 );
                 requestAnimationFrame(loop);

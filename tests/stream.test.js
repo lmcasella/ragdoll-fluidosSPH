@@ -1,0 +1,181 @@
+// Gameplay del chorro con tanque: el script de index.html con LiquidFun real y gamepads simulados
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { loadGame } from "./helpers/game.js";
+
+const A = 0;
+
+async function start() {
+    const game = await loadGame();
+    game.setPad(0);
+    game.setPad(1);
+    game.frames(30);
+    return game;
+}
+
+const tank = (game, k = 0) => game.state.players[k].tanks.get(game.state.players[k].weapon);
+
+test("mantener A 1 s emite el caudal del ácido y el tanque baja lo mismo", async () => {
+    const game = await start();
+    const { particleSystem, players } = game.state;
+    const before = particleSystem.GetParticleCount();
+    const full = tank(game);
+    game.setPad(0, { buttons: [A] });
+    game.frames(60);
+    const grown = particleSystem.GetParticleCount() - before;
+    const spent = full - tank(game);
+    console.log(`1 s de A: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 90)`);
+    assert.ok(Math.abs(spent - 90) <= 2, `tanque -${spent}`);
+    assert.ok(grown <= spent && grown >= spent - 3, `creció ${grown}`);
+    assert.equal(players[0].tanks.get(2), 90, "el resto del inventario conserva lo suyo");
+    assert.equal(players[1].tanks.get(1), 135, "el otro jugador no disparó");
+});
+
+test("mantener hasta vaciar: el tanque llega a 0 y deja de emitir", async () => {
+    const game = await start();
+    const { damage } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(120); // 135 partículas a 90 p/s: se vacía a los ~1,5 s
+    assert.equal(tank(game), 0);
+    const shotsOpened = damage.nextShot;
+    game.frames(60);
+    assert.equal(tank(game), 0);
+    assert.equal(damage.nextShot, shotsOpened, "no se abrió ningún disparo nuevo");
+});
+
+test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma sí", async () => {
+    const game = await start();
+    const { players, damage } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(120);
+    game.setPad(0);
+    game.frames(2);
+    const opened = damage.nextShot;
+    game.setPad(0, { buttons: [A] });
+    game.frames(10);
+    assert.equal(damage.nextShot, opened);
+    game.setPad(0, { buttons: [5] }); // RB: arma siguiente (lava)
+    game.frames(1);
+    game.setPad(0, { buttons: [A] });
+    game.frames(30);
+    assert.equal(players[0].weapon, 2);
+    assert.ok(players[0].tanks.get(2) < 90);
+});
+
+test("durante el golpe no sale chorro, y al terminar arranca como una pulsación nueva", async () => {
+    const game = await start();
+    const { players } = game.state;
+    game.setPad(0, { buttons: [A, 2] }); // A + X
+    game.frames(1);
+    const during = tank(game);
+    game.setPad(0, { buttons: [A] });
+    game.frames(28); // el golpe dura 0,55 s (33 frames)
+    assert.equal(tank(game), during, "sin chorro mientras pega");
+    game.frames(40);
+    assert.ok(tank(game) < during, "después del golpe, con A apretado, el chorro sigue");
+    assert.equal(players[0].tanks.get(2), 90);
+});
+test("un salto grande del reloj real sin frames no vence los disparos", async () => {
+    const game = await start();
+    const { damage, particleSystem } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(20);
+    game.setPad(0);
+    const shots = damage.shots.size;
+    const particles = particleSystem.GetParticleCount();
+    assert.ok(shots > 0 && particles > 0);
+    game.skipTime(30); // pestaña oculta
+    game.frames(1);
+    assert.equal(damage.shots.size, shots);
+    assert.ok(particleSystem.GetParticleCount() >= particles - 3, "los charcos siguen");
+});
+
+test("la cámara lenta alarga la vida de los disparos igual que a la física", async () => {
+    const game = await start();
+    const { damage, match } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(5);
+    game.setPad(0);
+    const first = damage.liveShotFloor;
+    match.state = "roundOver"; // timeScale 0,3 durante 1,5 s
+    match.timer = 3;
+    game.frames(60);
+    assert.equal(damage.liveShotFloor, first);
+});
+
+test("al reiniciar la ronda se olvidan los disparos", async () => {
+    const game = await start();
+    const { damage, particleSystem } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(20);
+    game.setPad(0);
+    assert.ok(damage.shots.size > 0);
+    finishRound(game);
+    assert.equal(game.state.match.round, 2);
+    assert.equal(damage.shots.size, 0);
+    assert.equal(damage.openShots.size, 0);
+    assert.equal(particleSystem.GetParticleCount(), 0);
+});
+// Termina la ronda matando al rival; devuelve cuando ya empezó la siguiente (o terminó la partida)
+function finishRound(game, loser = 1) {
+    game.state.players[loser].hp = 0;
+    game.frames(1);
+    assert.equal(game.state.match.state, "roundOver");
+    game.frames(190);
+}
+
+test("al empezar la ronda siguiente los tanques están llenos y el botón apretado no dispara hasta soltarlo", async () => {
+    const game = await start();
+    const { match, players } = game.state;
+    game.setPad(0, { buttons: [A] });
+    game.frames(30);
+    assert.ok(tank(game) < 135);
+    finishRound(game);
+    assert.equal(match.round, 2);
+    assert.equal(match.state, "playing");
+    assert.equal(tank(game), 135, "el robot nuevo trae el inventario lleno");
+    assert.equal(players[0].tanks.get(3), 75);
+    game.frames(30); // A sigue apretado desde la ronda anterior
+    assert.equal(tank(game), 135);
+    game.setPad(0);
+    game.frames(2);
+    game.setPad(0, { buttons: [A] });
+    game.frames(10);
+    assert.ok(tank(game) < 135);
+});
+
+test("la revancha con A funciona, no gasta el tanque y hay que soltar A antes de disparar", async () => {
+    const game = await start();
+    const { match, players } = game.state;
+    finishRound(game);
+    finishRound(game);
+    assert.equal(match.state, "matchOver");
+    assert.equal(match.matchWinner, 0);
+
+    game.setPad(0, { buttons: [A] });
+    game.frames(1);
+    assert.equal(match.state, "playing");
+    assert.equal(match.round, 1);
+    assert.deepEqual(match.wins, [0, 0]);
+    game.frames(40);
+    assert.equal(players[0].tanks.get(1), 135, "A de la revancha no dispara");
+    game.setPad(0);
+    game.frames(2);
+    game.setPad(0, { buttons: [A] });
+    game.frames(10);
+    assert.ok(players[0].tanks.get(1) < 135);
+});
+
+test("la revancha con Enter (J2) también funciona", async () => {
+    const game = await start();
+    const { match } = game.state;
+    finishRound(game);
+    finishRound(game);
+    assert.equal(match.state, "matchOver");
+    game.emit("keydown", { code: "Enter", preventDefault() {} });
+    game.frames(1);
+    assert.equal(match.state, "playing");
+    game.emit("keyup", { code: "Enter" });
+    game.frames(30);
+    assert.equal(game.state.players[1].tanks.get(1), 135);
+});

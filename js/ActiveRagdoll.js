@@ -38,7 +38,8 @@ export class ActiveRagdoll {
         this.jumping = false;
         this.clipState = null;
         this.facing = flipX ? -1 : 1;
-        this.weapon = 1;
+        this.weapon = 1; // id del arma equipada
+        this.tanks = new Map(); // id de arma → partículas que quedan; lo carga la raíz de composición
         this.flashes = new Map(); // bodyId → instante del último golpe (s)
         this.burns = new Map(); // bodyId → segundos de quemadura restantes
         this.drowned = false;
@@ -106,6 +107,7 @@ export class ActiveRagdoll {
     copyStateFrom(old) {
         this.hp = old.hp;
         this.weapon = old.weapon;
+        this.tanks = old.tanks;
         this.honeyTimer = old.honeyTimer;
         this.framesGrounded = old.framesGrounded;
         this.jumping = old.jumping;
