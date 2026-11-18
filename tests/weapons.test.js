@@ -21,7 +21,7 @@ test("la tabla de armas tiene los valores del diseño", () => {
     assert.deepEqual(row(FLUID.WATER), [100, 14, 0.035, 300, 0]);
     assert.deepEqual(row(FLUID.ACID), [90, 14, 0.035, 135, 20]);
     assert.deepEqual(row(FLUID.LAVA), [60, 10, 0.017, 90, 12]);
-    assert.deepEqual(row(FLUID.HONEY), [50, 8, 0.017, 75, 0]);
+    assert.deepEqual(row(FLUID.HONEY), [50, 18, 0.017, 75, 0]);
     assert.equal(WEAPONS[0].id, FLUID.WATER, "el agua es la primera fila");
     assert.deepEqual(WEAPONS[0].color, [90, 170, 255]);
     assert.deepEqual(WEAPONS.map((w) => w.id), LOADOUT.weapons);

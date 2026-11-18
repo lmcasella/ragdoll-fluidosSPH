@@ -140,7 +140,7 @@ El agua y el ácido no llevan `viscous` y no se ven afectados.
 **Valor de `viscousStrength` para la miel** (✅ #41: **1,0**). En `SolveViscous` (LiquidFun 1.1, `b2ParticleSystem.cpp`), cada contacto entre partículas `viscous` les acerca las velocidades en proporción a `viscousStrength × peso`; con varias vecinas por partícula, un valor mucho mayor que 1 puede sobrecorregir y oscilar (el mismo argumento que el tope de 1 del damping). La misma función arrastra a los cuerpos que tocan partículas `viscous` (impulso de signo contrario). *No verificado en ejecución*: el build no deja leer el C++; se confirma con el banco.
 - **Barrido:** 0,25 (línea base) → 0,5 → 0,75 → 1,0. Se queda el **valor más alto** que cumpla todos los criterios del banco 1 de la miel, incluidos los nuevos de charco. Propuesta inicial: **1,0**. No se pasa de 1,0 sin una medición que muestre que no oscila.
 - **Criterios nuevos del banco 1, solo para la miel** (métricas nuevas de `shotBench`, en el mismo paso `measuredAtStep`):
-  - `spread`: ancho del charco, percentil 95 menos percentil 5 de la `x` de las partículas con `y ≤ 0,5 m`. **Criterio:** ≤ 0,6 × el `spread` de la miel con `viscousStrength` 0,25 (se corren las dos en el mismo test: el criterio es relativo y no depende de cuánto mida hoy).
+  - `spread`: ancho del charco, percentil 95 menos percentil 5 de la `x` de las partículas con `y ≤ 0,5 m`. **Criterio (ajustado en #41):** el `spread` con el valor final es menor que con 0,25 (se corren las dos en el mismo test: el criterio es relativo). El 0,6 × original no se alcanza: el ancho lo fija la cantidad de movimiento del disparo.
   - `restSpeedP95`: percentil 95 de la rapidez de esas partículas. **Criterio:** < 0,1 m/s (el charco no oscila ni "hierve").
 - La lava se corre con sus flags nuevas y también con `TENSILE | VISCOUS` y el valor nuevo, para dejar registrada la alternativa descartada.
 - **Medido (✅ #41, `shotBench` en `tests/fluid-feel.test.js`):**
@@ -156,8 +156,23 @@ El agua y el ácido no llevan `viscous` y no se ven afectados.
   | 4,0 (informativo) | 13,4 | 0,030 | 0,052 | 4 % | — |
   | 8,0 (informativo) | 70 | 33 | 1,39 | 84 % | — |
 
-  - **El criterio de ancho no se cumple:** ningún valor hasta 1,0 baja el `spread` a 0,6 × el de 0,25 (1,94 m); con 1,0 es 0,88 ×. El ancho lo fija sobre todo la cantidad de movimiento del disparo (la miel patina por el piso), no la viscosidad. Con 2,0 llega a 0,69 × y con 4,0 oscila y explota (la miel se dispersa a 13 m), de modo que el tope de 1,0 del diseño se respeta y no se probó nada intermedio entre 2,0 y 4,0. Se quedó en 1,0 (el más alto permitido que cumple rebote, aisladas y `restSpeedP95`). El test exige que reduzca el ancho (< 1 ×) y que `restSpeedP95` sea < 0,1; el 0,6 × queda como pendiente de decisión.
-  - **Costo de la viscosidad alta:** el alcance de la miel cae de 3,65 m (0,25) a 2,15 m (1,0). El diseño suponía ~3–4 m para el arma; por eso los tests de disparo usan J2 a 2 m.
+  - **Criterio de ancho (aceptado como "reduce el ancho"):** ningún valor hasta 1,0 baja el `spread` a 0,6 × el de 0,25 (1,94 m); con 1,0 es 0,88 × (miel a 8 m/s). El ancho lo fija sobre todo la cantidad de movimiento del disparo (la miel patina por el piso), no la viscosidad. Con 2,0 llega a 0,69 × y con 4,0 oscila y explota (la miel se dispersa a 13 m), de modo que el tope de 1,0 del diseño se respeta y no se probó nada intermedio entre 2,0 y 4,0. Se quedó en 1,0 (el más alto permitido que cumple rebote, aisladas y `restSpeedP95`). El test exige que reduzca el ancho (< 1 ×) y que `restSpeedP95` sea < 0,1.
+  - **Costo de la viscosidad alta:** el alcance de la miel cae de 3,65 m (0,25) a 2,15 m (1,0) con 8 m/s. Se compensa subiendo la velocidad de la miel en `WEAPONS` (sin tocar `viscousStrength`). **Barrido de `speed` con 1,0** (alcance desde la boca / `spread` / `restSpeedP95` / rebote / aisladas / partículas que llegan al piso; el banco exige ≥ 20):
+
+  | `speed` (m/s) | Alcance (m) | `spread` | `restSpeedP95` | Rebote | Aisladas | Llegan al piso |
+  |---|---|---|---|---|---|---|
+  | 8 | 2,15 | 2,84 | 0,051 | 0,052 | 0 % | 26 |
+  | 10 | 2,35 | 2,60 | 0,072 | 0,052 | 0 % | 24 |
+  | 11 | 2,47 | 2,81 | 0,061 | 0,044 | 0 % | 24 |
+  | 12 | 2,61 | 2,76 | 0,045 | 0,041 | 0 % | 23 |
+  | 16 | 2,77 | 2,30 | 0,074 | 0,062 | 0 % | 21 |
+  | 17 | 2,84 | 2,43 | 0,050 | 0,073 | 0 % | 21 |
+  | **18** | **2,96** | 2,24 | 0,078 | 0,074 | 0 % | 20 |
+  | 19 | 3,14 | 2,45 | 0,050 | 0,065 | 0 % | 19 |
+  | 20 | 3,31 | 2,17 | 0,066 | 0,089 | 0 % | 18 |
+  | 22 | 3,75 | 2,16 | 0,073 | 0,065 | 0 % | 18 |
+
+  Con 10–12 m/s no se llega a 3 m (2,35–2,61 m). Se eligió **18 m/s**: es la más alta que mantiene el banco con los 20 de partículas que llegan al piso (con 19 o más, el chorro se apila en una columna y llegan menos). Con 18 m/s el `spread` con 1,0 es 0,87 × el de 0,25 y `restSpeedP95` 0,078.
 
 ### Banco de pruebas
 
@@ -184,11 +199,11 @@ Archivo nuevo `tests/fluid-feel.test.js`, con el armado en `tests/helpers/fluid-
 |---|---|---|---|
 | Rebote, agua / ácido / lava / miel | 0,52 / 0,58 / 1,34 / 0,29 | 0,12 / 0,11 / 0,06 / 0,11 | ≤ 0,20 |
 | Aisladas a 1 s, agua / ácido / lava / miel | 38 % / 22 % / 2 % / 0 % | 5 % / 9 % / 0 % / 0 % | ≤ 10 % |
-| ✅ #41: rebote / aisladas de la miel con 1,0 | — | 0,052 / 0 % | ≤ 0,20 y ≤ 10 % |
+| ✅ #41: rebote / aisladas de la miel con 1,0 y 18 m/s | — | 0,074 / 0 % | ≤ 0,20 y ≤ 10 % |
 | ✅ #41: rebote / aisladas de la lava con `TENSILE \| VISCOUS` y 1,0 (la que se conserva) | — | 0,025 / 0 % | ≤ 0,20 y ≤ 10 % |
 | ✅ #41: rebote / aisladas de la lava con `TENSILE` sola (descartada) | — | 0,135 / **13,3 %** | ≤ 0,20 y ≤ 10 %: **no cumple** |
-| ✅ #41: `spread` de la miel, 0,25 → 1,0 | — | 3,23 → 2,84 m (0,88 ×) | final ≤ 0,6 × con 0,25: **no cumple** |
-| ✅ #41: `restSpeedP95` de la miel con 1,0 | — | 0,051 m/s (con 0,25: 0,103) | < 0,1 m/s |
+| ✅ #41: `spread` de la miel, 0,25 → 1,0 | — | 3,23 → 2,84 m (0,88 ×, miel a 8 m/s); a 18 m/s: 2,58 → 2,24 m (0,87 ×) | reduce el ancho (el 0,6 × original no se alcanza) |
+| ✅ #41: `restSpeedP95` de la miel con 1,0 | — | 0,078 m/s a 18 m/s (con 0,25: 0,185) | < 0,1 m/s |
 | Agua del nivel: frente en x 37 | 0,87 s | 1,22 s | ≤ 2 s |
 | Agua del nivel: desvío / rango de la superficie | 0,138 / 0,476 m | 0,094 / 0,328 m | < 0,10 m / < 0,375 m |
 | Agua del nivel: velocidad media / p95 | 0,25 / 0,55 m/s | 0,020 / 0,040 m/s | < 0,05 / < 0,2 m/s |

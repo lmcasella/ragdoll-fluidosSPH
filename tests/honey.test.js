@@ -168,24 +168,27 @@ test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el 
     assert.ok(torso(game, J2).get_x() - x0 > 3, "camina normal de nuevo");
 });
 
-// J2 a 2 m de J1 (J1 mira a la derecha y J2 a la izquierda); los dos disparan a la vez. Con viscousStrength 1,0 la miel
-// llega a ~2,2 m de la boca (3,65 m con 0,25), por eso no a 3 m
-test("J1 dispara miel a J2 a ~2 m: J2 queda pegado, J1 no en los primeros 0,4 s; a los 8 s sigue toda la miel y nada del ácido", async () => {
+// J2 a 3 m de J1 (J1 mira a la derecha y J2 a la izquierda); los dos disparan a la vez
+test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s; a los 8 s sigue toda la miel y nada del ácido", async () => {
     const game = await start();
     const { players, damage } = game.state;
-    shift(game, J2, 7.5 + 2 - torso(game, J2).get_x());
+    shift(game, J2, 7.5 + 3 - torso(game, J2).get_x());
     game.frames(30);
     const firstTag = damage.nextShot;
     players[0].weapon = FLUID.HONEY;
     players[J2].weapon = FLUID.ACID;
     game.setPad(0, { buttons: [A] });
-    game.setPad(J2, { buttons: [A] });
+    game.setPad(J2, { buttons: [A], axes: [0, 0, -0.7, -0.7] }); // el ácido sale hacia arriba: no cruza el chorro de miel
     let j2Stuck = false;
     for (let i = 0; i < 24; i++) {
         game.frame();
-        if (i < 24) assert.equal(game.state.players[0].sticky, false, `J1 pegado en el frame ${i}`);
+        assert.equal(game.state.players[0].sticky, false, `J1 pegado en el frame ${i}`);
+        j2Stuck ||= game.state.players[J2].sticky;
     }
-    game.frames(66);
+    for (let i = 0; i < 66; i++) {
+        game.frame();
+        j2Stuck ||= game.state.players[J2].sticky;
+    }
     game.setPad(0);
     game.setPad(J2);
     for (let i = 0; i < 60; i++) {

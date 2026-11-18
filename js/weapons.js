@@ -32,7 +32,7 @@ export const WEAPONS = [
     { id: FLUID.WATER, name: "Agua", flags: PARTICLE.TENSILE, color: [90, 170, 255], rate: 100, speed: 14, spread: 0.035, tank: 300, dps: 0, immersion: { buoyancy: 1.0, drag: 10 } },
     { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.TENSILE, color: [50, 255, 50], rate: 90, speed: 14, spread: 0.035, tank: 135, dps: 20, immersion: { buoyancy: 0.95, drag: 10 } },
     { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.TENSILE | PARTICLE.VISCOUS, color: [255, 80, 20], rate: 60, speed: 10, spread: 0.017, tank: 90, dps: 12, immersion: { buoyancy: 0.38, drag: 6 } },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 50, speed: 8, spread: 0.017, tank: 75, dps: 0, persist: true, immersion: { buoyancy: 0.7, drag: 14 } },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 50, speed: 18, spread: 0.017, tank: 75, dps: 0, persist: true, immersion: { buoyancy: 0.7, drag: 14 } },
 ];
 
 // Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
