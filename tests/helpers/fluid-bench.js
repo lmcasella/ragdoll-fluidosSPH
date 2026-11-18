@@ -67,9 +67,10 @@ export function shotBench(systemParams, weapon) {
     buildBox(world);
     const system = createParticleSystem(world, systemParams);
     const radius = system.GetRadius();
-    const wall = new WallContact(system);
+    const store = new ParticleStore(system, systemParams);
+    const wall = new WallContact(system, store);
     const fakeDamage = { shotId: () => 1 };
-    const emitter = new ShotEmitter(new ParticleStore(system, systemParams), fakeDamage, [weapon]);
+    const emitter = new ShotEmitter(store, fakeDamage, [weapon]);
     const angle = (-30 * Math.PI) / 180;
     const player = {
         weapon: weapon.id,

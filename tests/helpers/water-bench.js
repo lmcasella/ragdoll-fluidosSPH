@@ -88,8 +88,8 @@ function positionsOf(system) {
  * Contorno inelástico del juego (`js/wallContact.js`) para `system`: todos los bancos lo usan igual que la raíz de
  * composición, como pseudo-instancia de `stepWorld`.
  */
-function wallFor(system) {
-    return new WallContact(system);
+function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {
+    return new WallContact(system, store);
 }
 
 /**
@@ -204,7 +204,7 @@ export function jetBench(weapon, { emit = 0.5, makeRecorder = null } = {}) {
     const world = newWorld();
     const muzzle = { x: 0, y: 12, dx: 1, dy: 0 };
     const { system, store, emitter, player } = emitterOn(world, weapon, muzzle);
-    const wall = wallFor(system);
+    const wall = wallFor(system, store);
     const recorder = makeRecorder?.({ system, store });
     const births = new Map();
     const clock = { step: 0 };
@@ -356,7 +356,7 @@ export function plateBench(weapon, { gap = 1, from = 1, to = 2, makeRecorder = n
     Box2D.destroy(at);
 
     const { system, store, emitter, player } = emitterOn(world, weapon, muzzle);
-    const wall = wallFor(system);
+    const wall = wallFor(system, store);
     const recorder = makeRecorder?.({ system, store, plate });
     const invDt = 8 / DT;
     let sum = 0;

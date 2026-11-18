@@ -1,8 +1,11 @@
 /**
  * Contorno inelástico partícula–cuerpo (docs/design/14-agua.md §14.6). LiquidFun resuelve el contacto con una
- * presión de penalización que actúa como resorte y devuelve la gota con e ≈ 0,6. En cada subpaso se anula la
- * componente normal saliente de la velocidad relativa de cada partícula en contacto, `v ← v − max(0, (v − v_b)·n) n`,
- * y el cuerpo dinámico recibe el impulso opuesto en el punto de contacto, así que se conserva el momento.
+ * presión de penalización que actúa como resorte y devuelve la gota con e ≈ 0,6. En cada subpaso, la componente
+ * normal saliente de la velocidad relativa `u_n = (v − v_b)·n` de cada partícula del store en contacto pasa a
+ * `min(u_n, max(0, u_n,antes))`, con `u_n,antes` la velocidad guardada por slot al final del subpaso anterior (o la
+ * de emisión): quita el rebote sin frenar a la gota que nace saliendo del sólido. El cuerpo dinámico recibe el
+ * impulso opuesto en el punto de contacto, así que se conserva el momento. Las partículas fuera del store no se
+ * corrigen.
  * Es un objeto con `update(substep)` para la lista de instancias de `stepWorld`; no crea objetos nativos por
  * subpaso.
  */
@@ -17,9 +20,11 @@ const DYNAMIC = 2;
 export class WallContact {
     /**
      * @param {*} system `b2ParticleSystem` cuyas partículas se corrigen.
+     * @param {*} store `ParticleStore` del sistema: solo se corrigen sus partículas y guarda la velocidad previa.
      */
-    constructor(system) {
+    constructor(system, store) {
         this.system = system;
+        this.store = store;
         this.offset = DEFAULT_OFFSET;
         this.stale = false;
         this.point = new Box2D.b2Vec2(0, 0);
@@ -65,22 +70,50 @@ export class WallContact {
      * @param {number} substep Duración del subpaso en segundos (no se usa: la corrección es instantánea).
      */
     update(substep) {
-        if (this.stale) {
-            this.stale = false;
-            return;
+        const vel = Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2;
+        if (this.stale) this.stale = false;
+        else this.correct(vel);
+        this.record(vel);
+    }
+
+    /**
+     * Guarda en el store la velocidad de cada partícula viva, para usarla como `u_n,antes` en el próximo subpaso.
+     * @param {number} vel Índice (en palabras) del buffer de velocidades.
+     */
+    record(vel) {
+        const heapF = Box2D.HEAPF32;
+        const heapI = Box2D.HEAP32;
+        const marks = this.system.GetUserDataBuffer() >> 2;
+        const store = this.store;
+        const n = this.system.GetParticleCount();
+        for (let i = 0; i < n; i++) {
+            const slot = heapI[marks + i] - 1;
+            if (slot < 0 || slot >= store.capacity) continue;
+            store.vx[slot] = heapF[vel + 2 * i];
+            store.vy[slot] = heapF[vel + 2 * i + 1];
         }
+    }
+
+    /**
+     * Aplica la corrección `u_n ← min(u_n, max(0, u_n,antes))` a las partículas del store en contacto.
+     * @param {number} vel Índice (en palabras) del buffer de velocidades.
+     */
+    correct(vel) {
         const contacts = this.bodyContacts();
         if (!contacts) return;
         const { words, count } = contacts;
-        const vel = Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2;
         const pos = Box2D.getPointer(this.system.GetPositionBuffer()) >> 2;
         const heapI = Box2D.HEAP32;
         const heapF = Box2D.HEAPF32;
+        const marks = this.system.GetUserDataBuffer() >> 2;
+        const store = this.store;
         const n = this.system.GetParticleCount();
         for (let c = 0; c < count; c++) {
             const w = words + c * BODY_CONTACT_WORDS;
             const index = heapI[w];
             if (index >= n) continue;
+            const slot = heapI[marks + index] - 1;
+            if (slot < 0 || slot >= store.capacity) continue;
             const nx = -heapF[w + 4];
             const ny = -heapF[w + 5];
             const body = Box2D.wrapPointer(heapI[w + 1], Box2D.b2Body);
@@ -100,11 +133,13 @@ export class WallContact {
             const vx = heapF[vel + 2 * index];
             const vy = heapF[vel + 2 * index + 1];
             const out = (vx - bx) * nx + (vy - by) * ny;
-            if (out <= 0) continue;
-            heapF[vel + 2 * index] = vx - out * nx;
-            heapF[vel + 2 * index + 1] = vy - out * ny;
+            const before = (store.vx[slot] - bx) * nx + (store.vy[slot] - by) * ny;
+            const cut = out - Math.min(out, Math.max(0, before));
+            if (cut <= 0) continue;
+            heapF[vel + 2 * index] = vx - cut * nx;
+            heapF[vel + 2 * index + 1] = vy - cut * ny;
             if (dynamic) {
-                const j = heapF[w + 6] * out;
+                const j = heapF[w + 6] * cut;
                 this.impulse.set_x(j * nx);
                 this.impulse.set_y(j * ny);
                 body.ApplyLinearImpulse(this.impulse, this.point, true);

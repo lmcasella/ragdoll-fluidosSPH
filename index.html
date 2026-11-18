@@ -271,7 +271,7 @@
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
             const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
-            const wallContact = new WallContact(particleSystem);
+            const wallContact = new WallContact(particleSystem, store);
             instances.push(wallContact);
 
             const damage = new DamageSystem(world, store);
