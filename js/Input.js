@@ -36,7 +36,9 @@ const AIM_DEADZONE = 0.4;
 
 // Estado por jugador, leído una vez por frame con poll():
 // { left, right, up, down } mantenidos; action y punch (flanco) y weapon (1-3) o weaponStep (±1) del frame;
-// aim: dirección { x, y } del stick derecho (Y hacia arriba) o null
+// aim: dirección { x, y } del stick derecho (Y hacia arriba) o null;
+// pointer (solo J1): { x, y } del mouse en píxeles de pantalla mientras el mouse es la fuente de mira, o null.
+// El clic del mouse cuenta como action del J1 (flanco)
 export class Input {
     constructor(playerCount) {
         this.layouts = KEYBOARD_LAYOUTS.slice(0, playerCount);
@@ -59,6 +61,19 @@ export class Input {
             this.held.delete(e.code);
         });
         window.addEventListener("blur", () => this.held.clear());
+
+        // Mouse: respaldo solo del J1. Es fuente de mira hasta que el stick derecho se use;
+        // después solo vuelve con un mousemove posterior.
+        this.mousePos = null;
+        this.mouseActive = false;
+        this.mouseClicked = false;
+        window.addEventListener("mousemove", (e) => {
+            this.mousePos = { x: e.clientX, y: e.clientY };
+            this.mouseActive = true;
+        });
+        window.addEventListener("mousedown", () => {
+            this.mouseClicked = true;
+        });
     }
 
     poll() {
@@ -83,6 +98,7 @@ export class Input {
                 weapon: null,
                 weaponStep: 0,
                 aim: null,
+                pointer: null,
             };
             layout.weapons.forEach((code, i) => {
                 if (this.pressed.has(code)) state.weapon = i + 1;
@@ -90,10 +106,17 @@ export class Input {
 
             const pad = pads[k];
             if (pad) this.readPad(pad, k, state);
+            if (k === 0) {
+                if (this.mouseClicked) state.action = true;
+                // El stick usado en este poll gana sobre cualquier mousemove anterior o del mismo intervalo
+                if (state.aim) this.mouseActive = false;
+                if (this.mouseActive) state.pointer = { ...this.mousePos };
+            }
             this.states[k] = state;
         });
 
         this.pressed.clear();
+        this.mouseClicked = false;
         return this.states;
     }
 
