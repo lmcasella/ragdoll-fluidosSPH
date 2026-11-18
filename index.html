@@ -127,6 +127,7 @@
             import { DamageSystem } from "./js/damage.js";
             import { createParticleSystem } from "./js/particles.js";
             import { ParticleStore } from "./js/particleStore.js";
+            import { WallContact } from "./js/wallContact.js";
             import {
                 WEAPONS,
                 PERSIST_MAX,
@@ -270,6 +271,8 @@
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
             const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
+            const wallContact = new WallContact(particleSystem);
+            instances.push(wallContact);
 
             const damage = new DamageSystem(world, store);
             damage.killSensors = killSensors;
@@ -286,6 +289,7 @@
                     players[k] = spawnRobot(LEVEL.spawns[k]);
                     instances[k] = players[k].rag;
                 });
+                wallContact.invalidate();
                 damage.register(players);
                 flood.reset();
                 immersion.reset();
@@ -407,6 +411,7 @@
                 nuevo.copyStateFrom(player);
                 players[k] = nuevo;
                 instances[k] = nuevo.rag;
+                wallContact.invalidate();
                 damage.register(players);
             }
 
@@ -479,7 +484,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, players, particleSystem, poolSystem, store, flood, damage, emitter, match, immersion };
+                globalThis.game = { world, players, particleSystem, poolSystem, store, wallContact, flood, damage, emitter, match, immersion };
             }
 
             function loop(nowMs) {

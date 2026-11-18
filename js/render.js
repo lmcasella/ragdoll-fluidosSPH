@@ -1,3 +1,5 @@
+import { SHOT_SYSTEM } from "./weapons.js";
+
 // Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 
@@ -12,8 +14,8 @@ const SPARKS_PER_FRAME = 3;
 const SPARK_SEGMENTS = 3;
 const SPARK_SEGMENT_LENGTH = 0.3; // m; con 0,12 m quedaban dentro del cuerpo y no se veían al zoom de juego
 const SPARK_COLORS = ["#fff27a", "#e8ffff"];
-// Algo mayor que el radio físico (0,1 m) para que el filtro goo una las gotas vecinas
-const PARTICLE_RADIUS = 0.14;
+/** 1,6 veces el radio del sistema (0,192 m): cubre la distancia a la que el contorno deja la primera fila contra un cuerpo y une las gotas en el filtro goo. */
+export const PARTICLE_RADIUS = 1.6 * SHOT_SYSTEM.radius;
 // m que el agua acercada se mete bajo la superficie del cuerpo para que no quede una línea de fondo entre los dos
 const SKIN_OVERLAP = 0.02;
 

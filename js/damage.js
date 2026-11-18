@@ -13,7 +13,6 @@ const IMPACT_COOLDOWN = 0.25;
 const SELF_IMMUNITY = 0.4; // s en que un disparo no daña a quien lo disparó
 const SHOT_SLICE = 0.1; // s que dura un id de disparo abierto
 const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se destruyen
-const HONEY_REACH = 0.02; // m que la caja de una fixture se agranda, además del radio de la partícula
 
 export class DamageSystem {
     constructor(world, store, weapons = WEAPONS) {
@@ -139,7 +138,7 @@ export class DamageSystem {
 
     /**
      * Pega a todo robot vivo que tenga el centro de una partícula de miel dentro de alguna de sus cajas agrandadas
-     * `radio + HONEY_REACH`. No encola ni destruye nada: la miel sigue ahí. Una partícula sin tramo vivo (la de más de
+     * `2 · radio`: la miel en reposo queda a un radio de la pieza con el contorno inelástico. No encola ni destruye nada: la miel sigue ahí. Una partícula sin tramo vivo (la de más de
      * 6 s o la del mapa) pega a cualquiera; la propia, dentro de la gracia de SELF_IMMUNITY, no pega a su dueño.
      */
     stickHoney(now) {
@@ -149,7 +148,7 @@ export class DamageSystem {
         const players = this.players;
         if (count === 0 || players.length === 0) return;
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-        const pad = system.GetRadius() + HONEY_REACH;
+        const pad = 2 * system.GetRadius();
         const boxes = this.honeyBoxes;
         boxes.length = 0;
         for (const player of players) boxes.push(player.dead ? null : player.fixtureBoxes());
