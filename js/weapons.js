@@ -17,7 +17,7 @@ export const SHOT_SYSTEM = {
     gravityScale: 1,
     dampingStrength: 1.0,
     pressureStrength: 0.005,
-    viscousStrength: 0.25,
+    viscousStrength: 1.0,
     surfaceTensionPressureStrength: 0,
     surfaceTensionNormalStrength: 0,
 };
