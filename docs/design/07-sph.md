@@ -69,6 +69,13 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - Se acumulan los kernels de las partículas en una textura y un shader aplica umbral, borde, brillo y sombreado por densidad.
   - Un color por fluido, con brillo propio en lava y fuego.
   - Va en GPU (WebGL, PIXI ya está cargado) y reemplaza al filtro SVG.
+- **Lluvia en vuelo** ✅ #44: una gota con la marca de lluvia (−1) y rapidez ≥ `streakSpeed` se dibuja como un **trazo fino** y no como círculo.
+  - **Forma:** una línea desde la posición de la gota hacia atrás, opuesta a su velocidad. Largo = `min(rapidez · streakScale, streakLength)`; ancho `streakWidth`. La decisión es `rainStroke(vx, vy, draw)` en `js/render.js`, función pura y testeada (`tests/rain-streak.test.js`).
+  - **Datos** en `LEVEL.pool.draw`: `streakSpeed` 6 m/s, `streakScale` 0,05 s, `streakLength` 0,7 m, `streakWidth` 0,05 m. Las gotas más lentas y toda la pileta siguen como círculos y se funden con el agua.
+  - **Canvas aparte** (`streakCanvas`, sin filtro goo): el desenfoque y el umbral del goo borran una línea de 0,05 m. Va encima del canvas de fluidos.
+  - **Memoria nativa:** lee velocidades y marcas de `HEAPF32` y `HEAP32`; no crea nada nativo por frame.
+  - **Costo** (Chromium headless, 1280x720, inundación con `maxRate` 1.500, unas 660 partículas): dibujar el agua del nivel pasa de 0,61 ms (media, p95 0,9) a 0,57 ms (p95 0,8) por frame; no hay diferencia medible.
+  - Para #26: las gotas en vuelo quedan fuera del campo metaball y se siguen dibujando como estos trazos.
 - **Hueco agua-cuerpo** ✅ #45:
   - **Medición** (LiquidFun real, paso fijo del juego, agua en reposo contra piso, pared y una caja dinámica; 	ests/water-gap.test.js): el centro de las partículas de la primera fila queda a **0,46 m** de la superficie de cualquier cuerpo (1,85 radios físicos de 0,25 m), igual contra el piso estático que contra una pieza dinámica del robot. Con el círculo dibujado de 0,28 m el borde queda a **0,18 m** del cuerpo.
   - **Causa**: es física del motor, no del dibujo ni de las fixtures (el robot se dibuja con sus fixtures reales). El contacto partícula-cuerpo de LiquidFun empuja hasta una distancia de ~0,9 diámetros. Se probaron pressureStrength (0,001 a 0,5), staticPressure*, damping, iscous, density, jection, epulsive, strictContactCheck y gravityScale: la distancia queda entre 0,37 y 0,50 m (solo baja a 0,29-0,32 m con pressureStrength 0,001, que vuelve el agua compresible y rompe el banco de #40). No hay un parámetro que la acerque sin cambiar el radio.
