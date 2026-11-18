@@ -16,9 +16,12 @@ Partículas de sistemas distintos **no interactúan entre sí**, solo con los cu
 | Sistema | Contenido | Radio | Gravedad | Vida | Estado |
 |---|---|---|---|---|---|
 | Disparos (líquidos) | Agua, ácido, lava, miel | 0,1 m | 1 | Ilimitada | ✅ |
-| Pileta | Agua de la pileta | 0,2 m (726 partículas) | 1 | Ilimitada | ✅ |
+| Agua del nivel | Pileta ✅ y lluvia de la inundación 🔨 #22 | Hoy 0,2 m (726 partículas); con #22, 0,25 m y `maxCount` 5.500 | 1 | Ilimitada | ✅ / 🔨 #22 |
 | Gases | Fuego, viento, vapor | — | Negativa o 0 | Corta (*verificado*: `set_lifetime` del grupo) | 🔨 #16 |
-| Inundación | Lluvia que llena el mapa | ~0,25 m | 1 | Ilimitada | 🔨 #22 |
+
+La lluvia comparte sistema con la pileta para que **suba el agua de la pileta**: si fuera un sistema aparte, las gotas atravesarían el agua de la pileta y quedarían superpuestas en el fondo. Se distinguen por la marca de `userData` (lluvia ≠ 0).
+
+**Bindings verificados para la inundación** (lectura de `vendor/liquidfun.js`, 18/11): `b2ParticleSystem.CreateParticle(b2ParticleDef)`; `b2ParticleDef` con `set_position`, `set_velocity`, `set_color`, `set_flags`, `set_userData`; `b2ParticleSystemDef.set_maxCount` y `b2ParticleSystem.SetMaxParticleCount`; `SetPaused`/`GetPaused`; `DestroyParticlesInShape`; `GetVelocityBuffer`. **No** está `GetBodyContactCount` (ver [04-fluidos](04-fluidos.md#cortocircuito-regla-compartida--22)). Falta probar en ejecución que `CreateParticle` devuelve un índice negativo al llegar a `maxCount`: el emisor no depende de eso, porque controla su propio tope.
 
 ## 7.3 Técnicas usadas
 
