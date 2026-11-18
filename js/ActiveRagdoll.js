@@ -59,6 +59,7 @@ export class ActiveRagdoll {
         this.burns = new Map(); // bodyId → segundos de quemadura restantes
         this.drowned = false;
         this.wetTimer = 0; // s restantes de cortocircuito
+        this.now = 0;
         this.punchStart = -Infinity;
         this.punchReadyAt = 0;
         this.punchHit = false;
@@ -69,7 +70,7 @@ export class ActiveRagdoll {
     }
 
     // Cayó a la pileta: cortocircuito total
-    drown(now = performance.now() / 1000) {
+    drown(now = this.now) {
         if (this.dead) return;
         this.drowned = true;
         this.hp = 0;
@@ -77,7 +78,7 @@ export class ActiveRagdoll {
     }
 
     // Inicia un golpe si no está en enfriamiento; el clip `punch` toma los brazos (se sueltan los overrides de mira)
-    punch(now = performance.now() / 1000) {
+    punch(now = this.now) {
         if (this.dead || now < this.punchReadyAt) return false;
         this.punchStart = now;
         this.punchReadyAt = now + PUNCH_COOLDOWN;
@@ -100,20 +101,20 @@ export class ActiveRagdoll {
     }
 
     // Tras recibir un golpe, el control no pisa la velocidad durante `duration`: deja actuar al empuje
-    stun(duration, now = performance.now() / 1000) {
+    stun(duration, now = this.now) {
         this.stunnedUntil = Math.max(this.stunnedUntil ?? 0, now + duration);
     }
 
-    isStunned(now = performance.now() / 1000) {
+    isStunned(now = this.now) {
         return now < (this.stunnedUntil ?? 0);
     }
 
-    isPunching(now = performance.now() / 1000) {
+    isPunching(now = this.now) {
         return now - this.punchStart < PUNCH_TIME;
     }
 
     // Ventana en la que el golpe puede conectar (una sola vez por golpe)
-    punchActive(now = performance.now() / 1000) {
+    punchActive(now = this.now) {
         const t = now - this.punchStart;
         return !this.punchHit && t >= PUNCH_ACTIVE[0] && t <= PUNCH_ACTIVE[1];
     }
@@ -130,6 +131,7 @@ export class ActiveRagdoll {
         this.burns = old.burns;
         this.wetTimer = old.wetTimer;
         this.aimDir = old.aimDir;
+        this.now = old.now;
         this.punchStart = old.punchStart;
         this.punchReadyAt = old.punchReadyAt;
         this.punchHit = old.punchHit;
@@ -141,7 +143,7 @@ export class ActiveRagdoll {
     }
 
     // Daño a una parte del cuerpo: aplica su multiplicador y la pone roja
-    hurt(bodyId, amount, now = performance.now() / 1000) {
+    hurt(bodyId, amount, now = this.now) {
         if (this.dead) return 0;
         const multiplier = this.rig.damage?.[bodyId] ?? this.rig.defaultDamage ?? 1;
         const dealt = amount * multiplier;
@@ -151,7 +153,7 @@ export class ActiveRagdoll {
     }
 
     // 0 = color original, 1 = rojo pleno; vuelve al color original en FLASH_TIME
-    flashAmount(bodyId, now = performance.now() / 1000) {
+    flashAmount(bodyId, now = this.now) {
         const t = this.flashes.get(bodyId);
         if (t === undefined) return 0;
         const k = 1 - (now - t) / FLASH_TIME;
@@ -298,7 +300,13 @@ export class ActiveRagdoll {
     // desde el ángulo actual para que el brazo no salte al cruzar ±π
     // Con rig.gun: el ángulo se resuelve para que la línea del cañón (no la del hombro) pase por el objetivo.
     // Los joints de rig.aimHold (codos) quedan en reposo para que ningún clip mueva la cadena del arma.
-    aim(targetX, targetY) {
+    /**
+     * @param {number} targetX Punto a apuntar, m.
+     * @param {number} targetY Punto a apuntar, m.
+     * @param {number} [now] Reloj de simulación, s; el mismo que reciben `punch`, `stun` y `hurt`.
+     */
+    aim(targetX, targetY, now = this.now) {
+        this.now = now;
         if (this.dead || this.isPunching()) return;
         const mirror = this.flipX ? -1 : 1;
         const forward = this.flipX ? Math.PI : 0;
@@ -364,7 +372,13 @@ export class ActiveRagdoll {
 
     // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld.
     // input: { left, right, up } (ver Input.js); el salto es la dirección arriba
-    move(input, dt = 1 / 60) {
+    /**
+     * @param {object} input Estado de `Input` del jugador.
+     * @param {number} [dt] Paso fijo, s.
+     * @param {number} [now] Reloj de simulación, s; el golpe y el aturdimiento se miden con él.
+     */
+    move(input, dt = 1 / 60, now = this.now) {
+        this.now = now;
         if (this.dead) {
             if (this.clipState !== "dead") this.rag.clearAllOverrides();
             this.setClip("dead");

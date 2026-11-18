@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-19
+
+### Fixed
+- El golpe melee vuelve a funcionar: se reproduce su animación, daña al rival y lo aturde. Los tiempos del golpe, el aturdimiento y el destello de daño usan el mismo reloj de simulación que el resto del juego.
+
 ## [0.11.0] - 2026-11-19
 
 ### Changed
