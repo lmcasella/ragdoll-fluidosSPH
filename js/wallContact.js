@@ -4,7 +4,8 @@
  * normal saliente de la velocidad relativa `u_n = (v − v_b)·n` de cada partícula del store en contacto pasa a
  * `min(u_n, max(0, u_n,antes))`, con `u_n,antes` la velocidad guardada por slot al final del subpaso anterior (o la
  * de emisión): quita el rebote sin frenar a la gota que nace saliendo del sólido. El cuerpo dinámico recibe el
- * impulso opuesto en el punto de contacto, así que se conserva el momento. Las partículas fuera del store no se
+ * impulso opuesto `m_p · cut` en el punto de contacto, con `m_p = ρ · (1,5 r)²` la masa de la partícula, así que
+ * se conserva el momento. Las partículas fuera del store no se
  * corrigen.
  * Es un objeto con `update(substep)` para la lista de instancias de `stepWorld`; no crea objetos nativos por
  * subpaso.
@@ -108,6 +109,7 @@ export class WallContact {
         const marks = this.system.GetUserDataBuffer() >> 2;
         const store = this.store;
         const n = this.system.GetParticleCount();
+        const mass = this.system.GetDensity() * (1.5 * this.system.GetRadius()) ** 2;
         for (let c = 0; c < count; c++) {
             const w = words + c * BODY_CONTACT_WORDS;
             const index = heapI[w];
@@ -139,7 +141,7 @@ export class WallContact {
             heapF[vel + 2 * index] = vx - cut * nx;
             heapF[vel + 2 * index + 1] = vy - cut * ny;
             if (dynamic) {
-                const j = heapF[w + 6] * cut;
+                const j = mass * cut;
                 this.impulse.set_x(j * nx);
                 this.impulse.set_y(j * ny);
                 body.ApplyLinearImpulse(this.impulse, this.point, true);
