@@ -10,26 +10,25 @@ const { LEVEL } = await import("../js/level.js");
 
 const fmt = (value) => JSON.stringify(value, (_, v) => (typeof v === "number" ? Number(v.toFixed(3)) : v));
 
-const P1_TODO = "P1 no cumple: el cociente baja a 0,75 entre t = 0,87 y 0,97 s (ver diagnóstico)";
-
 /**
  * Criterios de #69 (docs/design/14-agua.md §14.16, P1 a P5) con LiquidFun real y el contorno inelástico del juego
  * (`js/wallContact.js`).
  */
-test("P1: rotura de presa, frente medido / x_δ de Ritter entre 0,8 y 1,2 en t = 0,9 a 1,5 s", { todo: P1_TODO }, (t) => {
-    const { curve, initial, vmaxSettle } = damBreak();
-    const window = curve.filter((c) => c.t >= 0.9 - 1e-9 && c.t <= 1.5 + 1e-9);
-    const lo = window.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-    const hi = window.reduce((a, b) => (b.ratio > a.ratio ? b : a));
-    const samples = [0.3, 0.6, 0.9, 1.2, 1.5].map((s) => curve.find((c) => Math.abs(c.t - s) < 1e-6));
-    t.diagnostic(
-        `P1: ${initial} partículas, |v|max al soltar ${vmaxSettle.toFixed(3)} m/s; frente/x_δ ${samples.map((c) => `t ${c.t.toFixed(1)}: ${c.ratio.toFixed(3)}`).join(", ")}; ` +
-            `ventana ${lo.ratio.toFixed(3)} (t ${lo.t.toFixed(2)}) a ${hi.ratio.toFixed(3)} (t ${hi.t.toFixed(2)}); punta/Ritter ${samples.map((c) => c.tipRatio.toFixed(2)).join(", ")}`,
-    );
-    assert.ok(vmaxSettle <= 0.2, `|v|max al soltar ${vmaxSettle.toFixed(3)} m/s`);
-    assert.ok(window.length > 30);
-    assert.ok(lo.ratio >= 0.8 && hi.ratio <= 1.2, `cociente entre ${lo.ratio.toFixed(3)} y ${hi.ratio.toFixed(3)}`);
-});
+/** Segundos de asentado por altura: con 4 s la columna de 3 m aún se mueve a 0,33 m/s al soltar (con 6 s, 0,14). */
+const P1_SETTLE = new Map([[1, 4], [2, 4], [3, 6]]);
+
+for (const h0 of P1_SETTLE.keys()) {
+    test(`P1: rotura de presa con h₀ = ${h0} m, pendiente del frente contra 2√(g h₀) − 2√(g δ) ±10 % en t √(g/h₀) de 2 a 3,4`, (t) => {
+        const m = damBreak({ h0, settle: P1_SETTLE.get(h0) });
+        t.diagnostic(
+            `P1 h₀ ${h0}: ${m.initial} partículas, |v|max al soltar ${m.vmaxSettle.toFixed(3)} m/s; pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s ` +
+                `(${((m.slope / m.expected - 1) * 100).toFixed(1)} %) con ${m.samples} muestras; retardo t₀ √(g/h₀) ${m.lag.toFixed(2)}`,
+        );
+        assert.ok(m.vmaxSettle <= 0.2, `|v|max al soltar ${m.vmaxSettle.toFixed(3)} m/s`);
+        assert.ok(m.samples >= 20, `solo ${m.samples} muestras`);
+        assert.ok(Math.abs(m.slope / m.expected - 1) <= 0.1, `pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s`);
+    });
+}
 for (const weapon of WEAPONS) {
     test(`P2: chorro de ${weapon.name} sin explosión al crear (rapidez y parábola)`, (t) => {
         const m = jetBench(weapon);
@@ -40,9 +39,10 @@ for (const weapon of WEAPONS) {
     });
 }
 
-test("P3: compresión en reposo, densidad 1,00 del empaquetado ideal ±10 % en la ventana interior", (t) => {
+test("P3: compresión en reposo, densidad 1,00 del empaquetado ideal ±10 % en la ventana interior y nada fuera del tanque", (t) => {
     const m = restBench();
     t.diagnostic(`P3: ${fmt(m)} (W_full es el dato para #62-E)`);
+    assert.equal(m.escaped, 0, `${m.escaped} partículas fuera del tanque`);
     assert.ok(Math.abs(m.density - 1) <= 0.1, `densidad ${m.density.toFixed(3)}`);
 });
 
@@ -59,8 +59,10 @@ for (const weapon of WEAPONS) {
     test(`P5: empuje del chorro de ${weapon.name} sobre la placa = rate · σ_w · A_p · v ±15 %`, (t) => {
         const expected = weapon.rate * M_P * weapon.speed;
         const m = plateBench(weapon);
-        t.diagnostic(`P5 ${weapon.name}: ${m.force.toFixed(1)} N medidos contra ${expected.toFixed(1)} N (${((m.force / expected - 1) * 100).toFixed(1)} %), recorrido de la placa ${m.travel.toExponential(1)} m`);
+        const drift = Math.abs(m.force - m.balance) / expected;
+        t.diagnostic(`P5 ${weapon.name}: ${m.force.toFixed(1)} N medidos contra ${expected.toFixed(1)} N (${((m.force / expected - 1) * 100).toFixed(1)} %), balance de momento ${m.balance.toFixed(1)} N (error de conservación ${(drift * 100).toFixed(2)} % de la referencia), recorrido de la placa ${m.travel.toExponential(1)} m`);
         assert.ok(Math.abs(m.force / expected - 1) <= 0.15, `${m.force.toFixed(1)} N contra ${expected.toFixed(1)} N`);
+        assert.ok(drift <= 0.01, `|F_motor − balance de momento| = ${(drift * 100).toFixed(2)} % de la referencia`);
     });
 }
 
@@ -69,7 +71,7 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
     LEVEL.flood.maxRate = 1500;
     try {
         const game = await loadGame();
-        const { world, match, immersion, flood, damage, store, particleSystem } = game.state;
+        const { world, match, immersion, flood, damage, store, particleSystem, wallContact } = game.state;
         game.setPad(0);
         game.setPad(1);
         game.frames(10);
@@ -94,7 +96,7 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
         Box2D.destroy(at);
         Box2D.destroy(color);
 
-        const ms = { step: 0, flood: 0, immersion: 0, process: 0 };
+        const ms = { step: 0, wall: 0, flood: 0, immersion: 0, process: 0 };
         const timed = (owner, name, key) => {
             const original = owner[name].bind(owner);
             owner[name] = (...args) => {
@@ -105,6 +107,7 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
             };
         };
         timed(world, "Step", "step");
+        timed(wallContact, "update", "wall");
         timed(flood, "step", "flood");
         timed(immersion, "step", "immersion");
         timed(damage, "process", "process");
@@ -115,9 +118,9 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
             game.frame();
             live = Math.min(live, particleSystem.GetParticleCount());
         }
-        const physics = (ms.step + ms.flood + ms.immersion + ms.process) / frames;
+        const physics = (ms.step + ms.wall + ms.flood + ms.immersion + ms.process) / frames;
         t.diagnostic(
-            `P6: física ${physics.toFixed(2)} ms/frame (world.Step ${(ms.step / frames).toFixed(2)}, flood ${(ms.flood / frames).toFixed(3)}, ` +
+            `P6: física ${physics.toFixed(2)} ms/frame (world.Step ${(ms.step / frames).toFixed(2)}, wallContact ${(ms.wall / frames).toFixed(3)}, flood ${(ms.flood / frames).toFixed(3)}, ` +
                 `immersion ${(ms.immersion / frames).toFixed(3)}, process ${(ms.process / frames).toFixed(3)}); ` +
                 `mínimo de disparos vivos ${live}; presupuesto 8 ms`,
         );

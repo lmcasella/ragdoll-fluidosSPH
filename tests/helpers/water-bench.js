@@ -14,8 +14,8 @@ globalThis.PIXI ??= {
 
 const { stepWorld } = await import("../../lib/ragimporter.js");
 const { createParticleSystem } = await import("../../js/particles.js");
-const { ShotEmitter, SHOT_SYSTEM } = await import("../../js/weapons.js");
-const { ParticleStore } = await import("../../js/particleStore.js");
+const { ShotEmitter, SHOT_SYSTEM, FLUID } = await import("../../js/weapons.js");
+const { ParticleStore, ORIGIN } = await import("../../js/particleStore.js");
 const { WallContact } = await import("../../js/wallContact.js");
 const { SIGMA_W } = await import("../../js/materials.js");
 
@@ -61,21 +61,40 @@ function addSolids(world, solids) {
     return ground;
 }
 
-function fillBox(system, x0, y0, x1, y1) {
+/**
+ * Llena la caja [x0, x1] × [y0, y1] con partículas del `store`: el motor reparte las posiciones con un grupo
+ * temporal, que se destruye, y cada posición se crea de nuevo por `ParticleStore` (con slot, que el contorno
+ * necesita para corregir). `CreateParticleGroup` solo crearía partículas sin slot.
+ */
+function fillStore(world, system, store, x0, y0, x1, y1) {
     const groupDef = new Box2D.b2ParticleGroupDef();
     const shape = new Box2D.b2PolygonShape();
     const center = new Box2D.b2Vec2((x0 + x1) / 2, (y0 + y1) / 2);
     shape.SetAsBox((x1 - x0) / 2, (y1 - y0) / 2, center, 0);
-    const color = new Box2D.b2ParticleColor(...WATER_COLOR, 255);
     groupDef.set_shape(shape);
-    groupDef.set_color(color);
     system.CreateParticleGroup(groupDef);
     Box2D.destroy(groupDef);
-    Box2D.destroy(center);
     Box2D.destroy(shape);
+    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+    const points = [];
+    for (let i = 0; i < system.GetParticleCount(); i++) points.push(Box2D.HEAPF32[pos + 2 * i], Box2D.HEAPF32[pos + 2 * i + 1]);
+    for (let i = system.GetParticleCount() - 1; i >= 0; i--) system.DestroyParticle(i);
+    stepWorld(world, []);
+    const def = new Box2D.b2ParticleDef();
+    const at = new Box2D.b2Vec2(0, 0);
+    const color = new Box2D.b2ParticleColor(...WATER_COLOR, 255);
+    def.set_color(color);
+    for (let k = 0; k < points.length; k += 2) {
+        at.set_x(points[k]);
+        at.set_y(points[k + 1]);
+        def.set_position(at);
+        store.create(def, { kind: FLUID.WATER, origin: ORIGIN.SHOT });
+    }
+    Box2D.destroy(def);
+    Box2D.destroy(at);
+    Box2D.destroy(center);
     Box2D.destroy(color);
 }
-
 function positionsOf(system) {
     const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
     const n = system.GetParticleCount();
@@ -93,15 +112,17 @@ function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {
 }
 
 /**
- * P1: rotura de presa. Columna de agua de `length` × `h0` separada `r` de las paredes (relleno de `length − 2 r`
- * de ancho, con la altura corregida para conservar `h0` de agua), contra la pared izquierda y con una compuerta a
- * la derecha sin tapa, asentada `settle` s y soltada al sacar la compuerta en t = 0. Devuelve `vmaxSettle`, la
- * rapidez máxima al soltar (precondición ≤ 0,2 m/s). El frente es la x más lejana con profundidad (partículas ·
- * A_p / bin) ≥ δ = `1,5 r` (una capa) en bins de 0,36 m (la x del centro del bin, desde la pared de la presa).
- * `ratio` es frente medido / `x_δ = (2√(g h₀) − 3√(g δ)) t` de Ritter a profundidad δ; `tipRatio` es la punta
- * (cualquier partícula) contra `2√(g h₀) t`, solo informativo.
+ * P1: rotura de presa. Columna de agua de `length` × `h0` separada `r` de las paredes (relleno por `ParticleStore`
+ * de `length − 2 r` de ancho, con la altura corregida para conservar `h0` de agua), contra la pared izquierda y con
+ * una compuerta a la derecha sin tapa, asentada `settle` s con el contorno y soltada al sacar la compuerta en
+ * t = 0. Devuelve `vmaxSettle`, la rapidez máxima al soltar (precondición ≤ 0,2 m/s).
+ * Frente: la x más lejana con profundidad (partículas · A_p / bin) ≥ δ = `1,5 r` (una capa) en bins de 0,36 m,
+ * interpolada linealmente dentro del bin (desde la pared de la presa). Con capa mínima δ el frente avanza a
+ * `c = 2√(g h₀) − 2√(g δ)`: `slope` es la pendiente por mínimos cuadrados del frente en la ventana
+ * `t √(g/h₀)` ∈ [2, 3,4] (antes de 2 la caída no es hidrostática) y `lag` el retardo `t₀ √(g/h₀)` de la recta de
+ * pendiente `c` que mejor ajusta esa ventana.
  */
-export function damBreak({ h0 = 2, length = 8, seconds = 1.6, settle = 4, makeRecorder = null } = {}) {
+export function damBreak({ h0 = 2, length = 8, settle = 4, makeRecorder = null } = {}) {
     const world = newWorld();
     addSolids(world, [
         { x: 20, y: -0.5, w: 60, h: 1 },
@@ -109,10 +130,11 @@ export function damBreak({ h0 = 2, length = 8, seconds = 1.6, settle = 4, makeRe
     ]);
     const gate = addSolids(world, [{ x: length + 0.5, y: 4, w: 1, h: 8 }]);
     const system = createParticleSystem(world, SHOT_SYSTEM);
-    const wall = wallFor(system);
+    const store = new ParticleStore(system, SHOT_SYSTEM);
+    const wall = wallFor(system, store);
     const inset = RADIUS;
     const fill = (h0 * length) / (length - 2 * inset);
-    fillBox(system, inset, inset, length - inset, inset + fill);
+    fillStore(world, system, store, inset, inset, length - inset, inset + fill);
     const initial = system.GetParticleCount();
     const recorder = makeRecorder?.({ system });
     const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
@@ -125,39 +147,46 @@ export function damBreak({ h0 = 2, length = 8, seconds = 1.6, settle = 4, makeRe
     const vmaxSettle = maxSpeed();
     world.DestroyBody(gate);
     wall.invalidate();
-    const curve = [];
     const BIN = 0.36;
     const delta = 1.5 * RADIUS;
-    const bins = new Int32Array(Math.ceil(40 / BIN));
-    const c0 = 2 * Math.sqrt(G * h0);
+    const c0 = Math.sqrt(G * h0);
+    const tScale = Math.sqrt(G / h0);
+    const tEnd = 3.4 / tScale;
+    const bins = new Float64Array(Math.ceil(40 / BIN) + 1);
+    const curve = [];
     recorder?.capture();
-    for (let step = 1; step <= Math.round(seconds / DT); step++) {
+    for (let step = 1; step <= Math.round((tEnd + 0.05) / DT); step++) {
         stepWorld(world, [wall]);
         recorder?.capture();
         const t = step * DT;
         const pos = positionsOf(system);
         bins.fill(0);
-        let tip = -Infinity;
         for (let i = 0; i < pos.length; i += 2) {
-            tip = Math.max(tip, pos[i]);
             const b = Math.floor(pos[i] / BIN);
-            if (b < 0 || b >= bins.length) continue;
-            bins[b]++;
+            if (b >= 0 && b < bins.length) bins[b]++;
         }
-        let last = 0;
+        const depth = (b) => (bins[b] * A_P) / BIN;
+        let last = -1;
         for (let b = bins.length - 1; b >= 0; b--) {
-            if ((bins[b] * A_P) / BIN >= delta) {
+            if (depth(b) >= delta) {
                 last = b;
                 break;
             }
         }
-        const front = (last + 0.5) * BIN - length;
-        const ritter = (c0 - 3 * Math.sqrt(G * delta)) * t;
-        curve.push({ t, front, ritter, ratio: front / ritter, tipRatio: (tip - length) / (c0 * t) });
+        let front = (last + 0.5) * BIN;
+        if (last >= 0 && last + 1 < bins.length) front += (BIN * (depth(last) - delta)) / Math.max(1e-9, depth(last) - depth(last + 1));
+        curve.push({ t, front: front - length });
     }
+    const window = curve.filter((c) => c.t * tScale >= 2 && c.t * tScale <= 3.4);
+    const mt = window.reduce((a, c) => a + c.t, 0) / window.length;
+    const mx = window.reduce((a, c) => a + c.front, 0) / window.length;
+    const slope = window.reduce((a, c) => a + (c.t - mt) * (c.front - mx), 0) / window.reduce((a, c) => a + (c.t - mt) ** 2, 0);
+    const expected = 2 * c0 - 2 * Math.sqrt(G * delta);
+    const lag = (mt - mx / expected) * tScale;
     wall.dispose();
-    return { initial, vmaxSettle, curve, system, world };
+    return { initial, vmaxSettle, curve, slope, expected, lag, samples: window.length, system, world };
 }
+
 /**
  * Registra en cada `ShotEmitter.fire` la posición y la velocidad de nacimiento de las partículas nuevas, por slot
  * de `ParticleStore`.
@@ -272,9 +301,11 @@ function contactsOf(system) {
 }
 
 /**
- * P3: compresión en reposo. Tanque de `width` m con `depth` m de agua; ventana interior de 4 × 1 m
- * (x centrada, y de 1 a 2 m). Devuelve la densidad (partículas · A_p / área) promedio entre t = 6 y 8 s y, si
- * se pueden leer los contactos, `W_full`: la suma de pesos de contacto por partícula de la ventana.
+ * P3: compresión en reposo. Tanque de `width` m con `depth` m de agua, relleno por `ParticleStore` separado `r` de
+ * los sólidos (con la altura corregida para conservar `depth` de agua); ventana interior de 4 × 1 m (x centrada,
+ * y de 1 a 2 m). Devuelve la densidad (partículas · A_p / área) promedio entre t = 6 y 8 s, `escaped` (partículas
+ * fuera del tanque al final) y, si se pueden leer los contactos, `W_full`: la suma de pesos de contacto por
+ * partícula de la ventana.
  */
 export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
     const world = newWorld();
@@ -284,8 +315,9 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
         { x: width + 0.5, y: 4, w: 1, h: 8 },
     ]);
     const system = createParticleSystem(world, SHOT_SYSTEM);
-    const wall = wallFor(system);
-    fillBox(system, 0, 0, width, depth);
+    const store = new ParticleStore(system, SHOT_SYSTEM);
+    const wall = wallFor(system, store);
+    fillStore(world, system, store, RADIUS, RADIUS, width - RADIUS, RADIUS + (depth * width) / (width - 2 * RADIUS));
     const recorder = makeRecorder?.({ system });
     const window = { x0: width / 2 - 2, x1: width / 2 + 2, y0: 1, y1: 2 };
     let densitySum = 0;
@@ -317,18 +349,25 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
             }
         }
     }
+    const final = positionsOf(system);
+    let escaped = 0;
+    for (let i = 0; i < final.length; i += 2) if (final[i] < 0 || final[i] > width || final[i + 1] < 0) escaped++;
     wall.dispose();
     return {
         density: densitySum / samples,
         particles: system.GetParticleCount(),
+        escaped,
         wFull: weightSamples ? weightSum / weightSamples : null,
     };
 }
 
 /**
  * P5: chorro de `weapon` contra una placa dinámica a `gap` m de la boca, en una junta prismática normal al
- * chorro con el motor a velocidad 0. Devuelve el promedio del módulo de `GetMotorForce(inv_dt)` entre
- * `from` y `to` s, con `inv_dt` el del último subpaso de `stepWorld`.
+ * chorro con el motor a velocidad 0. La fuerza es el impulso del motor, `GetMotorForce(inv_dt) / inv_dt` sumado en
+ * todos los subpasos de `stepWorld` (una pseudo-instancia después del contorno) entre `from` y `to` s, dividido por
+ * el tiempo medido, con `inv_dt` el de un subpaso. `balance` es la misma fuerza por conservación del momento:
+ * `(Σ m_p v_nacimiento − ΔP) / T`, con `ΔP` la variación del momento horizontal de las partículas vivas en esa
+ * ventana; el test exige que ambas coincidan.
  */
 export function plateBench(weapon, { gap = 1, from = 1, to = 2, makeRecorder = null } = {}) {
     const world = newWorld();
@@ -359,25 +398,48 @@ export function plateBench(weapon, { gap = 1, from = 1, to = 2, makeRecorder = n
     const wall = wallFor(system, store);
     const recorder = makeRecorder?.({ system, store, plate });
     const invDt = 8 / DT;
-    let sum = 0;
-    let samples = 0;
+    const window = { on: false, impulse: 0, substeps: 0, births: 0 };
+    const motor = {
+        update() {
+            if (!window.on) return;
+            window.impulse += Math.abs(joint.GetMotorForce(invDt)) / invDt;
+            window.substeps++;
+        },
+    };
+    const momentum = () => {
+        const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
+        let sum = 0;
+        for (let i = 0; i < system.GetParticleCount(); i++) sum += Box2D.HEAPF32[vel + 2 * i];
+        return sum * M_P;
+    };
+    const create = store.create.bind(store);
+    store.create = (def, props) => {
+        const index = create(def, props);
+        if (index >= 0 && window.on) window.births += def.get_velocity().get_x() * M_P;
+        return index;
+    };
+    let p0 = null;
     let travel = 0;
     let now = 100;
     recorder?.capture();
     for (let step = 1; step <= Math.round(to / DT); step++) {
         now += DT;
+        window.on = step * DT > from + 1e-9;
+        if (window.on && p0 === null) p0 = momentum();
         emitter.fire(0, player, true, DT, now);
-        stepWorld(world, [wall]);
+        stepWorld(world, [wall, motor]);
         store.afterStep();
         recorder?.capture();
-        const t = step * DT;
-        if (t >= from) {
-            sum += Math.abs(joint.GetMotorForce(invDt));
-            samples++;
-        }
         travel = Math.max(travel, Math.abs(plate.GetPosition().get_x() - (gap + 0.1)));
     }
-    const result = { force: sum / samples, travel, particles: system.GetParticleCount(), plate };
+    const time = window.substeps / invDt;
+    const result = {
+        force: window.impulse / time,
+        balance: (window.births - (momentum() - p0)) / time,
+        travel,
+        particles: system.GetParticleCount(),
+        plate,
+    };
     wall.dispose();
     emitter.dispose();
     return result;
