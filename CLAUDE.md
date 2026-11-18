@@ -117,13 +117,14 @@ Cada PR agrega su entrada en `CHANGELOG.md` bajo un encabezado `## [x.y.z] - AAA
 Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el cuerpo del PR dice `Closes #<n>`.
 
 1. **Elegir:** `/next`. Ordena los issues abiertos (bugs, milestone más cercano, lo que desbloquea, prioridad), recomienda uno y crea su rama al confirmar.
-2. **Revisar el diseño:** si la tarea cambia comportamiento o agrega o cambia un módulo, primero pasa por `architect`, que actualiza el archivo de `docs/design/` que corresponda y ubica la funcionalidad en los patrones de arriba.
+2. **Revisar el diseño:** si la tarea cambia comportamiento o agrega o cambia un módulo, primero pasa por `architect`, que actualiza el archivo de `docs/design/` que corresponda y ubica la funcionalidad en los patrones de arriba. Si toca la simulación (fluidos, interacciones, cambios de fase, contacto con cuerpos), `physics-reviewer` aprueba el diseño antes de implementar: cada fenómeno se modela con su física, no se imita con reglas de juego, y sus criterios de aceptación son físicos, con referencia y tolerancia.
 3. **Implementar** con `developer`. Cada punto de control es un commit convencional en la rama.
 4. **Verificar:**
    - correr `node --test tests/`;
    - agregar un test si la lógica se puede probar sin navegador;
    - para gameplay, una prueba en Node que ejecute el script de `index.html` con LiquidFun real y un gamepad simulado, midiendo el resultado (daño, posiciones, estados); después, navegador;
-   - para cambios no triviales, `/code-review`.
+   - para cambios no triviales, `/code-review`;
+   - si toca la simulación, `physics-reviewer` valida el resultado contra la física y sobre secuencias de frames, no capturas fijas. Sin su aprobación no se mergea.
 5. **Documentar (obligatorio en cada PR):** `doc-writer` agrega la entrada de `CHANGELOG.md`, actualiza `README.md` y revisa si el diseño cambió. Si cambió, actualiza el archivo de `docs/design/` correspondiente (estado y valores reales); si cambió una decisión de diseño, la registra `architect`.
 6. **PR y merge:** push y PR con título igual al commit convencional de la tarea, cuerpo según la plantilla y `Closes #<n>`. Se mergea con merge commit y se borra la rama.
 7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`, no rama por rama.
@@ -147,10 +148,11 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 | `architect` | agente | Dueño del GDD (`DESIGN.md` y `docs/design/`) y de los patrones; revisa funcionalidades y módulos nuevos antes de implementar. |
 | `developer` | agente | Implementa un issue con sus tests y verificación. |
 | `doc-writer` | agente | Mantiene `CHANGELOG.md`, `README.md` y el estado del GDD. |
+| `physics-reviewer` | agente | Valida diseños y resultados de la simulación contra la física real; su aprobación es obligatoria para mergear cambios de simulación. |
 | `/next` | skill | Elige el próximo issue y crea su rama. |
 | `/code-review`, `/simplify` | skills incluidos | Revisar un diff; limpiar después de una funcionalidad. |
 
-**Modelos:** `opus` para los agentes que planifican y deciden (`planner`, `architect`); `sonnet` para los que aplican cambios (`developer`, `doc-writer`).
+**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `physics-reviewer`); `sonnet` para los que aplican cambios (`developer`, `doc-writer`).
 
 Los agentes y skills son genéricos: no repiten reglas ni datos del proyecto. Todo lo específico vive en este archivo.
 

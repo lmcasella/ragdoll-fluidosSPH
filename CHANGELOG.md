@@ -9,6 +9,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ### Changed
 - La animación de caminar acompaña la velocidad real del robot: más lenta al frenar o al quedar pegado en miel.
+## [0.10.3] - 2026-11-19
+
+### Added
+- Agente `physics-reviewer`: valida diseños y resultados de la simulación contra la física real, sobre secuencias de frames; su aprobación es obligatoria para mergear cambios de simulación.
 
 ## [0.10.2] - 2026-11-19
 
