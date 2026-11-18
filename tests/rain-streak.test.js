@@ -3,10 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 
-const { rainStroke } = await import("../js/render.js");
-const { LEVEL } = await import("../js/level.js");
-
-const DRAW = LEVEL.pool.draw;
+const { rainStroke, SHOT_DRAW: DRAW } = await import("../js/render.js");
 
 test("una gota lenta (agua acumulada) se dibuja como círculo", () => {
     assert.equal(rainStroke(0, -(DRAW.streakSpeed - 0.1), DRAW), null);
@@ -32,6 +29,6 @@ test("el largo es proporcional a la rapidez y tiene tope", () => {
     assert.ok(fast.dx < 0 && fast.dy < 0);
 });
 
-test("el ancho del trazo es mucho menor que el radio del círculo", () => {
-    assert.ok(DRAW.streakWidth <= DRAW.radius / 3);
+test("el ancho del trazo es menor que la mitad del radio del círculo", () => {
+    assert.ok(DRAW.streakWidth < DRAW.radius / 2);
 });

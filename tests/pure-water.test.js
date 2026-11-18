@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { damBreak, jetBench, restBench, plateBench, M_P } from "./helpers/water-bench.js";
 import { shotBench } from "./helpers/fluid-bench.js";
 import { loadGame } from "./helpers/game.js";
+import { fillField } from "./helpers/water-scene.js";
 
 const { WEAPONS, SHOT_SYSTEM, FLUID } = await import("../js/weapons.js");
 const { ORIGIN } = await import("../js/particleStore.js");
@@ -66,17 +67,16 @@ for (const weapon of WEAPONS) {
     });
 }
 
-test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloquea)", async (t) => {
-    const savedRate = LEVEL.flood.maxRate;
-    LEVEL.flood.maxRate = 1500;
-    try {
+test("P6: costo con 1.500 disparos vivos (lava, que el campo no absorbe) sumergidos en la inundación al tope (se mide, no bloquea)", async (t) => {
+    {
         const game = await loadGame();
-        const { world, match, immersion, flood, damage, store, particleSystem, wallContact } = game.state;
+        const { world, match, immersion, flood, damage, store, particleSystem, wallContact, water } = game.state;
         game.setPad(0);
         game.setPad(1);
         game.frames(10);
-        match.roundTime = 170;
-        game.frames(60 * 20);
+        fillField(water, 14);
+        match.roundTime = LEVEL.flood.start + 200;
+        game.frames(60 * 5);
 
         const def = new Box2D.b2ParticleDef();
         const at = new Box2D.b2Vec2(0, 0);
@@ -89,14 +89,13 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
                 at.set_x(10 + col * 0.18);
                 at.set_y(6 + row * 0.18);
                 def.set_position(at);
-                if (store.create(def, { kind: FLUID.WATER, origin: ORIGIN.SHOT }) >= 0) made++;
+                if (store.create(def, { kind: FLUID.LAVA, origin: ORIGIN.SHOT }) >= 0) made++;
             }
         }
         Box2D.destroy(def);
         Box2D.destroy(at);
         Box2D.destroy(color);
-
-        const ms = { step: 0, wall: 0, flood: 0, immersion: 0, process: 0 };
+        const ms = { step: 0, wall: 0, flood: 0, immersion: 0, water: 0, process: 0 };
         const timed = (owner, name, key) => {
             const original = owner[name].bind(owner);
             owner[name] = (...args) => {
@@ -110,6 +109,7 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
         timed(wallContact, "update", "wall");
         timed(flood, "step", "flood");
         timed(immersion, "step", "immersion");
+        timed(water, "step", "water");
         timed(damage, "process", "process");
         const frames = 240;
         let live = Infinity;
@@ -118,15 +118,13 @@ test("P6: costo con 1.500 disparos vivos e inundación al tope (se mide, no bloq
             game.frame();
             live = Math.min(live, particleSystem.GetParticleCount());
         }
-        const physics = (ms.step + ms.wall + ms.flood + ms.immersion + ms.process) / frames;
+        const physics = (ms.step + ms.wall + ms.flood + ms.immersion + ms.water + ms.process) / frames;
         t.diagnostic(
             `P6: física ${physics.toFixed(2)} ms/frame (world.Step ${(ms.step / frames).toFixed(2)}, wallContact ${(ms.wall / frames).toFixed(3)}, flood ${(ms.flood / frames).toFixed(3)}, ` +
-                `immersion ${(ms.immersion / frames).toFixed(3)}, process ${(ms.process / frames).toFixed(3)}); ` +
+                `immersion ${(ms.immersion / frames).toFixed(3)}, water ${(ms.water / frames).toFixed(3)}, process ${(ms.process / frames).toFixed(3)}); ` +
                 `mínimo de disparos vivos ${live}; presupuesto 8 ms`,
         );
         assert.ok(Number.isFinite(physics));
         assert.ok(live >= 1400, `solo quedaron ${live} disparos vivos`);
-    } finally {
-        LEVEL.flood.maxRate = savedRate;
     }
 });

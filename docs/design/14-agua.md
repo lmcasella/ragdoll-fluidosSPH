@@ -80,7 +80,7 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 
 ## 14.3 Campo de alturas: Saint-Venant 1D (`ShallowWater`)
 
-**Estado:** 🔨 #70 implementado en `js/water.js` (sin conectar al juego: eso es #71). La primera versión no cumplía W10 (coeficiente 0,6 con escalón de 4 m) por la reconstrucción hidrostática con agua en movimiento; se corrigió con la proyección por energía y la reconstrucción consistente con el lecho (ver Esquema numérico), y el CFL pasó a 0,45.
+**Estado:** ✅ #70 implementado en `js/water.js` y ✅ #71 conectado en el juego (0.15.0): la pileta y la inundación son este campo, el agua del nivel en partículas ya no existe, y `drawWater` lo dibuja. La primera versión no cumplía W10 (coeficiente 0,6 con escalón de 4 m) por la reconstrucción hidrostática con agua en movimiento; se corrigió con la proyección por energía y la reconstrucción consistente con el lecho (ver Esquema numérico), y el CFL pasó a 0,45.
 
 Reemplaza al sistema de partículas del agua del nivel (pileta e inundación, radio 0,25 m, hasta 5.500 partículas, ~7,2 ms por frame).
 
@@ -173,14 +173,18 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 
 ### Render
 
-`drawWater(ctx, water, scale)` en `js/render.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Se dibuja en el canvas principal **después de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw`.
+✅ #71. `drawWater(ctx, water, scale)` en `js/render.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Se dibuja en el canvas principal **después de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw` (`alpha`, `color`, `lineColor`, `lineWidth`).
 
 ### Qué reemplaza y qué se borra
+
+✅ #71. Quedan `skinPosition` y `collectSurfaces` porque las gotas de disparo todavía los usan para tocar a los cuerpos (`SHOT_DRAW`); lo que se borró es el dibujo del agua del nivel con círculos y sus datos (`LEVEL.pool.draw`). Los datos del trazo de la lluvia pasaron a `SHOT_DRAW` y la lluvia se reconoce por `store.origin` (`RAIN_MARK` ya no existe).
 
 - **Se borra:** `fillPool`, `fillPoolWater` y `LEVEL.pool.radius`, `.draw`, `.flags` y `.physics` (`js/level.js`). Se conservan `x1`, `x2`, `bottom`, `surface` y `killY` (sensor). También se borran el sistema `poolSystem` de `index.html`, `skinPosition` y `collectSurfaces` (parche de #45) y el dibujo del agua del nivel con círculos de `js/render.js`.
 - **La rotura de presa y la nivelación** del banco 2 de #40 se reemplazan por los criterios W1–W6.
 
-## 14.4 Absorción e inmersión
+## 14.4 Absorción e inmersión ✅ #71
+
+**Estado:** implementado en `js/immersion.js` (0.15.0): `new Immersion(system, store, water)`. Material y `SG` por id de fluido del sistema de disparos (`weapons.js`, `FLUID`); `MATERIALS` suma `miscible` y `Cd` (lava 1,2). La absorción deposita volumen, cantidad de movimiento y miel; la energía por ahora es la del agua a temperatura ambiente más la pérdida inelástica (la entalpía por partícula es de #75), y `φ` no existe hasta #73. El impulso vertical se acumula en `stats.verticalImpulse` (el debug es #78). Medido en I1–I6 y I8 ([14.16](#1416-criterios-de-aceptación)).
 
 Acople partícula ↔ campo, una vez por paso, después de `stepWorld` y `store.afterStep()`. **Módulo `js/immersion.js`, reescrito:** conserva el nombre y el rol de puente, pero contra el campo de alturas. Un solo motivo de cambio: el intercambio entre partículas y columnas.
 
@@ -301,7 +305,9 @@ Reemplaza el preset de #40 y #41 (`VISCOUS` + `STATIC_PRESSURE` + damping 1,0 en
 `ṁ v = rate · σ_w · A_p · v`, con `σ_w · A_p` = 0,389 kg. Hoy el agua empuja 31,5 N. El empuje sigue siendo físico; lo que se balancea es el caudal. Sigue siendo un chorro que puede sacar a un robot de una plataforma: si en el navegador resulta excesivo, el próximo paso es bajar más el caudal, no la densidad. `PERSIST_MAX` (300) queda como tope de presupuesto aunque el tanque de miel baje a 38.
 - **Qué se borra en #69:** `TENSILE` de los datos de armas. `PARTICLE.STATIC_PRESSURE` del agua del nivel se borra en #71, junto con el resto del agua en partículas. El banco 1 de #40 se conserva con criterios físicos (P2–P4).
 
-## 14.7 Inundación con lluvia absorbida
+## 14.7 Inundación con lluvia absorbida ✅ #71
+
+**Estado:** implementado en `js/flood.js` (0.15.0): `new Flood(store, water)`; la fuente emite `Q / A_p` gotas por segundo con `Q = riseSpeed · W_libre(floodLevel(t))` y tope `maxRate` = 300/s. **Definición de η medio** (la especificación no la fijaba): el nivel que ocuparía todo el volumen de agua agregado desde el arranque, el del campo más el de las gotas de lluvia que siguen como partículas (`Flood.meanLevel`, con `levelOfArea`, la inversa de `waterArea`). Contar las gotas en vuelo evita que el corte en `maxLevel` las sume de más: con el nivel del campo solo, el corte dejaba el agua 1,6 % sobre la curva (10 m² de gotas en vuelo, η final 15,18 m). Lo retenido en plataformas llegó a 160 partículas (tope de diseño 800). `W_libre` descuenta solo los sólidos `floor`, los mismos que el campo usa como lecho, así que `waterArea` y `levelOfArea` son la inversa exacta de `water.volume()`: η real del campo final 15,001 m. **Aproximación declarada:** las plataformas no desplazan agua en el campo 1D (2,7 % del volumen a 15 m). Medido en I7 y W6.
 
 `js/flood.js` (`Flood`) pasa a ser **solo la fuente de masa**: emite gotas en el sistema líquido con `store.create(..., { kind: WATER, origin: RAIN })`. Las gotas caen como partículas, y al tocar el campo se absorben ([14.4](#144-absorción-e-inmersión)).
 
@@ -496,13 +502,13 @@ Los sistemas reciben `water` y `store` por constructor desde la raíz de composi
 
 | Qué | Dónde | Lo reemplaza | Sub-issue |
 |---|---|---|---|
-| Sistema del agua del nivel (`fillPool`, `fillPoolWater`, `LEVEL.pool.radius/draw/flags/physics`, `poolSystem`) | `level.js`, `index.html` | Campo de alturas | #71 |
-| Puente #39 (grilla, `IMMERSION`, `WEAPONS[].immersion`) | `immersion.js`, `weapons.js` | Absorción e inmersión | #71 |
-| Parche #45 (`skinPosition`, `collectSurfaces`, dibujo con círculos del agua del nivel) | `render.js`, `index.html` | `drawWater` | #71 |
-| Control de la lluvia (`rainTarget`, `density`, escurrido, `measureSurface`, `RAIN_MARK`, `maxParticles`) | `flood.js`, `level.js` | Fuente por caudal y absorción | #71 |
+| ✅ Sistema del agua del nivel (`fillPool`, `fillPoolWater`, `LEVEL.pool.radius/draw/flags/physics`, `poolSystem`) | `level.js`, `index.html` | Campo de alturas | #71 |
+| ✅ Puente #39 (grilla, `IMMERSION`, `WEAPONS[].immersion`) | `immersion.js`, `weapons.js` | Absorción e inmersión | #71 |
+| ✅ (parcial) Parche #45: el dibujo del agua del nivel con círculos se borró; `skinPosition` y `collectSurfaces` quedan para las gotas de disparo | `render.js`, `index.html` | `drawWater` | #71 |
+| ✅ Control de la lluvia (`rainTarget`, `density`, escurrido, `measureSurface`, `RAIN_MARK`, `maxParticles`) | `flood.js`, `level.js` | Fuente por caudal y absorción | #71 |
 | `userData` como id de disparo o marca; `tagParticle`; `fluidFromColor` para identificar | `damage.js`, `weapons.js`, `index.html` | `ParticleStore` | #68 |
 | Preset de los disparos (`TENSILE`, `pressureStrength` 0,005) | `weapons.js` | Agua pura | #69 |
-| `STATIC_PRESSURE` y fuerzas del agua del nivel (`LEVEL.pool.flags`/`.physics`) | `level.js` | Campo de alturas | #71 |
+| ✅ `STATIC_PRESSURE` y fuerzas del agua del nivel (`LEVEL.pool.flags`/`.physics`) | `level.js` | Campo de alturas | #71 |
 | `stickHoney` y `STICKY` | `damage.js`, `ActiveRagdoll.js` | Adherencia y arrastre (D4) | #77 |
 | Tests `water-gap`, `immersion` (puente), bancos 2 y 3 de `fluid-feel` y los de densidad de `flood` | `tests/` | Criterios W, F, I y P | Cada uno en su sub-issue |
 
@@ -563,12 +569,28 @@ Para `physics-reviewer`. Cada criterio tiene referencia, valor esperado y tolera
 |---|---|---|---|---|
 | I1 | N partículas de agua caen en la pileta: el volumen del campo crece `N · A_p` | Conservación de la masa | Exacto | Error relativo < 10⁻⁶ |
 | I2 | Cantidad de movimiento horizontal absorbida, medida **antes** de `water.step` (sin fricción ni el `q` = 0 de las celdas secas, que el debug cuenta aparte) | Conservación | `Δ Σ q dx = Σ SG A_p v_x` | < 10⁻⁶ |
-| I3 | 20 gotas en x₀ generan dos frentes de onda | `c = √(g h)` | **Frente delantero** de cada onda a ±√(g h) (las componentes cortas viajan más rápido, ver dispersión en [14.3](#esquema-numérico)) | ±10 % (video) |
+| I3 | 20 gotas en reposo en columna vertical en x₀, separadas 1,5 r, la primera 0,3 m sobre la superficie, en caída libre, generan dos frentes de onda; el frente se mide entre 0,4 y 1,5 s desde la primera absorción. Las 20 juntas en bloque no entran en la referencia lineal: forman un resalto hidrostático (+13,7 % en una solución de Saint-Venant convergida, con `ShallowWater` a −1 % de ella) | `c = √(g h)` | **Frente delantero** de cada onda a ±√(g h) (las componentes cortas viajan más rápido, ver dispersión en [14.3](#esquema-numérico)) | ±10 % (video) |
 | I4 | Ninguna partícula miscible atraviesa el agua | Absorción | 0 partículas miscibles con `y < η − 2r` más de un paso | 0 |
 | I5 | Lava soltada en agua quieta de 3 m | Velocidad terminal `√(2 g (SG − 1) A_p / (C_d D))` | 2,19 m/s | ±15 % |
 | I6 | Reacción de la inmersión sobre la columna, medida antes de `water.step`; se verifica también el tope por masa reducida | Tercera ley de Newton | `Σ` cambios de momento partícula + columna = 0; ninguna velocidad relativa invertida | < 10⁻⁶ |
 | I7 | Inundación: volumen total (campo + partículas · `A_p (1 − φ)` + evaporado) contra el volumen de la curva `floodLevel(t)`; lo retenido en plataformas se informa aparte | Fuente = `riseSpeed · W_libre`, conservación | Volumen total = volumen emitido − en vuelo; retenido en plataformas ≤ 800 partículas | Total ±0,5 %; `η` medio informado contra la curva (video) |
 | I8 | Costo total con la inundación al tope, dos robots disparando | Presupuesto | Física ≤ 8 ms; `immersion.step` < 0,3 ms | Se mide y se anota en [09 §9.2](09-arquitectura.md#92-rendimiento-medido) |
+
+**Resultados de #71** (Node, 18/11, `tests/immersion.test.js` y `tests/flood.test.js`; cada test imprime lo medido contra lo esperado). Videos de I3 e I7 con `node tests/tools/record-water.js <carpeta>`, pendientes de `physics-reviewer`.
+
+| Id | Medido | Esperado | Tolerancia |
+|---|---|---|---|
+| I1 | 60 gotas: el campo creció 1,943999913 m², error relativo 4,5·10⁻⁸ (9,8·10⁻¹⁵ con el radio en float32 del motor) | `N · A_p` = 1,944 m² | < 10⁻⁶ |
+| I2 | error relativo 2,4·10⁻⁹ con agua, ácido y miel (`SG` distintas) | `Σ SG A_p v_x` | < 10⁻⁶ |
+| I3 | frentes a 5,73 m/s (+4,6 %, umbral de 2 mm) y 5,62 m/s (+2,5 %, umbral de 1 cm), iguales a izquierda y derecha, entre 0,4 y 1,5 s de la primera gota | 5,48 m/s | ±10 % |
+| I4 | 0 pasos con partículas miscibles bajo `η − 2r` después de absorber, en 170 s de inundación (llegó a haber 4 antes de absorber: las que el campo subió en ese paso) | 0 | 0 |
+| I5 | 2,129 m/s (−2,8 %), ventana de 0,9 a 1,3 s, de y 1,48 a 0,59 m | 2,19 m/s | ±15 % |
+| I6 | suma relativa 2,2·10⁻⁸ con cinco partículas y una corriente de 1,5 m/s; cocientes de velocidad relativa 0,75 a 1,00 (ninguno negativo); con una columna de 0,05 m el tope se activa y deja la velocidad relativa en 10⁻⁶ m/s | 0; sin inversión | < 10⁻⁶ |
+| I7 | error máximo del volumen total contra la curva 0,17 % del volumen agregado (a los 10 s; 0,02 % desde los 60 s); contra lo emitido 4,5·10⁻⁸; retenidas en plataformas hasta 160 partículas; η medio 0,00 m contra la curva, y 15,00 m al final | ±0,5 %; ≤ 800 retenidas | ±0,5 % |
+| I8 | 0,97 ms por frame de física (`world.Step` 0,49, `water.step` 0,37, `immersion.step` 0,022 ms por paso, `damage.process` 0,02) con la lluvia a 259/s y dos robots disparando; P6 con 1.500 gotas de lava sumergidas: 2,9 ms (`immersion.step` 0,17) | ≤ 8 ms; < 0,3 ms | se mide |
+| W6 (nivel real, lluvia, 170 s) | min h = 0, 0 activaciones del tope, 0 repeticiones con `dt/2`, 4,56 subpasos por paso | min h ≥ 0; 0 activaciones | 0 |
+
+**Observaciones de I3.** El criterio no fija cuándo llegan las gotas, y el frente depende de eso por la no linealidad (a/h hasta 0,33): con una columna de gotas que llegan una tras otra la pendiente queda a +2,5 a +4,6 %, y con un bloque de 4 × 5 gotas que llegan juntas en un paso sube a 6,09 m/s (+11,2 %), fuera de ±10 %. Se mide la columna, que es lo que hace un chorro. **Observaciones de I7.** El η medio solo del campo atrasa respecto de la curva hasta 0,57 m (a los 20 s) porque hay entre 500 y 780 gotas en vuelo; incluyéndolas coincide.
 
 ### F. Flotación (#72)
 

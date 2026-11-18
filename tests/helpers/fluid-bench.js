@@ -19,7 +19,6 @@ const { createParticleSystem } = await import("../../js/particles.js");
 const { ShotEmitter } = await import("../../js/weapons.js");
 const { ParticleStore } = await import("../../js/particleStore.js");
 const { WallContact } = await import("../../js/wallContact.js");
-const { LEVEL, buildLevel } = await import("../../js/level.js");
 
 const DT = 1 / 60;
 /** Una partícula llegó al piso si su y es <= `IMPACT_HEIGHT · r` (en reposo queda a ~1,65 r); una gota es aislada si su vecina más cercana está a más de `ISOLATED_DISTANCE · r`. */
@@ -155,67 +154,4 @@ export function shotBench(systemParams, weapon) {
     wall.dispose();
     emitter.dispose();
     return metrics;
-}
-
-// Banco 2: rotura de presa en la pileta real. `flags` se aplica al grupo
-export function poolBench(physics, flags = 0) {
-    const world = newWorld();
-    buildLevel(world, LEVEL);
-    const system = createParticleSystem(world, { radius: LEVEL.pool.radius, maxCount: LEVEL.flood.maxParticles, ...physics });
-
-    const groupDef = new Box2D.b2ParticleGroupDef();
-    const shape = new Box2D.b2PolygonShape();
-    const center = new Box2D.b2Vec2(25.5, 1.95);
-    shape.SetAsBox(7.5 - 0.1, 1.95, center, 0);
-    groupDef.set_shape(shape);
-    groupDef.set_flags(flags);
-    system.CreateParticleGroup(groupDef);
-    Box2D.destroy(center);
-    Box2D.destroy(shape);
-    Box2D.destroy(groupDef);
-
-    let front = Infinity;
-    let meanSum = 0;
-    let p95Sum = 0;
-    let restSteps = 0;
-    const speeds = [];
-    const COLUMNS = 19;
-    let surface = [];
-    for (let step = 1; step <= 60 * 9; step++) {
-        stepWorld(world, []);
-        const n = system.GetParticleCount();
-        const { pos, vel } = buffers(system);
-        if (front === Infinity) {
-            for (let i = 0; i < n; i++) {
-                if (Box2D.HEAPF32[pos + 2 * i] >= 37) {
-                    front = step * DT;
-                    break;
-                }
-            }
-        }
-        if (step === 60 * 8) {
-            const columns = Array.from({ length: COLUMNS }, () => []);
-            for (let i = 0; i < n; i++) {
-                const c = Math.floor(Box2D.HEAPF32[pos + 2 * i] - 18.5);
-                if (c >= 0 && c < COLUMNS) columns[c].push(Box2D.HEAPF32[pos + 2 * i + 1]);
-            }
-            surface = columns.map((col) => percentile(col, 0.9));
-        }
-        if (step > 60 * 8) {
-            speeds.length = 0;
-            for (let i = 0; i < n; i++) speeds.push(Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]));
-            meanSum += speeds.reduce((a, b) => a + b, 0) / n;
-            p95Sum += percentile(speeds, 0.95);
-            restSteps++;
-        }
-    }
-    const mean = surface.reduce((a, b) => a + b, 0) / surface.length;
-    return {
-        particles: system.GetParticleCount(),
-        front,
-        surfaceStd: Math.sqrt(surface.reduce((a, b) => a + (b - mean) ** 2, 0) / surface.length),
-        surfaceRange: Math.max(...surface) - Math.min(...surface),
-        speedMean: meanSum / restSteps,
-        speedP95: p95Sum / restSteps,
-    };
 }

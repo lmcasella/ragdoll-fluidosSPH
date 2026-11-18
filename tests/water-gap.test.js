@@ -1,16 +1,13 @@
-// Hueco visible entre el agua y los cuerpos (#45, docs/design/07-sph.md §7.4): LiquidFun real, con el paso fijo del juego
+// Hueco visible entre las gotas de disparo y los cuerpos (#45, docs/design/07-sph.md §7.4): LiquidFun real, con el paso fijo del juego
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
-import { loadGame } from "./helpers/game.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
 const { createParticleSystem } = await import("../js/particles.js");
-const { LEVEL } = await import("../js/level.js");
 const { SHOT_SYSTEM } = await import("../js/weapons.js");
 const { collectSurfaces, skinPosition, PARTICLE_RADIUS, SHOT_DRAW } = await import("../js/render.js");
 
-const DRAW = LEVEL.pool.draw;
 const SECONDS = 8;
 // Tolerancia del borde dibujado respecto de la superficie (m); el agua se mete SKIN_OVERLAP = 0,02 m bajo el cuerpo
 const TOUCH = 0.01;
@@ -30,7 +27,7 @@ function positions(system) {
 }
 
 // Piso, dos paredes y una caja dinámica pesada apoyada (una pieza de robot), con agua hasta 3 m
-function settledWater(radius, params, flags) {
+function settledWater(radius, params, flags = 0) {
     const gravity = new Box2D.b2Vec2(0, -10);
     const world = new Box2D.b2World(gravity);
     Box2D.destroy(gravity);
@@ -87,48 +84,10 @@ function distanceToSolids(x, y, box) {
     return Math.min(...all);
 }
 
-test("agua del nivel: el centro de las partículas queda a ~1,85 radios del cuerpo, más lejos de lo que cubre el dibujo", (t) => {
-    const { system, box } = settledWater(LEVEL.pool.radius, LEVEL.pool.physics, LEVEL.pool.flags);
-    const first = positions(system)
-        .map(([x, y]) => distanceToSolids(x, y, box))
-        .filter((d) => d < DRAW.snapReach);
-    const standoff = Math.min(...first);
-    t.diagnostic(`primera fila: ${first.length} partículas, distancia mínima ${standoff.toFixed(3)} m, dibujo ${DRAW.radius} m, hueco ${(standoff - DRAW.radius).toFixed(3)} m`);
-    assert.ok(first.length >= 20, `solo ${first.length} partículas junto a los cuerpos`);
-    assert.ok(standoff > DRAW.radius + 0.1, `la física ya no deja hueco (${standoff.toFixed(3)} m): revisar el acercamiento`);
-    assert.ok(standoff < DRAW.snapFullReach, `la primera fila (${standoff.toFixed(3)} m) quedó fuera de snapFullReach`);
-});
-
-test("agua del nivel: el segundo círculo de contacto toca los cuerpos y las partículas lejanas no tienen", (t) => {
-    const { system, box } = settledWater(LEVEL.pool.radius, LEVEL.pool.physics, LEVEL.pool.flags);
-    collectSurfaces(playerOf(box), SOLIDS, DRAW.snapReach);
-    let near = 0;
-    let worst = -Infinity;
-    let overlap = Infinity;
-    for (const [x, y] of positions(system)) {
-        const d = distanceToSolids(x, y, box);
-        const p = skinPosition(x, y, DRAW.radius, DRAW.snapReach, DRAW.snapFullReach);
-        if (d >= DRAW.snapReach) {
-            assert.equal(p.x, x);
-            assert.equal(p.y, y);
-            continue;
-        }
-        if (d > DRAW.snapFullReach) continue;
-        near++;
-        const drawnGap = distanceToSolids(p.x, p.y, box) - DRAW.radius;
-        worst = Math.max(worst, drawnGap);
-        overlap = Math.min(overlap, drawnGap);
-    }
-    t.diagnostic(`${near} partículas de la primera fila: hueco del segundo círculo entre ${overlap.toFixed(3)} y ${worst.toFixed(3)} m`);
-    assert.ok(near >= 20);
-    assert.ok(worst <= TOUCH, `hueco dibujado ${worst.toFixed(3)} m`);
-    assert.ok(overlap >= -0.05, `el agua se mete ${(-overlap).toFixed(3)} m bajo el cuerpo`);
-});
-
 test("disparos: el círculo acercado de la fila de contacto toca el cuerpo sin inflar la gota", (t) => {
     const { radius, ...params } = SHOT_SYSTEM;
-    const { system, box } = settledWater(radius, params, 0);
-    collectSurfaces(playerOf(box), SOLIDS, DRAW.snapReach);
+    const { system, box } = settledWater(radius, params);
+    collectSurfaces(playerOf(box), SOLIDS, SHOT_DRAW.snapReach);
     let near = 0;
     let best = Infinity;
     for (const [x, y] of positions(system)) {
@@ -142,36 +101,4 @@ test("disparos: el círculo acercado de la fila de contacto toca el cuerpo sin i
     assert.ok(near >= 20);
     assert.ok(PARTICLE_RADIUS < 1.2 * SHOT_SYSTEM.radius);
     assert.ok(best <= TOUCH, `hueco dibujado ${best.toFixed(3)} m`);
-});
-
-test("robot en la pileta: el agua dibujada toca todas sus piezas", async (t) => {
-    const real = LEVEL.spawns;
-    LEVEL.spawns = [{ x: 19, flipX: false }, { x: 48.5, flipX: true }];
-    let game;
-    try {
-        game = await loadGame();
-    } finally {
-        LEVEL.spawns = real;
-    }
-    game.setPad(0);
-    game.setPad(1);
-    game.frames(60 * 12);
-    const { players, poolSystem } = game.state;
-    collectSurfaces(players, LEVEL.solids, DRAW.snapReach);
-    let near = 0;
-    let worstRaw = -Infinity;
-    let worst = -Infinity;
-    for (const [x, y] of positions(poolSystem)) {
-        const drawn = skinPosition(x, y, DRAW.radius, DRAW.snapReach, DRAW.snapFullReach);
-        const moved = Math.hypot(drawn.x - x, drawn.y - y);
-        if (moved === 0) continue;
-        near++;
-        worstRaw = Math.max(worstRaw, moved);
-        // Tras el acercamiento, la distancia restante al cuerpo más cercano
-        const probe = skinPosition(drawn.x, drawn.y, DRAW.radius, DRAW.snapReach, DRAW.snapFullReach);
-        worst = Math.max(worst, Math.hypot(probe.x - drawn.x, probe.y - drawn.y));
-    }
-    t.diagnostic(`${near} partículas acercadas, hasta ${worstRaw.toFixed(3)} m; el acercamiento repetido ya no mueve más de ${worst.toFixed(3)} m`);
-    assert.ok(near >= 5, `solo ${near} partículas junto a piso y robot`);
-    assert.ok(worst <= TOUCH, `queda hueco de ${worst.toFixed(3)} m`);
 });

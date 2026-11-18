@@ -36,14 +36,13 @@ export const PERSIST_MAX = 300;
  * Tabla de armas. `rate`: partículas/s; `speed`: m/s; `spread`: rad (±); `tank`: partículas; `dps`: daño por
  * segundo con el chorro entero (0 si el arma aplica un estado). Cada arma cumple `rate ≤ speed / (1,5 r)`: un
  * solo carril sin explosión al crear. `persist`: no vence a los 6 s del disparo; queda como charco y cuenta para
- * PERSIST_MAX. `immersion`: respuesta dentro del agua del nivel (docs/design/07-sph.md §7.6); `buoyancy` =
- * ρ_agua / ρ_fluido, `drag` en 1/s.
+ * PERSIST_MAX.
  */
 export const WEAPONS = [
-    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 50, speed: 14, spread: 0.035, tank: 150, dps: 0, immersion: { buoyancy: 1.0, drag: 10 } },
-    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 45, speed: 14, spread: 0.035, tank: 68, dps: 20, immersion: { buoyancy: 0.95, drag: 10 } },
-    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 30, speed: 10, spread: 0.017, tank: 45, dps: 12, immersion: { buoyancy: 0.38, drag: 6 } },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 25, speed: 18, spread: 0.017, tank: 38, dps: 0, persist: true, immersion: { buoyancy: 0.7, drag: 14 } },
+    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 50, speed: 14, spread: 0.035, tank: 150, dps: 0 },
+    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 45, speed: 14, spread: 0.035, tank: 68, dps: 20 },
+    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 30, speed: 10, spread: 0.017, tank: 45, dps: 12 },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 25, speed: 18, spread: 0.017, tank: 38, dps: 0, persist: true },
 ];
 
 /**

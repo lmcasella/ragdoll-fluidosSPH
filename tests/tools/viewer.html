@@ -81,6 +81,19 @@
             const [px, py, angle] = f.pieces[i];
             for (const shape of piece.shapes) drawShape(T, shape, px, py, angle);
         });
+        const field = data.meta.field;
+        if (field && f.eta.length) {
+            ctx.fillStyle = "rgba(40, 120, 255, 0.45)";
+            ctx.strokeStyle = "#aadcff";
+            ctx.beginPath();
+            for (let i = 0; i < field.n; i++) ctx.lineTo(T.X(field.x0 + (i + 0.5) * field.dx), T.Y(f.eta[i]));
+            ctx.stroke();
+            for (let i = 0; i < field.n; i++) {
+                const b = field.beds[i];
+                const top = f.eta[i];
+                if (top > b + 1e-3) ctx.fillRect(T.X(field.x0 + i * field.dx), T.Y(top), field.dx * T.s + 0.5, (top - b) * T.s);
+            }
+        }
         f.particles.forEach((p, k) => {
             const r = Math.max(1.2, data.meta.systems[k].radius * T.s);
             for (let i = 0; i < p.x.length; i++) {
@@ -103,7 +116,7 @@
 
     function tick(now) {
         if (playing && data) {
-            carry += ((now - last) / 1000) * 60 * Number(document.getElementById("speed").value);
+            carry += ((now - last) / 1000) * (1 / (data.meta.dt || 1 / 60)) * Number(document.getElementById("speed").value);
             const whole = Math.floor(carry);
             carry -= whole;
             if (whole) {

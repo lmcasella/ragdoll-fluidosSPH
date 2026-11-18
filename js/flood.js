@@ -1,31 +1,28 @@
-// Inundación (muerte súbita): lluvia desde el techo en el sistema de partículas del agua del nivel.
-// El nivel no se mide sobre las partículas: lo da una curva por tiempo de ronda y el emisor repone las gotas
-// necesarias para llenarlo. No aplica daño: expone `level` y DamageSystem moja a los robots que quedan bajo él.
-import { LEVEL, fillPoolWater } from "./level.js";
+import { LEVEL } from "./level.js";
+import { FLUID } from "./weapons.js";
+import { ORIGIN } from "./particleStore.js";
 
-const SLICE = 0.05; // m, paso de integración del ancho libre
+/** Paso (m) de integración del ancho libre. */
+const SLICE = 0.05;
 const GOLDEN = 0.6180339887498949;
-// Superficie real bajo un robot: partículas casi quietas en una columna de ±0,5 m; la gota en vuelo o la
-// salpicadura suelta no cuentan, y se toma el percentil 90 para ignorar la espuma de arriba
-const COLUMN_HALF_WIDTH = 0.5;
-const REST_SPEED = 2; // m/s
-const MIN_COLUMN_PARTICLES = 3;
-const SURFACE_PERCENTILE = 0.9;
-const COLUMN_CAPACITY = 1024;
-// GetUserDataBuffer devuelve el puntero como número (no como objeto envuelto): no pasa por getPointer
-export const RAIN_MARK = -1; // userData de las gotas; la pileta queda en 0 y los disparos usan ids positivos
 
-// Nivel objetivo del agua (m) según el tiempo de ronda
+/** Iteraciones de la bisección de `levelOfArea`. */
+const BISECTION_STEPS = 40;
+
+/** Nivel objetivo del agua (m) según el tiempo de ronda: la curva de diseño. */
 export function floodLevel(roundTime, level = LEVEL) {
     const { start, riseSpeed, maxLevel } = level.flood;
     if (roundTime <= start) return level.pool.surface;
     return Math.min(maxLevel, level.pool.surface + riseSpeed * (roundTime - start));
 }
 
-// Ancho libre (m) a cada franja de 0,05 m desde pool.surface, descontando los sólidos que la cruzan,
-// y área acumulada. Se calcula una vez por nivel de datos.
 const tables = new WeakMap();
 
+/**
+ * Ancho libre (m) a cada franja de 0,05 m desde `pool.surface`, descontando solo los sólidos `floor` (los que el
+ * campo usa como lecho; las plataformas no desplazan agua en el campo), y área acumulada. Se calcula una vez por
+ * nivel de datos.
+ */
 function freeWidths(level) {
     let table = tables.get(level);
     if (table) return table;
@@ -39,7 +36,7 @@ function freeWidths(level) {
         const y = base + (k + 0.5) * SLICE;
         spans.length = 0;
         for (const s of level.solids) {
-            if (y > s.y - s.h / 2 && y < s.y + s.h / 2) {
+            if (s.kind === "floor" && y > s.y - s.h / 2 && y < s.y + s.h / 2) {
                 spans.push([Math.max(minX, s.x - s.w / 2), Math.min(maxX, s.x + s.w / 2)]);
             }
         }
@@ -59,7 +56,7 @@ function freeWidths(level) {
     return table;
 }
 
-// Área libre (m²) entre pool.surface y `height`
+/** Área libre (m²) entre `pool.surface` y `height`. */
 export function waterArea(height, level = LEVEL) {
     const { widths, cumulative, count, base } = freeWidths(level);
     const rel = Math.max(0, height - base) / SLICE;
@@ -67,131 +64,124 @@ export function waterArea(height, level = LEVEL) {
     return cumulative[k] + widths[k] * (rel - k) * SLICE;
 }
 
-// Gotas de lluvia necesarias en el mapa para sostener el nivel de ese instante
-export function rainTarget(roundTime, level = LEVEL) {
-    return Math.round(level.flood.density * waterArea(floodLevel(roundTime, level), level));
+/** Ancho libre `W_libre` (m) a la altura `height`. */
+export function freeWidth(height, level = LEVEL) {
+    const { widths, count, base } = freeWidths(level);
+    const k = Math.min(count - 1, Math.floor(Math.max(0, height - base) / SLICE));
+    return widths[k];
 }
 
-// x de la gota número i: secuencia áurea, reparto parejo y determinista
+/** Nivel (m) que encierra `area` (m²) sobre `pool.surface`: la inversa de `waterArea`, por bisección. */
+export function levelOfArea(area, level = LEVEL) {
+    let lo = level.pool.surface;
+    let hi = level.bounds.maxY;
+    if (area <= 0) return lo;
+    for (let k = 0; k < BISECTION_STEPS; k++) {
+        const mid = (lo + hi) / 2;
+        if (waterArea(mid, level) < area) lo = mid;
+        else hi = mid;
+    }
+    return (lo + hi) / 2;
+}
+
+/** x de la gota número i: secuencia áurea, reparto parejo y determinista. */
 export function rainX(i, flood = LEVEL.flood) {
     const frac = (i * GOLDEN) % 1;
     return flood.emitX1 + frac * (flood.emitX2 - flood.emitX1);
 }
 
+/**
+ * Inundación (muerte súbita) como fuente de lluvia por caudal (docs/design/14-agua.md §14.7). No impone el nivel:
+ * emite gotas en el sistema de disparos con `store.create` (`origin` RAIN) al caudal de la curva de diseño,
+ * `Q = riseSpeed · W_libre(nivel(t))` en m²/s, o `Q / A_p` gotas por segundo con crédito acumulado, tope
+ * `maxRate`. Las gotas caen como partículas y `Immersion` las absorbe en el campo. El nivel resulta de la
+ * conservación de la masa. Se corta cuando la curva está en `maxLevel` y el nivel medio del campo
+ * (`meanLevel`) también. Antes de `start` no llueve. Una vez por paso fijo, antes de `stepWorld`.
+ *
+ * `meanLevel` es el nivel `η` medio: el que ocuparía todo el volumen de agua agregado desde el arranque (el del
+ * campo más el de las gotas de lluvia que todavía están como partículas, en vuelo o retenidas en plataformas) si se
+ * repartiera parejo sobre el ancho libre (`levelOfArea`). Contar las gotas en vuelo evita que el corte en
+ * `maxLevel` las sume de más.
+ */
 export class Flood {
-    constructor(world, system, level = LEVEL) {
-        this.world = world;
-        this.system = system;
+    constructor(store, water, level = LEVEL) {
+        this.store = store;
+        this.water = water;
         this.data = level;
         this.config = level.flood;
-        // Objetos nativos de trabajo: se crean una vez y se reutilizan en cada gota
+        this.dropArea = (1.5 * store.system.GetRadius()) ** 2;
         this.def = new Box2D.b2ParticleDef();
         this.position = new Box2D.b2Vec2(0, this.config.emitY);
         this.velocity = new Box2D.b2Vec2(0, -this.config.dropSpeed);
         this.color = new Box2D.b2ParticleColor(40, 120, 255, 255);
-        this.def.set_flags(level.pool.flags ?? 0);
         this.def.set_velocity(this.velocity);
         this.def.set_color(this.color);
+        this.props = { kind: FLUID.WATER, origin: ORIGIN.RAIN };
+        this.baseVolume = water.volume();
         this.roundTime = 0;
         this.emitted = 0;
         this.credit = 0;
-        this.drops = 0;
-        this.column = new Float32Array(COLUMN_CAPACITY);
-        // Propiedad (no método) para pasarla como callback a DamageSystem.process sin crear closures por frame
-        this.surfaceAt = (x) => this.measureSurface(x);
+        this.rate = 0;
     }
 
     get active() {
         return this.roundTime >= this.config.start;
     }
 
-    // Nivel del agua para el daño; -Infinity antes de que empiece la inundación
+    /** Nivel de la curva de diseño (m); -Infinity antes de que empiece la inundación. */
     get level() {
         return this.active ? floodLevel(this.roundTime, this.data) : -Infinity;
     }
 
-    // Una vez por paso fijo, antes de stepWorld
+    /** Nivel `η` medio (m): campo más gotas de lluvia vivas. */
+    get meanLevel() {
+        return levelOfArea(this.water.volume() + this.rainVolume() - this.baseVolume, this.data);
+    }
+
+    /** Volumen (m²) de las gotas de lluvia que siguen como partículas. */
+    rainVolume() {
+        const { alive, origin } = this.store;
+        let count = 0;
+        for (let slot = 0; slot < alive.length; slot++) if (alive[slot] === 1 && origin[slot] === ORIGIN.RAIN) count++;
+        return count * this.dropArea;
+    }
+
+    /** Emite las gotas de este paso. `rate` queda en las gotas por segundo. */
     step(roundTime, dt) {
         this.roundTime = roundTime;
-        const cfg = this.config;
-        const system = this.system;
-        const count = system.GetParticleCount();
-        const marks = system.GetUserDataBuffer() >> 2;
-        const positions = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-        const velocities = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-        const drainAbove = floodLevel(roundTime, this.data) + cfg.drainHeight;
-        const drainSpeed2 = cfg.drainSpeed * cfg.drainSpeed;
-
-        // Cuenta las gotas vivas y escurre las quietas muy por encima del agua
-        let drops = 0;
-        for (let i = 0; i < count; i++) {
-            if (Box2D.HEAP32[marks + i] !== RAIN_MARK) continue;
-            const vx = Box2D.HEAPF32[velocities + i * 2];
-            const vy = Box2D.HEAPF32[velocities + i * 2 + 1];
-            if (Box2D.HEAPF32[positions + i * 2 + 1] > drainAbove && vx * vx + vy * vy < drainSpeed2) {
-                system.DestroyParticle(i);
-            } else {
-                drops++;
-            }
-        }
-        this.drops = drops;
+        this.rate = 0;
         if (!this.active) return;
-
-        const missing = rainTarget(roundTime, this.data) - drops;
-        if (missing <= 0) {
+        const cfg = this.config;
+        const target = floodLevel(roundTime, this.data);
+        if (target >= cfg.maxLevel && this.meanLevel >= cfg.maxLevel) {
             this.credit = 0;
             return;
         }
-        this.credit += cfg.maxRate * dt;
+        this.rate = Math.min(cfg.maxRate, (cfg.riseSpeed * freeWidth(target, this.data)) / this.dropArea);
+        this.credit += this.rate * dt;
         const wanted = Math.floor(this.credit);
-        const room = cfg.maxParticles - count;
-        const n = Math.min(wanted, missing, Math.max(0, room));
-        for (let k = 0; k < n; k++) this.emit();
-        this.credit = n < wanted ? this.credit - wanted : this.credit - n;
+        let made = 0;
+        while (made < wanted && this.emit()) made++;
+        this.credit = made < wanted ? 0 : this.credit - made;
     }
 
-    // Altura (m) del agua realmente asentada en la columna x, o -Infinity si no hay (o aún no llueve).
-    // El agua real va atrasada respecto de `level` (la lluvia tarda en caer y repartirse), y mojar con la curva
-    // mojaría robots a los que todavía no llegó el agua.
-    measureSurface(x) {
-        if (!this.active) return -Infinity;
-        const system = this.system;
-        const count = system.GetParticleCount();
-        const positions = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-        const velocities = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-        const column = this.column;
-        const rest2 = REST_SPEED * REST_SPEED;
-        let n = 0;
-        for (let i = 0; i < count && n < COLUMN_CAPACITY; i++) {
-            if (Math.abs(Box2D.HEAPF32[positions + i * 2] - x) > COLUMN_HALF_WIDTH) continue;
-            const vx = Box2D.HEAPF32[velocities + i * 2];
-            const vy = Box2D.HEAPF32[velocities + i * 2 + 1];
-            if (vx * vx + vy * vy < rest2) column[n++] = Box2D.HEAPF32[positions + i * 2 + 1];
-        }
-        if (n < MIN_COLUMN_PARTICLES) return -Infinity;
-        column.subarray(0, n).sort();
-        return column[Math.floor((n - 1) * SURFACE_PERCENTILE)];
-    }
-
+    /** Crea una gota en el techo; devuelve `false` si el sistema no tiene lugar. */
     emit() {
-        this.position.set_x(rainX(this.emitted++, this.config));
+        this.position.set_x(rainX(this.emitted, this.config));
         this.def.set_position(this.position);
-        const index = this.system.CreateParticle(this.def);
-        if (index < 0) return;
-        Box2D.HEAP32[(this.system.GetUserDataBuffer() >> 2) + index] = RAIN_MARK;
-        this.drops++;
+        if (this.store.create(this.def, this.props) < 0) return false;
+        this.emitted++;
+        return true;
     }
 
-    // Deja el agua del nivel como al empezar: destruye todo (lluvia y pileta, que pudo salpicar fuera del
-    // hueco) y vuelve a llenar la pileta con los mismos datos. Llamar fuera de callbacks (entre frames).
+    /** Deja el agua como al empezar: el campo vuelve al estado asentado y se reinicia la fuente. Las gotas las destruye `store.reset()`. */
     reset() {
-        const count = this.system.GetParticleCount();
-        for (let i = 0; i < count; i++) this.system.DestroyParticle(i);
-        fillPoolWater(this.system, this.data);
+        this.water.reset();
+        this.baseVolume = this.water.volume();
         this.roundTime = 0;
         this.emitted = 0;
         this.credit = 0;
-        this.drops = 0;
+        this.rate = 0;
     }
 
     dispose() {

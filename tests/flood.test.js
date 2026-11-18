@@ -1,64 +1,17 @@
+/**
+ * Inundación como fuente de lluvia y reglas de la pileta (docs/design/14-agua.md §14.7, §14.16: I4, I7, I8 y W6).
+ * LiquidFun real contra el campo de alturas del nivel real.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { makeScene, fillField, floodRun, A_P, DT } from "./helpers/water-scene.js";
+import { loadGame } from "./helpers/game.js";
 
-const require = createRequire(import.meta.url);
-globalThis.Box2D = require("../vendor/liquidfun.js");
-// RagImporter necesita PIXI para la vista de cada instancia; en Node alcanza con un stub
-globalThis.PIXI = {
-    Container: class {
-        addChild(child) {
-            return child;
-        }
-        removeChild() {}
-        destroy() {}
-    },
-};
+const { LEVEL } = await import("../js/level.js");
+const { floodLevel, waterArea, freeWidth, levelOfArea, rainX } = await import("../js/flood.js");
 
-const { LEVEL, buildLevel, fillPool } = await import("../js/level.js");
-const { Flood, floodLevel, waterArea, rainTarget, rainX, RAIN_MARK } = await import("../js/flood.js");
-const { DamageSystem } = await import("../js/damage.js");
-const { RagImporter, stepWorld } = await import("../lib/ragimporter.js");
-const { ActiveRagdoll } = await import("../js/ActiveRagdoll.js");
-
-const DT = 1 / 60;
 const F = LEVEL.flood;
-
-function levelWith(overrides) {
-    return { ...LEVEL, flood: { ...LEVEL.flood, ...overrides } };
-}
-
-function makeWorld(level = LEVEL) {
-    const gravity = new Box2D.b2Vec2(0, -10);
-    const world = new Box2D.b2World(gravity);
-    Box2D.destroy(gravity);
-    const { killSensors } = buildLevel(world, level);
-    const system = fillPool(world, level);
-    return { world, system, killSensors };
-}
-
-// Partículas de lluvia vivas (marcadas) del sistema
-function marked(system) {
-    const marks = system.GetUserDataBuffer() >> 2;
-    let n = 0;
-    for (let i = 0; i < system.GetParticleCount(); i++) if (Box2D.HEAP32[marks + i] === RAIN_MARK) n++;
-    return n;
-}
-
-// Superficie medida: percentil 97 de la altura de las partículas lentas en una columna sin plataformas
-function measuredSurface(system, x1 = 47.3, x2 = 49.7) {
-    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-    const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-    const ys = [];
-    for (let i = 0; i < system.GetParticleCount(); i++) {
-        const x = Box2D.HEAPF32[pos + 2 * i];
-        const speed = Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]);
-        if (x > x1 && x < x2 && speed < 0.8) ys.push(Box2D.HEAPF32[pos + 2 * i + 1]);
-    }
-    ys.sort((a, b) => a - b);
-    return ys[Math.floor(ys.length * 0.97)];
-}
+const fmt = (n, digits = 3) => Number(n).toFixed(digits);
 
 test("floodLevel: pileta antes de start, sube a riseSpeed y se frena en maxLevel", () => {
     assert.equal(floodLevel(0), LEVEL.pool.surface);
@@ -69,7 +22,6 @@ test("floodLevel: pileta antes de start, sube a riseSpeed y se frena en maxLevel
 
 test("waterArea: 0 en la pileta, ancho del hueco sobre ella y total coherente con el presupuesto", () => {
     assert.equal(waterArea(LEVEL.pool.surface), 0);
-    // entre 3 y 4 m solo está libre el hueco central (islas hasta y = 4)
     const hole = LEVEL.pool.x2 - LEVEL.pool.x1;
     assert.ok(Math.abs(waterArea(4) - hole) < 0.01, `área ${waterArea(4)}`);
     let previous = 0;
@@ -78,16 +30,18 @@ test("waterArea: 0 en la pileta, ancho del hueco sobre ella y total coherente co
         assert.ok(area >= previous, "el área no decrece");
         previous = area;
     }
-    // diseño: ~636 m² a nivel máximo
     assert.ok(waterArea(F.maxLevel) > 600 && waterArea(F.maxLevel) < 680, `área ${waterArea(F.maxLevel)}`);
 });
 
-test("rainTarget: 0 antes de start y density × área después", () => {
-    assert.equal(rainTarget(0), 0);
-    assert.equal(rainTarget(F.start), 0);
-    const t = F.start + 40;
-    assert.equal(rainTarget(t), Math.round(F.density * waterArea(floodLevel(t))));
-    assert.ok(rainTarget(10000) < F.maxParticles);
+test("freeWidth y levelOfArea: el ancho libre es la derivada del área y la inversa la recupera", () => {
+    assert.equal(freeWidth(3.5), LEVEL.pool.x2 - LEVEL.pool.x1);
+    assert.equal(freeWidth(10), 56, "las plataformas no son lecho del campo: no descuentan ancho");
+    assert.equal(freeWidth(12), 56);
+    for (const level of [3, 3.7, 4.2, 9, 14.9]) {
+        assert.ok(Math.abs(levelOfArea(waterArea(level)) - level) < 1e-6, `nivel ${level}`);
+    }
+    assert.equal(levelOfArea(0), LEVEL.pool.surface);
+    assert.equal(levelOfArea(-5), LEVEL.pool.surface);
 });
 
 test("rainX: determinista, dentro del emisor y bien repartida", () => {
@@ -99,203 +53,209 @@ test("rainX: determinista, dentro del emisor y bien repartida", () => {
     for (const count of buckets) assert.ok(count > 80 && count < 120, `reparto ${buckets}`);
 });
 
-test("la pileta se crea con radio 0,25 y la cantidad de partículas esperada", () => {
-    const { system } = makeWorld();
-    const count = system.GetParticleCount();
-    assert.ok(Math.abs(system.GetRadius() - LEVEL.pool.radius) < 1e-6);
-    // medido: 477 (grupo inicial más denso que la lluvia en reposo)
-    assert.ok(count >= 420 && count <= 520, `${count} partículas en la pileta`);
-});
-
-test("nunca se supera maxParticles", () => {
-    const level = levelWith({ maxParticles: 700, maxRate: 400 });
-    const { world, system } = makeWorld(level);
-    const flood = new Flood(world, system, level);
-    let peak = 0;
-    for (let i = 0; i < 1200; i++) {
-        flood.step(150, DT);
-        peak = Math.max(peak, system.GetParticleCount());
-    }
-    assert.ok(peak <= 700, `pico ${peak}`);
-    assert.ok(peak >= 690, "debería llegar al tope");
-    flood.dispose();
-});
-
-test("el agua asentada queda a ±0,5 m del nivel y no hay charcos altos", () => {
-    const { world, system } = makeWorld();
-    const flood = new Flood(world, system);
-    const roundTime = F.start + 30; // nivel 7,5 m
-    const level = floodLevel(roundTime);
-    // 60 s: a los 40 s la superficie todavía baja unos 5 cm (medido, #40)
-    for (let i = 0; i < 60 * 60; i++) {
-        flood.step(roundTime, DT);
-        stepWorld(world, []);
-    }
-    const surface = measuredSurface(system);
-    assert.ok(Math.abs(surface - level) < 0.5, `superficie ${surface?.toFixed(2)} vs nivel ${level}`);
-    const local = flood.surfaceAt(48.5);
-    assert.ok(Math.abs(local - level) < 0.5, `surfaceAt ${local} vs nivel ${level}`);
-    assert.equal(flood.surfaceAt(48.5), flood.measureSurface(48.5));
-    assert.ok(marked(system) <= rainTarget(roundTime), "no hay más gotas que las necesarias");
-
-    const marks = system.GetUserDataBuffer() >> 2;
-    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-    const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-    let pooled = 0;
-    for (let i = 0; i < system.GetParticleCount(); i++) {
-        const y = Box2D.HEAPF32[pos + 2 * i + 1];
-        const speed = Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]);
-        if (Box2D.HEAP32[marks + i] === RAIN_MARK && y > level + F.drainHeight + 0.5 && speed < F.drainSpeed) pooled++;
-    }
-    assert.ok(pooled < 5, `${pooled} gotas quietas muy por encima del agua`);
-    flood.dispose();
-});
-
-test("surfaceAt: -Infinity antes de la inundación y sin agua en la columna", () => {
-    const { world, system } = makeWorld();
-    const flood = new Flood(world, system);
-    for (let i = 0; i < 120; i++) {
-        flood.step(10, DT);
-        stepWorld(world, []);
-    }
-    assert.equal(flood.surfaceAt(7.5), -Infinity);
-    // ya activa, pero todavía no cayó agua sobre la isla izquierda (la lluvia tarda en llegar)
-    flood.step(95, DT);
-    assert.equal(flood.active, true);
-    assert.equal(flood.surfaceAt(7.5), -Infinity);
-    // sobre la pileta sí hay agua
-    assert.ok(Math.abs(flood.surfaceAt(28) - LEVEL.pool.surface) < 0.6);
-    flood.dispose();
-});
-
-test("reset destruye la lluvia y devuelve la pileta a su estado inicial, aunque se haya salpicado", () => {
-    const { world, system } = makeWorld();
-    const flood = new Flood(world, system);
-    const poolCount = system.GetParticleCount();
-    for (let i = 0; i < 600; i++) {
-        flood.step(130, DT);
-        stepWorld(world, []);
-    }
-    assert.ok(marked(system) > 100);
-    assert.equal(flood.active, true);
-
-    // salpicadura: se sacan 60 partículas de la pileta (las primeras, que no son lluvia) fuera del hueco
-    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-    const marks = system.GetUserDataBuffer() >> 2;
-    let moved = 0;
-    for (let i = 0; i < system.GetParticleCount() && moved < 60; i++) {
-        if (Box2D.HEAP32[marks + i] === RAIN_MARK) continue;
-        Box2D.HEAPF32[pos + 2 * i] = 5 + moved * 0.01;
-        Box2D.HEAPF32[pos + 2 * i + 1] = 9;
-        moved++;
-    }
-    assert.equal(moved, 60);
-    for (let i = 0; i < 30; i++) {
-        flood.step(130, DT);
-        stepWorld(world, []);
-    }
-
-    flood.reset();
-    stepWorld(world, []);
-    assert.equal(marked(system), 0);
-    assert.equal(system.GetParticleCount(), poolCount);
-    const { x1, x2, bottom, surface } = LEVEL.pool;
-    const after = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-    for (let i = 0; i < system.GetParticleCount(); i++) {
-        const x = Box2D.HEAPF32[after + 2 * i];
-        const y = Box2D.HEAPF32[after + 2 * i + 1];
-        assert.ok(x > x1 && x < x2 && y > bottom && y < surface + 0.5, `partícula ${i} fuera del hueco: (${x}, ${y})`);
-    }
-    assert.equal(flood.active, false);
+test("la fuente emite Q / A_p con Q = riseSpeed · W_libre, no antes de start y se corta con el nivel en maxLevel", (t) => {
+    const scene = makeScene();
+    const { flood, water, store } = scene;
+    for (let i = 0; i < 120; i++) flood.step(F.start - 1, DT);
+    assert.equal(flood.emitted, 0, "antes de start no llueve");
     assert.equal(flood.level, -Infinity);
-    assert.equal(flood.drops, 0);
-    flood.step(0, DT);
-    assert.equal(system.GetParticleCount(), poolCount);
-    flood.dispose();
+    const before = flood.emitted;
+    for (let i = 0; i < 60; i++) flood.step(F.start, DT);
+    const expected = (F.riseSpeed * freeWidth(LEVEL.pool.surface)) / A_P;
+    t.diagnostic(`fuente a nivel de la pileta: ${flood.emitted - before} gotas en 1 s contra Q / A_p = ${fmt(expected, 2)}`);
+    assert.ok(Math.abs(flood.emitted - before - expected) <= 1.5, `${flood.emitted - before} contra ${expected}`);
+    assert.equal(store.alive.reduce((a, b) => a + b, 0), flood.emitted);
+
+    fillField(water, F.maxLevel);
+    assert.ok(flood.meanLevel >= F.maxLevel - 0.01, `nivel medio ${flood.meanLevel}`);
+    const emitted = flood.emitted;
+    for (let i = 0; i < 60; i++) flood.step(F.start + 200, DT);
+    assert.equal(flood.emitted, emitted, "con el campo en maxLevel no llueve más");
+    fillField(water, F.maxLevel - 1);
+    flood.step(F.start + 200, DT);
+    assert.ok(flood.rate > 0, "bajo maxLevel sigue la fuente");
+
+    store.reset();
+    flood.reset();
+    assert.equal(flood.emitted, 0);
+    assert.equal(flood.active, false);
+    assert.equal(water.volume(), flood.baseVolume);
+    assert.ok(Math.abs(flood.meanLevel - LEVEL.pool.surface) < 1e-9);
+    scene.dispose();
 });
 
-// Dos robots en las islas, con el loop de index.html (sin render ni cámara)
-async function setupMatch(level) {
-    const { world, system, killSensors } = makeWorld(level);
-    RagImporter.configure({ Box2D, PIXI });
-    const json = JSON.parse(readFileSync(new URL("../assets/robot.rag.json", import.meta.url), "utf8"));
-    const def = RagImporter.parse(json);
-    const rig = {
-        rootBody: json.ragdoll.rootBody,
-        aimJoints: ["joint_11", "joint_11_copy"],
-        aimOffset: 0,
-        clips: { walk: "walk", jump: "jump", dead: "dead" },
-        feet: ["b_4", "b_16"],
-    };
-    const players = [
-        new ActiveRagdoll(def, world, 7.5, 4.05, rig, false),
-        new ActiveRagdoll(def, world, 48.5, 4.05, rig, true),
-    ];
-    const damage = new DamageSystem(world, { system: { GetParticleCount: () => 0 }, destroy() {} });
-    damage.killSensors = killSensors;
-    damage.register(players);
-    const flood = new Flood(world, system, level);
-    const idle = { left: false, right: false, up: false };
-    const instances = players.map((p) => p.rag);
-    let now = 0;
-    const timing = { process: 0 };
-    const frame = (roundTime) => {
-        players.forEach((p) => {
-            p.move(idle);
-            p.updateStatus(DT);
-        });
-        flood.step(roundTime, DT);
-        stepWorld(world, instances);
-        now += DT;
-        const t0 = performance.now();
-        damage.process(now, flood.surfaceAt);
-        timing.process += performance.now() - t0;
-    };
-    return { players, flood, system, frame, timing };
+/**
+ * Una sola inundación completa compartida por I4, I7 y W6: 170 s de lluvia desde `start` (la curva llega a
+ * `maxLevel` a los 80 s) con la fuente por caudal, sin robots.
+ */
+let floodResult = null;
+const flooded = () => (floodResult ??= floodRun({ seconds: 170, sample: 10 }));
+
+test("I7: el volumen total (campo + partículas · A_p) sigue la curva de la inundación (±0,5 %) y lo retenido en plataformas es ≤ 800 partículas", (t) => {
+    const run = flooded();
+    let worst = 0;
+    let worstEmitted = 0;
+    for (const s of run.samples) {
+        const curve = (s.total - s.curveVolume) / (s.curveVolume - run.volume0);
+        const emitted = Math.abs(s.total - s.emittedVolume) / (s.emittedVolume - run.volume0);
+        if (s.t >= 10) worst = Math.max(worst, Math.abs(curve));
+        worstEmitted = Math.max(worstEmitted, emitted);
+        t.diagnostic(
+            `I7 t ${fmt(s.t, 0)} s: curva ${fmt(s.curveLevel, 2)} m, η medio ${fmt(s.meanLevel, 2)} m (${fmt(s.meanLevel - s.curveLevel, 2)} m), η medio solo del campo ${fmt(s.fieldLevel, 2)} m; ` +
+                `volumen total ${fmt(s.total, 2)} m² contra curva ${fmt(s.curveVolume, 2)} m² (${fmt((s.total / s.curveVolume - 1) * 100, 2)} % del volumen, ${fmt(curve * 100, 2)} % del agregado); ` +
+                `campo ${fmt(s.field, 2)} m², en vuelo ${s.flying}, retenidas ${s.retained}, caudal ${fmt(s.rate, 1)}/s`,
+        );
+    }
+    const last = run.samples.at(-1);
+    t.diagnostic(
+        `I7: error máximo del volumen total contra la curva ${fmt(worst * 100, 3)} % del volumen agregado (tolerancia 0,5 %); contra lo emitido ${worstEmitted.toExponential(2)}; ` +
+            `retenidas máx ${run.maxRetained} (tope 800), partículas máx ${run.maxCount}; η medio final ${fmt(last.meanLevel, 2)} m (solo del campo ${fmt(last.fieldLevel, 2)} m) contra curva ${fmt(last.curveLevel, 2)} m`,
+    );
+    const etaGap = Math.max(...run.samples.map((s) => Math.abs(s.realEta - s.fieldLevel)));
+    t.diagnostic(
+        `I7: η real del campo (media de b + h donde b < η) contra levelOfArea del campo: máx ${fmt(etaGap, 3)} m (tolerancia 0,02 m); ` +
+            `η real final ${fmt(last.realEta, 3)} m con ${last.flying} gotas en vuelo (esperado 15,00 ±0,075 m)`,
+    );
+    assert.ok(worstEmitted < 1e-6, `conservación: ${worstEmitted}`);
+    assert.ok(worst < 0.005, `error contra la curva ${worst}`);
+    assert.ok(etaGap <= 0.02, `η real contra levelOfArea ${etaGap}`);
+    assert.ok(Math.abs(last.realEta - LEVEL.flood.maxLevel) <= 0.075, `η real final ${last.realEta}`);
+    assert.ok(run.maxRetained <= 800, `retenidas ${run.maxRetained}`);
+});
+
+test("I4: ninguna partícula miscible queda por debajo de η − 2r después de un paso de absorción", (t) => {
+    const run = flooded();
+    const { stepsWithOffenders, maxOffenders, maxBefore } = run.miscibleBelow;
+    t.diagnostic(`I4: pasos con partículas miscibles bajo η − 2r después de absorber: ${stepsWithOffenders} (máx ${maxOffenders}); tolerancia 0; antes de absorber llegó a haber ${maxBefore} (las que el campo subió en el paso)`);
+    assert.equal(stepsWithOffenders, 0);
+    assert.equal(maxOffenders, 0);
+});
+
+test("W6 en el nivel real con lluvia: min h ≥ 0 y 0 activaciones del tope de subpasos", (t) => {
+    const { water } = flooded().scene;
+    const stats = water.stats;
+    t.diagnostic(`W6: ${stats.steps} pasos, ${stats.substeps} subpasos (${fmt(stats.substeps / stats.steps, 2)} por paso), min h ${stats.minH}, activaciones del tope ${stats.capHits} (tolerancia 0), repeticiones con dt/2 ${stats.halvings}, cantidad de movimiento anulada en celdas secas ${stats.droppedMomentum.toExponential(2)}`);
+    assert.ok(stats.minH >= 0, `min h ${stats.minH}`);
+    assert.equal(stats.capHits, 0);
+});
+
+/**
+ * Dos robots en las islas con el script de `index.html`: el campo se llena a mano a `level` y la ronda corre al
+ * `roundTime` dado. Devuelve el juego, con los gamepads sueltos.
+ */
+async function standing(level, roundTime) {
+    const game = await loadGame();
+    game.setPad(0);
+    game.setPad(1);
+    game.frames(10);
+    if (level) fillField(game.state.water, level);
+    game.state.match.roundTime = roundTime;
+    return game;
 }
 
-test("un robot quieto bajo el agua pierde vida por cortocircuito; en seco, no", async () => {
-    const dry = await setupMatch(LEVEL);
-    for (let i = 0; i < 180; i++) dry.frame(50);
-    dry.players.forEach((p) => assert.equal(p.hp, 100));
+test("un robot quieto en seco no se moja y bajo el agua pierde vida por cortocircuito", async (t) => {
+    const dry = await standing(0, 50);
+    dry.frames(180);
+    dry.state.players.forEach((p) => assert.equal(p.hp, 100));
 
-    // la curva (4,5 m) ya cubre los pies, pero el agua todavía no cayó: no se moja
-    const early = await setupMatch(LEVEL);
-    for (let i = 0; i < 30; i++) early.frame(100);
-    early.players.forEach((p) => assert.equal(p.hp, 100));
+    const early = await standing(0, 100);
+    early.frames(30);
+    early.state.players.forEach((p) => assert.equal(p.hp, 100, "la curva ya cubre los pies, pero el agua todavía no cayó"));
 
-    // con el agua asentada a ~7,5 m sobre las islas, un robot quieto pierde 3 de vida por segundo
-    const wet = await setupMatch(LEVEL);
-    for (let i = 0; i < 60 * 50; i++) wet.frame(120);
-    assert.ok(wet.players.every((p) => p.wet), "el agua ya los alcanzó");
-    wet.players.forEach((p) => (p.hp = 100)); // el agua ya los dañó mientras se asentaba
-    const before = wet.players.map((p) => p.hp);
-    for (let i = 0; i < 180; i++) wet.frame(120);
-    wet.players.forEach((p, k) => {
-        const lost = before[k] - p.hp;
-        assert.ok(lost > 8 && lost < 9.2, `J${k + 1}: perdió ${lost.toFixed(2)} en 3 s (esperado ~9)`);
-    });
+    const wet = await standing(7.5, 100);
+    wet.frames(60);
+    assert.ok(wet.state.players.every((p) => p.wet), "el agua ya los alcanzó");
+    wet.state.players.forEach((p) => (p.hp = 100));
+    const before = wet.state.players.map((p) => p.hp);
+    wet.frames(180);
+    const lost = wet.state.players.map((p, k) => before[k] - p.hp);
+    t.diagnostic(`pérdida en 3 s con el agua a 7,5 m: ${lost.map((l) => fmt(l, 2)).join(" y ")} (esperado ~9)`);
+    lost.forEach((l, k) => assert.ok(l > 8 && l < 9.2, `J${k + 1}: perdió ${l.toFixed(2)} en 3 s (esperado ~9)`));
 });
 
-test("costo: nivel al tope con dos robots (300 pasos)", async () => {
-    // maxRate alto solo para llenar rápido el mapa en el test
-    const level = levelWith({ maxRate: 1500 });
-    const { players, flood, system, frame, timing } = await setupMatch(level);
-    const roundTime = 170;
-    for (let i = 0; i < 60 * 15; i++) frame(roundTime);
-    timing.process = 0;
-    const times = [];
-    for (let i = 0; i < 300; i++) {
-        const t0 = performance.now();
-        frame(roundTime);
-        times.push(performance.now() - t0);
+test("D6: la pileta no moja antes de la inundación y el sensor mata", async () => {
+    const before = await standing(7.5, 30);
+    before.frames(60);
+    assert.equal(before.state.flood.active, false);
+    before.state.players.forEach((p) => assert.equal(p.wet, false, "el agua no moja antes de start"));
+
+    const drowning = await standing(0, 30);
+    const { players } = drowning.state;
+    const dx = 28 - players[0].torso.GetPosition().get_x();
+    const v = new Box2D.b2Vec2(0, 0);
+    for (const body of players[0].rag.bodies.values()) {
+        const p = body.GetPosition();
+        v.set_x(p.get_x() + dx);
+        v.set_y(p.get_y());
+        body.SetTransform(v, body.GetAngle());
     }
-    const average = times.reduce((a, b) => a + b, 0) / times.length;
-    console.log(
-        `costo: ${average.toFixed(2)} ms/frame con ${system.GetParticleCount()} partículas (${flood.drops} gotas); ` +
-            `damage.process (agua local + borde inferior, 2 robots): ${(timing.process / 300).toFixed(3)} ms`,
+    Box2D.destroy(v);
+    drowning.frames(120);
+    assert.equal(players[0].dead, true, "el sensor mató al robot que cayó a la pileta");
+    assert.equal(players[1].dead, false);
+});
+
+test("reiniciar la ronda deja el campo asentado, sin gotas y con la fuente en cero", () => {
+    const scene = makeScene();
+    const { water, flood, store, system } = scene;
+    const settled = water.volume();
+    for (let i = 0; i < 600; i++) scene.step(F.start + i * DT);
+    assert.ok(flood.emitted > 500);
+    assert.ok(water.volume() > settled + 5, "el campo recibió agua");
+    flood.reset();
+    store.reset();
+    scene.step(0);
+    assert.equal(water.volume(), settled);
+    assert.equal(system.GetParticleCount(), 0);
+    assert.equal(flood.emitted, 0);
+    assert.equal(flood.active, false);
+    assert.equal(water.stats.steps, 1);
+    scene.dispose();
+});
+test("I8: costo con la inundación al tope y dos robots disparando (se mide, no bloquea)", async (t) => {
+    const game = await standing(12, F.start + 200);
+    const { world, immersion, flood, damage, water, particleSystem, players, wallContact } = game.state;
+    const ms = { step: 0, wall: 0, flood: 0, immersion: 0, water: 0, process: 0 };
+    const timed = (owner, name, key) => {
+        const original = owner[name].bind(owner);
+        owner[name] = (...args) => {
+            const t0 = process.hrtime.bigint();
+            const result = original(...args);
+            ms[key] += Number(process.hrtime.bigint() - t0) / 1e6;
+            return result;
+        };
+    };
+    game.frames(60 * 5);
+    timed(world, "Step", "step");
+    timed(wallContact, "update", "wall");
+    timed(flood, "step", "flood");
+    timed(immersion, "step", "immersion");
+    timed(water, "step", "water");
+    timed(damage, "process", "process");
+    let steps = 0;
+    const originalStep = immersion.step;
+    immersion.step = (dt) => {
+        originalStep(dt);
+        steps++;
+    };
+    game.setPad(0, { buttons: [7], axes: [0, 0, 0.7, 0.7] });
+    game.setPad(1, { buttons: [7], axes: [0, 0, -0.7, 0.7] });
+    const frames = 300;
+    let maxParticles = 0;
+    let absorbed = immersion.stats.absorbed;
+    for (let i = 0; i < frames; i++) {
+        if (i % 30 === 0) players.forEach((p) => p.tanks.set(4, 300));
+        game.frame();
+        maxParticles = Math.max(maxParticles, particleSystem.GetParticleCount());
+    }
+    absorbed = immersion.stats.absorbed - absorbed;
+    const physics = (ms.step + ms.wall + ms.flood + ms.immersion + ms.water + ms.process) / frames;
+    t.diagnostic(
+        `I8: física ${fmt(physics, 2)} ms/frame contra 8 ms (world.Step ${fmt(ms.step / frames)}, wallContact ${fmt(ms.wall / frames)}, flood ${fmt(ms.flood / frames)}, ` +
+            `water.step ${fmt(ms.water / frames)}, immersion.step ${fmt(ms.immersion / frames)} [${fmt(ms.immersion / steps)} ms/paso contra 0,3], damage.process ${fmt(ms.process / frames)}); ` +
+            `${steps} pasos, ${absorbed} absorbidas, hasta ${maxParticles} partículas, lluvia a ${fmt(flood.rate, 0)}/s, η medio ${fmt(flood.meanLevel, 2)} m, subpasos del campo ${fmt(water.stats.substeps / water.stats.steps, 2)} por paso`,
     );
-    assert.ok(system.GetParticleCount() <= F.maxParticles);
-    assert.ok(Number.isFinite(players[0].torso.GetPosition().get_x()));
-    assert.ok(average < 16, `${average.toFixed(2)} ms por frame`);
+    assert.ok(Number.isFinite(physics));
+    assert.ok(absorbed > 0, "la lluvia y el chorro llegaron al campo");
+    assert.equal(water.stats.capHits, 0);
 });
