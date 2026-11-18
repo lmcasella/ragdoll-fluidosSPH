@@ -17,7 +17,7 @@
 **Rediseño del agua (#62)** 🔨, sub-issues en [14.17](14-agua.md#1417-división-en-sub-issues-y-prioridades):
 - **M2:** grabador de escenarios (A), identidad estable de partículas (B), disparos con agua pura (C) y módulo `ShallowWater` (D1);
 - **M3:** pileta e inundación como campo de alturas con absorción (D2), flotación por pieza (F) y debug básico (K1);
-- **M4:** reacción de los cuerpos sobre el agua (G) y térmica y fases (H);
+- **M4:** evaporación de agua detenida (E, D7), reacción de los cuerpos sobre el agua (G) y térmica y fases (H);
 - **M5:** mezcla (I), adherencia (J) y debug completo (K2).
 
 El mínimo de #62 para entregar es A, B, C, D1, D2 y F.
@@ -28,7 +28,8 @@ El mínimo de #62 para entregar es A, B, C, D1, D2 y F.
 3. Rueda de armas (#15), dejando LB/RB.
 4. Reacción de los cuerpos sobre el agua (#62-G).
 5. Térmica y fases (#62-H).
-6. Debug básico (#62-K1).
+6. Evaporación de agua detenida (#62-E); sin ella, los disparos en plataformas vencen a los 6 s (D5).
+7. Debug básico (#62-K1).
 
 Si D2 no llega a tiempo, `main` se queda con el agua en partículas de hoy: la rama no se mergea a medias.
 
