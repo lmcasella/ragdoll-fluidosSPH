@@ -129,8 +129,18 @@ export function shotBench(systemParams, weapon) {
         }
         if (alone) isolated++;
     }
+    // Charco: partículas a menos de 0,5 m del piso en el paso medido (ancho p95 - p5 y rapidez p95)
+    const puddleX = [];
+    const puddleSpeed = [];
+    for (let i = 0; i < total; i++) {
+        if (frame[i * 4 + 1] > 0.5) continue;
+        puddleX.push(frame[i * 4]);
+        puddleSpeed.push(Math.hypot(frame[i * 4 + 2], frame[i * 4 + 3]));
+    }
     const metrics = {
         emitted: total,
+        spread: percentile(puddleX, 0.95) - percentile(puddleX, 0.05),
+        restSpeedP95: percentile(puddleSpeed, 0.95),
         impacted,
         rebound: sumArrival > 0 ? sumRebound / sumArrival : 0,
         reboundP90: percentile(ratios, 0.9),

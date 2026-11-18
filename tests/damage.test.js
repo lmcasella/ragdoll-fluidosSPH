@@ -15,7 +15,7 @@ function setup() {
     const world = new Box2D.b2World(gravity);
     Box2D.destroy(gravity);
     const destroyed = [];
-    const particleSystem = { DestroyParticle: (i) => destroyed.push(i) };
+    const particleSystem = { DestroyParticle: (i) => destroyed.push(i), GetParticleCount: () => 0 };
     const damage = new DamageSystem(world, particleSystem);
     const hurts = [];
     const player = { hurt: (bodyId, amount) => hurts.push({ bodyId, amount }) };
@@ -211,7 +211,7 @@ test("el daño por partícula sale de la tabla de armas dada, calculado una vez"
     const g = new Box2D.b2Vec2(0, 0);
     const world = new Box2D.b2World(g);
     Box2D.destroy(g);
-    const damage = new DamageSystem(world, { DestroyParticle() {} }, [{ id: FLUID.ACID, rate: 50, dps: 10 }]);
+    const damage = new DamageSystem(world, { DestroyParticle() {}, GetParticleCount: () => 0 }, [{ id: FLUID.ACID, rate: 50, dps: 10 }]);
     assert.equal(damage.particleDamage.get(FLUID.ACID), 0.2);
     const hurts = [];
     const owner = { player: { hurt: (b, amount) => hurts.push(amount) }, index: 0, bodyId: "torso" };
@@ -261,4 +261,81 @@ test("el agua sin disparo asociado se reconoce por el color", () => {
 
 test("el daño por partícula del agua es 0", () => {
     assert.equal(particleDamage(weaponById(FLUID.WATER)), 0);
+});
+// Miel pegajosa (#41): consulta geométrica por paso, con un sistema de partículas real y sin callbacks
+function honeySetup(particle) {
+    const g = new Box2D.b2Vec2(0, 0);
+    const world = new Box2D.b2World(g);
+    Box2D.destroy(g);
+    const psDef = new Box2D.b2ParticleSystemDef();
+    psDef.set_radius(0.1);
+    const system = world.CreateParticleSystem(psDef);
+    Box2D.destroy(psDef);
+    const damage = new DamageSystem(world, system);
+    const def = new Box2D.b2ParticleDef();
+    const [r, gr, b] = weaponById(FLUID.HONEY).color;
+    const color = new Box2D.b2ParticleColor(r, gr, b, 255);
+    def.set_color(color);
+    const position = new Box2D.b2Vec2(particle.x, particle.y);
+    def.set_position(position);
+    const index = system.CreateParticle(def);
+    Box2D.destroy(def);
+    Box2D.destroy(color);
+    Box2D.destroy(position);
+    if (particle.tag) damage.tagParticle(index, particle.tag);
+    // Una fixture de 1 × 2 m con la esquina en el origen; la última caja es la que las une
+    const stuck = [];
+    const player = {
+        dead: false,
+        fixtureBoxes: () => new Float32Array([0, 0, 1, 2, 0, 0, 1, 2]),
+        stick: () => stuck.push(1),
+    };
+    damage.players = [player];
+    return { damage, system, stuck };
+}
+
+test("la miel dentro de la caja pega en cada paso durante 3 s sin moverse y no se destruye", () => {
+    const { damage, system, stuck } = honeySetup({ x: 0.5, y: 1 });
+    for (let i = 0; i < 180; i++) damage.process(10 + i / 60);
+    assert.equal(stuck.length, 180);
+    assert.equal(system.GetParticleCount(), 1);
+});
+
+test("la miel dentro del radio de la partícula más 0,02 m pega; a 0,2 m de la caja no", () => {
+    const near = honeySetup({ x: 1.1, y: 1 });
+    near.damage.process(10);
+    assert.equal(near.stuck.length, 1);
+    const far = honeySetup({ x: 1.2, y: 1 });
+    far.damage.process(10);
+    assert.equal(far.stuck.length, 0);
+});
+
+test("una partícula que no es miel no pega", () => {
+    const { damage, system, stuck } = honeySetup({ x: 0.5, y: 1 });
+    const color = Box2D.getPointer(system.GetColorBuffer());
+    Box2D.HEAPU8[color] = 50;
+    Box2D.HEAPU8[color + 1] = 255;
+    Box2D.HEAPU8[color + 2] = 50;
+    damage.process(10);
+    assert.equal(stuck.length, 0);
+});
+
+test("la miel propia con tramo vivo no pega durante 0,4 s; a los 0,5 s sí", () => {
+    const own = honeySetup({ x: 0.5, y: 1, tag: 1 });
+    own.damage.shots.set(1, { owner: 0, weapon: FLUID.HONEY, time: 10 });
+    own.damage.process(10.3);
+    assert.equal(own.stuck.length, 0);
+    own.damage.process(10.5);
+    assert.equal(own.stuck.length, 1);
+    const rival = honeySetup({ x: 0.5, y: 1, tag: 1 });
+    rival.damage.shots.set(1, { owner: 1, weapon: FLUID.HONEY, time: 10 });
+    rival.damage.process(10.01);
+    assert.equal(rival.stuck.length, 1);
+});
+
+test("un robot muerto no queda pegado", () => {
+    const { damage, stuck } = honeySetup({ x: 0.5, y: 1 });
+    damage.players[0].dead = true;
+    damage.process(10);
+    assert.equal(stuck.length, 0);
 });

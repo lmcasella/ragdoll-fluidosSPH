@@ -4,6 +4,8 @@
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];
 const WET_BLINK_HZ = 4;
+const STICKY_COLOR = [255, 170, 30];
+const STICKY_BLINK_HZ = 3;
 // Chispas del cortocircuito: se repiten por tick de reloj, no por frame, para que se vean como destellos
 const SPARK_TICK_HZ = 12;
 const SPARKS_PER_FRAME = 3;
@@ -20,13 +22,16 @@ function hexToRgb(hex) {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function mix(base, k, wet = 0) {
+function mix(base, k, wet = 0, sticky = 0) {
     let r = base[0] + (FLASH_COLOR[0] - base[0]) * k;
     let g = base[1] + (FLASH_COLOR[1] - base[1]) * k;
     let b = base[2] + (FLASH_COLOR[2] - base[2]) * k;
     r += (WET_COLOR[0] - r) * wet;
     g += (WET_COLOR[1] - g) * wet;
     b += (WET_COLOR[2] - b) * wet;
+    r += (STICKY_COLOR[0] - r) * sticky;
+    g += (STICKY_COLOR[1] - g) * sticky;
+    b += (STICKY_COLOR[2] - b) * sticky;
     return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
 
@@ -104,6 +109,8 @@ export function drawRobot(ctx, player, color, scale, now) {
     const base = hexToRgb(color);
     // Mojado: tinte cian que parpadea
     const wet = player.wet && !player.dead ? 0.35 + 0.35 * Math.sin(now * WET_BLINK_HZ * Math.PI * 2) : 0;
+    // Pegado por miel: tinte ámbar que parpadea
+    const sticky = player.sticky && !player.dead ? 0.5 + 0.4 * Math.sin(now * STICKY_BLINK_HZ * Math.PI * 2) : 0;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5 / scale;
     for (const item of player.renderItems) {
@@ -117,7 +124,7 @@ export function drawRobot(ctx, player, color, scale, now) {
         ctx.rotate(angle);
         ctx.translate(item.cx, item.cy);
         ctx.rotate(item.angle);
-        ctx.fillStyle = mix(base, player.flashAmount(item.bodyId, now), wet);
+        ctx.fillStyle = mix(base, player.flashAmount(item.bodyId, now), wet, sticky);
         ctx.beginPath();
         if (item.type === "box") {
             ctx.rect(-item.hw, -item.hh, item.hw * 2, item.hh * 2);

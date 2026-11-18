@@ -1,6 +1,8 @@
 // Daño por contactos. Un único JSContactListener del mundo (RagImporter no lo usa):
 //  - BeginContact: impactos entre cuerpos; la velocidad de acercamiento se mide sobre la normal del contacto.
 //  - BeginParticleBodyContact: cada partícula informa qué parte del cuerpo tocó (requiere CONTACT_LISTENER_PARTICLE).
+//  - La miel no usa contactos: avisan solo al empezar y el robot quieto en el charco se despegaría. process() busca
+//    por cercanía, una vez por paso (stickHoney).
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
 import { FLUID, WEAPONS, fluidFromColor, particleDamage } from "./weapons.js";
@@ -11,6 +13,7 @@ const IMPACT_COOLDOWN = 0.25;
 const SELF_IMMUNITY = 0.4; // s en que un disparo no daña a quien lo disparó
 const SHOT_SLICE = 0.1; // s que dura un id de disparo abierto
 const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se destruyen
+const HONEY_REACH = 0.02; // m que la caja de una fixture se agranda, además del radio de la partícula
 
 export class DamageSystem {
     constructor(world, particleSystem, weapons = WEAPONS) {
@@ -25,6 +28,7 @@ export class DamageSystem {
         this.nextShot = 1;
         this.impacts = [];
         this.fluidHits = [];
+        this.honeyBoxes = [];
         this.drowned = [];
         this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
         this.lastImpact = new Map();
@@ -138,6 +142,45 @@ export class DamageSystem {
         if (kind) this.fluidHits.push({ owner, index, shot, kind });
     }
 
+    // Pega a todo robot vivo que tenga el centro de una partícula de miel dentro de alguna de sus cajas agrandadas
+    // `radio + HONEY_REACH`. No encola ni destruye nada: la miel sigue ahí. Una partícula sin tramo vivo (la de más de
+    // 6 s o la del mapa) pega a cualquiera; la propia, dentro de la gracia de SELF_IMMUNITY, no pega a su dueño.
+    stickHoney(now) {
+        const system = this.particleSystem;
+        const count = system.GetParticleCount();
+        const players = this.players;
+        if (count === 0 || players.length === 0) return;
+        const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+        const colors = Box2D.getPointer(system.GetColorBuffer());
+        const tags = system.GetUserDataBuffer() >> 2;
+        const pad = system.GetRadius() + HONEY_REACH;
+        const boxes = this.honeyBoxes;
+        boxes.length = 0;
+        for (const player of players) boxes.push(player.dead ? null : player.fixtureBoxes());
+        let pending = players.length; // robots que todavía no quedaron pegados en este paso
+        for (let i = 0; i < count && pending > 0; i++) {
+            if (fluidFromColor(Box2D.HEAPU8[colors + i * 4], Box2D.HEAPU8[colors + i * 4 + 1]) !== FLUID.HONEY) continue;
+            const x = Box2D.HEAPF32[pos + i * 2];
+            const y = Box2D.HEAPF32[pos + i * 2 + 1];
+            const shot = this.shots.get(Box2D.HEAP32[tags + i]);
+            for (let k = 0; k < players.length; k++) {
+                const b = boxes[k];
+                if (!b) continue;
+                if (shot && shot.owner === k && now - shot.time < SELF_IMMUNITY) continue;
+                const u = b.length - 4;
+                if (x < b[u] - pad || x > b[u + 2] + pad || y < b[u + 1] - pad || y > b[u + 3] + pad) continue;
+                for (let j = 0; j < u; j += 4) {
+                    if (x >= b[j] - pad && x <= b[j + 2] + pad && y >= b[j + 1] - pad && y <= b[j + 3] + pad) {
+                        players[k].stick();
+                        boxes[k] = null;
+                        pending--;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     // Aplica lo encolado durante el paso; llamar después de stepWorld.
     // `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
     // robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks).
@@ -173,12 +216,10 @@ export class DamageSystem {
                 consumed.add(index);
             } else if (kind === FLUID.LAVA) {
                 owner.player.burn(owner.bodyId);
-            } else if (kind === FLUID.HONEY) {
-                owner.player.applyHoney();
-                consumed.add(index);
             }
         }
         for (const index of consumed) this.particleSystem.DestroyParticle(index);
+        this.stickHoney(now);
 
         this.impacts.length = 0;
         this.fluidHits.length = 0;
