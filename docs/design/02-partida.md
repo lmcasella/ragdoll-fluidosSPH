@@ -43,7 +43,7 @@ Código previsto: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`
 
 **Reloj de ronda.** `Match` lleva `roundTime`: suma el `dt` real del frame solo en el estado `playing` y vuelve a 0 en cada `"reset"` (ronda nueva o revancha). Durante `roundOver` se congela: deja de subir el objetivo, el agua que cayó se sigue acomodando. `Flood` lee `match.roundTime`; `Match` no sabe nada de la inundación.
 
-**Reinicio.** Cada gota de lluvia lleva una marca en el buffer de `userData` (la pileta queda en 0). `Flood.reset()` destruye solo las partículas marcadas y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. El agua original de la pileta que quedó arriba vuelve a caer al hueco por gravedad; no se recrea el grupo.
+**Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye solo las partículas marcadas y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. El agua original de la pileta que quedó arriba vuelve a caer al hueco por gravedad; no se recrea el grupo.
 
 **Al jugador:**
 - HUD: reloj de ronda arriba al centro; desde los 80 s, "Inundación en N"; desde los 90 s, "¡INUNDACIÓN!".
