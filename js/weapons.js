@@ -1,15 +1,18 @@
 // Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
 // la tabla. Ver docs/design/04-fluidos.md §4.1 y docs/design/07-sph.md §7.5.
 import { PARTICLE } from "./particles.js";
+import { ORIGIN } from "./particleStore.js";
 
 // Ids de arma = tipo de fluido
 export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4 };
 
 export const CONTACT_LISTENER_PARTICLE = PARTICLE.CONTACT_LISTENER;
 
-// Sistema de partículas de los disparos (claves de b2ParticleSystemDef). La fuerza es por sistema; cada arma
-// elige con `flags` qué términos recibe. maxCount fijo y sin destroyByAge: sin vencimientos en las partículas
-// el motor no la soporta
+/**
+ * Sistema de partículas de los disparos (claves de b2ParticleSystemDef). La fuerza es por sistema; cada arma
+ * elige con `flags` qué términos recibe. maxCount fijo y `destroyByAge: false`: `ParticleStore` lanza un error
+ * si no es `false`, porque el motor borraría partículas por su cuenta y los slots quedarían colgados.
+ */
 export const SHOT_SYSTEM = {
     radius: 0.1,
     maxCount: 1500,
@@ -78,12 +81,19 @@ const PARTICLE_RADIUS = SHOT_SYSTEM.radius;
 const MUZZLE_OFFSET = PARTICLE_RADIUS + 0.05; // no nace dentro del arma
 const MAX_BURST_TIME = 0.05; // s de caudal que puede salir en un solo frame
 
-// Emite el chorro de cada jugador: partículas sueltas, una vez por frame y fuera de los callbacks de Box2D
+/**
+ * Emite el chorro de cada jugador: partículas sueltas, una vez por frame y fuera de los callbacks de Box2D.
+ * Crea las partículas con el `ParticleStore` de los disparos.
+ */
 export class ShotEmitter {
-    // Con raycaster (opcional, con cast(x1, y1, x2, y2, ignore)) el chorro se recorta al primer obstáculo: no
-    // nacen partículas detrás de una pared ni dentro del rival
-    constructor(system, damage, weapons = WEAPONS, raycaster = null) {
-        this.system = system;
+    /**
+     * Con raycaster (opcional, con cast(x1, y1, x2, y2, ignore)) el chorro se recorta al primer obstáculo: no
+     * nacen partículas detrás de una pared ni dentro del rival.
+     */
+    constructor(store, damage, weapons = WEAPONS, raycaster = null) {
+        this.store = store;
+        this.system = store.system;
+        this.props = { kind: 0, origin: ORIGIN.SHOT, shot: 0 };
         this.raycaster = raycaster;
         this.damage = damage;
         this.weapons = new Map(weapons.map((w) => [w.id, w]));
@@ -143,7 +153,8 @@ export class ShotEmitter {
             const hit = this.raycaster.cast(muzzle.x, muzzle.y, muzzle.x + muzzle.dx * span, muzzle.y + muzzle.dy * span, player.ownBodies ?? null);
             if (hit) reach = Math.hypot(hit.x - muzzle.x, hit.y - muzzle.y) - PARTICLE_RADIUS;
         }
-        const id = this.damage.shotId(k, weapon.id, now);
+        this.props.kind = weapon.id;
+        this.props.shot = this.damage.shotId(k, weapon.id, now);
         this.def.set_flags(weapon.flags | CONTACT_LISTENER_PARTICLE);
         this.def.set_color(this.colors.get(weapon.id));
         let made = 0;
@@ -159,10 +170,8 @@ export class ShotEmitter {
             this.velocity.set_y(weapon.speed * (muzzle.dx * sin + muzzle.dy * cos));
             this.def.set_position(this.position);
             this.def.set_velocity(this.velocity);
-            const index = this.system.CreateParticle(this.def);
+            const index = this.store.create(this.def, this.props);
             if (index < 0) break;
-            // crear puede reubicar los buffers: el de userData se vuelve a leer en cada partícula
-            this.damage.tagParticle(index, id);
             s.seq++;
             made++;
         }

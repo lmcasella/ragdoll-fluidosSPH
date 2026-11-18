@@ -231,7 +231,7 @@ async function setupMatch(level) {
         new ActiveRagdoll(def, world, 7.5, 4.05, rig, false),
         new ActiveRagdoll(def, world, 48.5, 4.05, rig, true),
     ];
-    const damage = new DamageSystem(world, { DestroyParticle() {}, GetParticleCount: () => 0 });
+    const damage = new DamageSystem(world, { system: { GetParticleCount: () => 0 }, destroy() {} });
     damage.killSensors = killSensors;
     damage.register(players);
     const flood = new Flood(world, system, level);

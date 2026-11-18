@@ -1,11 +1,15 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { LEVEL } from "../../js/level.js";
+import { WEAPONS } from "../../js/weapons.js";
 
 const CIRCLE = 0;
 const POLYGON = 2;
 
 const round = (v) => Math.round(v * 1000) / 1000;
+
+/** Color RGB entero de cada material, de la tabla de armas: el visor dibuja con él. */
+const KIND_COLOR = new Map(WEAPONS.map((w) => [w.id, (w.color[0] << 16) | (w.color[1] << 8) | w.color[2]]));
 
 /**
  * Formas de una pieza en su marco local (metros). Corre una sola vez por pieza, al empezar a grabar: los
@@ -40,16 +44,20 @@ function localShapes(body) {
  *
  * Formato: `{ meta, frames }`. `meta` trae `view` [x0, y0, x1, y1], `dt`, los `solids` del nivel como
  * { x, y, w, h }, las `systems` con su radio y las `pieces` con su forma local. Cada frame trae `t`,
- * `particles` (por sistema: `x`, `y`, `color` RGB entero que identifica el material y `tag` = userData),
+ * `particles` (por sistema: `x`, `y`, `color` RGB entero que identifica el material y `tag`). En los sistemas con
+ * `ParticleStore` el material sale de `store.kind` (el color se deriva de la tabla de armas) y `tag` es `store.shot`;
+ * en el resto, `color` y `tag` se leen de los buffers del motor.
  * `pieces` ([x, y, ángulo] en el orden de `meta.pieces`) y `eta` (perfil del campo de alturas; vacío
  * hasta que exista el campo).
  *
- * `systems` es un objeto { nombre: particleSystem }; `pieces` un objeto { id: body }.
+ * `systems` es un objeto { nombre: particleSystem }; `stores` un objeto { nombre: ParticleStore } para los
+ * sistemas que lo tienen; `pieces` un objeto { id: body }.
  */
 export class Recorder {
-    constructor({ name, systems, pieces, dt = 1 / 60, view = [-1, -1, 57, 18], solids = LEVEL.solids }) {
+    constructor({ name, systems, stores = {}, pieces, dt = 1 / 60, view = [-1, -1, 57, 18], solids = LEVEL.solids }) {
         this.name = name;
         this.systems = Object.entries(systems);
+        this.stores = new Map(Object.entries(stores));
         this.pieces = Object.entries(pieces);
         this.dt = dt;
         this.frames = [];
@@ -70,6 +78,7 @@ export class Recorder {
             const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
             const col = Box2D.getPointer(system.GetColorBuffer());
             const tags = system.GetUserDataBuffer() >> 2;
+            const store = this.stores.get(id);
             const x = new Array(count);
             const y = new Array(count);
             const color = new Array(count);
@@ -77,8 +86,14 @@ export class Recorder {
             for (let i = 0; i < count; i++) {
                 x[i] = round(Box2D.HEAPF32[pos + 2 * i]);
                 y[i] = round(Box2D.HEAPF32[pos + 2 * i + 1]);
-                color[i] = (Box2D.HEAPU8[col + 4 * i] << 16) | (Box2D.HEAPU8[col + 4 * i + 1] << 8) | Box2D.HEAPU8[col + 4 * i + 2];
-                tag[i] = Box2D.HEAP32[tags + i];
+                if (store) {
+                    const slot = store.slotAt(i);
+                    color[i] = slot >= 0 ? (KIND_COLOR.get(store.kind[slot]) ?? 0) : 0;
+                    tag[i] = slot >= 0 ? store.shot[slot] : 0;
+                } else {
+                    color[i] = (Box2D.HEAPU8[col + 4 * i] << 16) | (Box2D.HEAPU8[col + 4 * i + 1] << 8) | Box2D.HEAPU8[col + 4 * i + 2];
+                    tag[i] = Box2D.HEAP32[tags + i];
+                }
             }
             return { id, x, y, color, tag };
         });
@@ -102,10 +117,16 @@ export class Recorder {
  * Hay que crearlo después de los frames iniciales; si la ronda reinicia, las piezas ya no son las mismas.
  */
 export function recordGame(game, name, options = {}) {
-    const { particleSystem, poolSystem, players } = game.state;
+    const { particleSystem, poolSystem, store, players } = game.state;
     const pieces = {};
     players.forEach((player, k) => {
         for (const [id, body] of player.rag.bodies.entries()) pieces[`j${k + 1}:${id}`] = body;
     });
-    return new Recorder({ name, systems: { disparos: particleSystem, pileta: poolSystem }, pieces, ...options });
+    return new Recorder({
+        name,
+        systems: { disparos: particleSystem, pileta: poolSystem },
+        stores: { disparos: store },
+        pieces,
+        ...options,
+    });
 }

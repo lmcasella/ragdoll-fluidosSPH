@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.11.6] - 2026-11-18
+
+### Changed
+- Refactor interno: las partículas de los disparos tienen identidad estable (`ParticleStore`); el juego no cambia.
+
 ## [0.11.5] - 2026-11-18
 
 ### Added

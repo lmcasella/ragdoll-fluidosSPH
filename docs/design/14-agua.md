@@ -45,7 +45,7 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 
 **Resolución:** `userData` guarda **solo un slot estable**, y todo el estado por partícula vive en arreglos de JS indexados por slot.
 
-- **Módulo nuevo `js/particleStore.js`**, clase `ParticleStore(system, capacity = system.GetMaxParticleCount())`. Es el **único** que llama a `CreateParticle` y a `DestroyParticle` en el sistema de partículas.
+- **Módulo nuevo `js/particleStore.js`**, clase `ParticleStore(system, params, capacity = system.GetMaxParticleCount())`: recibe los datos del sistema (`params`, por ejemplo `SHOT_SYSTEM`) porque es un módulo hoja y no los importa. Implementado en #68 con `alive`, `kind`, `origin` y `shot`; el resto de los arreglos por slot los agrega cada issue que los usa. Es el **único** que llama a `CreateParticle` y a `DestroyParticle` en el sistema de partículas.
 - **Sin destrucción por edad:** `SHOT_SYSTEM` declara `destroyByAge: false` explícito. El constructor de `ParticleStore` recibe esos datos y lanza un error si no es `false`: el build no expone `GetDestructionByAge` para leerlo del sistema (*verificado* en la lista de exportaciones). Con la destrucción por edad activa, el motor borraría partículas por su cuenta al llenarse y los slots quedarían colgados.
 - **Codificación:** `userData = slot + 1`. El 0 queda para "sin slot" (el valor con que el motor inicializa el buffer): una partícula con 0 es un error de programación, que el debug cuenta y muestra.
 - **Estado por slot** (arreglos tipados creados en el constructor, fuera del heap de 16 MiB):

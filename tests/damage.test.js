@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../vendor/liquidfun.js");
 
 const { DamageSystem } = await import("../js/damage.js");
+const { ParticleStore } = await import("../js/particleStore.js");
 const { FLUID, weaponById, particleDamage } = await import("../js/weapons.js");
 
 // Regla de fuego amigo (docs/design/12-decisiones.md): el fluido propio no daña a su dueño
@@ -15,8 +16,8 @@ function setup() {
     const world = new Box2D.b2World(gravity);
     Box2D.destroy(gravity);
     const destroyed = [];
-    const particleSystem = { DestroyParticle: (i) => destroyed.push(i), GetParticleCount: () => 0 };
-    const damage = new DamageSystem(world, particleSystem);
+    const store = { system: { GetParticleCount: () => 0 }, destroy: (i) => destroyed.push(i) };
+    const damage = new DamageSystem(world, store);
     const hurts = [];
     const player = { hurt: (bodyId, amount) => hurts.push({ bodyId, amount }) };
     const owner = { player, index: 0, bodyId: "torso" };
@@ -182,21 +183,6 @@ test("liveShotFloor: el id más chico vivo; nextShot si no queda ninguno", () =>
     assert.ok(damage.nextShot > b);
 });
 
-test("tagParticle escribe el id en el userData de la partícula", () => {
-    const g = new Box2D.b2Vec2(0, 0);
-    const world = new Box2D.b2World(g);
-    Box2D.destroy(g);
-    const psDef = new Box2D.b2ParticleSystemDef();
-    const system = world.CreateParticleSystem(psDef);
-    Box2D.destroy(psDef);
-    const damage = new DamageSystem(world, system);
-    const def = new Box2D.b2ParticleDef();
-    const index = system.CreateParticle(def);
-    Box2D.destroy(def);
-    damage.tagParticle(index, 42);
-    assert.equal(Box2D.HEAP32[(system.GetUserDataBuffer() >> 2) + index], 42);
-});
-
 test("resetShots olvida los disparos y los tramos abiertos pero no reutiliza ids", () => {
     const { damage } = setup();
     const a = damage.shotId(0, FLUID.ACID, 10);
@@ -211,7 +197,7 @@ test("el daño por partícula sale de la tabla de armas dada, calculado una vez"
     const g = new Box2D.b2Vec2(0, 0);
     const world = new Box2D.b2World(g);
     Box2D.destroy(g);
-    const damage = new DamageSystem(world, { DestroyParticle() {}, GetParticleCount: () => 0 }, [{ id: FLUID.ACID, rate: 50, dps: 10 }]);
+    const damage = new DamageSystem(world, { system: { GetParticleCount: () => 0 }, destroy() {} }, [{ id: FLUID.ACID, rate: 50, dps: 10 }]);
     assert.equal(damage.particleDamage.get(FLUID.ACID), 0.2);
     const hurts = [];
     const owner = { player: { hurt: (b, amount) => hurts.push(amount) }, index: 0, bodyId: "torso" };
@@ -271,18 +257,14 @@ function honeySetup(particle) {
     psDef.set_radius(0.1);
     const system = world.CreateParticleSystem(psDef);
     Box2D.destroy(psDef);
-    const damage = new DamageSystem(world, system);
+    const store = new ParticleStore(system, { destroyByAge: false }, 8);
+    const damage = new DamageSystem(world, store);
     const def = new Box2D.b2ParticleDef();
-    const [r, gr, b] = weaponById(FLUID.HONEY).color;
-    const color = new Box2D.b2ParticleColor(r, gr, b, 255);
-    def.set_color(color);
     const position = new Box2D.b2Vec2(particle.x, particle.y);
     def.set_position(position);
-    const index = system.CreateParticle(def);
+    store.create(def, { kind: FLUID.HONEY, shot: particle.tag ?? 0 });
     Box2D.destroy(def);
-    Box2D.destroy(color);
     Box2D.destroy(position);
-    if (particle.tag) damage.tagParticle(index, particle.tag);
     // Una fixture de 1 × 2 m con la esquina en el origen; la última caja es la que las une
     const stuck = [];
     const player = {
@@ -291,7 +273,7 @@ function honeySetup(particle) {
         stick: () => stuck.push(1),
     };
     damage.players = [player];
-    return { damage, system, stuck };
+    return { damage, system, store, stuck };
 }
 
 test("la miel dentro de la caja pega en cada paso durante 3 s sin moverse y no se destruye", () => {
@@ -311,11 +293,8 @@ test("la miel dentro del radio de la partícula más 0,02 m pega; a 0,2 m de la 
 });
 
 test("una partícula que no es miel no pega", () => {
-    const { damage, system, stuck } = honeySetup({ x: 0.5, y: 1 });
-    const color = Box2D.getPointer(system.GetColorBuffer());
-    Box2D.HEAPU8[color] = 50;
-    Box2D.HEAPU8[color + 1] = 255;
-    Box2D.HEAPU8[color + 2] = 50;
+    const { damage, store, stuck } = honeySetup({ x: 0.5, y: 1 });
+    store.kind[store.slotAt(0)] = FLUID.ACID;
     damage.process(10);
     assert.equal(stuck.length, 0);
 });

@@ -5,10 +5,10 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../vendor/liquidfun.js");
 
-const { WEAPONS, FLUID, LOADOUT, weaponById, particleDamage, equipLoadout, cycleWeapon, ShotEmitter } = await import(
-    "../js/weapons.js"
-);
+const { WEAPONS, FLUID, LOADOUT, SHOT_SYSTEM, weaponById, particleDamage, equipLoadout, cycleWeapon, ShotEmitter } =
+    await import("../js/weapons.js");
 const { DamageSystem } = await import("../js/damage.js");
+const { ParticleStore } = await import("../js/particleStore.js");
 const { getRaycaster } = await import("../js/raycast.js");
 
 const DT = 1 / 60;
@@ -73,8 +73,9 @@ function setup({ maxCount = 1500, gravity = 0 } = {}) {
     psDef.set_destroyByAge(false);
     const system = world.CreateParticleSystem(psDef);
     Box2D.destroy(psDef);
-    const damage = new DamageSystem(world, system);
-    const emitter = new ShotEmitter(system, damage, WEAPONS);
+    const store = new ParticleStore(system, SHOT_SYSTEM, maxCount);
+    const damage = new DamageSystem(world, store);
+    const emitter = new ShotEmitter(store, damage, WEAPONS);
     const player = { dead: false, muzzle: () => ({ x: 0, y: 5, dx: 1, dy: 0 }) };
     equipLoadout(player);
     player.weapon = FLUID.ACID; // la mayoría de las pruebas miden el chorro de ácido; el agua se prueba aparte
@@ -83,7 +84,7 @@ function setup({ maxCount = 1500, gravity = 0 } = {}) {
         now += DT;
         return emitter.fire(k, p, wants, DT, now);
     };
-    return { world, system, damage, emitter, player, fire, tick: () => world.Step(DT, 8, 3, 3), time: () => now };
+    return { world, system, store, damage, emitter, player, fire, tick: () => world.Step(DT, 8, 3, 3), time: () => now };
 }
 
 test("1 s a 60 fps emite el caudal del arma y el tanque baja lo mismo", () => {
@@ -166,11 +167,15 @@ test("la dispersión es determinista y toma varios valores", () => {
 });
 
 test("cada partícula queda marcada con el id de su tramo de disparo", () => {
-    const { system, damage, fire } = setup();
+    const { system, store, damage, fire } = setup();
     for (let i = 0; i < 30; i++) fire(true); // 0,5 s
-    const tags = system.GetUserDataBuffer() >> 2;
     const seen = new Set();
-    for (let i = 0; i < system.GetParticleCount(); i++) seen.add(Box2D.HEAP32[tags + i]);
+    for (let i = 0; i < system.GetParticleCount(); i++) {
+        const slot = store.slotAt(i);
+        assert.ok(slot >= 0, "toda partícula tiene slot");
+        assert.equal(store.kind[slot], FLUID.ACID);
+        seen.add(store.shot[slot]);
+    }
     assert.ok(!seen.has(0));
     assert.equal(seen.size, damage.shots.size);
     assert.ok(seen.size >= 5 && seen.size <= 6, `${seen.size} tramos en 0,5 s`);
@@ -240,7 +245,7 @@ test("dispose libera lo nativo sin romper", () => {
 });
 
 test("con raycaster, el chorro se recorta al primer obstáculo y no emite lo que caería detrás", () => {
-    const { world, system, damage, player } = setup();
+    const { world, system, store, damage, player } = setup();
     const bodyDef = new Box2D.b2BodyDef();
     const wall = world.CreateBody(bodyDef);
     Box2D.destroy(bodyDef);
@@ -248,7 +253,7 @@ test("con raycaster, el chorro se recorta al primer obstáculo y no emite lo que
     shape.SetAsBox(0.1, 2, new Box2D.b2Vec2(0.5, 5), 0); // cara cercana en x = 0,4
     wall.CreateFixture(shape, 0);
     Box2D.destroy(shape);
-    const emitter = new ShotEmitter(system, damage, WEAPONS, getRaycaster(world));
+    const emitter = new ShotEmitter(store, damage, WEAPONS, getRaycaster(world));
     emitter.fire(0, player, true, DT, 1); // 1 partícula en x = 0,15
     const made = emitter.fire(0, player, true, 0.25, 2); // pide 5: llegarían hasta x ≈ 0,77
     const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
@@ -260,14 +265,14 @@ test("con raycaster, el chorro se recorta al primer obstáculo y no emite lo que
 });
 
 test("con raycaster y sin obstáculos emite igual que sin él", () => {
-    const { world, system, damage, player } = setup();
-    const emitter = new ShotEmitter(system, damage, WEAPONS, getRaycaster(world));
+    const { world, store, damage, player } = setup();
+    const emitter = new ShotEmitter(store, damage, WEAPONS, getRaycaster(world));
     emitter.fire(0, player, true, DT, 1);
     assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
 });
 
 test("el raycaster ignora los cuerpos propios del jugador", () => {
-    const { world, system, damage, player } = setup();
+    const { world, store, damage, player } = setup();
     const bodyDef = new Box2D.b2BodyDef();
     const own = world.CreateBody(bodyDef);
     Box2D.destroy(bodyDef);
@@ -276,7 +281,7 @@ test("el raycaster ignora los cuerpos propios del jugador", () => {
     own.CreateFixture(shape, 0);
     Box2D.destroy(shape);
     player.ownBodies = new Set([Box2D.getPointer(own)]);
-    const emitter = new ShotEmitter(system, damage, WEAPONS, getRaycaster(world));
+    const emitter = new ShotEmitter(store, damage, WEAPONS, getRaycaster(world));
     emitter.fire(0, player, true, DT, 1);
     assert.equal(emitter.fire(0, player, true, 0.25, 2), 5);
 });
