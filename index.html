@@ -335,17 +335,9 @@
                 [FLUID.HONEY]: { flags: VISCOUS_PARTICLE, color: [255, 200, 50] },
             };
 
-            // Mouse: respaldo de teclado para el J1 (el control principal es el gamepad)
-            let mouseScreen = null;
-            window.addEventListener("mousemove", (e) => {
-                mouseScreen = { x: e.clientX, y: e.clientY };
-            });
-            window.addEventListener("mousedown", () => {
-                if (mouseScreen) disparar(0);
-            });
-
-            // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1),
-            // si no teclado (hacia donde se camina; abajo inclina 45°)
+            // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
+            // solo si se movió después del último uso del stick), si no teclado (hacia donde se camina;
+            // abajo inclina 45°)
             function actualizarMira(player, state, k) {
                 const pos = player.torso.GetPosition();
                 const x = pos.get_x();
@@ -353,8 +345,8 @@
                 if (state.aim) {
                     const len = Math.hypot(state.aim.x, state.aim.y);
                     player.aimDir = { x: state.aim.x / len, y: state.aim.y / len };
-                } else if (k === 0 && mouseScreen) {
-                    const m = camera.toWorld(mouseScreen.x, mouseScreen.y);
+                } else if (state.pointer) {
+                    const m = camera.toWorld(state.pointer.x, state.pointer.y);
                     const len = Math.hypot(m.x - x, m.y - y) || 1;
                     player.aimDir = { x: (m.x - x) / len, y: (m.y - y) / len };
                 } else if (state.left || state.right || state.down) {
