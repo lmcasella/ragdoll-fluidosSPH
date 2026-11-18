@@ -1,0 +1,30 @@
+name: Tarea
+description: Funcionalidad, mejora o tarea del plan
+labels: ["status:ready"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Objetivo
+      description: Qué entrega y por qué.
+    validations:
+      required: true
+  - type: input
+    id: design
+    attributes:
+      label: Diseño
+      description: Sección del documento de diseño, por ejemplo DESIGN.md §5.1.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Condiciones verificables.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: input
+    id: depends
+    attributes:
+      label: Depende de
+      description: Issues que tienen que cerrarse antes, por ejemplo #3, #7.
