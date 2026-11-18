@@ -34,3 +34,13 @@ test("roundTime vuelve a 0 en la revancha", () => {
     assert.equal(match.update([alive, dead], [{ action: true }], 0.1), "reset");
     assert.equal(match.roundTime, 0);
 });
+test("los peligros por tiempo solo actúan en playing", () => {
+    const match = new Match(2, 1);
+    assert.equal(match.hazardsActive, true);
+    match.update([alive, dead], [], 1);
+    assert.equal(match.state, "roundOver");
+    assert.equal(match.hazardsActive, false);
+    match.update([alive, dead], [], 5);
+    assert.equal(match.state, "matchOver");
+    assert.equal(match.hazardsActive, false);
+});

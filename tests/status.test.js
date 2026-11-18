@@ -28,7 +28,7 @@ test("sin soak no hay daño por cortocircuito", () => {
 
 test("mojado: -3 de vida por segundo durante 3 s y después se apaga", () => {
     const r = robot();
-    r.soak(0);
+    r.soak();
     assert.equal(r.wet, true);
     run(r, 1);
     assert.ok(Math.abs(r.hp - 97) < 0.05, `hp ${r.hp}`);
@@ -40,9 +40,9 @@ test("mojado: -3 de vida por segundo durante 3 s y después se apaga", () => {
 test("soak renueva el tiempo y no usa el multiplicador por parte", () => {
     const r = robot();
     r.rig = { defaultDamage: 0.1 };
-    r.soak(0);
+    r.soak();
     run(r, 2);
-    r.soak(2);
+    r.soak();
     run(r, 2);
     assert.ok(Math.abs(r.hp - 88) < 0.2, `hp ${r.hp}`);
     assert.equal(r.wet, true);
@@ -50,10 +50,20 @@ test("soak renueva el tiempo y no usa el multiplicador por parte", () => {
 
 test("copyStateFrom conserva el estado mojado", () => {
     const old = robot();
-    old.soak(0);
+    old.soak();
     run(old, 1);
     const nuevo = robot();
     nuevo.copyStateFrom(old);
     assert.equal(nuevo.wetTimer, old.wetTimer);
     assert.ok(nuevo.wet);
+});
+test("dry apaga el cortocircuito: no hay más daño", () => {
+    const r = robot();
+    r.soak();
+    run(r, 0.5);
+    r.dry();
+    const hp = r.hp;
+    run(r, 2);
+    assert.equal(r.hp, hp);
+    assert.equal(r.wet, false);
 });

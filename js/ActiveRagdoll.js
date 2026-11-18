@@ -154,6 +154,22 @@ export class ActiveRagdoll {
         this.wetTimer = WET_TIME;
     }
 
+    // Lo seca (fin de la ronda: el cortocircuito no debe matar al ganador bajo el cartel)
+    dry() {
+        this.wetTimer = 0;
+    }
+
+    // Borde inferior (m) de la pieza más baja: AABB de las fixtures, sin crear objetos nativos
+    lowestPoint() {
+        let lowest = Infinity;
+        for (const body of this.rag.bodies.values()) {
+            for (let fixture = body.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
+                lowest = Math.min(lowest, fixture.GetAABB(0).get_lowerBound().get_y());
+            }
+        }
+        return lowest;
+    }
+
     get wet() {
         return this.wetTimer > 0;
     }

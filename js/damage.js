@@ -118,20 +118,17 @@ export class DamageSystem {
     }
 
     // Aplica lo encolado durante el paso; llamar después de stepWorld.
-    // `waterLevel` (m): el robot con alguna parte por debajo queda mojado (inundación, sin callbacks).
+    // `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
+    // robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks).
     process(now, waterLevel = -Infinity) {
         for (const owner of this.drowned) owner.player.drown(now);
         this.drowned.length = 0;
 
-        if (waterLevel > -Infinity) {
+        if (waterLevel !== -Infinity) {
             for (const player of this.players) {
                 if (player.dead) continue;
-                for (const body of player.rag.bodies.values()) {
-                    if (body.GetPosition().get_y() < waterLevel) {
-                        player.soak(now);
-                        break;
-                    }
-                }
+                const level = typeof waterLevel === "function" ? waterLevel(player.torso.GetPosition().get_x()) : waterLevel;
+                if (level > -Infinity && player.lowestPoint() < level) player.soak();
             }
         }
 

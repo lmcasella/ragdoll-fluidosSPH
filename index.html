@@ -516,11 +516,15 @@
                 while (accumulator >= STEP_SETTINGS.dt) {
                     players.forEach((player, k) => {
                         player.move(inputs[k]);
+                        if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
                     stepWorld(world, instances);
-                    damage.process(performance.now() / 1000, flood.level);
+                    damage.process(
+                        performance.now() / 1000,
+                        match.hazardsActive ? flood.surfaceAt : -Infinity,
+                    );
                     players.forEach((player, k) => golpear(k, now));
                     accumulator -= STEP_SETTINGS.dt;
                 }

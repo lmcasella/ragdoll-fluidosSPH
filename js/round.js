@@ -63,6 +63,11 @@ export class Match {
         return null;
     }
 
+    // Los peligros que dañan por tiempo (inundación) solo actúan mientras se juega la ronda
+    get hazardsActive() {
+        return this.state === "playing";
+    }
+
     // Cartel central, o null durante el juego
     get banner() {
         if (this.state === "roundOver") {
