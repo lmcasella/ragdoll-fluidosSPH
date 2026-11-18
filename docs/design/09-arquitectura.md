@@ -8,14 +8,15 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 |---|---|
 | `index.html` | Raíz de composición: crea mundo, sistemas y jugadores; loop; giro y golpe. Desde #13 ✅, el disparo es de `ShotEmitter`: `index.html` crea el sistema de disparos (radio 0,1 m, `maxCount` 1.500, `destroyByAge(false)`), carga el inventario con `equipLoadout` al crear cada robot, convierte `state.weapon` / `weaponStep` en el `id` del arma y llama a `emitter.fire` una vez por frame |
 | `js/ActiveRagdoll.js` | Un jugador: vida, estados (miel, quemadura, aturdido, ahogado; mojado ✅ #22), movimiento, mira, golpe, clips. Desde #13 ✅ también guarda el inventario (`weapon`, `tanks`), que copia en `copyStateFrom`, pero no conoce la tabla de armas |
-| `js/weapons.js` ✅ #13 | Armas como datos y emisor de chorros. Exporta `FLUID` (se mueve desde `damage.js`, que lo reexporta), `WEAPONS` (tabla, [04-fluidos](04-fluidos.md#tabla-de-armas-datos-en-weapons-jsweaponsjs)), `LOADOUT`, `weaponById(id)`, `cycleWeapon(player, step)`, `equipLoadout(player)`, `particleDamage(weapon)` (`dps / rate`) y `ShotEmitter`. `ShotEmitter(system, damage, weapons = WEAPONS)` crea los objetos nativos de trabajo una vez, `fire(k, player, wants, dt, now)` emite y descuenta el tanque, `reset()` borra los créditos y exige soltar el botón, y `dispose()` libera los nativos. **No importa ningún módulo**: recibe `DamageSystem` por constructor y usa el `Box2D` global |
+| `js/weapons.js` ✅ #13 | Armas como datos y emisor de chorros. Exporta `FLUID` (se movió desde `damage.js`), `WEAPONS` (tabla, [04-fluidos](04-fluidos.md#tabla-de-armas-datos-en-weapons-jsweaponsjs)), `LOADOUT`, `weaponById(id)`, `cycleWeapon(player, step)`, `equipLoadout(player)`, `particleDamage(weapon)` (`dps / rate`) y `ShotEmitter`. `ShotEmitter(system, damage, weapons = WEAPONS)` crea los objetos nativos de trabajo una vez, `fire(k, player, wants, dt, now)` emite y descuenta el tanque, `reset()` borra los créditos y exige soltar el botón, y `dispose()` libera los nativos. Recibe `DamageSystem` por constructor y usa el `Box2D` global. Desde #40 ✅ suma `SHOT_SYSTEM` (radio, tope y fuerzas del sistema de disparos) y **solo importa `particles.js`** (flags) |
+| `js/particles.js` ✅ #40 | Creación de sistemas de partículas a partir de datos. `PARTICLE` (flags de LiquidFun usadas por el juego) y `createParticleSystem(world, params)`: aplica cada clave con su `set_` del `b2ParticleSystemDef`, falla ante una clave desconocida y libera el def. **No importa nada.** Es el único módulo que conoce `b2ParticleSystemDef` ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)) |
 | `js/Input.js` | Gamepad y teclado → estado por jugador. Desde #13 ✅ suma `fire` (mantenido) a `action` (flanco) |
 | `js/camera.js` | Encuadre compartido y conversión pantalla ↔ mundo |
-| `js/level.js` | Datos del nivel, sólidos, sensor y agua de la pileta |
+| `js/level.js` | Datos del nivel, sólidos, sensor y agua de la pileta. Desde #40 ✅: `LEVEL.pool.flags` y `LEVEL.pool.physics` (fuerzas del agua del nivel); `fillPool` crea el sistema con `createParticleSystem` y `fillPoolWater` aplica las flags al grupo. Importa solo `particles.js` |
 | `js/raycast.js` | Rayos con callback reutilizado, uno por mundo |
 | `js/damage.js` | Contact listener: impactos, partículas, pileta → daño; robots bajo el nivel de la inundación → mojado (✅ #22). Desde #13 ✅: tramos de disparo (`shotId`, `tagParticle`, `liveShotFloor`, `SHOT_SLICE` 0,1 s, `SHOT_LIFETIME` 6 s) y daño del ácido por caudal. Importa de `weapons.js` solo datos (`FLUID`, `WEAPONS`). Desde #18 ✅: agua → `soak()` sin consumir la partícula |
 | `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
-| `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja |
+| `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja. Desde #40 ✅ aplica `LEVEL.pool.flags` a su `b2ParticleDef`, para que la lluvia tenga las mismas flags que la pileta |
 | `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD. Desde #13 ✅, barra de tanque (recibe la tabla de armas como parámetro y no la importa). Desde #18 ✅, chispas de mojado |
 | `js/clips.js` | Transformaciones de clips antes de `parse` (`walk_back`) |
 | `lib/` | RagImporter, copiado de ragassembler2d `d067775`; no se edita acá |
@@ -24,8 +25,9 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 
 Previsto: un módulo de métricas (#29).
 
-**Dependencias de `js/weapons.js`** (#13):
-- `damage.js` → `weapons.js`: solo datos. Así no hay ciclo, porque `weapons.js` no importa nada.
+**Dependencias de `js/weapons.js`** (#13, con el cambio de #40):
+- `damage.js` → `weapons.js`: solo datos. No hay ciclo: `weapons.js` solo importa `particles.js`, que no importa nada.
+- `weapons.js` → `particles.js` y `level.js` → `particles.js` (#40).
 - `index.html` → `weapons.js`.
 - `render.js` y `ActiveRagdoll.js` no lo importan: reciben datos.
 
@@ -67,7 +69,7 @@ El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 - **Memoria:** 5.500 partículas están muy por debajo de las 20.000 medidas dentro de los 16 MiB.
 - **Código por paso sin memoria nativa nueva:** `Flood` crea en el constructor un `b2ParticleDef`, dos `b2Vec2` y un `b2ParticleColor`, los reutiliza en cada gota y los libera en `dispose()`. Las posiciones, velocidades y marcas se leen directo del heap (`HEAPF32`/`HEAP32`), como `limpiarParticulas`.
 
-**Medición** (verificación de #22): un test en Node con LiquidFun real que arma el nivel, la pileta, dos robots y la inundación con `roundTime` forzado al tope, deja asentar el agua y mide el promedio de ms de `stepWorld` + `flood.step` + `damage.process` en 300 frames. El valor se anota en 9.2 junto con la cantidad de partículas. El test solo falla por encima de 16 ms (para no ser frágil en CI); la meta de 8 ms se revisa a mano con el número anotado. Si no entra, se aplican las optimizaciones de abajo desde la 2.
+**Medición** (verificación de #22): un test en Node con LiquidFun real que arma el nivel, la pileta, dos robots y la inundación con `roundTime` forzado al tope, deja asentar el agua y mide el promedio de ms de `stepWorld` + `flood.step` + `damage.process` en 300 frames. El valor se anota en 9.2 junto con la cantidad de partículas. Se repite con #40 si cambian las fuerzas o las flags del agua del nivel (sobre todo con `staticPressure`, [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)). El test solo falla por encima de 16 ms (para no ser frágil en CI); la meta de 8 ms se revisa a mano con el número anotado. Si no entra, se aplican las optimizaciones de abajo desde la 2.
 
 **Presupuesto del sistema de disparos** (✅ #13):
 - **Partículas:** `maxCount` = 1.500 y `destroyByAge(false)`. Con todos los tanques llenos, un jugador emite como mucho 600 partículas (300 + 135 + 90 + 75). Cada partícula vive como máximo 6 s (`SHOT_LIFETIME`), así que dos jugadores dejan ~1.200 vivas en el peor caso. Con el agua del nivel (5.500), el total queda en ~7.000, por debajo del techo de 8.000.

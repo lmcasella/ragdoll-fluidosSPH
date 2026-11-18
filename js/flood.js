@@ -89,6 +89,7 @@ export class Flood {
         this.position = new Box2D.b2Vec2(0, this.config.emitY);
         this.velocity = new Box2D.b2Vec2(0, -this.config.dropSpeed);
         this.color = new Box2D.b2ParticleColor(40, 120, 255, 255);
+        this.def.set_flags(level.pool.flags ?? 0);
         this.def.set_velocity(this.velocity);
         this.def.set_color(this.color);
         this.roundTime = 0;

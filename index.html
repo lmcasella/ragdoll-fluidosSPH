@@ -120,8 +120,10 @@
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip } from "./js/clips.js";
             import { DamageSystem } from "./js/damage.js";
+            import { createParticleSystem } from "./js/particles.js";
             import {
                 WEAPONS,
+                SHOT_SYSTEM,
                 ShotEmitter,
                 cycleWeapon,
                 equipLoadout,
@@ -252,14 +254,7 @@
             const input = new Input(players.length);
             let inputs = input.poll();
 
-            const psDef = new Box2D.b2ParticleSystemDef();
-            psDef.set_radius(0.1);
-            psDef.set_dampingStrength(0.2);
-            // Tope fijo y sin destrucción por edad: sin vencimientos en las partículas, el motor no la soporta
-            psDef.set_maxCount(1500);
-            psDef.set_destroyByAge(false);
-            const particleSystem = world.CreateParticleSystem(psDef);
-            Box2D.destroy(psDef);
+            const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
             const damage = new DamageSystem(world, particleSystem);
             damage.killSensors = killSensors;
