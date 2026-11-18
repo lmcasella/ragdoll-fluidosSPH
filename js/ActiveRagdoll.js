@@ -6,6 +6,9 @@ const GROUND_RAY = 0.3;
 const FLASH_TIME = 1;
 const BURN_TIME = 1.5;
 const BURN_DPS = 4;
+// Cortocircuito (agua): falla de todo el robot, por eso no usa el multiplicador por parte
+const WET_TIME = 3;
+const SHORT_CIRCUIT_DPS = 3;
 // Golpe: el clip `punch` carga hasta 0,3 s y pega entre 0,3 y 0,5 s; los rayos solo dañan en esa ventana
 const PUNCH_TIME = 0.55;
 const PUNCH_ACTIVE = [0.3, 0.5];
@@ -39,6 +42,7 @@ export class ActiveRagdoll {
         this.flashes = new Map(); // bodyId → instante del último golpe (s)
         this.burns = new Map(); // bodyId → segundos de quemadura restantes
         this.drowned = false;
+        this.wetTimer = 0; // s restantes de cortocircuito
         this.punchStart = -Infinity;
         this.punchReadyAt = 0;
         this.punchHit = false;
@@ -107,6 +111,7 @@ export class ActiveRagdoll {
         this.jumping = old.jumping;
         this.flashes = old.flashes;
         this.burns = old.burns;
+        this.wetTimer = old.wetTimer;
         this.aimDir = old.aimDir;
         this.punchStart = old.punchStart;
         this.punchReadyAt = old.punchReadyAt;
@@ -144,6 +149,31 @@ export class ActiveRagdoll {
         this.burns.set(bodyId, BURN_TIME);
     }
 
+    // Moja al robot (renueva el tiempo); el daño se aplica en updateStatus
+    soak() {
+        this.wetTimer = WET_TIME;
+    }
+
+    // Lo seca (fin de la ronda: el cortocircuito no debe matar al ganador bajo el cartel)
+    dry() {
+        this.wetTimer = 0;
+    }
+
+    // Borde inferior (m) de la pieza más baja: AABB de las fixtures, sin crear objetos nativos
+    lowestPoint() {
+        let lowest = Infinity;
+        for (const body of this.rag.bodies.values()) {
+            for (let fixture = body.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
+                lowest = Math.min(lowest, fixture.GetAABB(0).get_lowerBound().get_y());
+            }
+        }
+        return lowest;
+    }
+
+    get wet() {
+        return this.wetTimer > 0;
+    }
+
     applyHoney() {
         this.honeyTimer = 60;
     }
@@ -154,6 +184,10 @@ export class ActiveRagdoll {
             this.hurt(bodyId, BURN_DPS * dt);
             if (left - dt <= 0) this.burns.delete(bodyId);
             else this.burns.set(bodyId, left - dt);
+        }
+        if (this.wetTimer > 0 && !this.dead) {
+            this.takeDamage(SHORT_CIRCUIT_DPS * dt);
+            this.wetTimer = Math.max(0, this.wetTimer - dt);
         }
     }
 

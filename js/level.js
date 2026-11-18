@@ -20,7 +20,23 @@ export const LEVEL = {
         { x: 51.5, y: 6.8, w: 3, h: 0.4, kind: "platform" },
     ],
     // Pileta: agua entre x1..x2 hasta `surface`; el sensor cubre hasta `killY` (robot medio hundido)
-    pool: { x1: 18, x2: 38, bottom: 0, surface: 3, killY: 2.2 },
+    pool: { x1: 18, x2: 38, bottom: 0, surface: 3, killY: 2.2, radius: 0.25 },
+    // Inundación (muerte súbita): llueve desde `emitY` y el nivel sube `riseSpeed` m/s a partir de `start` s de ronda.
+    // `density` = gotas por m² de agua en reposo con radio 0,25 m; `drain*` = escurrido de charcos sobre plataformas altas
+    flood: {
+        start: 90,
+        riseSpeed: 0.15,
+        maxLevel: 15,
+        emitY: 31.5,
+        emitX1: 1,
+        emitX2: 55,
+        dropSpeed: 8,
+        maxRate: 90,
+        density: 6.4,
+        drainHeight: 1,
+        drainSpeed: 1,
+        maxParticles: 5500,
+    },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
     spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
 };
@@ -52,15 +68,23 @@ export function buildLevel(world, level = LEVEL) {
     return { ground, killSensors };
 }
 
-// Agua de la pileta: sistema de partículas propio, más grueso que el de los disparos (menos partículas)
+// Agua del nivel (pileta e inundación): sistema de partículas propio, más grueso que el de los disparos.
+// `maxCount` fija el tope de partículas del heap fijo de 16 MiB.
 export function fillPool(world, level = LEVEL) {
-    const { x1, x2, bottom, surface } = level.pool;
+    const { radius } = level.pool;
     const def = new Box2D.b2ParticleSystemDef();
-    def.set_radius(0.2);
+    def.set_radius(radius);
     def.set_dampingStrength(0.2);
+    if (level.flood) def.set_maxCount(level.flood.maxParticles);
     const system = world.CreateParticleSystem(def);
     Box2D.destroy(def);
+    fillPoolWater(system, level);
+    return system;
+}
 
+// Grupo inicial de agua de la pileta; también lo usa Flood.reset para dejarla como al empezar
+export function fillPoolWater(system, level = LEVEL) {
+    const { x1, x2, bottom, surface } = level.pool;
     const groupDef = new Box2D.b2ParticleGroupDef();
     const shape = new Box2D.b2PolygonShape();
     const center = new Box2D.b2Vec2((x1 + x2) / 2, (bottom + surface) / 2);
@@ -73,5 +97,4 @@ export function fillPool(world, level = LEVEL) {
     Box2D.destroy(center);
     Box2D.destroy(shape);
     Box2D.destroy(groupDef);
-    return system;
 }

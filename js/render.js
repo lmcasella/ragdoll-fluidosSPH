@@ -2,6 +2,8 @@
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 
 const FLASH_COLOR = [255, 40, 40];
+const WET_COLOR = [40, 220, 255];
+const WET_BLINK_HZ = 4;
 // Algo mayor que el radio físico (0,1 m) para que el filtro goo una las gotas vecinas
 const PARTICLE_RADIUS = 0.14;
 
@@ -10,11 +12,14 @@ function hexToRgb(hex) {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function mix(base, k) {
-    const r = Math.round(base[0] + (FLASH_COLOR[0] - base[0]) * k);
-    const g = Math.round(base[1] + (FLASH_COLOR[1] - base[1]) * k);
-    const b = Math.round(base[2] + (FLASH_COLOR[2] - base[2]) * k);
-    return `rgb(${r}, ${g}, ${b})`;
+function mix(base, k, wet = 0) {
+    let r = base[0] + (FLASH_COLOR[0] - base[0]) * k;
+    let g = base[1] + (FLASH_COLOR[1] - base[1]) * k;
+    let b = base[2] + (FLASH_COLOR[2] - base[2]) * k;
+    r += (WET_COLOR[0] - r) * wet;
+    g += (WET_COLOR[1] - g) * wet;
+    b += (WET_COLOR[2] - b) * wet;
+    return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
 
 export function drawLevel(ctx, level, scale) {
@@ -59,6 +64,8 @@ export function buildRenderItems(rag, json, flipX) {
 
 export function drawRobot(ctx, player, color, scale, now) {
     const base = hexToRgb(color);
+    // Mojado: tinte cian que parpadea
+    const wet = player.wet && !player.dead ? 0.35 + 0.35 * Math.sin(now * WET_BLINK_HZ * Math.PI * 2) : 0;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5 / scale;
     for (const item of player.renderItems) {
@@ -72,7 +79,7 @@ export function drawRobot(ctx, player, color, scale, now) {
         ctx.rotate(angle);
         ctx.translate(item.cx, item.cy);
         ctx.rotate(item.angle);
-        ctx.fillStyle = mix(base, player.flashAmount(item.bodyId, now));
+        ctx.fillStyle = mix(base, player.flashAmount(item.bodyId, now), wet);
         ctx.beginPath();
         if (item.type === "box") {
             ctx.rect(-item.hw, -item.hh, item.hw * 2, item.hh * 2);
@@ -128,7 +135,7 @@ export function drawHits(ctx, hits, scale, now) {
 }
 
 // HUD en pantalla (sin cámara): vida, arma y rondas ganadas por jugador; cartel central entre rondas
-export function drawHud(ctx, width, height, players, match, colors, weaponNames) {
+export function drawHud(ctx, width, height, players, match, colors, weaponNames, floodStart = Infinity) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.font = "bold 24px Segoe UI";
     ctx.textBaseline = "alphabetic";
@@ -155,6 +162,18 @@ export function drawHud(ctx, width, height, players, match, colors, weaponNames)
     ctx.fillStyle = "#cccccc";
     ctx.font = "bold 18px Segoe UI";
     ctx.fillText(`Ronda ${match.round}`, width / 2, 36);
+    const seconds = Math.floor(match.roundTime);
+    ctx.fillText(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, width / 2, 60);
+    if (match.state === "playing" && match.roundTime >= floodStart - 10) {
+        const flooding = match.roundTime >= floodStart;
+        ctx.fillStyle = flooding ? "#40dcff" : "#ffcc44";
+        ctx.font = "bold 22px Segoe UI";
+        ctx.fillText(
+            flooding ? "¡INUNDACIÓN!" : `Inundación en ${Math.ceil(floodStart - match.roundTime)}`,
+            width / 2,
+            88,
+        );
+    }
 
     const banner = match.banner;
     if (banner) {

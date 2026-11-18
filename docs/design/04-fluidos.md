@@ -23,6 +23,17 @@ Código: disparos en `index.html` (`disparar`, tabla `ARMAS`), daño en `js/dama
 | **Viento** | Sistema de gases (gravedad 0, vida ~1,2 s), con velocidad escrita en cada paso | Ráfaga visible como estelas | **Sin daño.** Empuja por transferencia de cantidad de movimiento | 🔨 #17 |
 | **Miel** | Sistema líquido, `b2_viscousParticle` | Espesa | Ralentiza 1 s (movimiento y salto a la mitad); la partícula se consume. Pasa a ser peligro del mapa ([4.3](#43-peligros-del-mapa)) | ✅ (arma provisoria) |
 
+### Cortocircuito: regla compartida ✅ #22
+
+El agua de la inundación y el arma de agua (#18) dañan igual, así que la regla vive en un solo lugar y cada fuente solo la dispara.
+
+- **Estado `mojado`** en `ActiveRagdoll`: `soak()` lo deja en `WET_TIME` = **3 s** (si ya estaba mojado, lo renueva). En `updateStatus(dt)`, una vez por paso fijo, mientras quede tiempo: **−3 de vida por segundo** (`SHORT_CIRCUIT_DPS`) con `takeDamage`, **sin multiplicador por parte** (es una falla de todo el robot, no un impacto). El tiempo baja con `dt`. Se copia en `copyStateFrom` al girar.
+- **Quién lo dispara:** siempre `DamageSystem.process`, después de `stepWorld` (patrón "juntar durante el paso, actuar después").
+  - **Inundación (#22):** `process(now, waterLevel)` recorre los robots registrados y moja al que tiene el borde inferior de alguna parte (`lowestPoint()`) por debajo del agua. `waterLevel` es un número o una función `(x) => altura`; el juego pasa `Flood.surfaceAt` (superficie real local) y `-Infinity` fuera de `playing`. No usa callbacks. Antes de los 90 s de ronda no hay agua que moje (la pileta no moja; ver [02-partida](02-partida.md#21-inundación--22)).
+  - **Arma de agua (#18, después):** `onParticleBodyContact` encola el contacto de una partícula `FLUID.WATER` del sistema de disparos, como hoy el ácido, y `process` llama a `soak`. Respeta la gracia de 0,4 s del fluido propio.
+- **Visual:** tinte cian intermitente mientras dura el estado ✅ (#22). Las chispas y el arco entre robots mojados son de #18 y #31.
+- No se usan contactos partícula↔cuerpo para la inundación: `BeginParticleBodyContact` solo avisa cuando un contacto empieza, y un robot quieto bajo el agua podría dejar de recibir avisos. Leer todos los contactos del paso tampoco es posible: `GetBodyContacts` existe en el build pero no hay `GetBodyContactCount` (*verificado* en `vendor/liquidfun.js`, 18/11).
+
 **¿El fuego es un fluido?** Sí, gaseoso: es SPH igual que los líquidos, pero en otro sistema de partículas con gravedad negativa (sube) y tiempo de vida corto (se extingue).
 
 **El viento como impulso:** LiquidFun no tiene "fuerza de viento". La ráfaga es un grupo de partículas sin gravedad cuya velocidad se escribe en cada paso (*verificado*: escribir el buffer de velocidad persiste). Al tocar un cuerpo le transfieren cantidad de movimiento, y como las partículas se ven, el empuje se entiende.
@@ -38,6 +49,7 @@ Código: disparos en `index.html` (`disparar`, tabla `ARMAS`), daño en `js/dama
 | Peligro | Implementación | Efecto | Estado |
 |---|---|---|---|
 | **Pileta** | Agua SPH al fondo del hueco central + sensor | Caer = robot destruido | ✅ ([05-escenario](05-escenario.md#52-pileta)) |
+| **Inundación** | Lluvia en el sistema del agua del nivel, con nivel controlado | Bajo el agua real = mojado (cortocircuito) | ✅ #22 ([02-partida](02-partida.md#21-inundación--22)) |
 | **Charcos de miel** | Grupos `b2_viscousParticle` al colocar el nivel | Velocidad y salto ×0,5 mientras haya contacto | 🔨 #23 |
 | **Ventiladores** | Emisor de viento hacia arriba | Ascensor de aire a plataformas altas | 🔨 #24 |
 | **Goteo de ácido** | Emisor periódico desde el techo | Fuerza a moverse | 💬 |

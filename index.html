@@ -113,6 +113,7 @@
             import { Input } from "./js/Input.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel, fillPool } from "./js/level.js";
+            import { Flood } from "./js/flood.js";
             import { Match } from "./js/round.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip } from "./js/clips.js";
@@ -259,6 +260,7 @@
             damage.killSensors = killSensors;
             damage.register(players);
             const match = new Match(players.length);
+            const flood = new Flood(world, poolSystem);
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
             function reiniciarRonda() {
@@ -268,6 +270,7 @@
                     instances[k] = players[k].rag;
                 });
                 damage.register(players);
+                flood.reset();
                 for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
                     particleSystem.DestroyParticle(i);
                 }
@@ -443,8 +446,8 @@
                     : { x1: m.x, y1: m.y, x2, y2, hit: false };
             }
 
-            // Partículas de disparos que salieron del mundo o cayeron a la pileta. Los dos sistemas de
-            // partículas no interactúan entre sí: un disparo dentro de la pileta atravesaría el agua.
+            // Partículas de disparos que salieron del mundo o cayeron al agua (pileta o inundación). Los dos
+            // sistemas de partículas no interactúan entre sí: un disparo dentro del agua la atravesaría.
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
@@ -453,8 +456,9 @@
                 for (let i = 0; i < count; i++) {
                     const x = Box2D.HEAPF32[pos + i * 2];
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
-                    const inPool = x > pool.x1 && x < pool.x2 && y < pool.surface;
-                    if (inPool || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
+                    const overPool = x > pool.x1 && x < pool.x2;
+                    const inWater = y < Math.max(overPool ? pool.surface : -Infinity, flood.level);
+                    if (inWater || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
                         particleSystem.DestroyParticle(i);
                     }
                 }
@@ -512,10 +516,15 @@
                 while (accumulator >= STEP_SETTINGS.dt) {
                     players.forEach((player, k) => {
                         player.move(inputs[k]);
+                        if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
+                    flood.step(match.roundTime, STEP_SETTINGS.dt);
                     stepWorld(world, instances);
-                    damage.process(performance.now() / 1000);
+                    damage.process(
+                        performance.now() / 1000,
+                        match.hazardsActive ? flood.surfaceAt : -Infinity,
+                    );
                     players.forEach((player, k) => golpear(k, now));
                     accumulator -= STEP_SETTINGS.dt;
                 }
@@ -557,6 +566,7 @@
                     match,
                     PLAYER_COLORS,
                     NOMBRES_ARMAS,
+                    LEVEL.flood.start,
                 );
                 requestAnimationFrame(loop);
             }

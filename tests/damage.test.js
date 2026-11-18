@@ -51,3 +51,60 @@ test("el ácido del rival daña sin período de gracia", () => {
     damage.process(10.01);
     assert.equal(hurts.length, 1);
 });
+
+// Mojado por nivel de inundación: process(now, waterLevel) moja a quien tenga el borde inferior de alguna pieza
+// por debajo del agua (número fijo o función de la x del robot)
+function wetSetup({ lowest, x = 10 }) {
+    const { damage } = setup();
+    let soaks = 0;
+    const player = {
+        dead: false,
+        torso: { GetPosition: () => ({ get_x: () => x }) },
+        lowestPoint: () => lowest,
+        soak: (...args) => {
+            soaks++;
+            assert.equal(args.length, 0);
+        },
+    };
+    damage.players = [player];
+    return { damage, soaks: () => soaks, player };
+}
+
+test("el borde inferior de una pieza bajo el nivel moja al robot", () => {
+    const { damage, soaks } = wetSetup({ lowest: 4.9 });
+    damage.process(10, 5);
+    assert.equal(soaks(), 1);
+});
+
+test("con el borde inferior apenas sobre el nivel no se moja", () => {
+    const { damage, soaks } = wetSetup({ lowest: 5.05 });
+    damage.process(10, 5);
+    assert.equal(soaks(), 0);
+});
+
+test("sin nivel de agua (por defecto o -Infinity) no se moja a nadie", () => {
+    const { damage, soaks } = wetSetup({ lowest: -3 });
+    damage.process(10);
+    damage.process(10, -Infinity);
+    assert.equal(soaks(), 0);
+});
+
+test("un robot muerto no se moja", () => {
+    const { damage, soaks, player } = wetSetup({ lowest: 1 });
+    player.dead = true;
+    damage.process(10, 5);
+    assert.equal(soaks(), 0);
+});
+
+test("el nivel como función recibe la x del robot (agua local)", () => {
+    const { damage, soaks } = wetSetup({ lowest: 4, x: 7.5 });
+    const asked = [];
+    damage.process(10, (x) => {
+        asked.push(x);
+        return -Infinity; // todavía no llegó el agua a esa columna
+    });
+    assert.deepEqual(asked, [7.5]);
+    assert.equal(soaks(), 0);
+    damage.process(10, (x) => (x === 7.5 ? 6 : -Infinity));
+    assert.equal(soaks(), 1);
+});

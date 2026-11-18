@@ -22,7 +22,9 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
 
 ## 5.2 Pileta ✅
 
-- **Agua:** SPH real en el hueco central (x 18–38, del fondo hasta y = 3), en un **sistema de partículas propio** de radio 0,2 m (726 partículas). Un robot que cae salpica.
-- **Sensor:** un sensor de Box2D cubre la pileta hasta y = 2,2. El robot que se hunde ahí queda **destruido** (vida 0, todo rojo) y pierde la ronda.
-- **Disparos:** los dos sistemas de partículas no interactúan entre sí. Por eso las partículas de los disparos que caen a la pileta se eliminan; si no, la atravesarían.
-- **Inundación:** la lluvia de la muerte súbita cae sobre la pileta y la hace subir (#22, [02-partida](02-partida.md)).
+- **Agua:** SPH real en el hueco central (x 18–38, del fondo hasta y = 3), en un **sistema de partículas propio** Un robot que cae salpica.
+  - ✅ #22: es el **agua del nivel**, compartido con la lluvia de la inundación. Radio **0,25 m** (`LEVEL.pool.radius`; 477 partículas en la pileta, medido) y `maxCount` = `LEVEL.flood.maxParticles` (5.500) al crearlo en `fillPool`. Se dibuja con radio **0,28 m** (decisión del usuario: no agrandar las partículas).
+- **Sensor:** un sensor de Box2D cubre la pileta hasta y = 2,2. El robot que se hunde ahí queda **destruido** (vida 0, todo rojo) y pierde la ronda. Con la inundación **no se mueve** ([02-partida](02-partida.md#21-inundación--22)).
+- **Disparos:** los sistemas de disparos y del agua del nivel no interactúan entre sí. Por eso las partículas de los disparos que caen al agua se eliminan; si no, la atravesarían.
+  - ✅ #22: el corte es `y < max(pool.surface si x está sobre la pileta, nivel de la inundación)`. Con el mapa inundado, los disparos que entran al agua se eliminan en todo el ancho.
+- **Inundación:** la lluvia de la muerte súbita cae sobre la pileta y la hace subir (#22, [02-partida](02-partida.md#21-inundación--22)).
