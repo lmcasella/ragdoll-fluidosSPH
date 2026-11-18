@@ -52,7 +52,7 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 
 | Arma | `id` (`FLUID`) | Flags | Color | Caudal (p/s) | Velocidad (m/s) | Dispersión | Tanque (p) | Dura | DPS esperado | Por partícula | Se consume | Estado |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Agua** | `WATER` = 4 | `b2_waterParticle` | 90, 170, 255 | 100 | 14 | ±2° (0,035 rad) | **300** | 3 s | 3 (cortocircuito; dura 3 s más) | `soak()` | No (empuja y deja charco) | 🔨 #18 |
+| **Agua** | `WATER` = 4 | `b2_waterParticle` | 90, 170, 255 | 100 | 14 | ±2° (0,035 rad) | **300** | 3 s | 3 (cortocircuito; dura 3 s más) | `soak()` | No (empuja y deja charco) | ✅ #18 |
 | **Ácido** | `ACID` = 1 | `b2_waterParticle` | 50, 255, 50 | 90 | 14 | ±2° (0,035 rad) | 135 | 1,5 s | **20** | 20 / 90 ≈ 0,22 × multiplicador de la parte | Sí | ✅ #13 |
 | **Lava** | `LAVA` = 2 | `b2_tensileParticle` | 255, 80, 20 | 60 | 10 | ±1° (0,017 rad) | 90 | 1,5 s | ~12 (4/s por parte quemada, ~3 partes; dura 1,5 s más) | `burn()` | No | ✅ #13 |
 | **Miel** | `HONEY` = 3 | `b2_viscousParticle` | 255, 200, 50 | 50 | 8 | ±1° (0,017 rad) | 75 | 1,5 s | 0 (ralentiza) | `applyHoney()` | Sí | ✅ #13 |
@@ -61,7 +61,7 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 - La columna "Dura" es `tanque / caudal`. Las velocidades dan un alcance útil de ~6 m para el agua y el ácido, y de ~3–4 m para la lava y la miel, que caen en arco.
 - La cohesión y la viscosidad del chorro se ajustan en #40.
 
-**Estado** ✅ #13: chorro continuo de partículas sueltas de 0,1 m con los caudales, velocidades y tanques de la tabla. Verificado en Node con gamepad simulado: 1 s de A con el ácido emitió 89 partículas (el tanque bajó 89) y el tanque se vacía a los ~1,5 s. En navegador headless el chorro sale en arco, la barra baja y aparece "VACÍO". Las gotas todavía se separan: se ajusta en #40. El agua (#18) sigue 🔨.
+**Estado** ✅ #13: chorro continuo de partículas sueltas de 0,1 m con los caudales, velocidades y tanques de la tabla. Verificado en Node con gamepad simulado: 1 s de A con el ácido emitió 89 partículas (el tanque bajó 89) y el tanque se vacía a los ~1,5 s. En navegador headless el chorro sale en arco, la barra baja y aparece "VACÍO". Las gotas todavía se separan: se ajusta en #40. El agua (#18) ✅: en Node, un chorro de agua de J1 a 7,5 m moja a J2 a los 0,5 s y le saca 3,00 de vida por segundo; el tanque de J1 queda en 201 tras 1 s. A 5,5 m, el salpicado vuelve y moja al propio tirador a los ~0,85 s (regla de fuego amigo).
 
 - **Reloj de simulación:** los ids de disparo, la gracia de 0,4 s, la vida de 6 s, el golpe, los estados y la inundación usan un único `simTime` (suma de `frameDt × timeScale`), no `performance.now()`. Así una pestaña oculta o la cámara lenta no vencen disparos ni borran charcos.
 - **Recorte por raycaster:** una vez por frame y por jugador que dispara, el emisor lanza un rayo con el raycaster compartido (ignorando el propio robot) y no crea partículas a más de `impacto − 0,1 m`. El chorro no atraviesa paredes ni nace dentro del rival; con el rival pegado al cañón (< ~0,25 m) no sale chorro: a esa distancia se usa el golpe.
@@ -72,7 +72,7 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 
 | Fluido | Implementación LiquidFun | Comportamiento | Efecto en el robot | Estado |
 |---|---|---|---|---|
-| **Agua** | Sistema de disparos, `b2_waterParticle` | **Arma inicial** de cada robot. Chorro rápido que salpica, empuja y se acumula en charcos | **Cortocircuito:** cada partícula que toca al robot lo moja (`soak()`, regla compartida abajo): −3 de vida por segundo mientras está mojado y 3 s después, con chispas. Arco eléctrico entre robots mojados ([08-raycast](08-raycast.md), #31) | 🔨 #18 |
+| **Agua** | Sistema de disparos, `b2_waterParticle` | **Arma inicial** de cada robot. Chorro rápido que salpica, empuja y se acumula en charcos | **Cortocircuito:** cada partícula que toca al robot lo moja (`soak()`, regla compartida abajo): −3 de vida por segundo mientras está mojado y 3 s después, con chispas. Arco eléctrico entre robots mojados ([08-raycast](08-raycast.md), #31) | ✅ #18 |
 | **Ácido** | Sistema de disparos, `b2_waterParticle` | Rápido, se escurre por las superficies | **DPS 20** por caudal (`dps / caudal` por partícula, que se consume) ✅ #13. Con #19: **corrosión**: la parte queda corroída 4 s y recibe +50 % de daño de cualquier fuente (humo verde) | ✅ #13, 🔨 #19 |
 | **Lava** | Sistema líquido, `b2_tensileParticle` | Pesada, pegajosa, forma gotas | **Quema:** cada contacto deja la parte quemándose 1,5 s a 4 de daño por segundo. No se consume | ✅ |
 | **Fuego** | Sistema de **gases** (gravedad negativa, vida ~0,6 s) | Lanzallamas de corto alcance (~3 m). Sube y se apaga solo | Daño por contacto. Seca el estado mojado | 🔨 #16 |
@@ -86,10 +86,10 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 - **Estado `mojado`** en `ActiveRagdoll`: `soak()` lo deja en `WET_TIME` = **3 s** (si ya estaba mojado, lo renueva). En `updateStatus(dt)`, una vez por paso fijo, mientras quede tiempo: **−3 de vida por segundo** (`SHORT_CIRCUIT_DPS`) con `takeDamage`, **sin multiplicador por parte** (es una falla de todo el robot, no un impacto). El tiempo baja con `dt`. Se copia en `copyStateFrom` al girar.
 - **Quién lo dispara:** siempre `DamageSystem.process`, después de `stepWorld` (patrón "juntar durante el paso, actuar después").
   - **Inundación (#22):** `process(now, waterLevel)` recorre los robots registrados y moja al que tiene el borde inferior de alguna parte (`lowestPoint()`) por debajo del agua. `waterLevel` es un número o una función `(x) => altura`; el juego pasa `Flood.surfaceAt` (superficie real local) y `-Infinity` fuera de `playing`. No usa callbacks. Antes de los 60 s de ronda no hay agua que moje (la pileta no moja; ver [02-partida](02-partida.md#21-inundación--22)).
-  - **Arma de agua** 🔨 #18: `onParticleBodyContact` encola el contacto de una partícula `FLUID.WATER` del sistema de disparos, como el ácido. Después, `process` llama a `soak()`. La partícula **no se consume**: sigue empujando y forma charco. Rige la regla de fuego amigo: el agua propia no moja a su dueño durante la gracia de 0,4 s del tramo de disparo. Pasado ese tiempo, sí lo moja (pisar su propio charco cuesta).
+  - **Arma de agua** ✅ #18: `onParticleBodyContact` encola el contacto de una partícula `FLUID.WATER` del sistema de disparos, como el ácido. Después, `process` llama a `soak()`. La partícula **no se consume**: sigue empujando y forma charco. Rige la regla de fuego amigo: el agua propia no moja a su dueño durante la gracia de 0,4 s del tramo de disparo. Pasado ese tiempo, sí lo moja (pisar su propio charco cuesta).
 - **Visual:**
   - tinte cian intermitente mientras dura el estado ✅ (#22);
-  - **chispas** 🔨 #18: mientras `player.wet`, `drawRobot` dibuja 3 chispas por frame, cada una un zigzag de 3 tramos de ~0,12 m en amarillo o blanco (`#fff27a` / `#e8ffff`, 2 px), que nace en el centro de una pieza del robot. La pieza y los ángulos salen de `floor(now × 12)`, así que las chispas saltan a 12 Hz, sin `Math.random` ni objetos por frame. Como dependen solo del estado, se ven igual cuando moja la inundación y cuando moja el arma;
+  - **chispas** ✅ #18: mientras `player.wet`, `drawRobot` dibuja 3 chispas por frame, cada una un zigzag de 3 tramos de 0,3 m en amarillo o blanco (`#fff27a` / `#e8ffff`, 3 px; con 0,12 m no se veían al zoom de juego), que nace en el centro de una pieza del robot. La pieza y los ángulos salen de `floor(now × 12)`, así que las chispas saltan a 12 Hz, sin `Math.random` ni objetos por frame. Como dependen solo del estado, se ven igual cuando moja la inundación y cuando moja el arma;
   - el arco entre robots mojados es de #31.
 - No se usan contactos partícula↔cuerpo para la inundación: `BeginParticleBodyContact` solo avisa cuando un contacto empieza, y un robot quieto bajo el agua podría dejar de recibir avisos. Leer todos los contactos del paso tampoco es posible: `GetBodyContacts` existe en el build pero no hay `GetBodyContactCount` (*verificado* en `vendor/liquidfun.js`, 18/11).
 
@@ -99,9 +99,9 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 ## 4.2 Recogida e inventario 🔨
 
-- **Arranque** 🔨 #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `js/weapons.js`):
+- **Arranque** ✅ #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `js/weapons.js`):
   - **#13** ✅: todas las armas de la tabla con tanque lleno; arranca equipada la primera fila. Es provisorio, para poder probar.
-  - **#18:** arranca equipada el agua. Mientras #14 no esté, el resto de las armas sigue en el inventario inicial, así se pueden probar.
+  - **#18** ✅: arranca equipada el agua. Mientras #14 no esté, el resto de las armas sigue en el inventario inicial, así se pueden probar.
   - **#14:** el inventario inicial queda **solo con el agua**; el ácido, la lava, la miel y el fuego se recogen.
 - **Inventario en el jugador:** `player.weapon` (id del arma equipada) y `player.tanks` (`Map` id → partículas que quedan). Viven en `ActiveRagdoll` porque son estado del jugador: se copian en `copyStateFrom` al girar y se pierden al recrear el robot en cada ronda. `ActiveRagdoll` no conoce la tabla: el inventario lo carga la raíz de composición con `equipLoadout(robot)` de `js/weapons.js` al crear cada robot.
 - **Puntos de aparición** (#14): las armas están en puntos fijos del mapa, definidos como datos del nivel. Al tocar un arma (sensor de Box2D), se suma al inventario con el tanque lleno; si ya estaba, se rellena. Reaparece en su punto a los 15 s. **El agua también aparece como recogible**: es su única recarga dentro de la ronda (ver 12.1).
