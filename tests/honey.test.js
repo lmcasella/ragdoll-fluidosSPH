@@ -73,6 +73,18 @@ function count(game, kind, tagAbove = -1) {
     return n;
 }
 
+/**
+ * Miel total en partículas de disparo: las que siguen en el sistema más las que el campo de alturas absorbió
+ * (`Σ M dx / A_p`), la parte de la pileta (x entre 18 y 38) y las de afuera.
+ */
+function honeyTotal(game) {
+    const { water, immersion } = game.state;
+    let pool = 0;
+    for (let i = 0; i < water.N; i++) if (water.center(i) > 18 && water.center(i) < 38) pool += water.M[i] * water.dx;
+    const field = water.honey() / immersion.area;
+    return { particles: count(game, FLUID.HONEY), field, pool: pool / immersion.area, total: count(game, FLUID.HONEY) + field };
+}
+
 function tags(game, kind) {
     const { store, particleSystem } = game.state;
     const out = [];
@@ -141,21 +153,44 @@ test("parado en el charco con 2 g el torso no colapsa: altura >= 0,9 de la de si
     assert.ok(stuck >= 0.9 * free, `${stuck} contra ${free}`);
 });
 
-test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel", async () => {
+test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel (partículas y columnas)", async (t) => {
     const game = await standing(true);
-    const honey = count(game, FLUID.HONEY);
-    assert.ok(honey > 0);
+    const before = honeyTotal(game);
+    assert.ok(before.total > 0);
     for (let i = 0; i < 180; i++) {
         game.frame();
         assert.equal(game.state.players[J2].sticky, true, `frame ${i}`);
     }
-    assert.equal(count(game, FLUID.HONEY), honey);
+    const after = honeyTotal(game);
+    t.diagnostic(`miel antes: ${before.particles} partículas y ${fmt(before.field)} partículas-equivalentes en columnas; después: ${after.particles} y ${fmt(after.field)}`);
+    assert.ok(Math.abs(after.total - before.total) < 1e-3 * before.total, `${after.total} contra ${before.total}`);
 });
 
+/** Una película de 0,3 m de agua con fracción de miel `fraction` bajo el robot J2 (columnas dentro de ±0,8 m de su torso) o a `offset` m de distancia. */
+async function filmUnder(fraction, offset = 0) {
+    const game = await standing(false);
+    const { water } = game.state;
+    const x = torso(game, J2).get_x() + offset;
+    for (let i = 0; i < water.N; i++) {
+        if (Math.abs(water.center(i) - x) > 0.8) continue;
+        water.h[i] = 0.3;
+        water.M[i] = 0.3 * fraction;
+    }
+    game.frames(3);
+    return game;
+}
+
+test("miel en las columnas del campo (§14.10): X_v ≥ 0,5 pega, X_v < 0,5 no pega y una película lejos no pega", async () => {
+    assert.equal((await filmUnder(1)).state.players[J2].sticky, true, "X_v 1");
+    assert.equal((await filmUnder(0.5)).state.players[J2].sticky, true, "X_v 0,5");
+    assert.equal((await filmUnder(0.4)).state.players[J2].sticky, false, "X_v 0,4");
+    assert.equal((await filmUnder(1, 4)).state.players[J2].sticky, false, "película a 4 m");
+});
 test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el movimiento", async () => {
     const game = await standing(true);
     assert.equal(game.state.players[J2].sticky, true);
     game.state.store.reset();
+    game.state.water.reset();
     game.frames(15);
     assert.equal(game.state.players[J2].sticky, true, "todavía dentro de la gracia");
     game.frames(7); // 0,3 s + 1 paso (algún frame no completa un paso)
@@ -202,7 +237,7 @@ test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s;
     assert.equal(count(game, FLUID.ACID), 0, "el ácido venció");
 });
 
-test("la miel que cae al agua del nivel no se destruye y sigue ahí a los 8 s", async () => {
+test("la miel que cae al agua del nivel no se destruye: queda en las columnas y se conserva a los 8 s", async () => {
     const game = await start();
     const { players, damage } = game.state;
     shift(game, 0, 16.5 - torso(game, 0).get_x());
@@ -215,16 +250,10 @@ test("la miel que cae al agua del nivel no se destruye y sigue ahí a los 8 s", 
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
     assert.ok(emitted >= 35);
     game.frames(60 * 8);
-    const inWater = (() => {
-        const system = game.state.particleSystem;
-        const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-        let n = 0;
-        for (let i = 0; i < system.GetParticleCount(); i++) if (Box2D.HEAPF32[pos + 2 * i] > 18.5 && Box2D.HEAPF32[pos + 2 * i + 1] < 3) n++;
-        return n;
-    })();
-    console.log(`miel emitida ${emitted}, en el sistema ${count(game, FLUID.HONEY, firstTag - 1)}, en la pileta ${inWater}`);
-    assert.ok(inWater > 0, "ninguna cayó a la pileta: la prueba no ejercita el agua");
-    assert.equal(count(game, FLUID.HONEY, firstTag - 1), emitted);
+    const honey = honeyTotal(game);
+    console.log(`miel emitida ${emitted}, en el sistema ${honey.particles}, en las columnas ${fmt(honey.field)} (en la pileta ${fmt(honey.pool)})`);
+    assert.ok(honey.pool > 0, "ninguna cayó a la pileta: la prueba no ejercita el agua");
+    assert.ok(Math.abs(honey.total - emitted) < 1e-3 * emitted, `${honey.total} contra ${emitted}`);
 });
 
 test(`tope: con 375 partículas de miel disparadas quedan como mucho ${PERSIST_MAX} y son las más nuevas`, async () => {

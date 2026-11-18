@@ -47,15 +47,16 @@ function localShapes(body) {
  * `particles` (por sistema: `x`, `y`, `color` RGB entero que identifica el material y `tag`). En los sistemas con
  * `ParticleStore` el material sale de `store.kind` (el color se deriva de la tabla de armas) y `tag` es `store.shot`;
  * en el resto, `color` y `tag` se leen de los buffers del motor.
- * `pieces` ([x, y, ángulo] en el orden de `meta.pieces`) y `eta` (perfil del campo de alturas; vacío
- * hasta que exista el campo).
+ * `pieces` ([x, y, ángulo] en el orden de `meta.pieces`) y `eta`: el perfil `η = b + h` del campo de alturas por
+ * celda (vacío si el `Recorder` no recibió `water`); `meta.field` trae `{ x0, dx, n }` para ubicar las celdas.
  *
  * `systems` es un objeto { nombre: particleSystem }; `stores` un objeto { nombre: ParticleStore } para los
- * sistemas que lo tienen; `pieces` un objeto { id: body }.
+ * sistemas que lo tienen; `pieces` un objeto { id: body }; `water` (opcional) el `ShallowWater` del que sale `eta`.
  */
 export class Recorder {
-    constructor({ name, systems, stores = {}, pieces, dt = 1 / 60, view = [-1, -1, 57, 18], solids = LEVEL.solids }) {
+    constructor({ name, systems, stores = {}, pieces, water = null, dt = 1 / 60, view = [-1, -1, 57, 18], solids = LEVEL.solids }) {
         this.name = name;
+        this.water = water;
         this.systems = Object.entries(systems);
         this.stores = new Map(Object.entries(stores));
         this.pieces = Object.entries(pieces);
@@ -69,10 +70,11 @@ export class Recorder {
             systems: this.systems.map(([id, system]) => ({ id, radius: round(system.GetRadius()) })),
             pieces: this.pieces.map(([id, body]) => ({ id, shapes: localShapes(body) })),
         };
+        if (water) this.meta.field = { x0: water.x0, dx: water.dx, n: water.N, beds: Array.from(water.b) };
     }
 
-    /** Agrega el estado actual del mundo como un frame nuevo. `eta` es el perfil del campo, si existe. */
-    capture(eta = []) {
+    /** Agrega el estado actual del mundo como un frame nuevo. `eta` reemplaza al perfil que se lee de `water`. */
+    capture(eta = this.water ? this.profile() : []) {
         const particles = this.systems.map(([id, system]) => {
             const count = system.GetParticleCount();
             const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
@@ -104,6 +106,14 @@ export class Recorder {
         this.frames.push({ t: round(this.frames.length * this.dt), particles, pieces, eta });
     }
 
+    /** Perfil `η` del campo de alturas por celda (m), redondeado a 0,1 mm. */
+    profile() {
+        const { N, b, h } = this.water;
+        const eta = new Array(N);
+        for (let i = 0; i < N; i++) eta[i] = Math.round((b[i] + h[i]) * 1e4) / 1e4;
+        return eta;
+    }
+
     /** Escribe la grabación en `file` como JSON y devuelve su ruta. */
     save(file) {
         mkdirSync(dirname(file), { recursive: true });
@@ -113,20 +123,21 @@ export class Recorder {
 }
 
 /**
- * Arma un `Recorder` sobre el estado de `loadGame()`: los sistemas de partículas y las piezas de ambos robots.
+ * Arma un `Recorder` sobre el estado de `loadGame()`: el sistema de partículas, el campo de alturas y las piezas de ambos robots.
  * Hay que crearlo después de los frames iniciales; si la ronda reinicia, las piezas ya no son las mismas.
  */
 export function recordGame(game, name, options = {}) {
-    const { particleSystem, poolSystem, store, players } = game.state;
+    const { particleSystem, water, store, players } = game.state;
     const pieces = {};
     players.forEach((player, k) => {
         for (const [id, body] of player.rag.bodies.entries()) pieces[`j${k + 1}:${id}`] = body;
     });
     return new Recorder({
         name,
-        systems: { disparos: particleSystem, pileta: poolSystem },
+        systems: { disparos: particleSystem },
         stores: { disparos: store },
         pieces,
+        water,
         ...options,
     });
 }

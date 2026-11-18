@@ -28,12 +28,14 @@ test("graba 60 frames con partículas, piezas y sólidos, y el JSON se relee ent
 
         assert.equal(frames.length, 60);
         assert.equal(meta.solids.length, 13);
-        assert.deepEqual(meta.systems.map((s) => s.id), ["disparos", "pileta"]);
+        assert.deepEqual(meta.systems.map((s) => s.id), ["disparos"]);
+        assert.deepEqual(Object.keys(meta.field), ["x0", "dx", "n", "beds"]);
+        assert.equal(meta.field.beds.length, meta.field.n);
         assert.ok(meta.pieces.length > 0);
         assert.ok(meta.pieces.every((p) => p.shapes.length > 0));
 
         for (const frame of frames) {
-            assert.equal(frame.particles.length, 2);
+            assert.equal(frame.particles.length, 1);
             for (const p of frame.particles) {
                 assert.equal(p.x.length, p.y.length);
                 assert.equal(p.x.length, p.color.length);
@@ -41,12 +43,15 @@ test("graba 60 frames con partículas, piezas y sólidos, y el JSON se relee ent
             }
             assert.equal(frame.pieces.length, meta.pieces.length);
             assert.ok(frame.pieces.every((q) => q.length === 3 && q.every(Number.isFinite)));
-            assert.deepEqual(frame.eta, []);
+            assert.equal(frame.eta.length, meta.field.n);
+            assert.ok(frame.eta.every((v, i) => Number.isFinite(v) && v >= meta.field.beds[i] - 1e-9));
         }
 
-        const [shots, pool] = [0, 1].map((k) => frames.map((f) => f.particles[k].x.length));
-        assert.ok(pool[0] > 0, "la pileta tiene agua");
+        const shots = frames.map((f) => f.particles[0].x.length);
         assert.ok(shots[59] > shots[0], "el chorro suma partículas");
+        assert.ok(frames[0].eta.some((v, i) => v > meta.field.beds[i]), "la pileta tiene agua");
+        const pool = frames[0].eta.filter((v, i) => v > meta.field.beds[i] + 1e-3);
+        assert.ok(pool.every((v) => Math.abs(v - 3) < 1e-3), "la pileta arranca asentada en 3 m");
         assert.ok(Math.abs(frames[59].t - 59 / 60) < 1e-3);
     } finally {
         rmSync(dir, { recursive: true, force: true });

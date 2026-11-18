@@ -1,266 +1,208 @@
-// Puente agua del nivel -> disparos (#39, docs/design/07-sph.md §7.6): LiquidFun real, determinista
+/**
+ * Absorción e inmersión de #71 (docs/design/14-agua.md §14.4 y §14.16, I1 a I6): LiquidFun real contra el campo de
+ * alturas, con el nivel real, el `ParticleStore` y el contorno inelástico. El costo (I8), la inundación (I4, I7) y la
+ * positividad (W6) están en `flood.test.js`.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { loadGame } from "./helpers/game.js";
+import { makeScene, wavePulse, particle, A_P, DT, G, RADIUS } from "./helpers/water-scene.js";
 
-const require = createRequire(import.meta.url);
-globalThis.Box2D = require("../vendor/liquidfun.js");
-globalThis.PIXI = {
-    Container: class {
-        addChild(child) {
-            return child;
-        }
-        removeChild() {}
-        destroy() {}
-    },
-};
+const { FLUID, SHOT_SYSTEM } = await import("../js/weapons.js");
+const { LEVEL } = await import("../js/level.js");
+const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
 
-const { LEVEL, buildLevel, fillPool } = await import("../js/level.js");
-const { Flood } = await import("../js/flood.js");
-const { Immersion } = await import("../js/immersion.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { WEAPONS, SHOT_SYSTEM, FLUID, fluidFromColor, CONTACT_LISTENER_PARTICLE } = await import("../js/weapons.js");
-const { stepWorld } = await import("../lib/ragimporter.js");
+const SG = new Map([[FLUID.WATER, MATERIALS.water.SG], [FLUID.ACID, MATERIALS.acid.SG], [FLUID.HONEY, MATERIALS.honey.SG], [FLUID.LAVA, MATERIALS.lava.SG]]);
+const SURFACE = LEVEL.pool.surface;
 
-const DT = 1 / 60;
+test("I1: N gotas de agua caen en la pileta y el volumen del campo crece N · A_p (error relativo < 1e-6)", (t) => {
+    const scene = makeScene();
+    const n = 60;
+    const v0 = scene.water.volume();
+    for (let k = 0; k < n; k++) scene.spawn(FLUID.WATER, 24 + (k * 8) / n, 4.2 + (k % 5) * 0.3);
+    for (let s = 0; s < 180 && scene.immersion.stats.absorbed < n; s++) scene.step();
+    const grown = scene.water.volume() - v0;
+    const expected = n * (1.5 * SHOT_SYSTEM.radius) ** 2;
+    const error = Math.abs(grown - expected) / expected;
+    const exact = Math.abs(grown - n * scene.immersion.area) / (n * scene.immersion.area);
+    t.diagnostic(`I1: ${scene.immersion.stats.absorbed} absorbidas; el campo creció ${grown.toFixed(9)} m² contra N · A_p = ${expected.toFixed(9)} m²; error relativo ${error.toExponential(2)} (con el radio en float32 del motor, ${exact.toExponential(2)}); tolerancia 1e-6`);
+    assert.equal(scene.immersion.stats.absorbed, n);
+    assert.ok(error < 1e-6, `error relativo ${error}`);
+    assert.equal(scene.store.alive.reduce((a, b) => a + b, 0), 0, "no queda ninguna partícula viva");
+    scene.dispose();
+});
 
-function makeScene() {
-    const gravity = new Box2D.b2Vec2(0, -10);
-    const world = new Box2D.b2World(gravity);
-    Box2D.destroy(gravity);
-    buildLevel(world);
-    const pool = fillPool(world);
-    const shots = createParticleSystem(world, SHOT_SYSTEM);
-    const immersion = new Immersion(shots, pool);
-    for (let i = 0; i < 120; i++) stepWorld(world, []);
-    return { world, pool, shots, immersion };
-}
-
-function spawn(system, weapon, x, y, vx, vy) {
-    const def = new Box2D.b2ParticleDef();
-    const position = new Box2D.b2Vec2(x, y);
-    const velocity = new Box2D.b2Vec2(vx, vy);
-    const color = new Box2D.b2ParticleColor(...weapon.color, 255);
-    def.set_flags(weapon.flags | CONTACT_LISTENER_PARTICLE);
-    def.set_position(position);
-    def.set_velocity(velocity);
-    def.set_color(color);
-    const index = system.CreateParticle(def);
-    for (const o of [def, position, velocity, color]) Box2D.destroy(o);
-    return index;
-}
-
-// Posición y velocidad de las partículas 0..n-1 del sistema
-function read(system, n) {
-    const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-    const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-    const out = [];
-    for (let i = 0; i < n; i++) {
-        out.push({
-            x: Box2D.HEAPF32[pos + 2 * i],
-            y: Box2D.HEAPF32[pos + 2 * i + 1],
-            speed: Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]),
-            vy: Box2D.HEAPF32[vel + 2 * i + 1],
-        });
+test("I2: la cantidad de movimiento horizontal absorbida, antes de water.step, es Σ SG · A_p · v_x (error relativo < 1e-6)", (t) => {
+    const scene = makeScene();
+    const kinds = [FLUID.WATER, FLUID.ACID, FLUID.HONEY];
+    const n = 45;
+    let expected = 0;
+    let scale = 0;
+    for (let k = 0; k < n; k++) {
+        const kind = kinds[k % kinds.length];
+        const vx = 12 * Math.sin(k * 1.7) + 0.37;
+        scene.spawn(kind, 21 + (k * 14) / n, 2.9, vx, -6);
+        const stored = particle(scene.system, k).vx;
+        expected += SG.get(kind) * A_P * stored;
+        scale += SG.get(kind) * A_P * Math.abs(stored);
     }
-    return out;
-}
+    const before = scene.water.momentum();
+    const energy0 = scene.water.energy();
+    scene.immersion.step(DT);
+    const gained = scene.water.momentum() - before;
+    const error = Math.abs(gained - expected) / scale;
+    const heat = n * A_P * SIGMA_W * MATERIALS.water.c * scene.water.config.ambientT;
+    const extra = scene.water.energy() - energy0 - heat;
+    t.diagnostic(`I2: Δ Σ q dx = ${gained.toExponential(9)} m³/s contra Σ SG A_p v_x = ${expected.toExponential(9)}; error relativo a Σ|SG A_p v_x| ${error.toExponential(2)}; tolerancia 1e-6; pérdida inelástica sumada a la energía ${extra.toFixed(3)} J`);
+    assert.equal(scene.immersion.stats.absorbed, n);
+    assert.ok(error < 1e-6, `error relativo ${error}`);
+    assert.ok(extra >= 0, `la pérdida inelástica es negativa: ${extra}`);
+    scene.dispose();
+});
 
-const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
-
-// Resultado medido por fluido, para el informe
-const measured = {};
-
-function drop(weapon, bridge) {
-    const { world, shots, immersion } = makeScene();
-    for (let k = 0; k < 10; k++) spawn(shots, weapon, 28 + (k - 4.5) * 0.12, 6, 0, -10);
-    const result = {};
-    for (let step = 1; step <= 180; step++) {
-        stepWorld(world, []);
-        if (bridge) immersion.step(DT);
-        if (step === 60) {
-            assert.equal(shots.GetParticleCount(), 10, "no se destruye ninguna a 1 s");
-            result.speed1 = mean(read(shots, 10).map((p) => p.speed));
-            result.y1 = mean(read(shots, 10).map((p) => p.y));
+test("I3: 20 gotas en x₀ generan dos frentes a ±√(g h) (±10 %)", (t) => {
+    const { scene, eta, firstAt } = wavePulse({ x0: 28, seconds: 2.4 });
+    const water = scene.water;
+    const expected = Math.sqrt(G * SURFACE);
+    const slope = (rows, k) => {
+        const mt = rows.reduce((a, r) => a + r[0], 0) / rows.length;
+        const mx = rows.reduce((a, r) => a + r[k], 0) / rows.length;
+        let num = 0;
+        let den = 0;
+        for (const r of rows) {
+            num += (r[0] - mt) * (r[k] - mx);
+            den += (r[0] - mt) ** 2;
         }
-        if (step > 60 && step <= 180) {
-            result.vy = (result.vy ?? 0) + mean(read(shots, 10).map((p) => p.vy)) / 120;
+        return num / den;
+    };
+    const measure = (threshold) => {
+        const rows = [];
+        for (let s = firstAt; s < eta.length; s++) {
+            let right = NaN;
+            let left = NaN;
+            for (let i = water.N - 1; i >= 0; i--) if (water.b[i] === 0 && eta[s][i] - SURFACE > threshold) { right = water.center(i); break; }
+            for (let i = 0; i < water.N; i++) if (water.b[i] === 0 && eta[s][i] - SURFACE > threshold) { left = water.center(i); break; }
+            const time = (s - firstAt) / 60;
+            if (time >= 0.4 && time <= 1.5) rows.push([time, left, right]);
         }
+        return { right: slope(rows, 2), left: -slope(rows, 1), samples: rows.length };
+    };
+    for (const threshold of [0.002, 0.01]) {
+        const m = measure(threshold);
+        t.diagnostic(`I3 (frente en η − 3 > ${threshold * 1000} mm, entre 0,4 y 1,5 s de la primera gota, ${m.samples} muestras): derecho ${m.right.toFixed(2)} m/s, izquierdo ${m.left.toFixed(2)} m/s contra √(g h) = ${expected.toFixed(2)} m/s (${((m.right / expected - 1) * 100).toFixed(1)} %, ${((m.left / expected - 1) * 100).toFixed(1)} %); tolerancia ±10 %`);
+        assert.ok(m.samples >= 50, `solo ${m.samples} muestras`);
+        assert.ok(Math.abs(m.right / expected - 1) <= 0.1, `frente derecho ${m.right}`);
+        assert.ok(Math.abs(m.left / expected - 1) <= 0.1, `frente izquierdo ${m.left}`);
     }
-    assert.equal(shots.GetParticleCount(), 10, "no se destruye ninguna a 3 s");
-    result.y3 = read(shots, 10).map((p) => p.y);
-    result.y3mean = mean(result.y3);
-    return result;
+    assert.equal(scene.immersion.stats.absorbed, 20);
+    scene.dispose();
+});
+
+test("I5: la lava soltada en agua quieta de 3 m cae a la velocidad terminal √(2 g (SG − 1) A_p / (C_d D)) = 2,19 m/s (±15 %)", (t) => {
+    const scene = makeScene();
+    const diameter = 1.5 * RADIUS;
+    const expected = Math.sqrt((2 * G * (MATERIALS.lava.SG - 1) * A_P) / (MATERIALS.lava.Cd * diameter));
+    scene.spawn(FLUID.LAVA, 28, SURFACE - 0.05);
+    const window = [];
+    let lowest = Infinity;
+    for (let s = 1; s <= 80; s++) {
+        scene.step();
+        const p = particle(scene.system, 0);
+        lowest = Math.min(lowest, p.y);
+        if (s >= 54 && s <= 78) window.push({ y: p.y, speed: -p.vy });
+    }
+    const mean = window.reduce((a, w) => a + w.speed, 0) / window.length;
+    const top = Math.max(...window.map((w) => w.y));
+    const bottom = Math.min(...window.map((w) => w.y));
+    t.diagnostic(`I5: velocidad media entre 0,9 y 1,3 s ${mean.toFixed(3)} m/s contra ${expected.toFixed(3)} m/s (${((mean / expected - 1) * 100).toFixed(1)} %); tolerancia ±15 %; la ventana va de y ${top.toFixed(2)} a ${bottom.toFixed(2)} m`);
+    assert.ok(Math.abs(expected - 2.19) < 0.01, `terminal esperada ${expected}`);
+    assert.ok(bottom > 0.4, "la ventana de medición está dentro del agua, lejos del fondo");
+    assert.ok(Math.abs(mean / expected - 1) <= 0.15, `velocidad media ${mean}`);
+    assert.equal(scene.immersion.count, 1);
+    scene.dispose();
+});
+
+/**
+ * Un paso de `immersion.step` con una sola partícula en `(x, y)`: cambio de cantidad de movimiento horizontal
+ * (kg·m/s de la rebanada) de la partícula y de las columnas, y velocidad relativa horizontal antes y después
+ * contra la columna `column`.
+ */
+function exchange(scene, kind, x, y, vx, vy, column) {
+    const { water, immersion, system } = scene;
+    const index = scene.spawn(kind, x, y, vx, vy);
+    const p0 = particle(system, index);
+    const rel0 = p0.vx - water.uOf(column);
+    const q0 = water.momentum();
+    immersion.step(DT);
+    const p1 = particle(system, index);
+    const rel1 = p1.vx - water.uOf(column);
+    const particleChange = SG.get(kind) * SIGMA_W * A_P * (p1.vx - p0.vx);
+    const columnChange = SIGMA_W * (water.momentum() - q0);
+    return { particleChange, columnChange, rel0, rel1 };
 }
 
-for (const weapon of WEAPONS) {
-    test(`${weapon.name}: dentro de la pileta se frena, no se destruye y flota o se hunde según su tabla`, (t) => {
-        const r = drop(weapon, true);
-        measured[weapon.name] = r;
-        t.diagnostic(
-            `|v| a 1 s ${r.speed1.toFixed(2)} m/s, y a 1 s ${r.y1.toFixed(2)}, y a 3 s ${r.y3mean.toFixed(2)} ` +
-                `(min ${Math.min(...r.y3).toFixed(2)}, max ${Math.max(...r.y3).toFixed(2)}), vy media 1-3 s ${r.vy.toFixed(3)}`,
-        );
-        assert.ok(r.speed1 < 2, `rapidez a 1 s ${r.speed1}`);
-        if (weapon.id === FLUID.WATER || weapon.id === FLUID.ACID) {
-            assert.ok(r.y3mean > 0.5 && r.y3mean < 3, `y a 3 s ${r.y3mean}`);
-        } else if (weapon.id === FLUID.HONEY) {
-            assert.ok(Math.abs(r.vy) < 0.5, `vy media ${r.vy}`);
-            assert.ok(r.vy < 0.1, "no sube");
-        } else if (weapon.id === FLUID.LAVA) {
-            assert.ok(r.y3mean < 0.6, `y a 3 s ${r.y3mean}`);
-        }
+test("I6: la reacción de la inmersión conserva la cantidad de movimiento y ninguna velocidad relativa se invierte (< 1e-6)", (t) => {
+    const scene = makeScene();
+    const { water, immersion, system } = scene;
+    for (let i = 0; i < water.N; i++) if (water.h[i] > 0) water.q[i] = 1.5 * water.h[i];
+    const cases = [[-3, -5], [4, -5], [10, -8], [1.5, 0], [0, -3]];
+    const columns = cases.map(([vx, vy], k) => {
+        const x = 20.05 + k * 3;
+        scene.spawn(FLUID.LAVA, x, 1.5, vx, vy);
+        return Math.floor(x / water.dx);
     });
-
-    test(`${weapon.name}: control sin puente llega al fondo en menos de 1 s (después rebota)`, () => {
-        const { world, shots } = makeScene();
-        for (let k = 0; k < 10; k++) spawn(shots, weapon, 28 + (k - 4.5) * 0.12, 6, 0, -10);
-        let lowest = Infinity;
-        for (let step = 0; step < 60; step++) {
-            stepWorld(world, []);
-            lowest = Math.min(lowest, mean(read(shots, 10).map((p) => p.y)));
-        }
-        assert.ok(lowest < 1.2, `y media mínima ${lowest}`);
-    });
-}
-
-test("la lluvia en vuelo no es agua: un disparo en el aire no figura en submerged", () => {
-    const gravity = new Box2D.b2Vec2(0, -10);
-    const world = new Box2D.b2World(gravity);
-    Box2D.destroy(gravity);
-    buildLevel(world);
-    const pool = fillPool(world);
-    const shots = createParticleSystem(world, SHOT_SYSTEM);
-    const flood = new Flood(world, pool);
-    const immersion = new Immersion(shots, pool);
-    for (let i = 0; i < 120; i++) stepWorld(world, []);
-    // Disparo quieto a 10 m (sin gravedad propia no se puede: se repone cada paso), con lluvia cayendo cerca
-    const water = WEAPONS.find((w) => w.id === FLUID.WATER);
-    const x = 19; // columna sin plataformas encima: la lluvia pasa por acá
-    let maxRainNear = 0;
-    for (let step = 0; step < 120; step++) {
-        flood.step(150, DT);
-        const marker = spawn(shots, water, x, 10, 0, 0);
-        stepWorld(world, []);
-        immersion.step(DT);
-        assert.ok(marker >= 0);
-        for (let k = 0; k < immersion.count; k++) {
-            const p = read(shots, shots.GetParticleCount())[immersion.submerged[k]];
-            assert.ok(p.y < 3.5, `un disparo en y=${p.y.toFixed(2)} figura sumergido`);
-        }
-        for (const p of read(pool, pool.GetParticleCount())) {
-            if (p.y > 8 && p.y < 12 && Math.abs(p.x - x) < 1.5) maxRainNear++;
-        }
-        // limpiar los disparos creados para que no caigan a la pileta
-        for (let i = shots.GetParticleCount() - 1; i >= 0; i--) {
-            if (read(shots, i + 1)[i].y > 5) shots.DestroyParticle(i);
-        }
-    }
-    assert.ok(maxRainNear > 0, "hubo lluvia cerca del disparo");
-});
-
-test("interfaz: submerged y kinds tienen los disparos dentro de la pileta y ninguno de los de afuera", () => {
-    const { world, shots, immersion } = makeScene();
-    const [water, acid, lava] = [FLUID.WATER, FLUID.ACID, FLUID.LAVA].map((id) => WEAPONS.find((w) => w.id === id));
-    const inside = [spawn(shots, water, 24, 1.5, 0, 0), spawn(shots, acid, 28, 1.5, 0, 0), spawn(shots, lava, 32, 1.5, 0, 0)];
-    const outside = [spawn(shots, water, 28, 10, 0, 0), spawn(shots, acid, 5, 8, 0, 0), spawn(shots, lava, 50, 8, 0, 0)];
+    const before = cases.map((_, k) => ({ ...particle(system, k), rel: particle(system, k).vx - water.uOf(columns[k]) }));
+    const q0 = water.momentum();
     immersion.step(DT);
-    const got = new Map();
-    for (let k = 0; k < immersion.count; k++) got.set(immersion.submerged[k], immersion.kinds[k]);
-    assert.equal(immersion.count, 3);
-    assert.equal(got.get(inside[0]), FLUID.WATER);
-    assert.equal(got.get(inside[1]), FLUID.ACID);
-    assert.equal(got.get(inside[2]), FLUID.LAVA);
-    for (const i of outside) assert.ok(!got.has(i), `el ${i} no debería estar`);
-    immersion.reset();
-    assert.equal(immersion.count, 0);
+    const after = cases.map((_, k) => ({ ...particle(system, k), rel: particle(system, k).vx - water.uOf(columns[k]) }));
+    const particleChange = cases.reduce((sum, _, k) => sum + SG.get(FLUID.LAVA) * SIGMA_W * A_P * (after[k].vx - before[k].vx), 0);
+    const exchanged = cases.reduce((sum, _, k) => sum + SG.get(FLUID.LAVA) * SIGMA_W * A_P * Math.abs(after[k].vx - before[k].vx), 0);
+    const columnChange = SIGMA_W * (water.momentum() - q0);
+    const relative = Math.abs(particleChange + columnChange) / exchanged;
+    const ratios = cases.map((_, k) => (before[k].rel === 0 ? 1 : (after[k].rel * before[k].rel) / (before[k].rel * before[k].rel)));
+    t.diagnostic(`I6 (agua de 3 m, corriente de 1,5 m/s, 5 partículas): |Δp partículas + Δp columnas| ${Math.abs(particleChange + columnChange).toExponential(2)} kg·m/s sobre ${exchanged.toFixed(3)} kg·m/s intercambiados (relativo ${relative.toExponential(2)}); cocientes rel_después/rel_antes ${ratios.map((r) => r.toFixed(3)).join(", ")}; tolerancia 1e-6, sin inversión (cociente ≥ 0); recortes por masa reducida ${immersion.stats.capped}`);
+    assert.equal(immersion.count, cases.length);
+    assert.ok(relative < 1e-6, `suma relativa ${relative}`);
+    assert.ok(Math.min(...ratios) >= 0, `una velocidad relativa se invirtió: ${ratios}`);
+    scene.dispose();
+});
+test("I6: el tope por masa reducida recorta el impulso sobre una columna delgada sin invertir la velocidad relativa", (t) => {
+    const scene = makeScene();
+    const { water } = scene;
+    const column = Math.floor(5.05 / water.dx);
+    water.h[column] = 0.05;
+    const before = scene.immersion.stats.capped;
+    const r = exchange(scene, FLUID.LAVA, 5.05, water.b[column] + 0.02, 6, 0, column);
+    const massColumn = SIGMA_W * 0.05 * water.dx;
+    const massParticle = SG.get(FLUID.LAVA) * SIGMA_W * A_P;
+    const reduced = (massParticle * massColumn) / (massParticle + massColumn);
+    const impulse = Math.abs(r.particleChange);
+    t.diagnostic(`I6 (tope): columna de 0,05 m (${massColumn.toFixed(3)} kg) contra partícula de ${massParticle.toFixed(3)} kg; impulso ${impulse.toFixed(4)} kg·m/s contra m_red · |v_rel| = ${(reduced * Math.abs(r.rel0)).toFixed(4)}; v_rel ${r.rel0.toFixed(3)} → ${r.rel1.toFixed(6)} m/s; suma ${(r.particleChange + r.columnChange).toExponential(2)}; recortes ${scene.immersion.stats.capped - before}`);
+    assert.ok(scene.immersion.stats.capped > before, "el tope se activó");
+    assert.ok(impulse <= reduced * Math.abs(r.rel0) * (1 + 1e-6), "el impulso supera m_red · |v_rel|");
+    assert.ok(r.rel1 * r.rel0 >= -1e-6, `la velocidad relativa se invirtió: ${r.rel0} → ${r.rel1}`);
+    assert.ok(Math.abs(r.particleChange + r.columnChange) / impulse < 1e-6);
+    scene.dispose();
 });
 
-test("fluidFromColor sale de la tabla de armas", () => {
-    for (const w of WEAPONS) assert.equal(fluidFromColor(w.color[0], w.color[1]), w.id);
-    assert.equal(fluidFromColor(40, 120), 0);
+test("la lava no se absorbe (solo se frena) y lo miscible desaparece del sistema", () => {
+    const scene = makeScene();
+    scene.spawn(FLUID.LAVA, 28, 1.5);
+    scene.spawn(FLUID.WATER, 24, 2.5);
+    scene.immersion.step(DT);
+    scene.store.afterStep();
+    assert.equal(scene.immersion.count, 1);
+    assert.equal(scene.immersion.stats.absorbed, 1);
+    scene.step();
+    assert.equal(scene.system.GetParticleCount(), 1, "queda solo la lava");
+    scene.dispose();
 });
 
-test("DestroyParticle difiere el borrado al próximo Step: los índices del paso siguen valiendo", () => {
-    const { world, shots, immersion } = makeScene();
-    const water = WEAPONS.find((w) => w.id === FLUID.WATER);
-    for (let k = 0; k < 5; k++) spawn(shots, water, 26 + k, 1.5, 0, 0);
-    stepWorld(world, []);
-    immersion.step(DT);
-    assert.equal(immersion.count, 5);
-    shots.DestroyParticle(2);
-    assert.equal(shots.GetParticleCount(), 5, "el conteo no baja hasta el próximo Step");
-    assert.doesNotThrow(() => immersion.step(DT));
-    assert.equal(immersion.count, 5, "sigue leyendo los mismos índices");
-    stepWorld(world, []);
-    assert.equal(shots.GetParticleCount(), 4);
-    immersion.step(DT);
-    assert.equal(immersion.count, 4);
-});
-
-test("costo: inundación al tope y dos jugadores disparando agua al agua (300 frames)", async () => {
-    const savedRate = LEVEL.flood.maxRate;
-    LEVEL.flood.maxRate = 1500; // solo para llenar rápido el mapa en el test; la config se comparte por referencia
-    try {
-        const game = await loadGame();
-        const { world, match, immersion, flood, damage, particleSystem, poolSystem, players } = game.state;
-        game.setPad(0);
-        game.setPad(1);
-        game.frames(10);
-        match.roundTime = 170;
-        game.frames(60 * 20);
-        assert.ok(flood.drops >= 3500, `la inundación no llegó al tope: ${flood.drops} gotas`);
-
-        // performance.now del juego es un reloj simulado: los tiempos se miden con hrtime
-        const ms = { step: 0, flood: 0, immersion: 0, process: 0 };
-        const timed = (owner, name, key) => {
-            const original = owner[name].bind(owner);
-            owner[name] = (...args) => {
-                const t0 = process.hrtime.bigint();
-                const result = original(...args);
-                ms[key] += Number(process.hrtime.bigint() - t0) / 1e6;
-                return result;
-            };
-        };
-        timed(world, "Step", "step");
-        timed(flood, "step", "flood");
-        timed(immersion, "step", "immersion");
-        timed(damage, "process", "process");
-        let steps = 0;
-        let wet = 0;
-        const originalStep = immersion.step;
-        immersion.step = (dt) => {
-            originalStep(dt);
-            steps++;
-            wet += immersion.count;
-        };
-
-        // Cada jugador apunta hacia abajo y al centro: el chorro cae al agua; los tanques se reponen
-        game.setPad(0, { buttons: [7], axes: [0, 0, 0.7, 0.7] });
-        game.setPad(1, { buttons: [7], axes: [0, 0, -0.7, 0.7] });
-        let maxShots = 0;
-        let wallMs = 0;
-        for (let i = 0; i < 300; i++) {
-            if (i % 30 === 0) players.forEach((p) => p.tanks.set(4, 300));
-            const t0 = process.hrtime.bigint();
-            game.frame();
-            wallMs += Number(process.hrtime.bigint() - t0) / 1e6;
-            maxShots = Math.max(maxShots, particleSystem.GetParticleCount());
-        }
-        const frames = 300;
-        const physics = (ms.step + ms.flood + ms.immersion + ms.process) / frames;
-        console.log(
-            `costo #39: física+lógica ${physics.toFixed(2)} ms/frame (world.Step ${(ms.step / frames).toFixed(2)}, ` +
-                `flood.step ${(ms.flood / frames).toFixed(3)}, immersion.step ${(ms.immersion / frames).toFixed(3)} ` +
-                `[${(ms.immersion / steps).toFixed(3)} ms/paso], damage.process ${(ms.process / frames).toFixed(3)}); ` +
-                `frame completo ${(wallMs / frames).toFixed(2)} ms; ${poolSystem.GetParticleCount()} partículas de agua ` +
-                `(${flood.drops} gotas), hasta ${maxShots} disparos, ${(wet / steps).toFixed(0)} sumergidos de media`,
-        );
-        assert.ok(wet > 0, "algún disparo llegó al agua");
-        assert.ok(ms.immersion / frames < 0.5, `immersion.step ${(ms.immersion / frames).toFixed(3)} ms/frame`);
-        assert.ok(physics < 16, `${physics.toFixed(2)} ms por frame`);
-    } finally {
-        LEVEL.flood.maxRate = savedRate;
-    }
+test("una gota que cae al piso seco de una isla se absorbe como película", () => {
+    const scene = makeScene();
+    const column = Math.floor(5.05 / scene.water.dx);
+    scene.spawn(FLUID.WATER, 5.05, 4.05);
+    scene.immersion.step(DT);
+    assert.equal(scene.immersion.stats.absorbed, 1);
+    assert.ok(scene.water.h[column] > 0.1, `h ${scene.water.h[column]}`);
+    scene.dispose();
 });
