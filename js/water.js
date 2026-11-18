@@ -9,6 +9,7 @@ const RHO_W = 1000;
 
 /** Altura por debajo de la cual una cara se trata como seca en las velocidades de onda (m). */
 const TINY = 1e-12;
+const SQRT_G = Math.sqrt(G);
 
 /** Velocidad máxima física (m/s): frente de Ritter con h_max = 15 m, `2√(g h_max)`. */
 const U_MAX = 2 * Math.sqrt(G * 15);
@@ -16,13 +17,17 @@ const U_MAX = 2 * Math.sqrt(G * 15);
 /** Profundidad máxima de repeticiones de un subpaso con `dt/2` tras una altura negativa. */
 const MAX_HALVINGS = 10;
 
+/** Iteraciones máximas y tolerancia relativa a la carga del Newton de `project` (arranca en `h`, donde `f = bs − b > 0`, y converge monótono). */
+const PROJ_ITERATIONS = 40;
+const PROJ_TOLERANCE = 1e-10;
+
 /**
  * Datos del campo de alturas (docs/design/14-agua.md §14.3): `dx` (m), `cfl`, `maxSubsteps`, `hDry` (m),
  * `manning` (s/m^(1/3)), `ambientT` (°C) y `draw` (datos de dibujo: `alpha` es la transparencia del agua).
  */
 export const WATER_FIELD = {
     dx: 0.1,
-    cfl: 0.25,
+    cfl: 0.45,
     maxSubsteps: 32,
     hDry: 1e-3,
     manning: 0.012,
@@ -31,6 +36,42 @@ export const WATER_FIELD = {
 };
 
 const minmod = (a, b) => (a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b);
+
+let projH = 0;
+let projU = 0;
+
+/**
+ * Proyecta el estado `(h, u)` sobre el lecho `b` a la cota de cara `bs` conservando la carga total y el caudal
+ * `q = h·u` (Newton en la rama del régimen del lado; estrangulado si la carga no alcanza). Deja el resultado en
+ * `projH` y `projU`. El llamador lo invoca solo con `bs > b`, `h` sobre el umbral seco y `u ≠ 0`; en los demás
+ * casos queda la reconstrucción hidrostática.
+ */
+function project(h, u, b, bs) {
+    const q = h * u;
+    const E = h + b + (u * u) / (2 * G) - bs;
+    if (E <= 0) {
+        projH = 0;
+        projU = 0;
+        return;
+    }
+    if (E * E * E <= (27 / 8) * ((q * q) / G)) {
+        const hs = Math.min(h, (2 / 3) * E);
+        projH = hs;
+        projU = Math.sign(u) * Math.sqrt(G * hs);
+        return;
+    }
+    const q2 = (q * q) / (2 * G);
+    let x = h;
+    for (let k = 0; k < PROJ_ITERATIONS; k++) {
+        const r = q2 / (x * x);
+        const dx = (x + r - E) / (1 - (2 * r) / x);
+        x -= dx;
+        if (Math.abs(dx) < PROJ_TOLERANCE * E) break;
+    }
+    const hs = Math.min(h, x);
+    projH = hs;
+    projU = q / hs;
+}
 
 /**
  * Agua del nivel como campo de alturas: Saint-Venant 1D conservativo con lecho variable, volúmenes finitos
@@ -253,8 +294,9 @@ export class ShallowWater {
                 SETA[k] = 0;
                 SU[k] = 0;
             } else {
-                SH[k] = minmod(H[k] - H[k - 1], H[k + 1] - H[k]);
-                SETA[k] = minmod(ETA[k] - ETA[k - 1], ETA[k + 1] - ETA[k]);
+                const lim = 2 * H[k];
+                SETA[k] = Math.max(-lim, Math.min(lim, minmod(ETA[k] - ETA[k - 1], ETA[k + 1] - ETA[k])));
+                SH[k] = SETA[k];
                 SU[k] = minmod(U[k] - U[k - 1], U[k + 1] - U[k]);
             }
         }
@@ -283,35 +325,49 @@ export class ShallowWater {
             bL[f] = bLf;
             bR[f] = bRv;
             const bs = Math.max(bLf, bRv);
-            const hLs = Math.max(0, hLf + bLf - bs);
-            const hRs = Math.max(0, hRv + bRv - bs);
-            const qLs = hLs * uLf;
-            const qRs = hRs * uRv;
-            const cL = Math.sqrt(G * hLs);
-            const cR = Math.sqrt(G * hRs);
+            const hLh = Math.max(0, hLf + bLf - bs);
+            const hRh = Math.max(0, hRv + bRv - bs);
+            let hLs = hLh;
+            let uLs = uLf;
+            let hRs = hRh;
+            let uRs = uRv;
+            if (bs > bLf && hLf > hd && uLf !== 0) {
+                project(hLf, uLf, bLf, bs);
+                hLs = projH;
+                uLs = projU;
+            }
+            if (bs > bRv && hRv > hd && uRv !== 0) {
+                project(hRv, uRv, bRv, bs);
+                hRs = projH;
+                uRs = projU;
+            }
+            const qLs = hLs * uLs;
+            const qRs = hRs * uRs;
+            const rl = Math.sqrt(hLs);
+            const rr = Math.sqrt(hRs);
+            const cL = SQRT_G * rl;
+            const cR = SQRT_G * rr;
             let sL, sR;
             if (hLs <= TINY && hRs <= TINY) {
                 sL = 0;
                 sR = 0;
             } else if (hRs <= TINY) {
-                sL = uLf - cL;
-                sR = uLf + 2 * cL;
+                sL = uLs - cL;
+                sR = uLs + 2 * cL;
             } else if (hLs <= TINY) {
-                sL = uRv - 2 * cR;
-                sR = uRv + cR;
+                sL = uRs - 2 * cR;
+                sR = uRs + cR;
             } else {
-                const rl = Math.sqrt(hLs);
-                const rr = Math.sqrt(hRs);
-                const uRoe = (rl * uLf + rr * uRv) / (rl + rr);
+                const uRoe = (rl * uLs + rr * uRs) / (rl + rr);
                 const cRoe = Math.sqrt((G * (hLs + hRs)) / 2);
-                sL = Math.min(uLf - cL, uRoe - cRoe);
-                sR = Math.max(uRv + cR, uRoe + cRoe);
+                sL = Math.min(uLs - cL, uRoe - cRoe);
+                sR = Math.max(uRs + cR, uRoe + cRoe);
             }
             smax = Math.max(smax, Math.abs(sL), Math.abs(sR));
             const flM = qLs;
             const frM = qRs;
-            const flQ = hLs > TINY ? qLs * uLf + 0.5 * G * hLs * hLs : 0;
-            const frQ = hRs > TINY ? qRs * uRv + 0.5 * G * hRs * hRs : 0;
+            const flQ = hLs > TINY ? qLs * uLs + 0.5 * G * hLs * hLs : 0;
+            const frQ = hRs > TINY ? qRs * uRs + 0.5 * G * hRs * hRs : 0;
             let gM, gQ;
             if (sL >= 0) {
                 gM = flM;
@@ -332,11 +388,13 @@ export class ShallowWater {
                 fM[f] = 0;
             } else if (gM >= 0) {
                 const c = f - 1;
-                fE[f] = h[c] > 0 ? (gM * E[c]) / h[c] : 0;
-                fM[f] = h[c] > 0 ? (gM * M[c]) / h[c] : 0;
+                const s = h[c] > 0 ? gM / h[c] : 0;
+                fE[f] = s * E[c];
+                fM[f] = s * M[c];
             } else {
-                fE[f] = h[f] > 0 ? (gM * E[f]) / h[f] : 0;
-                fM[f] = h[f] > 0 ? (gM * M[f]) / h[f] : 0;
+                const s = h[f] > 0 ? gM / h[f] : 0;
+                fE[f] = s * E[f];
+                fM[f] = s * M[f];
             }
         }
         for (let i = 0; i < N; i++) {
@@ -345,6 +403,22 @@ export class ShallowWater {
             rate.q[i] = -(fqL[i + 1] - fqR[i] - sc) / dx;
             rate.E[i] = -(fE[i + 1] - fE[i]) / dx;
             rate.M[i] = -(fM[i + 1] - fM[i]) / dx;
+        }
+        return smax;
+    }
+
+    /**
+     * Mayor velocidad de onda `|u| + c` sobre las celdas mojadas (m/s), sin calcular flujos.
+     */
+    maxSpeed(h, q) {
+        const { N } = this;
+        const hd = this.config.hDry;
+        let smax = 0;
+        for (let i = 0; i < N; i++) {
+            const hh = h[i];
+            if (hh <= TINY) continue;
+            const u = (2 * hh * q[i]) / (hh * hh + Math.max(hh * hh, hd * hd));
+            smax = Math.max(smax, Math.abs(u) + Math.sqrt(G * hh));
         }
         return smax;
     }
@@ -405,14 +479,15 @@ export class ShallowWater {
     friction(s, dt) {
         const { N, config } = this;
         const n2 = config.manning * config.manning;
+        const nuWater = MATERIALS.water.mu / RHO_W;
         for (let i = 0; i < N; i++) {
             const hh = s.h[i];
             if (hh < config.hDry) continue;
-            const u = s.q[i] / hh;
-            const X = Math.min(1, Math.max(0, s.M[i] / hh));
-            const mu = X === 0 ? MATERIALS.water.mu : Math.exp(X * this.lnMuHoney + (1 - X) * this.lnMuWater);
-            const nu = mu / (RHO_W * (1 + (this.sgHoney - 1) * X));
-            const kappa = (G * n2 * Math.abs(u)) / Math.pow(hh, 4 / 3) + (3 * nu) / (hh * hh);
+            const inv = 1 / hh;
+            const u = s.q[i] * inv;
+            const X = Math.min(1, Math.max(0, s.M[i] * inv));
+            const nu = X === 0 ? nuWater : Math.exp(X * this.lnMuHoney + (1 - X) * this.lnMuWater) / (RHO_W * (1 + (this.sgHoney - 1) * X));
+            const kappa = (G * n2 * Math.abs(u) * inv) / Math.cbrt(hh) + 3 * nu * inv * inv;
             s.q[i] /= 1 + dt * kappa;
         }
     }
@@ -442,7 +517,7 @@ export class ShallowWater {
     step(dt) {
         const { N, h, q, config } = this;
         this.settle(this);
-        const smax = this.evaluate(h, q, this.E, this.M);
+        const smax = this.maxSpeed(h, q);
         let n = Math.max(1, Math.ceil((dt * smax) / (config.cfl * this.dx)));
         if (n > config.maxSubsteps) {
             n = config.maxSubsteps;
