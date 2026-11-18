@@ -47,7 +47,7 @@ Código: `js/ActiveRagdoll.js` (un jugador), rig `ROBOT_RIG` en `index.html`, mo
 | Pileta | Destrucción inmediata | Sensor ([05-escenario](05-escenario.md#52-pileta)) |
 
 - **Destello:** la parte dañada se pone **roja** y vuelve a su color en **1 s** (`lerp`). Un golpe nuevo reinicia el fundido.
-- **Autodaño:** un disparo no daña a quien lo disparó durante 0,4 s; después sí. Pendiente de decisión: #20.
+- **Autodaño:** un disparo no daña a quien lo disparó durante 0,4 s (para que no se dañe al salir del cañón); después sí, incluido el charco propio. Decidido en §12.1.
 - **Extremidad inutilizada** (💬, parte de #19): una extremidad muy corroída pierde fuerza con el override `strength`. No se puede romper el joint: el contrato de RagImporter no lo permite.
 
 ## 3.4 Empujar
