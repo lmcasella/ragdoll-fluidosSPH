@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { LEVEL } from "../js/level.js";
 
-/** Botón X del mapeo "standard": golpe. */
+/** Botón B del mapeo "standard": golpe. */
 const B = 1;
 
 /**
@@ -25,7 +25,7 @@ async function start(gap) {
     return game;
 }
 
-test("el golpe reproduce su clip, pega al rival cercano y lo aturde (reloj de simulación)", async () => {
+test("el golpe reproduce combo1, pega al rival cercano y lo aturde (reloj de simulación)", async () => {
     const game = await start(1.2);
     const [p1, p2] = game.state.players;
     const hp0 = p2.hp;
@@ -36,13 +36,13 @@ test("el golpe reproduce su clip, pega al rival cercano y lo aturde (reloj de si
     let stunned = false;
     for (let i = 0; i < 40; i++) {
         game.frames(1);
-        if (p1.clipState === "punch") clipSeen = true;
+        if (p1.clipState === "combo1") clipSeen = true;
         if (p2.isStunned()) stunned = true;
     }
-    assert.ok(clipSeen, "el clip punch se reproduce");
+    assert.ok(clipSeen, "el clip combo1 se reproduce");
     assert.ok(p2.hp < hp0, `el rival pierde vida (${hp0} -> ${p2.hp})`);
     assert.ok(stunned, "el rival queda aturdido");
-    assert.ok(!p1.isPunching(), "el golpe termina");
+    assert.equal(p1.attack, null, "el golpe termina");
 });
 
 test("después del golpe los dos brazos vuelven a apuntar (ninguno queda trabado por el clip)", async () => {
