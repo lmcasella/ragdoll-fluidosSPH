@@ -2,10 +2,11 @@
  * Menú principal (#154) como datos. Cada fila tiene `id`, `label` y sus `values` (`id`, `label`, y opcionalmente
  * `disabled` con su `note`, o `bots` con los jugadores que maneja el bot en ese modo); `default` es el `id` inicial.
  * `needsBot` deja la fila habilitada solo si el modo elegido tiene bots. La fila `play` no tiene valores.
- * `storageKey` es la clave de `localStorage` donde se recuerda la última elección.
+ * `storageKey` es la clave de `localStorage` donde se recuerda la última elección; se le sube la versión cuando cambia un default
+ * que tiene que llegarle a todos (una elección guardada con la clave vieja se ignora una vez).
  */
 export const MENU = {
-    storageKey: "ragdoll-fluidos.menu",
+    storageKey: "ragdoll-fluidos.menu.v2",
     rows: [
         {
             id: "mode",
@@ -31,10 +32,10 @@ export const MENU = {
         {
             id: "map",
             label: "Mapa",
-            default: "classic",
+            default: "infinite",
             values: [
                 { id: "classic", label: "Clásico" },
-                { id: "infinite", label: "Infinito", disabled: true, note: "próximamente" },
+                { id: "infinite", label: "Infinito" },
             ],
         },
         { id: "play", label: "Jugar", values: [] },
