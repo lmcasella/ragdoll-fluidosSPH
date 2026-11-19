@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../vendor/liquidfun.js");
 
-const { WEAPONS, FLUID, LOADOUT, SHOT_SYSTEM, weaponById, particleDamage, equipLoadout, cycleWeapon, ShotEmitter } =
+const { WEAPONS, FLUID, LOADOUT, SHOT_SYSTEM, weaponById, particleDamage, equipLoadout, cycleWeapon, wheelSector, wheelWeapon, ShotEmitter } =
     await import("../js/weapons.js");
 const { DamageSystem } = await import("../js/damage.js");
 const { SIGMA_W, MATERIALS } = await import("../js/materials.js");
@@ -77,6 +77,32 @@ test("cycleWeapon da la vuelta sobre el inventario en el orden de la tabla", () 
     assert.equal(player.weapon, FLUID.ACID);
     cycleWeapon(player, 1);
     assert.equal(player.weapon, FLUID.HONEY);
+});
+
+test("wheelSector: sectores iguales desde arriba en sentido horario", () => {
+    const at = (deg, count) => {
+        const a = (deg * Math.PI) / 180;
+        return wheelSector(Math.sin(a), Math.cos(a), count);
+    };
+    assert.deepEqual([1, 89, 91, 179, 181, 269, 271, 359].map((d) => at(d, 4)), [0, 0, 1, 1, 2, 2, 3, 3]);
+    assert.deepEqual([10, 119, 121, 239, 241, 350].map((d) => at(d, 3)), [0, 0, 1, 1, 2, 2]);
+    assert.deepEqual([0, 90, 180, 270, 359.9].map((d) => at(d, 1)), [0, 0, 0, 0, 0]);
+    assert.equal(wheelSector(0, 0, 4), -1);
+    assert.equal(wheelSector(0, 1, 0), -1);
+    assert.equal(wheelSector(0, 5, 4), 0, "la magnitud no importa");
+});
+
+test("wheelWeapon elige entre las armas del inventario en el orden de la tabla", () => {
+    const tanks = new Map([[FLUID.HONEY, 10], [FLUID.WATER, 10]]);
+    assert.equal(wheelWeapon(0, 1, tanks), FLUID.WATER);
+    assert.equal(wheelWeapon(0, -1, tanks), FLUID.HONEY);
+    assert.equal(wheelWeapon(0, 0, tanks), null);
+    assert.equal(wheelWeapon(-1, 0, new Map([[FLUID.WATER, 1]])), FLUID.WATER, "un solo sector es el círculo completo");
+    const full = new Map(WEAPONS.map((w) => [w.id, w.tank]));
+    assert.deepEqual(
+        [[0, 1], [1, 0], [0, -1], [-1, 0]].map(([x, y]) => wheelWeapon(x * 0.9, y * 0.9, full)),
+        WEAPONS.slice(0, 4).map((w) => w.id),
+    );
 });
 
 /** Mundo sin gravedad y sin cuerpos: el chorro avanza en línea recta y se puede medir. */
