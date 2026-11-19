@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-19
+
+### Added
+- Armas recogibles en el mapa: el ácido, la lava y la miel aparecen como íconos sobre las plataformas; al tocarlos se suman al inventario con el tanque lleno (o rellenan el que ya tenés) y reaparecen a los 15 s. El agua también aparece sobre la plataforma de la pileta: es la única recarga dentro de la ronda.
+
+### Changed
+- Cada ronda empieza solo con el agua y su tanque lleno; el resto de las armas hay que recogerlas.
+
 ## [0.17.3] - 2026-11-19
 
 ### Changed

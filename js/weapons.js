@@ -47,10 +47,10 @@ export const WEAPONS = [
 ];
 
 /**
- * Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. Mientras no
- * estén los puntos de aparición (#14) conserva todas las armas para poder probarlas.
+ * Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. El resto de las
+ * armas se recoge en los puntos de aparición del mapa (`js/pickups.js`).
  */
-export const LOADOUT = { weapon: FLUID.WATER, weapons: [FLUID.WATER, FLUID.ACID, FLUID.LAVA, FLUID.HONEY] };
+export const LOADOUT = { weapon: FLUID.WATER, weapons: [FLUID.WATER] };
 const byId = new Map(WEAPONS.map((w) => [w.id, w]));
 
 export function weaponById(id) {

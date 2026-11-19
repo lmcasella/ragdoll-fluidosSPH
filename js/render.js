@@ -79,6 +79,9 @@ function mix(base, k, wet = 0, sticky = 0) {
     return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
 
+/** Radio del ícono de un arma recogible, en metros (el sensor mide 0,5 m). */
+const PICKUP_ICON_RADIUS = 0.4;
+
 export function drawLevel(ctx, level, scale) {
     ctx.fillStyle = "#2b2b38";
     ctx.strokeStyle = "#555566";
@@ -86,6 +89,35 @@ export function drawLevel(ctx, level, scale) {
     for (const s of level.solids) {
         ctx.fillRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
         ctx.strokeRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+    }
+}
+
+/**
+ * Ícono placeholder de cada punto de aparición de armas: círculo del color del arma con su inicial. Los puntos
+ * inactivos (esperando reaparecer) no se dibujan. Va en un canvas propio, por encima de los fluidos.
+ */
+export function drawPickups(ctx, points, weapons) {
+    for (const point of points) {
+        if (!point.active) continue;
+        const weapon = weapons.find((w) => w.id === point.weapon);
+        if (!weapon) continue;
+        const [r, g, b] = weapon.color;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, PICKUP_ICON_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        ctx.fill();
+        ctx.lineWidth = 0.06;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(point.x, point.y);
+        ctx.scale(1, -1);
+        ctx.font = "bold 0.5px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#101018";
+        ctx.fillText(weapon.name[0], 0, 0);
+        ctx.restore();
     }
 }
 

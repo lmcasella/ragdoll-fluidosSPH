@@ -1,3 +1,5 @@
+import { FLUID } from "./weapons.js";
+
 // Nivel en metros, Y hacia arriba, independiente del tamaño de la ventana.
 // Alturas entre plataformas <= 3,5 m: el salto (9 m/s) llega a unos 4 m.
 // El hueco central es la pileta: agua del campo de alturas (js/water.js) y un sensor que destruye al robot que se hunde.
@@ -40,6 +42,15 @@ export const LEVEL = {
     },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
     spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
+    /** Puntos de aparición de armas: centro del ícono (0,6 m sobre la cara superior de la plataforma) y `weapon` = id de `FLUID`. */
+    pickups: [
+        { x: 28, y: 14.2, weapon: FLUID.ACID },
+        { x: 13, y: 10.9, weapon: FLUID.LAVA },
+        { x: 43, y: 10.9, weapon: FLUID.LAVA },
+        { x: 4.5, y: 7.6, weapon: FLUID.HONEY },
+        { x: 51.5, y: 7.6, weapon: FLUID.HONEY },
+        { x: 28, y: 8.4, weapon: FLUID.WATER },
+    ],
 };
 
 // Crea los sólidos y el sensor de la pileta como fixtures de un único cuerpo estático

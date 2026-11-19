@@ -26,6 +26,9 @@
                 pointer-events: none;
                 filter: url("#goo");
             }
+            #pickupCanvas {
+                pointer-events: none;
+            }
             #panel {
                 position: absolute;
                 top: 15px;
@@ -82,7 +85,7 @@
                 <span class="highlight">2</span> Ácido (verde) ·
                 <span class="highlight">3</span> Lava (naranja) ·
                 <span class="highlight">4</span> Miel (amarillo) · mantener
-                el botón para el chorro (el tanque no se recarga)
+                el botón para el chorro · las armas se recogen en el mapa
             </p>
             <p>
                 <span class="highlight">Gamepad</span> stick izq. mover ·
@@ -103,6 +106,7 @@
         <div id="gameContainer">
             <canvas id="canvas"></canvas>
             <canvas id="fluidCanvas"></canvas>
+            <canvas id="pickupCanvas"></canvas>
         </div>
 
         <script type="module">
@@ -126,6 +130,7 @@
             import { createParticleSystem } from "./js/particles.js";
             import { ParticleStore, SINK } from "./js/particleStore.js";
             import { WallContact } from "./js/wallContact.js";
+            import { Pickups } from "./js/pickups.js";
             import {
                 FLUID,
                 WEAPONS,
@@ -143,6 +148,7 @@
                 drawHud,
                 drawLevel,
                 drawParticles,
+                drawPickups,
                 drawWater,
                 SHOT_DRAW,
                 GOO_BLUR,
@@ -215,11 +221,13 @@
             const ctx = canvas.getContext("2d");
             const fluidCanvas = document.getElementById("fluidCanvas");
             const fluidCtx = fluidCanvas.getContext("2d");
+            const pickupCanvas = document.getElementById("pickupCanvas");
+            const pickupCtx = pickupCanvas.getContext("2d");
 
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [canvas, fluidCanvas]) {
+                for (const c of [canvas, fluidCanvas, pickupCanvas]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }
@@ -309,6 +317,7 @@
             const water = new ShallowWater();
             const flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
+            const pickups = new Pickups(world, damage, LEVEL.pickups);
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
             function reiniciarRonda() {
@@ -321,6 +330,7 @@
                 damage.register(players);
                 flood.reset();
                 immersion.reset();
+                pickups.reset();
                 emitter.reset();
                 melee.reset();
                 damage.resetShots();
@@ -462,7 +472,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, melee };
+                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, melee, pickups };
             }
 
             function loop(nowMs) {
@@ -531,6 +541,7 @@
                         match.hazardsActive ? wetSurface : -Infinity,
                     );
                     melee.resolve(players, now);
+                    pickups.process(now);
                     accumulator -= STEP_SETTINGS.dt;
                 }
                 limpiarParticulas();
@@ -551,9 +562,12 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 fluidCtx.setTransform(1, 0, 0, 1, 0, 0);
                 fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
+                pickupCtx.setTransform(1, 0, 0, 1, 0, 0);
+                pickupCtx.clearRect(0, 0, pickupCanvas.width, pickupCanvas.height);
 
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
+                camera.apply(pickupCtx);
                 drawLevel(ctx, LEVEL, scale);
                 collectSurfaces(players, LEVEL.solids, SHOT_DRAW.snapReach);
                 drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
@@ -563,6 +577,7 @@
                 });
                 drawWater(ctx, water, scale);
                 drawHits(ctx, melee.hits, scale, now);
+                drawPickups(pickupCtx, pickups.points, WEAPONS);
 
                 drawHud(
                     ctx,

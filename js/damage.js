@@ -32,6 +32,8 @@ export class DamageSystem {
         this.honeyBoxes = [];
         this.drowned = [];
         this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
+        /** Puntero de fixture sensor → función que recibe el puntero del cuerpo que lo tocó; solo debe encolar (ver `js/pickups.js`). */
+        this.sensorHooks = new Map();
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };
         this.manifold = new Box2D.b2WorldManifold();
@@ -94,6 +96,13 @@ export class DamageSystem {
         const contact = Box2D.wrapPointer(contactPtr, Box2D.b2Contact);
         const fixtureA = contact.GetFixtureA();
         const fixtureB = contact.GetFixtureB();
+        const hookA = this.sensorHooks.get(Box2D.getPointer(fixtureA));
+        const hookB = this.sensorHooks.get(Box2D.getPointer(fixtureB));
+        if (hookA || hookB) {
+            if (hookA) hookA(Box2D.getPointer(fixtureB.GetBody()));
+            else hookB(Box2D.getPointer(fixtureA.GetBody()));
+            return;
+        }
         const killA = this.killSensors.has(Box2D.getPointer(fixtureA));
         const killB = this.killSensors.has(Box2D.getPointer(fixtureB));
         if (killA || killB) {

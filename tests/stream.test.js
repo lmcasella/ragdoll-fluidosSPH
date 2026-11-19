@@ -1,12 +1,13 @@
 // Gameplay del chorro con tanque: el script de index.html con LiquidFun real y gamepads simulados
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
 const RT = 7;
 
 async function start() {
     const game = await loadGame();
+    giveAllWeapons(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(30);
@@ -133,8 +134,8 @@ test("al empezar la ronda siguiente los tanques están llenos y el botón apreta
     finishRound(game);
     assert.equal(match.round, 2);
     assert.equal(match.state, "playing");
-    assert.equal(tank(game), 600, "el robot nuevo trae el inventario lleno");
-    assert.equal(players[0].tanks.get(3), 152);
+    assert.equal(tank(game), 600, "el robot nuevo trae el agua con el tanque lleno");
+    assert.deepEqual([...players[0].tanks], [[4, 600]], "el resto de las armas se pierde: hay que volver a recogerlas");
     game.frames(30); // RT sigue apretado desde la ronda anterior
     assert.equal(tank(game), 600);
     game.setPad(0);

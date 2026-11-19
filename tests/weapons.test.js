@@ -25,7 +25,7 @@ test("la tabla de armas tiene los valores del diseño", () => {
     assert.deepEqual(row(FLUID.HONEY), [100, 18, 0.017, 152, 0, 1]);
     assert.equal(WEAPONS[0].id, FLUID.WATER, "el agua es la primera fila");
     assert.deepEqual(WEAPONS[0].color, [90, 170, 255]);
-    assert.deepEqual(WEAPONS.map((w) => w.id), LOADOUT.weapons);
+    assert.deepEqual(LOADOUT.weapons, [FLUID.WATER], "solo el agua; el resto se recoge en el mapa");
     assert.equal(LOADOUT.weapon, FLUID.WATER);
 });
 
@@ -39,12 +39,28 @@ test("equipLoadout llena los tanques y equipa el agua", () => {
     equipLoadout(player);
     assert.equal(player.weapon, FLUID.WATER);
     assert.equal(player.tanks.get(FLUID.WATER), 600);
-    assert.deepEqual([...player.tanks], [[4, 600], [1, 272], [2, 180], [3, 152]]);
+    assert.deepEqual([...player.tanks], [[FLUID.WATER, 600]], "el inventario inicial es solo el agua");
+});
+
+/** Inventario con todas las armas de la tabla y el tanque lleno, como si ya se hubieran recogido. */
+function fullInventory(player) {
+    equipLoadout(player);
+    for (const w of WEAPONS) player.tanks.set(w.id, w.tank);
+    return player;
+}
+
+test("cycleWeapon con un solo arma se queda en ella", () => {
+    const player = {};
+    equipLoadout(player);
+    cycleWeapon(player, 1);
+    assert.equal(player.weapon, FLUID.WATER);
+    cycleWeapon(player, -1);
+    assert.equal(player.weapon, FLUID.WATER);
 });
 
 test("cycleWeapon da la vuelta sobre el inventario en el orden de la tabla", () => {
     const player = {};
-    equipLoadout(player);
+    fullInventory(player);
     cycleWeapon(player, 1);
     assert.equal(player.weapon, FLUID.ACID);
     cycleWeapon(player, 1);
@@ -78,7 +94,7 @@ function setup({ maxCount = 1500, gravity = 0 } = {}) {
     const damage = new DamageSystem(world, store);
     const emitter = new ShotEmitter(store, damage, WEAPONS);
     const player = { dead: false, muzzle: () => ({ x: 0, y: 5, dx: 1, dy: 0 }) };
-    equipLoadout(player);
+    fullInventory(player);
     player.weapon = FLUID.ACID;
     let now = 100;
     const fire = (wants, k = 0, p = player) => {
