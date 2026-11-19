@@ -153,6 +153,7 @@
                 drawPickups,
                 drawWater,
                 drawWeaponWheel,
+                WHEEL_RADII,
                 SHOT_DRAW,
                 GOO_BLUR,
                 collectSurfaces,
@@ -345,6 +346,19 @@
             // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
             // solo si se movió después del último uso del stick), si no teclado (hacia donde se camina;
             // abajo inclina 45°)
+            /**
+             * Dirección de la rueda (`wheel` o `wheelPick`) en metros, Y arriba. Con `pointer` (mouse de J1) es el
+             * mouse respecto del torso, y (0, 0) dentro del radio interno de la rueda.
+             */
+            function direccionRueda(dir, player) {
+                if (!dir.pointer) return dir;
+                const pos = player.torso.GetPosition();
+                const m = camera.toWorld(dir.pointer.x, dir.pointer.y);
+                const dx = m.x - pos.get_x();
+                const dy = m.y - pos.get_y();
+                return Math.hypot(dx, dy) < WHEEL_RADII.inner ? { x: 0, y: 0 } : { x: dx, y: dy };
+            }
+
             function actualizarMira(player, state, k, now) {
                 const pos = player.torso.GetPosition();
                 const x = pos.get_x();
@@ -510,7 +524,8 @@
                     player = players[k];
 
                     if (state.wheelPick && state.wheelPick !== "cancel") {
-                        const id = wheelWeapon(state.wheelPick.x, state.wheelPick.y, player.tanks);
+                        const pick = direccionRueda(state.wheelPick, player);
+                        const id = wheelWeapon(pick.x, pick.y, player.tanks);
                         if (id) player.weapon = id;
                     }
                     if (state.weapon && WEAPONS[state.weapon - 1]) {
@@ -602,7 +617,7 @@
                             fill: player.tanks.get(w.id) / w.tank,
                             equipped: w.id === player.weapon,
                         })),
-                        wheelSector(wheel.x, wheel.y, owned.length),
+                        ((d) => wheelSector(d.x, d.y, owned.length))(direccionRueda(wheel, player)),
                     );
                 });
 

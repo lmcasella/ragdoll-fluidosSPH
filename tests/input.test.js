@@ -519,23 +519,25 @@ test("un toque corto de LB no abre la rueda ni da wheelPick", () => {
     assert.deepEqual([s.wheel, s.wheelPick, s.weaponStep], [null, null, -1]);
 });
 
-test("wheel con el teclado: Q mantenido y W/A/S/D dan la dirección; J2 con Ctrl derecho y flechas", () => {
+test("wheel con el teclado: elige lo que apunta (mouse en J1), nunca las teclas de movimiento", () => {
     key("KeyQ");
     key("ControlRight");
     input.poll(10);
     key("KeyD");
     key("KeyW");
     key("ArrowLeft");
+    mouseMove(300, 40);
     let [j1, j2] = input.poll(11);
-    assert.deepEqual(j1.wheel, { open: true, x: 1, y: 1 });
-    assert.deepEqual(j2.wheel, { open: true, x: -1, y: 0 });
+    assert.deepEqual(j1.wheel, { open: true, x: 0, y: 0, pointer: { x: 300, y: 40 } });
+    assert.deepEqual(j2.wheel, { open: true, x: 0, y: 0 });
     assert.equal(j1.left, false);
     assert.equal(j1.right, true);
+    assert.equal(j2.left, true);
     unkey("KeyQ");
     unkey("ControlRight");
     [j1, j2] = input.poll(11.1);
-    assert.deepEqual(j1.wheelPick, { x: 1, y: 1 });
-    assert.deepEqual(j2.wheelPick, { x: -1, y: 0 });
+    assert.deepEqual(j1.wheelPick, { x: 0, y: 0, pointer: { x: 300, y: 40 } });
+    assert.equal(j2.wheelPick, "cancel");
     unkey("KeyD");
     unkey("KeyW");
     unkey("ArrowLeft");
