@@ -85,6 +85,23 @@ export function cycleWeapon(player, step) {
     player.weapon = owned[(((at < 0 ? 0 : at) + step) % owned.length + owned.length) % owned.length].id;
 }
 
+/**
+ * Índice del sector de la rueda al que apunta la dirección (x, y; Y arriba) con `count` sectores iguales: el
+ * primero centrado arriba y los demás en sentido horario, así las direcciones cardinales caen en el medio de un
+ * sector. -1 con la dirección nula o sin sectores.
+ */
+export function wheelSector(x, y, count) {
+    if (count <= 0 || (x === 0 && y === 0)) return -1;
+    const turn = (Math.atan2(x, y) + Math.PI / count + 2 * Math.PI) % (2 * Math.PI);
+    return Math.min(count - 1, Math.floor((turn / (2 * Math.PI)) * count));
+}
+
+/** Arma del inventario `tanks` (ordenada como la tabla) a la que apunta la dirección de la rueda, o null. */
+export function wheelWeapon(x, y, tanks, weapons = WEAPONS) {
+    const owned = weapons.filter((w) => tanks.has(w.id));
+    return owned[wheelSector(x, y, owned.length)]?.id ?? null;
+}
+
 const GOLDEN = 0.6180339887498949;
 /** Separación entre carriles vecinos, en radios de partícula. */
 const LANE_SPACING = 1.5;

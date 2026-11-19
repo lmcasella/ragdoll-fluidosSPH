@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-19
+
+### Added
+- Rueda de armas: mantené LB (Q en J1, Ctrl derecho en J2) más de 0,25 s y se abre un círculo alrededor del robot con las armas que tenés, con su tanque. Elegí con el stick derecho (W/A/S/D en J1, flechas en J2) y soltá LB para equipar; con el stick al centro se cancela. Mientras está abierta el juego sigue corriendo y la mira no se mueve. El toque corto de LB, RB y la cruceta funcionan igual que antes.
+
 ## [0.18.0] - 2026-11-19
 
 ### Added

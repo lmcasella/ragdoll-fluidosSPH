@@ -140,6 +140,8 @@
                 ShotEmitter,
                 cycleWeapon,
                 equipLoadout,
+                wheelSector,
+                wheelWeapon,
             } from "./js/weapons.js";
             import {
                 buildRenderItems,
@@ -150,6 +152,7 @@
                 drawParticles,
                 drawPickups,
                 drawWater,
+                drawWeaponWheel,
                 SHOT_DRAW,
                 GOO_BLUR,
                 collectSurfaces,
@@ -346,7 +349,9 @@
                 const pos = player.torso.GetPosition();
                 const x = pos.get_x();
                 const y = pos.get_y();
-                if (state.aim) {
+                if (state.wheel) {
+                    player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
+                } else if (state.aim) {
                     const len = Math.hypot(state.aim.x, state.aim.y);
                     player.aimDir = { x: state.aim.x / len, y: state.aim.y / len };
                 } else if (state.pointer) {
@@ -504,6 +509,10 @@
                     }
                     player = players[k];
 
+                    if (state.wheelPick && state.wheelPick !== "cancel") {
+                        const id = wheelWeapon(state.wheelPick.x, state.wheelPick.y, player.tanks);
+                        if (id) player.weapon = id;
+                    }
                     if (state.weapon && WEAPONS[state.weapon - 1]) {
                         const id = WEAPONS[state.weapon - 1].id;
                         if (player.tanks.has(id)) player.weapon = id;
@@ -578,6 +587,24 @@
                 drawWater(ctx, water, scale);
                 drawHits(ctx, melee.hits, scale, now);
                 drawPickups(pickupCtx, pickups.points, WEAPONS);
+                players.forEach((player, k) => {
+                    const wheel = inputs[k].wheel;
+                    if (!wheel || player.dead) return;
+                    const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
+                    const pos = player.torso.GetPosition();
+                    drawWeaponWheel(
+                        pickupCtx,
+                        pos.get_x(),
+                        pos.get_y(),
+                        owned.map((w) => ({
+                            name: w.name,
+                            color: w.color,
+                            fill: player.tanks.get(w.id) / w.tank,
+                            equipped: w.id === player.weapon,
+                        })),
+                        wheelSector(wheel.x, wheel.y, owned.length),
+                    );
+                });
 
                 drawHud(
                     ctx,

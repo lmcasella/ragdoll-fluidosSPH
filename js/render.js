@@ -121,6 +121,56 @@ export function drawPickups(ctx, points, weapons) {
     }
 }
 
+/** Radios de la rueda de armas en metros, alrededor del torso: borde interno, externo y externo del sector apuntado. */
+export const WHEEL_RADII = { inner: 0.45, outer: 1.6, selected: 1.75 };
+
+/**
+ * Rueda de armas centrada en (cx, cy), en metros. `entries` son los sectores en orden, el primero centrado
+ * arriba y los demás en sentido horario: { name, color, fill (0 a 1, tanque), equipped }. `selected` es el índice apuntado (-1 ninguno), más
+ * opaco y más grande; el arma equipada lleva borde blanco. Va en el canvas que queda encima de los fluidos.
+ */
+export function drawWeaponWheel(ctx, cx, cy, entries, selected) {
+    const count = entries.length;
+    const step = (Math.PI * 2) / count;
+    entries.forEach((entry, i) => {
+        const [r, g, b] = entry.color;
+        const outer = i === selected ? WHEEL_RADII.selected : WHEEL_RADII.outer;
+        const from = Math.PI / 2 - (i + 0.5) * step;
+        const to = Math.PI / 2 - (i - 0.5) * step;
+        ctx.beginPath();
+        ctx.arc(cx, cy, outer, from, to);
+        ctx.arc(cx, cy, WHEEL_RADII.inner, to, from, true);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${i === selected ? 0.95 : 0.6})`;
+        ctx.fill();
+        ctx.lineWidth = entry.equipped ? 0.08 : 0.03;
+        ctx.strokeStyle = entry.equipped ? "#ffffff" : "rgba(16, 16, 24, 0.8)";
+        ctx.stroke();
+
+        const mid = (from + to) / 2;
+        const labelRadius = (WHEEL_RADII.inner + WHEEL_RADII.outer) / 2;
+        const lx = cx + Math.cos(mid) * labelRadius;
+        const ly = cy + Math.sin(mid) * labelRadius;
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.scale(1, -1);
+        ctx.font = "bold 0.5px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#101018";
+        ctx.fillText(entry.name[0], 0, 0);
+        ctx.restore();
+
+        const barWidth = 0.6;
+        const barHeight = 0.06;
+        const barY = ly - 0.3;
+        ctx.fillStyle = "rgba(16, 16, 24, 0.6)";
+        ctx.fillRect(lx - barWidth / 2, barY, barWidth, barHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(lx - barWidth / 2, barY, barWidth * Math.max(0, Math.min(1, entry.fill)), barHeight);
+    });
+}
+
 // Piezas de render de un robot (en metros) a partir de su .rag.json; con flipX se espejan en el marco del cuerpo
 export function buildRenderItems(rag, json, flipX) {
     const mirror = flipX ? -1 : 1;
