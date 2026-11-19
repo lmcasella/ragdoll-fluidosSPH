@@ -52,6 +52,7 @@ test("tras reiniciar la ronda y en la revancha los dos arrancan con agua y 600",
         game.state.players[1].hp = 0;
         game.frames(1);
         game.frames(190);
+        if (match.state === "countdown") game.frames(185);
     };
     game.setPad(0, { buttons: [RT], axes: [0, 0, 1, 0] });
     game.frames(20);
@@ -62,8 +63,12 @@ test("tras reiniciar la ronda y en la revancha los dos arrancan con agua y 600",
     for (const p of game.state.players) assert.deepEqual([p.weapon, p.tanks.get(4)], [4, 600]);
     finishRound();
     assert.equal(match.state, "matchOver");
+    game.frames(60);
     game.setPad(0, { buttons: [RT] });
     game.frames(1);
+    assert.equal(match.state, "countdown");
+    game.setPad(0);
+    game.frames(185);
     assert.equal(match.state, "playing");
     for (const p of game.state.players) assert.deepEqual([p.weapon, p.tanks.get(4)], [4, 600]);
 });

@@ -598,3 +598,31 @@ test("la cruceta, 1-4 y RB siguen funcionando con la rueda abierta", () => {
     pads = [padAxes([4, 5], [0, 0, 0, 0])];
     assert.equal(input.poll(11.1)[0].weaponStep, 1);
 });
+
+
+test("start es el flanco del botón 9 del gamepad, de un solo frame", () => {
+    const p = pad();
+    p.buttons[9].pressed = true;
+    pads = [p];
+    assert.equal(input.poll()[0].start, true);
+    assert.equal(input.poll()[0].start, false);
+    p.buttons[9].pressed = false;
+    assert.equal(input.poll()[0].start, false);
+});
+
+test("Escape es start de los dos jugadores, solo en el frame en que se aprieta", () => {
+    emit("keydown", { code: "Escape", preventDefault() {} });
+    const [j1, j2] = input.poll();
+    assert.equal(j1.start, true);
+    assert.equal(j2.start, true);
+    emit("keyup", { code: "Escape" });
+    assert.equal(input.poll()[0].start, false);
+});
+
+test("el teclado no pisa a start del gamepad", () => {
+    const p = pad();
+    p.buttons[9].pressed = true;
+    pads = [p];
+    emit("keydown", { code: "KeyA", preventDefault() {} });
+    assert.equal(input.poll()[0].start, true);
+});

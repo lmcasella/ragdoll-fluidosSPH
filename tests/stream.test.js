@@ -117,32 +117,47 @@ test("al reiniciar la ronda se olvidan los disparos", async () => {
     assert.equal(damage.openShots.size, 0);
     assert.equal(particleSystem.GetParticleCount(), 0);
 });
-// Termina la ronda matando al rival; devuelve cuando ya empezó la siguiente (o terminó la partida)
+
+/** Termina la ronda matando al rival; devuelve cuando ya empezó la siguiente (pasada la cuenta regresiva) o terminó la partida. */
 function finishRound(game, loser = 1) {
     game.state.players[loser].hp = 0;
     game.frames(1);
     assert.equal(game.state.match.state, "roundOver");
     game.frames(190);
+    if (game.state.match.state === "countdown") game.frames(185);
 }
 
-test("al empezar la ronda siguiente los tanques están llenos y el botón apretado no dispara hasta soltarlo", async () => {
+test("al empezar la ronda siguiente los tanques están llenos y se pierden las armas recogidas y se puede disparar", async () => {
     const game = await start();
     const { match, players } = game.state;
     game.setPad(0, { buttons: [RT] });
     game.frames(30);
     assert.ok(tank(game) < 600);
+    game.setPad(0);
     finishRound(game);
     assert.equal(match.round, 2);
     assert.equal(match.state, "playing");
     assert.equal(tank(game), 600, "el robot nuevo trae el agua con el tanque lleno");
     assert.deepEqual([...players[0].tanks], [[4, 600]], "el resto de las armas se pierde: hay que volver a recogerlas");
-    game.frames(30); // RT sigue apretado desde la ronda anterior
-    assert.equal(tank(game), 600);
     game.setPad(0);
     game.frames(2);
     game.setPad(0, { buttons: [RT] });
     game.frames(10);
-    assert.ok(tank(game) < 600);
+    assert.ok(tank(game) < 600, "soltado y apretado de nuevo, dispara");
+});
+
+test("el botón apretado desde la ronda anterior no dispara durante la cuenta regresiva", async () => {
+    const game = await start();
+    const { match } = game.state;
+    game.setPad(0, { buttons: [RT] });
+    game.frames(30);
+    game.state.players[1].hp = 0;
+    game.frames(190);
+    assert.equal(match.state, "countdown");
+    assert.equal(tank(game), 600);
+    game.frames(120);
+    assert.equal(match.state, "countdown");
+    assert.equal(tank(game), 600, "RT apretado en la cuenta regresiva no dispara");
 });
 
 test("la revancha con RT funciona, no gasta el tanque y hay que soltar RT antes de disparar", async () => {
@@ -153,14 +168,16 @@ test("la revancha con RT funciona, no gasta el tanque y hay que soltar RT antes 
     assert.equal(match.state, "matchOver");
     assert.equal(match.matchWinner, 0);
 
+    game.frames(60);
     game.setPad(0, { buttons: [RT] });
     game.frames(1);
-    assert.equal(match.state, "playing");
+    assert.equal(match.state, "countdown");
     assert.equal(match.round, 1);
     assert.deepEqual(match.wins, [0, 0]);
-    game.frames(40);
-    assert.equal(players[0].tanks.get(4), 600, "RT de la revancha no dispara");
     game.setPad(0);
+    game.frames(185);
+    assert.equal(match.state, "playing");
+    assert.equal(players[0].tanks.get(4), 600, "RT de la revancha no dispara");
     game.frames(2);
     game.setPad(0, { buttons: [RT] });
     game.frames(10);
@@ -173,10 +190,12 @@ test("la revancha con Enter (J2) también funciona", async () => {
     finishRound(game);
     finishRound(game);
     assert.equal(match.state, "matchOver");
+    game.frames(60);
     game.emit("keydown", { code: "Enter", preventDefault() {} });
     game.frames(1);
-    assert.equal(match.state, "playing");
+    assert.equal(match.state, "countdown");
     game.emit("keyup", { code: "Enter" });
-    game.frames(30);
+    game.frames(215);
+    assert.equal(match.state, "playing");
     assert.equal(game.state.players[1].tanks.get(4), 600);
 });
