@@ -11,6 +11,7 @@ export const KEYBOARD_LAYOUTS = [
         jump: ["KeyW"],
         fire: ["Space"],
         punch: ["KeyF"],
+        block: ["KeyG"],
         grapple: ["KeyE"],
         prevWeapon: ["KeyQ"],
         nextWeapon: ["KeyR"],
@@ -23,7 +24,8 @@ export const KEYBOARD_LAYOUTS = [
         down: ["ArrowDown"],
         jump: ["ArrowUp"],
         fire: ["Enter", "NumpadEnter"],
-        punch: ["ShiftRight"],
+        punch: ["Numpad5"],
+        block: ["NumpadSubtract"],
         grapple: ["Numpad0"],
         prevWeapon: ["ControlRight"],
         nextWeapon: ["NumpadAdd"],
@@ -39,6 +41,7 @@ const PAD = {
     jump: 0,
     punch: 1,
     grapple: 2,
+    block: 6,
     prevWeapon: 4,
     nextWeapon: 5,
     fire: 7,
@@ -55,8 +58,10 @@ export const TAP_MAX = 0.25;
 
 /**
  * Estado por jugador, leído una vez por frame con poll():
- * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`;
- * - flancos del frame: `jump`, `drop`, `action`, `punch`, `weapon` (1-4 o null) y `weaponStep` (-1, 0 o +1);
+ * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`, `block`;
+ * - flancos del frame: `jump`, `drop`, `roll`, `action`, `punch`, `kick`, `weapon` (1-4 o null) y `weaponStep`
+ *   (-1, 0 o +1). `roll` es el flanco de salto con `block` mantenido (de cualquier fuente) y gana sobre `jump` y
+ *   `drop`; `kick` es el flanco de golpe con abajo fuerte y deja `punch` en falso;
  * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null;
  * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
  * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `fire` es el disparo mantenido.
@@ -133,10 +138,13 @@ export class Input {
                 down: isHeld(layout.down),
                 jump: wasPressed(layout.jump),
                 drop: false,
+                roll: false,
                 action: wasPressed(layout.fire),
                 fire: isHeld(layout.fire),
                 grapple: isHeld(layout.grapple),
+                block: isHeld(layout.block),
                 punch: wasPressed(layout.punch),
+                kick: false,
                 weapon: null,
                 weaponStep: 0,
                 aim: null,
@@ -163,9 +171,16 @@ export class Input {
                 if (this.mouseActive) state.pointer = { ...this.mousePos };
             }
 
-            if (state.jump && strongDown) {
+            if (state.jump && state.block) {
+                state.jump = false;
+                state.roll = true;
+            } else if (state.jump && strongDown) {
                 state.jump = false;
                 state.drop = true;
+            }
+            if (state.punch && strongDown) {
+                state.punch = false;
+                state.kick = true;
             }
 
             const before = this.prevHold[k];
@@ -200,6 +215,7 @@ export class Input {
         state.action ||= edge(PAD.jump) || edge(PAD.fire);
         state.fire ||= down(PAD.fire);
         state.grapple ||= down(PAD.grapple);
+        state.block ||= down(PAD.block);
         state.punch ||= edge(PAD.punch);
         if (edge(PAD.nextWeapon)) state.weaponStep = 1;
         PAD.weapons.forEach((button, i) => {
