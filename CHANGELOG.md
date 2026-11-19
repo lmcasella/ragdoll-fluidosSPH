@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-11-19
+
+### Changed
+- Regla de trabajo: un agente que sigue con trabajo en segundo plano después de su informe no terminó y se frena antes de lanzar el siguiente.
+
 ## [0.17.2] - 2026-11-19
 
 ### Fixed
