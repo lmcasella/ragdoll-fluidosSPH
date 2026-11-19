@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-19
+
+### Added
+- Bot de prueba para jugar solo: abrí `http://localhost:8080/?bot=2` y J2 lo maneja el bot (`?bot=1,2` pone un bot en cada lado). El bot usa un gamepad virtual: aprieta los mismos botones que una persona. Camina y salta entre las plataformas, sube cuando la inundación se acerca, bloquea o rueda hacia atrás cuando el rival golpea, golpea en el aire, encadena el combo con el rival aturdido y dispara con línea de vista. Si se conecta un gamepad real para ese jugador, el bot se apaga.
+
 ## [0.24.0] - 2026-11-19
 
 ### Added
