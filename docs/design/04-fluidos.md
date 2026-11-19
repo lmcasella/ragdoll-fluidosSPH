@@ -104,7 +104,7 @@ La regla tiene tres partes, cada una en el sistema que le corresponde: **detecci
 
 - **Dónde:** `DamageSystem.process(now, waterLevel)`, en el mismo lugar que el mojado por nivel. No hay callbacks involucrados, así que respeta "juntar durante el paso, actuar después".
 - **Cajas del robot:** `ActiveRagdoll.fixtureBoxes()` devuelve un `Float32Array` **reutilizado** (se crea una vez por robot) con `[minX, minY, maxX, maxY]` de cada fixture más la caja que las une a todas, leídas con `GetAABB(0)` como `lowestPoint()`. Se llama una vez por robot y por paso; el resto es JS puro. No crea memoria nativa.
-- **Partículas de miel:** una pasada por el sistema de disparos que lee el color (`GetColorBuffer`, igual que `onParticleBodyContact`). Es miel si `fluidFromColor(r, g)` (en `js/weapons.js` desde #39, derivado de los colores de `WEAPONS`) devuelve `FLUID.HONEY`; no hay números fijos en el código. Así valen igual la miel disparada y la del mapa (#23), que no tiene id de disparo.
+- **Partículas de miel:** una pasada por el sistema de disparos. Desde #110 la miel ya no se identifica por color ni por `userData`: se identifica por el `kind` de la partícula en `ParticleStore` (`store.kind[slot] === FLUID.HONEY`). Así vale igual la miel disparada y la del mapa (#23), que pasa a ser partículas con `origin` MAP y no tiene id de disparo. Los charcos del mapa no pegan por columnas del campo: el pegado es solo por partículas.
 - **"Toca":** el centro de la partícula está dentro de la caja de alguna fixture agrandada `radio + 0,02 m` (radio de `GetRadius()` del sistema, 0,1 m). Primero se descarta con la caja que las une. Las cajas de una pieza inclinada son algo más grandes que la pieza: es un error de unos centímetros y a favor de pegar, aceptable para un efecto de juego.
 - **Fuego amigo:** si `userData` de la partícula es un id que sigue en `shots`, y su dueño es el robot y pasaron menos de 0,4 s desde `time`, no cuenta (la misma gracia que el resto). Una partícula sin tramo vivo (miel de más de 6 s o del mapa) pega a cualquiera: pisar el charco propio cuesta.
 - **Efecto:** si alguna partícula toca, `player.stick()`. No se encola nada ni se destruye ninguna partícula.
@@ -202,7 +202,7 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 |---|---|---|---|
 | **Pileta** | Agua SPH al fondo del hueco central + sensor | Caer = robot destruido | ✅ ([05-escenario](05-escenario.md#52-pileta)) |
 | **Inundación** | Lluvia en el sistema del agua del nivel, con nivel controlado | Bajo el agua real = mojado (cortocircuito) | ✅ #22 ([02-partida](02-partida.md#21-inundación--22)) |
-| **Charcos de miel** | Partículas `b2_viscousParticle` en el **sistema de disparos** (para recibir su `viscousStrength`), con el color de la miel, `userData` 0 y `CONTACT_LISTENER`, creadas al colocar el nivel. `userData` 0: no vencen ni cuentan para `PERSIST_MAX` | La regla de la miel pegajosa de #41, sin lógica nueva ([4.1](#miel-pegajosa-regla-compartida--41)) | 🔨 #23 (depende de #41) |
+| **Charcos de miel** | Partículas `b2_viscousParticle` en el **sistema de disparos** (para recibir su `viscousStrength`), con `origin` MAP en `ParticleStore` (la miel se identifica por su `kind`, no por color ni `userData`) y `CONTACT_LISTENER`, creadas al colocar el nivel. Sin tramo de disparo: no vencen ni cuentan para `PERSIST_MAX` | La regla de la miel pegajosa de #41, sin lógica nueva ([4.1](#miel-pegajosa-regla-compartida--41)) | 🔨 #23 (depende de #41) |
 | **Ventiladores** | Emisor de viento hacia arriba | Ascensor de aire a plataformas altas | 🔨 #24 |
 | **Goteo de ácido** | Emisor periódico desde el techo | Fuerza a moverse | 💬 |
 | **Cascada de lava** | Emisor continuo | Corta el mapa; se apaga con agua | 💬 |
@@ -215,7 +215,7 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 Hay dos fuentes de detección, según dónde está el agua:
 
 - **Entre disparos** (lava disparada + agua disparada): contactos **partícula↔partícula** (`BeginParticleContact`) dentro del sistema de disparos. Se identifican por color o por flags.
-- **Disparo + agua del nivel** (pileta e inundación): los sistemas son distintos y no hay contactos. Se usa la lista del puente de #39: `immersion.submerged`, `immersion.kinds` y `immersion.count`, válidos entre `immersion.step` y el próximo `stepWorld` ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)). Por ejemplo, cada lava de esa lista reacciona con el agua del nivel.
+- **Disparo + agua del nivel** (pileta e inundación): los sistemas son distintos y no hay contactos. Se usa la lista del puente de #39: `immersion.submerged`, `immersion.kinds` y `immersion.count`, válidos entre `immersion.step` y el próximo `stepWorld` ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)). Los consumidores de la lista filtran por material: la ebullición en película y la reacción con el agua del nivel valen solo para la lava (la miel sumergida también figura en la lista, [14.4](14-agua.md#144-absorción-e-inmersión--71)). Hoy no hay consumidores.
 
 En los dos casos, el cambio (flags, destrucción, vapor) se aplica después de `stepWorld`, nunca en un callback.
 

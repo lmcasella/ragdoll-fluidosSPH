@@ -565,12 +565,12 @@ Sin química. Contacto mecánico y eléctrico (acero contra acero conduce). Si l
 Comparación con el código en `main` (`js/materials.js`, `js/immersion.js`, `js/water.js`) y con el diseño de [14](14-agua.md). Es una lista de diferencias con la física, no de tareas: qué se lleva al juego lo decide el diseño.
 
 **Campo de agua y mezcla**
-1. **La miel en el campo.** Al absorberse se diluye en el acto como trazador pasivo en la columna (`water.deposit`, `M`). En la realidad se hunde, forma una capa en el fondo y se disuelve en minutos u horas sin agitación ([fichas 4](#4-agua--miel) y [12](#12-agua-campo--miel)). Lo que sí sigue en el campo es su efecto sobre `ρ` y `μ` (`densityAt`, fricción con `ν(X)`).
+1. ✅ **La miel en el campo** (resuelto por #110). La miel ya no se absorbe: es inmiscible con el campo, se hunde como partícula y forma una capa en el fondo ([fichas 4](#4-agua--miel) y [12](#12-agua-campo--miel)). Lo que no se representa es la disolución por agitación (#76). El campo conserva el trazador `M` sin fuente y su efecto sobre `ρ` y `μ` (`densityAt`, fricción con `ν(X)`).
 2. **La viscosidad de mezcla** del campo y de [14.9](14-agua.md#149-mezcla-por-concentración-y-viscosidad) usa la regla logarítmica lineal, que sobreestima hasta 15 veces la de las soluciones de azúcar ([ficha 4](#4-agua--miel)). Además, la viscosidad de la miel no depende de la temperatura (×10 cada 20 °C) ni del agua condensada.
 3. **El calor específico de la columna** es siempre el del agua (`E / (σ_w c_w h)`), aunque haya miel (`c` 2400 J/(kg·K)).
 4. **El color del campo** es fijo (`draw.color`). No cambia con la miel (ámbar), con la temperatura ni con la profundidad.
 5. **El ácido pierde su identidad** al absorberse ([14.4](14-agua.md#144-absorción-e-inmersión)): no hay concentración, pH ni conductividad en la columna. En la realidad, un tanque en la pileta deja pH ≈ 1,4 y una conductividad 10–300 veces la del agua ([ficha 11](#11-agua-campo--ácido)).
-6. **Estratificación:** el campo promediado en la vertical no puede tener agua caliente arriba ni miel o ácido en el fondo ([ficha 10](#10-agua-campo--agua-campo)).
+6. **Estratificación:** el campo promediado en la vertical no puede tener agua caliente arriba ni ácido en el fondo ([ficha 10](#10-agua-campo--agua-campo)). Resuelto para la miel por #110 (la capa del fondo es de partículas); no resuelto para el ácido.
 
 **Térmica y fases** (diseño [14.8](14-agua.md#148-térmica-y-fases), aún sin implementar)
 7. No hay entalpía por partícula ni en el campo: la lava no calienta el agua, no hay vapor, piedra, ebullición ni condensación.
