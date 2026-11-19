@@ -5,6 +5,19 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-19
+
+### Added
+- Mapa **Infinito**, ahora habilitado y elegido por defecto en el menú: la primera etapa es el mapa clásico y arriba hay etapas de 30 m con paredes propias y filas de plataformas atravesables generadas al azar, siempre al alcance de un salto. Las paredes se angostan 6 m por etapa hasta un mínimo de 24 m. A cada ronda le toca un mapa nuevo; con `?seed=N` en la URL todas las rondas repiten el mismo.
+- El agua sube sin techo desde los 10 s de ronda (0,3 m/s y un poco más rápido en cada etapa). Se genera hacia arriba conforme sube la cámara y lo que queda hundido bajo el agua desaparece.
+- Las etapas de arriba traen armas sobre sus plataformas más externas, cada vez más seguidas y más peligrosas (agua, miel y lava al principio, ácido y lava después).
+- En Infinito un robot se ahoga cuando el agua cubre su torso, en cualquier parte del mapa. No hay sensor en la pileta.
+- Clásico sigue disponible en el menú, y es el mapa con el que corren las pruebas.
+
+### Changed
+- Por única vez, la elección guardada del menú se ignora para que todos arranquen con Infinito; la nueva elección se guarda aparte.
+- El campo de agua puede angostarse a las paredes de la etapa y subir su fondo efectivo; en Clásico no cambia nada.
+
 ## [0.28.0] - 2026-11-19
 
 ### Added
