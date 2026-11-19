@@ -26,6 +26,9 @@ const DYNAMIC = 2;
 /** Producto escalar máximo entre las normales exteriores de dos sólidos para que la gota esté aprisionada. */
 const TRAP_DOT = -0.5;
 
+/** Peso máximo del contacto con el cuerpo dinámico para aplicar el escape: con más, la gota penetra más que su radio y es un estado inválido. */
+export const MAX_WEIGHT_D = 0.5;
+
 /** Corrige, en cada subpaso, los contactos de un sistema de partículas con los cuerpos del mundo. */
 export class WallContact {
     /**
@@ -265,6 +268,7 @@ export class WallContact {
             const ndx = pickFirst ? this.firstNx[i] : this.otherNx[i];
             const ndy = pickFirst ? this.firstNy[i] : this.otherNy[i];
             const wD = pickFirst ? this.firstWeight[i] : this.otherWeight[i];
+            if (wD > MAX_WEIGHT_D) continue;
             const mcD = pickFirst ? this.firstMass[i] : this.otherMass[i];
             const fixtureD = pickFirst ? this.firstFixture[i] : this.otherFixture[i];
             const wO = pickFirst ? this.otherWeight[i] : this.firstWeight[i];
