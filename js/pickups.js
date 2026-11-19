@@ -21,24 +21,35 @@ export class Pickups {
         /** Recogidas `{ weapon }` desde la última vez que quien las consume vació la lista. */
         this.events = [];
         this.points = [];
-        const bodyDef = new Box2D.b2BodyDef();
-        const shape = new Box2D.b2CircleShape();
-        shape.set_m_radius(PICKUP_RADIUS);
-        const center = new Box2D.b2Vec2(0, 0);
-        for (const { x, y, weapon } of points) {
-            center.set_x(x);
-            center.set_y(y);
-            bodyDef.set_position(center);
-            const body = world.CreateBody(bodyDef);
-            const fixture = body.CreateFixture(shape, 0);
-            fixture.SetSensor(true);
-            const point = { x, y, weapon, body, fixture, active: true, readyAt: 0 };
-            this.points.push(point);
-            damage.sensorHooks.set(Box2D.getPointer(fixture), (bodyPtr) => this.queue.push({ point, bodyPtr }));
-        }
-        Box2D.destroy(center);
-        Box2D.destroy(shape);
-        Box2D.destroy(bodyDef);
+        this.bodyDef = new Box2D.b2BodyDef();
+        this.shape = new Box2D.b2CircleShape();
+        this.shape.set_m_radius(PICKUP_RADIUS);
+        this.center = new Box2D.b2Vec2(0, 0);
+        for (const point of points) this.add(point);
+    }
+
+    /** Crea el punto `{ x, y, weapon }` (cuerpo, sensor y gancho de contacto) y lo devuelve con su estado. */
+    add({ x, y, weapon }) {
+        this.center.set_x(x);
+        this.center.set_y(y);
+        this.bodyDef.set_position(this.center);
+        const body = this.world.CreateBody(this.bodyDef);
+        const fixture = body.CreateFixture(this.shape, 0);
+        fixture.SetSensor(true);
+        const point = { x, y, weapon, body, fixture, active: true, readyAt: 0 };
+        this.points.push(point);
+        this.damage.sensorHooks.set(Box2D.getPointer(fixture), (bodyPtr) => this.queue.push({ point, bodyPtr }));
+        return point;
+    }
+
+    /** Quita el punto: su gancho, lo encolado de ese punto y su cuerpo. No llamar dentro de un callback de Box2D. */
+    remove(point) {
+        const index = this.points.indexOf(point);
+        if (index < 0) return;
+        this.points.splice(index, 1);
+        this.damage.sensorHooks.delete(Box2D.getPointer(point.fixture));
+        this.queue = this.queue.filter((event) => event.point !== point);
+        this.world.DestroyBody(point.body);
     }
 
     /** Aplica lo encolado durante el paso y reactiva los puntos cuyo tiempo venció; llamar después de `stepWorld`. */
@@ -81,5 +92,8 @@ export class Pickups {
         }
         this.points.length = 0;
         this.queue.length = 0;
+        Box2D.destroy(this.center);
+        Box2D.destroy(this.shape);
+        Box2D.destroy(this.bodyDef);
     }
 }

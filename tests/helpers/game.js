@@ -40,6 +40,7 @@ export function giveAllWeapons(game) {
  * elección por defecto del menú (o la que pidan `?bot=` y `localStorage`), para que las pruebas de gameplay no pasen
  * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  * `options.storage` es el `localStorage` falso del juego (con `getItem` y `setItem`); sin él no hay almacenamiento.
+ * `options.map` es el mapa de la partida ("classic" por defecto, o "infinite"); se escribe en el menú antes de arrancar.
  */
 export async function loadGame(options = {}) {
     globalThis.__TEST_HOOKS__ = true;
@@ -107,6 +108,7 @@ export async function loadGame(options = {}) {
     }
 
     if (!options.intro) {
+        globalThis.game.menu.values.map = options.map ?? "classic";
         globalThis.game.arrancarPartida();
         globalThis.game.match.state = "playing";
     }

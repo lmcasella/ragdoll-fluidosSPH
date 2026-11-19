@@ -25,6 +25,16 @@ export class Camera {
         this.viewH = viewH;
     }
 
+    /** Cambia los límites del mundo sin tocar la posición ni el zoom; `maxY` puede ser `Infinity`. */
+    setBounds(bounds) {
+        this.bounds = bounds;
+    }
+
+    /** Borde superior de la vista (m). */
+    get top() {
+        return this.y + this.viewH / (2 * this.scale);
+    }
+
     update(points, dt, snap = false) {
         const { minX, maxX, minY, maxY } = this.bounds;
         const worldW = maxX - minX;

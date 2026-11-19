@@ -248,3 +248,133 @@ export class ClimbGenerator {
         return { index: this.index++, y, stage, platforms: list, pickups };
     }
 }
+
+/**
+ * Mundo del ascenso infinito (docs/design/16-ascenso.md §16.6): crea la etapa 0 (los pisos, islas y plataformas del
+ * nivel clásico sin sus paredes ni el sensor de la pileta), las paredes de cada etapa y las filas de `ClimbGenerator`
+ * conforme sube la cámara, y libera lo que el agua dejó hundido. Cada elemento es un cuerpo estático con una fixture
+ * de caja (fricción 0,8); las plataformas se registran en `OneWayPlatforms` y las armas en `Pickups`. El `b2BodyDef`, el
+ * `b2PolygonShape` y los `b2Vec2` de trabajo se crean una vez y se liberan en `dispose`.
+ *
+ * `update` y `reset` se llaman solo desde el loop, después de los pasos del frame, nunca dentro de `stepWorld` ni de un
+ * callback. Después de destruir, quien llama invalida `wallContact` y rehace el grafo del bot con `level`.
+ */
+export class Climb {
+    constructor({ world, platforms, pickups, config = CLIMB, base = LEVEL, radius = SHOT_SYSTEM.radius }) {
+        this.world = world;
+        this.platforms = platforms;
+        this.pickups = pickups;
+        this.config = config;
+        this.base = base;
+        this.radius = radius;
+        this.bodyDef = new Box2D.b2BodyDef();
+        this.shape = new Box2D.b2PolygonShape();
+        this.origin = new Box2D.b2Vec2(0, 0);
+        this.position = new Box2D.b2Vec2(0, 0);
+        this.data = { solids: [], pool: base.pool };
+        this.items = [];
+        /** Puntos de aparición de armas vivos (los de `Pickups` que creó `Climb`). */
+        this.points = [];
+        this.generator = null;
+        this.lastY = base.bounds.maxY;
+        this.stagesBuilt = -1;
+    }
+
+    /** Sólidos vivos como datos (`{ solids, pool }`), para dibujar y para `buildNav`. */
+    get level() {
+        return this.data;
+    }
+
+    /** Límites de la cámara a la altura `y`: el ancho de la etapa y sin techo. */
+    cameraBounds(y) {
+        const half = halfWidth(stageOf(y, this.config), this.config);
+        return { minX: this.config.centerX - half, maxX: this.config.centerX + half, minY: 0, maxY: Infinity };
+    }
+
+    /** Destruye todo, crea la etapa 0 con `seed` y genera hasta y = 60 m. */
+    reset(seed) {
+        this.clear();
+        this.generator = new ClimbGenerator(seed, this.config, this.base, this.radius);
+        this.stagesBuilt = -1;
+        this.lastY = Math.max(...this.base.solids.filter((s) => s.kind === "platform").map((s) => s.y + s.h / 2));
+        for (const s of this.base.solids) {
+            if (s.kind !== "wall") this.addBox(s.x, s.y, s.w, s.h, s.kind, !!s.oneWay);
+        }
+        for (const p of this.base.pickups) this.points.push(this.pickups.add(p));
+        this.generate(60);
+    }
+
+    /**
+     * Genera hasta `top + ahead` y libera todo elemento cuyo tope quedó por debajo de `level − sinkBelow`.
+     * Devuelve las cantidades `{ created, destroyed }`.
+     */
+    update({ top, level }) {
+        const created = this.generate(top + this.config.ahead);
+        const limit = level - this.config.flood.sinkBelow;
+        let destroyed = 0;
+        const sunkItems = this.items.filter((item) => item.top < limit);
+        for (const item of sunkItems) this.destroyItem(item);
+        if (sunkItems.length) {
+            this.items = this.items.filter((item) => item.top >= limit);
+            this.data.solids = this.data.solids.filter((solid) => solid.y + solid.h / 2 >= limit);
+            destroyed += sunkItems.length;
+        }
+        const sunkPoints = this.points.filter((point) => point.y < limit);
+        for (const point of sunkPoints) this.pickups.remove(point);
+        this.points = this.points.filter((point) => point.y >= limit);
+        return { created, destroyed: destroyed + sunkPoints.length };
+    }
+
+    /** Crea filas y paredes hasta `limit` (m); devuelve cuántos cuerpos creó. */
+    generate(limit) {
+        const before = this.items.length + this.points.length;
+        while (this.lastY < limit) {
+            const row = this.generator.next();
+            this.lastY = row.y;
+            for (const p of row.platforms) this.addBox(p.x, row.y - this.config.rows.thickness / 2, p.w, this.config.rows.thickness, "platform", true);
+            for (const p of row.pickups) this.points.push(this.pickups.add(p));
+        }
+        const needed = stageOf(Math.max(limit, this.lastY), this.config);
+        while (this.stagesBuilt < needed) {
+            this.stagesBuilt++;
+            for (const w of stageWalls(this.stagesBuilt, this.config, this.base, this.radius)) this.addBox(w.x, w.y, w.w, w.h, "wall", false);
+        }
+        return this.items.length + this.points.length - before;
+    }
+
+    addBox(x, y, w, h, kind, oneWay) {
+        this.position.set_x(x);
+        this.position.set_y(y);
+        this.bodyDef.set_position(this.position);
+        this.shape.SetAsBox(w / 2, h / 2, this.origin, 0);
+        const body = this.world.CreateBody(this.bodyDef);
+        const fixture = body.CreateFixture(this.shape, 0);
+        fixture.SetFriction(0.8);
+        if (oneWay) this.platforms.addPlatform(fixture);
+        const solid = oneWay ? { x, y, w, h, kind, oneWay } : { x, y, w, h, kind };
+        this.items.push({ body, fixture, oneWay, top: y + h / 2 });
+        this.data.solids.push(solid);
+    }
+
+    destroyItem(item) {
+        if (item.oneWay) this.platforms.removePlatform(item.fixture);
+        this.world.DestroyBody(item.body);
+    }
+
+    /** Destruye todos los elementos. */
+    clear() {
+        for (const point of this.points) this.pickups.remove(point);
+        this.points = [];
+        for (const item of this.items) this.destroyItem(item);
+        this.items = [];
+        this.data.solids = [];
+    }
+
+    dispose() {
+        this.clear();
+        Box2D.destroy(this.origin);
+        Box2D.destroy(this.position);
+        Box2D.destroy(this.shape);
+        Box2D.destroy(this.bodyDef);
+    }
+}

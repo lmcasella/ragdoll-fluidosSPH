@@ -134,6 +134,15 @@ export class Bot {
         this.reset();
     }
 
+    /** Reemplaza el grafo por el de `level` (el nivel cambió) y olvida lo que guardaba como índices de nodo. */
+    setNav(level) {
+        this.nav = buildNav(level, this.config);
+        this.committed = null;
+        this.goal = null;
+        this.foeNode = null;
+        this.replanAt = 0;
+    }
+
     /** Olvida lo percibido y decidido (ronda nueva). */
     reset() {
         this.jumping = false;

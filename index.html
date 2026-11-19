@@ -128,7 +128,8 @@
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
-            import { Flood } from "./js/flood.js";
+            import { Flood, RisingFlood } from "./js/flood.js";
+            import { CLIMB, Climb } from "./js/climb.js";
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
             import { Buoyancy } from "./js/buoyancy.js";
@@ -256,9 +257,11 @@
             const gravity = new Box2D.b2Vec2(0, -10);
             const world = new Box2D.b2World(gravity);
             Box2D.destroy(gravity);
-            const { killSensors, oneWayFixtures } = buildLevel(world);
+            let classic = buildLevel(world);
+            let climb = null;
+            let currentMap = "classic";
             const platforms = new OneWayPlatforms(world);
-            oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+            classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
             const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
@@ -280,7 +283,7 @@
 
             // Altura de aparición: un rayo vertical desde el techo encuentra la superficie en x
             function spawnOnGround(def, x) {
-                const hit = raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY);
+                const hit = raycaster.cast(x, climb ? CLIMB.spawnRayTop : LEVEL.bounds.maxY, x, LEVEL.bounds.minY);
                 const surface = hit ? hit.y : LEVEL.bounds.minY;
                 const probe = def.spawn(world, { x, y: 0 });
                 const lift = surface + 0.02 - lowestPoint(probe);
@@ -351,7 +354,7 @@
                 const config = botConfig(difficulty);
                 for (const k of ks) {
                     const seed = Number.isFinite(botSeed) ? botSeed + k : (Math.random() * 2 ** 32) >>> 0;
-                    bots.set(k, new Bot({ k, world, config, seed }));
+                    bots.set(k, new Bot({ k, world, config, seed, level: climb ? climb.level : LEVEL }));
                 }
             }
 
@@ -362,17 +365,52 @@
             instances.push(wallContact);
 
             const damage = new DamageSystem(world, store);
-            damage.killSensors = killSensors;
+            damage.killSensors = classic.killSensors;
             damage.register(players);
             const emitter = new ShotEmitter(store, damage, WEAPONS, raycaster);
             const melee = new Melee(raycaster, damage);
             const match = new Match(players.length);
             const water = new ShallowWater();
-            const flood = new Flood(store, water);
+            let flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
-            const pickups = new Pickups(world, damage, LEVEL.pickups);
+            let pickups = new Pickups(world, damage, LEVEL.pickups);
+
+            /** Superficie del agua bajo la cual se ahoga un robot en Infinito: la del campo donde hay agua, ninguna donde no. */
+            const drownSurface = (x) => (water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity);
+
+            /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
+            const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
+
+            /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
+            function aplicarMapa(map) {
+                if (map === currentMap) return;
+                flood.dispose();
+                if (map === "infinite") {
+                    classic.oneWayFixtures.forEach((fixture) => platforms.removePlatform(fixture));
+                    world.DestroyBody(classic.ground);
+                    damage.killSensors.clear();
+                    pickups.dispose();
+                    pickups = new Pickups(world, damage, []);
+                    flood = new RisingFlood(water);
+                    climb = new Climb({ world, platforms, pickups });
+                    damage.drownSurface = drownSurface;
+                } else {
+                    climb.dispose();
+                    climb = null;
+                    pickups.dispose();
+                    classic = buildLevel(world);
+                    classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+                    damage.killSensors = classic.killSensors;
+                    pickups = new Pickups(world, damage, LEVEL.pickups);
+                    flood = new Flood(store, water);
+                    damage.drownSurface = null;
+                    camera.setBounds(LEVEL.bounds);
+                }
+                currentMap = map;
+                wallContact.invalidate();
+            }
             const audio = new GameAudio();
             audio.load();
             window.addEventListener("keydown", () => audio.unlock());
@@ -428,6 +466,10 @@
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
             function reiniciarRonda() {
+                if (climb) {
+                    climb.reset(mapSeed());
+                    bots.forEach((bot) => bot.setNav(climb.level));
+                }
                 players.forEach((player, k) => {
                     player.destroy();
                     players[k] = spawnRobot(LEVEL.spawns[k]);
@@ -452,6 +494,7 @@
 
             /** Arranca la partida con la elección actual del menú: bots con su preset, marcador en cero y ronda nueva. */
             function arrancarPartida() {
+                aplicarMapa(menu.choice.map);
                 ponerBots(menu.choice);
                 match.begin();
                 reiniciarRonda();
@@ -554,7 +597,8 @@
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
-                const { minX, maxX, minY } = LEVEL.bounds;
+                const { minX, maxX } = LEVEL.bounds;
+                const minY = climb ? flood.floor : LEVEL.bounds.minY;
                 for (let i = 0; i < count; i++) {
                     const slot = store.slotAt(i);
                     if (slot < 0 || store.alive[slot] === 0) continue;
@@ -587,7 +631,13 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, platforms, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio, bots, input, menu, arrancarPartida };
+                globalThis.game = {
+                    world, platforms, players, particleSystem, water, store, wallContact, damage, emitter, match, immersion, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
+                    get flood() { return flood; },
+                    get pickups() { return pickups; },
+                    get climb() { return climb; },
+                    get map() { return currentMap; },
+                };
             }
 
             function loop(nowMs) {
@@ -683,16 +733,20 @@
                 limpiarParticulas();
                 store.trim(frameDt * 1000, frameDt);
 
-                camera.update(
-                    players.map((p) => {
-                        const pos = p.torso.GetPosition();
-                        return { x: pos.get_x(), y: pos.get_y() };
-                    }),
-                    frameDt,
-                    firstFrame,
-                );
+                const points = players.map((p) => {
+                    const pos = p.torso.GetPosition();
+                    return { x: pos.get_x(), y: pos.get_y() };
+                });
+                if (climb) camera.setBounds(climb.cameraBounds(Math.min(...points.map((p) => p.y))));
+                camera.update(points, frameDt, firstFrame);
                 firstFrame = false;
+                if (climb) {
+                    const { created, destroyed } = climb.update({ top: camera.top, level: flood.level });
+                    if (destroyed > 0) wallContact.invalidate();
+                    if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
+                }
                 const scale = camera.scale;
+                const bottom = camera.y - camera.viewH / (2 * scale);
                 ajustarGoo(scale);
 
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -707,13 +761,13 @@
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
                 camera.apply(pickupCtx);
-                drawLevel(ctx, LEVEL, scale);
-                collectSurfaces(players, LEVEL.solids, SHOT_DRAW.snapReach);
+                drawLevel(ctx, climb ? climb.level : LEVEL, scale);
+                collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, climb ? bottom : 0);
                 drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                 });
-                drawWater(ctx, water, scale);
+                drawWater(ctx, water, scale, climb ? { floor: flood.floor, bottom } : null);
                 drawPickups(pickupCtx, pickups.points, WEAPONS);
                 players.forEach((player, k) => {
                     drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
@@ -746,7 +800,7 @@
                     match,
                     PLAYER_COLORS,
                     WEAPONS,
-                    LEVEL.flood.start,
+                    flood.config.start,
                 );
                 if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
                 requestAnimationFrame(loop);
