@@ -4,7 +4,7 @@ Pelea 1 contra 1 de robots ragdoll que se disparan fluidos SPH, en el navegador.
 
 ## Cómo jugar
 
-Gana la ronda el último robot en pie; la partida es al mejor de 3. Caer a la pileta del centro destruye al robot. A los 60 s de ronda empieza la inundación: llueve desde el techo y el agua sube desde la pileta. El agua es un volumen continuo (un campo de alturas, no gotas): lo que cae en ella se suma y levanta olas, y la lava que cae se hunde despacio. Por ahora el agua no empuja ni sostiene a los robots (la flotación llega en otra tarea): solo los moja. El robot con alguna parte bajo el agua se moja y pierde 3 de vida por segundo (hasta 3 s después de salir), y se ve con un tinte cian. El reloj de ronda y el aviso "Inundación en N" (desde los 50 s) aparecen en el HUD.
+Gana la ronda el último robot en pie; la partida es al mejor de 3. Caer a la pileta del centro destruye al robot. A los 60 s de ronda empieza la inundación: llueve desde el techo y el agua sube desde la pileta. El agua es un volumen continuo (un campo de alturas, no gotas): lo que cae en ella se suma y levanta olas, y la lava que cae se hunde despacio. El agua empuja a cada pieza de los robots (empuje de Arquímedes y arrastre): los robots tienen flotación neutra, así que ni se hunden ni suben solos, y además el agua los moja. El robot con alguna parte bajo el agua se moja y pierde 3 de vida por segundo (hasta 3 s después de salir), y se ve con un tinte cian. El reloj de ronda y el aviso "Inundación en N" (desde los 50 s) aparecen en el HUD.
 
 | | Mover | Saltar | Bajar | Apuntar | Disparar | Golpe | Gancho | Arma |
 |---|---|---|---|---|---|---|---|---|

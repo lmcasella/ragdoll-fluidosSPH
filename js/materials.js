@@ -20,7 +20,14 @@ export const MATERIALS = {
     acid: { SG: 1.05, c: 3850, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
     honey: { SG: 1.42, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
     lava: { SG: 2.6, Cd: 1.2, miscible: false, species: { basalt: 1 } },
+    drag: { box: 2.0, circle: 1.2 },
 };
+
+/**
+ * Constante `k_μ` del término viscoso del arrastre sobre una pieza sumergida, `−k_μ μ b v_r`: el orden del arrastre
+ * de Stokes–Lamb sobre un cilindro sin el factor logarítmico (docs/design/14-agua.md §14.5, aproximación declarada).
+ */
+export const K_MU = 4 * Math.PI;
 
 /**
  * Reacciones diseñadas, hoy ninguna. Cada fila es `{ id, from: { material: kg }, to: { material: kg } }` por kg
