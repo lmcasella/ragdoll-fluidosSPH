@@ -9,10 +9,6 @@ const BURN_DPS = 4;
 // Cortocircuito (agua): falla de todo el robot, por eso no usa el multiplicador por parte
 const WET_TIME = 3;
 const SHORT_CIRCUIT_DPS = 3;
-// Golpe: el clip `punch` carga hasta 0,3 s y pega entre 0,3 y 0,5 s; los rayos solo dañan en esa ventana
-const PUNCH_TIME = 0.55;
-const PUNCH_ACTIVE = [0.3, 0.5];
-const PUNCH_COOLDOWN = 0.6;
 // Pegado (miel, docs/design/04-fluidos.md): factores sobre la velocidad de caminar, el frenado sin input y el
 // salto; `down` es gravedad extra (m/s²) y `grace` los s que dura tras la última cercanía a la miel
 export const STICKY = { speed: 0.1, brake: 0.5, jump: 0.3, down: 10, grace: 0.3 };
@@ -23,14 +19,49 @@ const WALK_FRICTION = 0.85;
 /**
  * Velocidad del clip de caminar: |vx| del torso / `refSpeed`, acotada a [minSpeed, maxSpeed] y suavizada con
  * `smoothing` (fracción del error que se corrige por paso fijo). `refSpeed` (m/s) es el |vx| que el torso sostiene
- * al caminar a `WALK_SPEED` (medido: 4,7; el paso de física y el roce con el piso restan al 6 pedido).
+ * al caminar a `WALK_SPEED` (medido con el rig v5: 5,1; el paso de física y el roce con el piso restan al 6 pedido).
  */
-export const WALK_ANIM = { refSpeed: 4.7, minSpeed: 0.1, maxSpeed: 1.25, smoothing: 0.1 };
+export const WALK_ANIM = { refSpeed: 5.1, minSpeed: 0.1, maxSpeed: 1.25, smoothing: 0.1 };
 
-// rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
-//        aimOffset: ángulo de reposo del arma relativo al padre, clips: { walk, walkBack, jump, dead, punch },
-//        feet: ids de los pies (rayos de piso), gun: { body, muzzle: [x, y] local },
-//        damage: { [bodyId]: multiplicador }, defaultDamage: multiplicador del resto }
+/**
+ * Estados de aire. `deadband` (m/s): por debajo de esa velocidad horizontal relativa a la mira el clip es el neutro.
+ * `fallSpeed` (m/s): velocidad de caída del torso desde la que se trabaja `fallHigh` hasta aterrizar.
+ */
+export const AIR = { deadband: 1.0, fallSpeed: 10 };
+
+/**
+ * Roll. `duration` (s) es el tiempo del estado, con el clip a `clipSpeed`; `speed` (m/s) fija la vx de la raíz;
+ * `cooldown` (s) cuenta desde que termina.
+ */
+export const ROLL = { duration: 0.8, clipSpeed: 1.5, speed: 4, cooldown: 0.5 };
+
+/** Largo (s) de los clips `jump_start` y de las reacciones al golpe. */
+const JUMP_START_TIME = 0.6;
+const REACT_TIME = 0.4;
+
+/** Estados que sueltan los overrides de mira: los brazos los maneja el clip. */
+const BUSY_STATES = new Set([
+    "dead",
+    "ragdoll",
+    "reactSimple",
+    "reactStumble",
+    "roll",
+    "rollBack",
+    "combo1",
+    "combo2",
+    "combo3",
+    "airPunch",
+    "airKick",
+    "block",
+]);
+
+/**
+ * rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
+ *        aimHold: articulaciones de los codos, aimOffset: ángulo de reposo del arma relativo al padre,
+ *        clips: estado → clave de clip, melee: tabla `MELEE` (js/melee.js),
+ *        feet: ids de los pies (rayos de piso), gun: { body, muzzle: [x, y] local },
+ *        damage: { [bodyId]: multiplicador }, defaultDamage: multiplicador del resto }
+ */
 export class ActiveRagdoll {
     constructor(def, physicsWorld, startX, startY, rig, flipX = false) {
         this.world = physicsWorld;
@@ -60,9 +91,21 @@ export class ActiveRagdoll {
         this.drowned = false;
         this.wetTimer = 0; // s restantes de cortocircuito
         this.now = 0;
-        this.punchStart = -Infinity;
-        this.punchReadyAt = 0;
-        this.punchHit = false;
+        this.blockHeld = false;
+        this.attack = null;
+        this.attackStart = -Infinity;
+        this.attackHit = false;
+        this.nextAttack = null;
+        this.meleeReadyAt = 0;
+        this.reactKind = null;
+        this.reactStart = -Infinity;
+        this.rollStart = -Infinity;
+        this.rollReadyAt = 0;
+        this.rollBack = false;
+        this.rollDir = 1;
+        this.fallLatched = false;
+        this.jumpAt = -Infinity;
+        this.lastBlocked = -Infinity;
     }
 
     get dead() {
@@ -77,16 +120,184 @@ export class ActiveRagdoll {
         for (const id of this.rag.bodies.keys()) this.flashes.set(id, now);
     }
 
-    // Inicia un golpe si no está en enfriamiento; el clip `punch` toma los brazos (se sueltan los overrides de mira)
+    get side() {
+        return this.flipX ? -1 : 1;
+    }
+
+    /** Apoyado: `framesGrounded` > 2, el mismo criterio con el que se aterriza. */
+    get grounded() {
+        return this.framesGrounded > 2;
+    }
+
+    /**
+     * Verdadero cuando los brazos los maneja un clip y no la mira: `aim()` no escribe overrides, el emisor ve el
+     * gatillo suelto y el gancho no tira. Incluye el bloqueo pedido aunque el estado entre en el próximo paso.
+     */
+    get armsBusy() {
+        return (
+            this.dead ||
+            this.reacting() ||
+            this.rolling() ||
+            this.attack !== null ||
+            this.clipState === "block" ||
+            (this.blockHeld && this.grounded && !this.isStunned())
+        );
+    }
+
+    get blocking() {
+        return this.clipState === "block";
+    }
+
+    reacting(now = this.now) {
+        return now - this.reactStart < REACT_TIME;
+    }
+
+    rolling(now = this.now) {
+        return now - this.rollStart < ROLL.duration;
+    }
+
+    /**
+     * Registra si `block` está apretado; la raíz de composición lo llama una vez por frame antes de la mira.
+     * @param {boolean} held Intención `block` del jugador.
+     */
+    guard(held) {
+        this.blockHeld = held;
+    }
+
+    /**
+     * Acepta un golpe (`punch`) o patada (`kick`) pedidos en este frame. Apoyado, ambos son `punch`: empieza `combo1`
+     * o deja en espera el siguiente golpe si cae en la ventana de encadenado. En el aire, `airPunch` o `airKick`.
+     * @param {"punch"|"kick"} kind Intención.
+     * @param {number} [now] Reloj de simulación, s.
+     * @returns {boolean} Si el ataque se aceptó.
+     */
+    strike(kind, now = this.now) {
+        const melee = this.rig.melee;
+        if (!melee || this.dead || this.reacting(now) || this.rolling(now) || this.isStunned(now)) return false;
+        if (!this.grounded) {
+            if (this.attack !== null || now < this.meleeReadyAt) return false;
+            this.beginAttack(kind === "kick" ? "airKick" : "airPunch", now);
+            return true;
+        }
+        if (this.blockHeld) return false;
+        if (this.attack !== null) return this.chainAttack(now);
+        if (now < this.meleeReadyAt) return false;
+        this.beginAttack(melee.combo.sequence[0], now);
+        return true;
+    }
+
     punch(now = this.now) {
-        if (this.dead || now < this.punchReadyAt) return false;
-        this.punchStart = now;
-        this.punchReadyAt = now + PUNCH_COOLDOWN;
-        this.punchHit = false;
-        for (const name of [...this.rig.aimJoints, ...(this.rig.aimHold ?? [])]) {
-            this.rag.clearJointOverride(name);
+        return this.strike("punch", now);
+    }
+
+    kick(now = this.now) {
+        return this.strike("kick", now);
+    }
+
+    chainAttack(now) {
+        const { attacks, combo } = this.rig.melee;
+        const index = combo.sequence.indexOf(this.attack);
+        if (index < 0 || index === combo.sequence.length - 1) return false;
+        const row = attacks[this.attack];
+        const t = now - this.attackStart;
+        if (t < row.active[0] || t > row.duration + combo.grace) return false;
+        if (t >= row.duration) {
+            this.beginAttack(combo.sequence[index + 1], now);
+        } else {
+            this.nextAttack = combo.sequence[index + 1];
         }
         return true;
+    }
+
+    beginAttack(name, now) {
+        this.attack = name;
+        this.attackStart = now;
+        this.attackHit = false;
+        this.nextAttack = null;
+        this.enterState(name, 1, true);
+    }
+
+    endAttack(now) {
+        this.attack = null;
+        this.nextAttack = null;
+        this.meleeReadyAt = now + this.rig.melee.combo.cooldown;
+    }
+
+    /** Avanza el ataque en curso: encadena el golpe en espera, o lo corta al vencer su tiempo o al aterrizar. */
+    updateAttack(now) {
+        if (this.attack === null) return;
+        const { attacks, combo } = this.rig.melee;
+        const row = attacks[this.attack];
+        const index = combo.sequence.indexOf(this.attack);
+        const t = now - this.attackStart;
+        const air = index < 0;
+        if (air && this.grounded) {
+            this.endAttack(now);
+        } else if (this.nextAttack !== null && t >= row.duration) {
+            this.beginAttack(this.nextAttack, now);
+        } else if (t >= row.duration + (index >= 0 && index < combo.sequence.length - 1 ? combo.grace : 0)) {
+            this.endAttack(now);
+        }
+    }
+
+    /**
+     * Fila de `MELEE` del ataque en su ventana activa que todavía no conectó, o `null`.
+     * @param {number} [now] Reloj de simulación, s.
+     */
+    activeAttack(now = this.now) {
+        if (this.dead || this.attack === null || this.attackHit) return null;
+        const row = this.rig.melee.attacks[this.attack];
+        const t = now - this.attackStart;
+        return t >= row.active[0] && t <= row.active[1] ? row : null;
+    }
+
+    /**
+     * Velocidad horizontal del paso adelante de un golpe del combo (columna `lunge`, m/s hacia el lado de la mira),
+     * desde el inicio del golpe hasta el fin de su ventana activa; 0 fuera de eso. Mantiene al rival empujado dentro
+     * del alcance para el golpe siguiente.
+     */
+    lungeSpeed(now = this.now) {
+        if (this.attack === null) return 0;
+        const row = this.rig.melee.attacks[this.attack];
+        if (!row.lunge || now - this.attackStart > row.active[1]) return 0;
+        return row.lunge * this.side;
+    }
+
+    /** Marca el ataque en curso como conectado (pegó o fue bloqueado): no vuelve a pegar en esa ventana. */
+    markConnected() {
+        this.attackHit = true;
+    }
+
+    /**
+     * Recibe un golpe melee que conectó: fija la reacción (que corta ataque y roll) con el reloj de simulación.
+     * @param {"simple"|"stumble"} reaction Columna `reaction` del ataque.
+     * @param {number} [now] Reloj de simulación, s.
+     */
+    hit(reaction, now = this.now) {
+        this.reactKind = reaction === "stumble" ? "reactStumble" : "reactSimple";
+        this.reactStart = now;
+        this.attack = null;
+        this.nextAttack = null;
+        if (this.rolling(now)) {
+            this.rollStart = -Infinity;
+            this.rollReadyAt = now + ROLL.cooldown;
+        }
+        if (!this.dead) this.enterState(this.reactKind, 1, true);
+    }
+
+    /** Recibe un golpe melee bloqueado: no cambia de estado, solo deja el instante. */
+    blocked(now = this.now) {
+        this.lastBlocked = now;
+    }
+
+    tryRoll(input, now) {
+        if (this.dead || this.framesGrounded <= 5 || this.isStunned(now) || this.attack !== null) return;
+        if (now < this.rollReadyAt || this.rolling(now) || this.reacting(now)) return;
+        const dir = input.right && !input.left ? 1 : input.left && !input.right ? -1 : this.side;
+        this.rollDir = dir;
+        this.rollBack = dir !== this.side;
+        this.rollStart = now;
+        this.rollReadyAt = now + ROLL.duration + ROLL.cooldown;
     }
 
     // Empuje del robot entero: suma la misma velocidad a todas sus piezas (como el salto). Un impulso
@@ -109,17 +320,10 @@ export class ActiveRagdoll {
         return now < (this.stunnedUntil ?? 0);
     }
 
-    isPunching(now = this.now) {
-        return now - this.punchStart < PUNCH_TIME;
-    }
-
-    // Ventana en la que el golpe puede conectar (una sola vez por golpe)
-    punchActive(now = this.now) {
-        const t = now - this.punchStart;
-        return !this.punchHit && t >= PUNCH_ACTIVE[0] && t <= PUNCH_ACTIVE[1];
-    }
-
-    // Copia el estado de juego desde la instancia anterior (al girar se vuelve a generar el ragdoll)
+    /**
+     * Copia el estado de juego desde la instancia anterior (al girar se vuelve a generar el ragdoll), incluida la
+     * máquina de clips, para que el giro no corte un combo ni una reacción.
+     */
     copyStateFrom(old) {
         this.hp = old.hp;
         this.weapon = old.weapon;
@@ -132,9 +336,23 @@ export class ActiveRagdoll {
         this.wetTimer = old.wetTimer;
         this.aimDir = old.aimDir;
         this.now = old.now;
-        this.punchStart = old.punchStart;
-        this.punchReadyAt = old.punchReadyAt;
-        this.punchHit = old.punchHit;
+        this.clipState = old.clipState;
+        this.blockHeld = old.blockHeld;
+        this.attack = old.attack;
+        this.attackStart = old.attackStart;
+        this.attackHit = old.attackHit;
+        this.nextAttack = old.nextAttack;
+        this.meleeReadyAt = old.meleeReadyAt;
+        this.reactKind = old.reactKind;
+        this.reactStart = old.reactStart;
+        this.rollStart = old.rollStart;
+        this.rollReadyAt = old.rollReadyAt;
+        this.rollBack = old.rollBack;
+        this.rollDir = old.rollDir;
+        this.fallLatched = old.fallLatched;
+        this.jumpAt = old.jumpAt;
+        this.stunnedUntil = old.stunnedUntil;
+        this.lastBlocked = old.lastBlocked;
     }
 
     takeDamage(amount) {
@@ -308,7 +526,7 @@ export class ActiveRagdoll {
      */
     aim(targetX, targetY, now = this.now) {
         this.now = now;
-        if (this.dead || this.isPunching()) return;
+        if (this.dead || this.armsBusy) return;
         const mirror = this.flipX ? -1 : 1;
         const forward = this.flipX ? Math.PI : 0;
         const muzzle = this.muzzle();
@@ -358,22 +576,58 @@ export class ActiveRagdoll {
         this.torso.SetLinearVelocity(this.scratch);
     }
 
-    // La versión actual de RagImporter cambia de clip sin fundido (fadeIn/fadeOut aún no implementados)
-    setClip(state, speed = 1) {
+    /**
+     * Único lugar donde cambia el estado de clips. La versión actual de RagImporter cambia de clip sin fundido.
+     * Al entrar en un estado con los brazos ocupados desde uno de mira, se sueltan los overrides de mira.
+     * @param {string} state Estado (clave de `rig.clips`).
+     * @param {number} [speed] Velocidad del clip.
+     * @param {boolean} [restart] Reinicia el clip aunque ya sea el activo.
+     */
+    enterState(state, speed = 1, restart = false) {
         if (state === this.clipState) {
-            if (state !== null) this.rag.play(this.rig.clips[state], { speed });
+            this.rag.play(this.rig.clips[state], { speed, restart });
             return;
         }
         if (this.clipState !== null) {
             this.rag.stop(this.rig.clips[this.clipState]);
         }
+        if (BUSY_STATES.has(state) && !BUSY_STATES.has(this.clipState)) {
+            for (const name of [...this.rig.aimJoints, ...(this.rig.aimHold ?? [])]) {
+                this.rag.clearJointOverride(name);
+            }
+        }
         this.clipState = state;
-        if (state !== null) this.rag.play(this.rig.clips[state], { speed });
+        this.rag.play(this.rig.clips[state], { speed, restart });
     }
 
-    // Se llama una vez por frame fijo (STEP_SETTINGS.dt), antes de stepWorld.
-    // input: { left, right, up } (ver Input.js); el salto es la dirección arriba
     /**
+     * Estado de clips de este paso, por prioridad (docs/design/03-robots.md §3.7.3). `dead` se resuelve antes.
+     * @param {object} input Estado de `Input`.
+     * @param {number} velX Velocidad horizontal del torso, m/s.
+     * @param {boolean} moving Si el control horizontal está caminando.
+     * @param {boolean} blocking Si el bloqueo está activo.
+     * @param {number} now Reloj de simulación, s.
+     */
+    resolveState(input, velX, moving, blocking, now) {
+        if (this.reacting(now)) return this.reactKind;
+        if (this.rolling(now)) return this.rollBack ? "rollBack" : "roll";
+        if (this.attack !== null) return this.attack;
+        if (blocking) return "block";
+        if (!this.grounded) {
+            if (this.fallLatched) return "fallHigh";
+            if (this.jumping && now - this.jumpAt < JUMP_START_TIME) return "jumpStart";
+            const rel = velX * this.side;
+            if (rel > AIR.deadband) return "airForward";
+            if (rel < -AIR.deadband) return "airBackward";
+            return "air";
+        }
+        if (moving) return this.facing !== this.side ? "walkBack" : "walk";
+        if (input.fire || input.aim || input.pointer) return "aim";
+        return "idle";
+    }
+
+    /**
+     * Se llama una vez por paso fijo (STEP_SETTINGS.dt), antes de stepWorld.
      * @param {object} input Estado de `Input` del jugador.
      * @param {number} [dt] Paso fijo, s.
      * @param {number} [now] Reloj de simulación, s; el golpe y el aturdimiento se miden con él.
@@ -382,9 +636,10 @@ export class ActiveRagdoll {
         this.now = now;
         if (this.dead) {
             if (this.clipState !== "dead") this.rag.clearAllOverrides();
-            this.setClip("dead");
+            this.enterState("dead");
             return;
         }
+        this.blockHeld = input.block ?? this.blockHeld;
 
         const sticky = this.sticky;
         if (sticky) this.pull(STICKY.down * dt);
@@ -400,25 +655,45 @@ export class ActiveRagdoll {
             this.framesGrounded = 0;
         }
 
-        let isMoving = false;
-        if (this.isStunned()) {
-            // Aturdido: sin control horizontal ni frenado; el empuje del golpe actúa libre
-        } else if (input.left && !input.right) {
-            this.setVelocity(-currentSpeed, velY);
-            this.facing = -1;
-            isMoving = true;
-        } else if (input.right && !input.left) {
-            this.setVelocity(currentSpeed, velY);
-            this.facing = 1;
-            isMoving = true;
-        } else {
-            const friction = sticky ? STICKY.brake : WALK_FRICTION;
-            this.setVelocity(velX * friction, velY);
+        if (input.roll) this.tryRoll(input, now);
+        this.updateAttack(now);
+        const rolling = this.rolling(now);
+        const blocking =
+            this.blockHeld &&
+            this.grounded &&
+            !this.isStunned(now) &&
+            !rolling &&
+            !this.reacting(now) &&
+            this.attack === null;
+
+        if (this.grounded) {
+            this.fallLatched = false;
+        } else if (velY < -AIR.fallSpeed) {
+            this.fallLatched = true;
         }
 
-        // Y hacia arriba: el salto es velocidad positiva
+        let isMoving = false;
+        const lunge = this.lungeSpeed(now);
+        if (rolling) {
+            this.setVelocity(ROLL.speed * this.rollDir * (sticky ? STICKY.speed : 1), velY);
+        } else if (lunge !== 0 && this.grounded) {
+            this.setVelocity(lunge * (sticky ? STICKY.speed : 1), velY);
+        } else if (!this.isStunned(now)) {
+            if (!blocking && input.left && !input.right) {
+                this.setVelocity(-currentSpeed, velY);
+                this.facing = -1;
+                isMoving = true;
+            } else if (!blocking && input.right && !input.left) {
+                this.setVelocity(currentSpeed, velY);
+                this.facing = 1;
+                isMoving = true;
+            } else {
+                const friction = sticky ? STICKY.brake : WALK_FRICTION;
+                this.setVelocity(velX * friction, velY);
+            }
+        }
+
         if (input.jump && this.framesGrounded > 5 && !this.isStunned()) {
-            // Se aplica a todos los cuerpos: con solo la raíz, el resto del rig frena el salto
             const jumpPower = sticky ? JUMP_SPEED * STICKY.jump : JUMP_SPEED;
             for (const body of this.rag.bodies.values()) {
                 this.scratch.set_x(body.GetLinearVelocity().get_x());
@@ -427,24 +702,20 @@ export class ActiveRagdoll {
             }
             this.framesGrounded = 0;
             this.jumping = true;
+            this.jumpAt = now;
         } else if (this.framesGrounded > 2) {
             this.jumping = false;
         }
 
-        if (this.isPunching() && this.rig.clips.punch) {
-            this.setClip("punch");
-        } else if (this.jumping) {
-            this.setClip("jump");
-        } else if (isMoving) {
-            // Caminar en contra de hacia donde mira (apunta) reproduce el clip en reversa
-            const backwards = this.facing !== (this.flipX ? -1 : 1);
+        const state = this.resolveState(input, velX, isMoving, blocking, now);
+        if (state === "walk" || state === "walkBack") {
             const target = Math.min(WALK_ANIM.maxSpeed, Math.max(WALK_ANIM.minSpeed, Math.abs(velX) / WALK_ANIM.refSpeed));
             this.animSpeed = this.clipState === "walk" || this.clipState === "walkBack"
                 ? this.animSpeed + (target - this.animSpeed) * WALK_ANIM.smoothing
                 : target;
-            this.setClip(backwards && this.rig.clips.walkBack ? "walkBack" : "walk", this.animSpeed);
+            this.enterState(state, this.animSpeed);
         } else {
-            this.setClip(null);
+            this.enterState(state, state === "roll" || state === "rollBack" ? ROLL.clipSpeed : 1);
         }
     }
 

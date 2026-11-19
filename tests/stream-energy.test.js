@@ -10,6 +10,8 @@ const NEAR = 2;
 const MAX_JUMP = 0.03;
 const MIN_ENERGY = 1;
 const SECONDS = 6;
+/** Frames con la mira quieta antes de disparar: el robot asienta la pose `aim` en ~1 s y la boca deja de moverse. */
+const AIM_SETTLE_FRAMES = 90;
 
 /**
  * Agua 6 s con la mira quieta. `skip(f)` es el salto de reloj antes del frame f. Devuelve la mayor suba relativa de
@@ -43,6 +45,8 @@ async function measure(skip, frames) {
         return made;
     };
 
+    game.setPad(0, { axes: [0, 0, 1, 0] });
+    game.frames(AIM_SETTLE_FRAMES);
     game.setPad(0, { buttons: [RT], axes: [0, 0, 1, 0] });
     const player = players[0];
     const water = player.weapon;

@@ -176,26 +176,50 @@ export function drawAimLaser(ctx, laser, color, scale) {
     }
 }
 
-// Impacto del golpe: un destello blanco que se agranda y se apaga en HIT_TIME
-const HIT_TIME = 0.2;
+/**
+ * Feedback de golpes melee, en metros y segundos. `hit`: un círculo blanco que se agranda (de `radius` a
+ * `radius + grow`) y se apaga en `time`. `block`: `rays` líneas radiales que salen del contacto, de `from` a `to`,
+ * en blanco azulado.
+ */
+export const HIT_FX = {
+    hit: { time: 0.2, radius: 0.15, grow: 0.4, color: "#ffffff", width: 3 },
+    block: { time: 0.25, rays: 6, from: 0.15, to: 0.45, color: "#bfe0ff", width: 2.5 },
+};
 
+/**
+ * Dibuja los eventos `{ x, y, time, kind }` de `Melee.hits` y descarta los vencidos.
+ * @param {CanvasRenderingContext2D} ctx Contexto con la cámara aplicada.
+ * @param {object[]} hits Eventos; `kind` es `"hit"` o `"block"`.
+ * @param {number} scale Píxeles por metro.
+ * @param {number} now Reloj de simulación, s.
+ */
 export function drawHits(ctx, hits, scale, now) {
     for (let i = hits.length - 1; i >= 0; i--) {
-        const k = (now - hits[i].time) / HIT_TIME;
+        const fx = HIT_FX[hits[i].kind] ?? HIT_FX.hit;
+        const k = (now - hits[i].time) / fx.time;
         if (k >= 1) {
             hits.splice(i, 1);
             continue;
         }
         ctx.globalAlpha = 1 - k;
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 3 / scale;
+        ctx.strokeStyle = fx.color;
+        ctx.lineWidth = fx.width / scale;
         ctx.beginPath();
-        ctx.arc(hits[i].x, hits[i].y, 0.15 + k * 0.4, 0, Math.PI * 2);
+        if (fx.rays) {
+            const from = fx.from;
+            const to = fx.from + (fx.to - fx.from) * k;
+            for (let r = 0; r < fx.rays; r++) {
+                const angle = (r / fx.rays) * Math.PI * 2;
+                ctx.moveTo(hits[i].x + Math.cos(angle) * from, hits[i].y + Math.sin(angle) * from);
+                ctx.lineTo(hits[i].x + Math.cos(angle) * to, hits[i].y + Math.sin(angle) * to);
+            }
+        } else {
+            ctx.arc(hits[i].x, hits[i].y, fx.radius + k * fx.grow, 0, Math.PI * 2);
+        }
         ctx.stroke();
     }
     ctx.globalAlpha = 1;
 }
-
 const TANK_BAR = { width: 180, height: 10 };
 
 // HUD en pantalla (sin cámara): vida, arma, tanque y rondas ganadas por jugador; cartel central entre rondas.

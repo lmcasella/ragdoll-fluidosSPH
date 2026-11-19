@@ -98,7 +98,7 @@
             </p>
             <p>
                 <span class="highlight">Teclado J2</span> ←/→ · ↑ · Enter ·
-                Shift der. golpe · Num 1-4
+                Num 5 golpe · Num − bloqueo · Num 1-4
             </p>
             <p>Caer a la pileta = robot destruido · Al mejor de 3 rondas</p>
         </div>
@@ -123,6 +123,7 @@
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
             import { Match } from "./js/round.js";
+            import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip, withoutJointTracks } from "./js/clips.js";
             import { DamageSystem } from "./js/damage.js";
@@ -163,10 +164,19 @@
                 return { json, def: RagImporter.parse(json) };
             }
 
-            const AIM_JOINTS = ["joint_11", "joint_11_copy"];
-            const AIM_HOLD = ["joint_10", "joint_10_copy"];
+            const AIM_JOINTS = ["back_shoulder", "front_shoulder"];
+            const AIM_HOLD = ["back_elbow", "front_elbow"];
+            const AIM_FREE_CLIPS = ["jump_start", "air", "air_forward", "air_backward", "fall_high", "idle", "aim"];
             const robotRag = await loadRag("./assets/robot.rag.json", (json) =>
-                withReversedClip(withoutJointTracks(json, ["jump"], [...AIM_JOINTS, ...AIM_HOLD]), "walk", "walk_back"),
+                withReversedClip(
+                    withReversedClip(
+                        withoutJointTracks(json, AIM_FREE_CLIPS, [...AIM_JOINTS, ...AIM_HOLD]),
+                        "walk",
+                        "walk_back",
+                    ),
+                    "roll",
+                    "roll_back",
+                ),
             );
             const ROBOT_RIG = {
                 rootBody: robotRag.json.ragdoll.rootBody,
@@ -174,12 +184,29 @@
                 aimHold: AIM_HOLD,
                 aimOffset: 0,
                 clips: {
+                    idle: "idle",
+                    aim: "aim",
                     walk: "walk",
                     walkBack: "walk_back",
-                    jump: "jump",
+                    jumpStart: "jump_start",
+                    air: "air",
+                    airForward: "air_forward",
+                    airBackward: "air_backward",
+                    fallHigh: "fall_high",
+                    block: "block",
+                    roll: "roll",
+                    rollBack: "roll_back",
+                    combo1: "punch_combo1",
+                    combo2: "punch_combo2",
+                    combo3: "punch_combo3",
+                    airPunch: "air_punch",
+                    airKick: "air_kick",
+                    reactSimple: "melee_react_simple",
+                    reactStumble: "melee_react_stumble",
                     dead: "dead",
-                    punch: "punch",
                 },
+                arms: ["b_3", "b_13", "b_14", "b_15"],
+                melee: MELEE,
                 feet: ["b_4", "b_16"],
                 gun: { body: "b_3", muzzle: [0.33, 0.035] },
                 damage: { b_1: 1.5, b_2: 1, b_6: 1 },
@@ -281,6 +308,7 @@
             damage.killSensors = killSensors;
             damage.register(players);
             const emitter = new ShotEmitter(store, damage, WEAPONS, raycaster);
+            const melee = new Melee(raycaster, damage);
             const match = new Match(players.length);
             const water = new ShallowWater();
             const flood = new Flood(store, water);
@@ -298,63 +326,11 @@
                 flood.reset();
                 immersion.reset();
                 emitter.reset();
+                melee.reset();
                 damage.resetShots();
                 store.reset();
                 accumulator = 0;
                 firstFrame = true;
-            }
-
-            // Golpe melee: 3 rayos en abanico desde el hombro en la dirección de la mira, durante la
-            // ventana activa del clip. El primer cuerpo rival que tocan recibe daño e impulso en ese punto.
-            const PUNCH_REACH = 1.1;
-            const PUNCH_SPREAD = 0.3;
-            const PUNCH_DAMAGE = 8;
-            const PUNCH_IMPULSE = 5; // a la parte golpeada (N·s)
-            const PUNCH_PUSH_SPEED = 4.5; // m/s sumados a todo el robot golpeado
-            const PUNCH_LIFT_SPEED = 3; // m/s hacia arriba: lo despega del piso
-            const PUNCH_STUN = 0.4; // s sin control para el golpeado
-            const punchImpulse = new Box2D.b2Vec2(0, 0);
-            const punchPoint = new Box2D.b2Vec2(0, 0);
-            const golpes = [];
-
-            function golpear(k, now) {
-                const player = players[k];
-                if (player.dead || !player.punchActive(now)) return;
-                const anchor = player.rag.joint(ROBOT_RIG.aimJoints[0]).GetAnchorA();
-                const ax = anchor.get_x();
-                const ay = anchor.get_y();
-                const base = Math.atan2(player.aimDir.y, player.aimDir.x);
-                for (const spread of [0, -PUNCH_SPREAD, PUNCH_SPREAD]) {
-                    const dx = Math.cos(base + spread);
-                    const dy = Math.sin(base + spread);
-                    const hit = raycaster.cast(
-                        ax,
-                        ay,
-                        ax + dx * PUNCH_REACH,
-                        ay + dy * PUNCH_REACH,
-                        player.ownBodies,
-                    );
-                    if (!hit) continue;
-                    const owner = damage.ownerOf(hit.bodyPtr);
-                    if (!owner || owner.index === k) continue;
-                    const victim = owner.player;
-                    victim.hurt(owner.bodyId, PUNCH_DAMAGE, now);
-                    victim.stun(PUNCH_STUN, now);
-                    punchImpulse.set_x(dx * PUNCH_IMPULSE);
-                    punchImpulse.set_y(dy * PUNCH_IMPULSE);
-                    punchPoint.set_x(hit.x);
-                    punchPoint.set_y(hit.y);
-                    victim.rag.bodies
-                        .get(owner.bodyId)
-                        .ApplyLinearImpulse(punchImpulse, punchPoint, true);
-                    victim.knockback(
-                        (Math.sign(dx) || 1) * PUNCH_PUSH_SPEED,
-                        PUNCH_LIFT_SPEED,
-                    );
-                    player.punchHit = true;
-                    golpes.push({ x: hit.x, y: hit.y, time: now });
-                    return;
-                }
             }
 
             // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
@@ -492,7 +468,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion };
+                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, melee };
             }
 
             function loop(nowMs) {
@@ -500,7 +476,8 @@
                 lastTime = nowMs;
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
-                    if (s.jump || s.drop) jumpPending[k] = true;
+                    if (s.roll) jumpPending[k] = "roll";
+                    else if ((s.jump || s.drop) && jumpPending[k] !== "roll") jumpPending[k] = "jump";
                 });
                 raycaster.count = 0;
 
@@ -513,10 +490,11 @@
 
                 players.forEach((player, k) => {
                     const state = inputs[k];
+                    player.guard(state.block);
                     actualizarMira(player, state, k, now);
 
                     const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
-                    if (!player.dead && player.flipX !== wantsFlipX) {
+                    if (!player.dead && !player.rolling(now) && player.flipX !== wantsFlipX) {
                         girar(k, wantsFlipX);
                         actualizarMira(players[k], state, k, now);
                     }
@@ -528,11 +506,11 @@
                     }
                     if (state.weaponStep) cycleWeapon(player, state.weaponStep);
                     if (state.punch) player.punch(now);
-                    // Con golpe en curso el emisor ve el botón suelto: al terminar, el chorro arranca como una pulsación nueva
+                    if (state.kick) player.kick(now);
                     emitter.fire(
                         k,
                         player,
-                        state.fire && match.state === "playing" && !player.isPunching(now),
+                        state.fire && match.state === "playing" && !player.armsBusy,
                         stepsLastFrame * STEP_SETTINGS.dt,
                         now,
                     );
@@ -542,7 +520,8 @@
                 while (accumulator >= STEP_SETTINGS.dt) {
                     stepsLastFrame++;
                     players.forEach((player, k) => {
-                        inputs[k].jump = jumpPending[k];
+                        inputs[k].jump = jumpPending[k] === "jump";
+                        inputs[k].roll = jumpPending[k] === "roll";
                         jumpPending[k] = false;
                         player.move(inputs[k], STEP_SETTINGS.dt, now);
                         if (!match.hazardsActive) player.dry();
@@ -557,7 +536,7 @@
                         now,
                         match.hazardsActive ? wetSurface : -Infinity,
                     );
-                    players.forEach((player, k) => golpear(k, now));
+                    melee.resolve(players, now);
                     accumulator -= STEP_SETTINGS.dt;
                 }
                 limpiarParticulas();
@@ -592,7 +571,7 @@
                     drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
                 drawWater(ctx, water, scale);
-                drawHits(ctx, golpes, scale, now);
+                drawHits(ctx, melee.hits, scale, now);
 
                 drawHud(
                     ctx,

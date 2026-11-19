@@ -27,11 +27,13 @@ async function jumpWithAim(aim, { walk = false } = {}) {
     const startY = game.state.players[0].torso.GetPosition().get_y();
     const errors = [];
     let maxY = startY;
+    let jumpStartFrame = -1;
     for (let f = 0; f < 150; f++) {
         const jumping = f >= 10 && f < 12;
         game.setPad(0, { buttons: jumping ? [0] : [], axes: right });
         game.frame();
         const player = game.state.players[0];
+        if (jumpStartFrame < 0 && player.clipState === "jumpStart") jumpStartFrame = f;
         maxY = Math.max(maxY, player.torso.GetPosition().get_y());
         if (!player.jumping) continue;
         const muzzle = player.muzzle();
@@ -43,6 +45,7 @@ async function jumpWithAim(aim, { walk = false } = {}) {
         max: Math.max(...errors),
         mean: errors.reduce((a, b) => a + b, 0) / errors.length,
         rise: maxY - startY,
+        jumpStartFrame,
     };
 }
 
@@ -52,9 +55,12 @@ for (const [name, aim, walk] of [
     ["al costado y abajo caminando", [1, -0.5], true],
     ["al costado, hacia el otro lado", [-1, -0.5], false],
     ["arriba", [0.3, 1], false],
+    ["casi vertical hacia abajo", [0.3, -1], false],
 ]) {
-    test(`el cañón sigue a la mira durante el salto: ${name}`, async () => {
+    test(`el cañón sigue a la mira durante el salto: ${name}`, async (t) => {
         const result = await jumpWithAim(aim, { walk });
+        t.diagnostic(`R2 ${name}: subida ${result.rise.toFixed(2)} m, error máx ${result.max.toFixed(1)}°, medio ${result.mean.toFixed(1)}°, jumpStart en el frame ${result.jumpStartFrame}`);
+        assert.equal(result.jumpStartFrame, 10, "jumpStart en el paso del salto");
         assert.ok(result.frames > 90, `el salto dura ${result.frames} pasos`);
         assert.ok(result.max <= MAX_ERROR, `error máximo ${result.max.toFixed(1)}°`);
         assert.ok(result.mean <= MEAN_ERROR, `error medio ${result.mean.toFixed(1)}°`);
@@ -80,12 +86,12 @@ test("withoutJointTracks quita las pistas de las articulaciones pedidas solo en 
     assert.equal(json.clips[0].tracks.length, 3, "el original no se modifica");
 });
 
-test("el clip jump del robot ya no lleva pistas en la cadena del arma", async () => {
+test("el clip jump_start del robot ya no lleva pistas en la cadena del arma", async () => {
     const rig = JSON.parse(readFileSync(new URL("../assets/robot.rag.json", import.meta.url), "utf8"));
-    const names = ["joint_10", "joint_10_copy", "joint_11", "joint_11_copy"];
+    const names = ["back_elbow", "front_elbow", "back_shoulder", "front_shoulder"];
     const ids = new Set(rig.joints.filter((j) => names.includes(j.name)).map((j) => j.id));
-    const clean = withoutJointTracks(rig, ["jump"], names);
-    const jump = clean.clips.find((c) => c.key === "jump");
+    const clean = withoutJointTracks(rig, ["jump_start"], names);
+    const jump = clean.clips.find((c) => c.key === "jump_start");
     assert.ok(jump.tracks.length > 0);
     assert.ok(jump.tracks.every((t) => !ids.has(t.target)));
 });
