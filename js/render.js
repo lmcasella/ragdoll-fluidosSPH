@@ -621,7 +621,7 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
  * llamada y se reutilizan.
  */
 export function waterOutline(water, out) {
-    const { N, dx, x0, b, h } = water;
+    const { N, i1, dx, x0, b, h } = water;
     const wet = water.config.hDry;
     if (!out.xs || out.xs.length < 4 * N + 4) {
         out.xs = new Float64Array(4 * N + 4);
@@ -633,14 +633,14 @@ export function waterOutline(water, out) {
     const { xs, ys } = out;
     let count = 0;
     let v = 0;
-    let i = 0;
-    while (i < N) {
+    let i = water.i0;
+    while (i < i1) {
         if (h[i] <= wet) {
             i++;
             continue;
         }
         let end = i;
-        while (end + 1 < N && h[end + 1] > wet) end++;
+        while (end + 1 < i1 && h[end + 1] > wet) end++;
         const left = x0 + i * dx;
         const right = x0 + (end + 1) * dx;
         const first = v;
@@ -717,12 +717,20 @@ function tintedFill(ctx, water, left, right, step) {
  * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los tramos con ácido se rellenan con
  * un degradado horizontal de `fieldColor`, con una parada cada `draw.colorStep` celdas y en las dos caras; la
  * geometría no cambia. Los datos de dibujo son `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
+ * `deep` (opcional, `{ floor, bottom }` en metros): con `floor > 0` pinta además un rectángulo del color del agua entre las
+ * caras del span, de `floor` a `bottom` (borde inferior de la cámara), para que no se vea el fondo efectivo.
  */
-export function drawWater(ctx, water, scale) {
+export function drawWater(ctx, water, scale, deep = null) {
     const { alpha, color, lineColor, lineWidth, colorStep } = water.config.draw;
     waterOutline(water, outline);
     const { xs, ys } = outline;
     const flat = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    if (deep && deep.floor > 0 && deep.bottom < deep.floor) {
+        const left = water.x0 + water.i0 * water.dx;
+        ctx.fillStyle = flat;
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(left, deep.bottom, (water.i1 - water.i0) * water.dx, deep.floor - deep.bottom);
+    }
     ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
     ctx.lineWidth = lineWidth / scale;
     ctx.lineJoin = "round";

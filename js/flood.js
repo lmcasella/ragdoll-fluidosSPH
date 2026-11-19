@@ -1,6 +1,7 @@
 import { LEVEL } from "./level.js";
 import { FLUID } from "./weapons.js";
 import { ORIGIN } from "./particleStore.js";
+import { CLIMB, halfWidth, stageOf } from "./climb.js";
 
 /** Paso (m) de integración del ancho libre. */
 const SLICE = 0.05;
@@ -190,4 +191,62 @@ export class Flood {
         Box2D.destroy(this.velocity);
         Box2D.destroy(this.color);
     }
+}
+
+/**
+ * Inundación del ascenso infinito (docs/design/16-ascenso.md §16.5): el agua sube sin techo, solo en el campo de alturas
+ * (JS puro, no crea partículas ni llueve). La curva `η*` vale `pool.surface` hasta `flood.start` y después sube
+ * `v = speed + perStage · etapa(η*)` m/s. Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
+ * al ancho de la etapa, sube el fondo efectivo (`floor`, a `depth` m bajo `η*`) y suma `v · dt` a las columnas bajo `η*`.
+ * Misma interfaz que `Flood`: `active`, `level`, `config.start`, `step`, `reset` y `dispose`.
+ */
+export class RisingFlood {
+    constructor(water, level = LEVEL, climb = CLIMB) {
+        this.water = water;
+        this.data = level;
+        this.climb = climb;
+        this.config = climb.flood;
+        this.eta = level.pool.surface;
+        this.roundTime = 0;
+        this.speed = 0;
+    }
+
+    get active() {
+        return this.roundTime >= this.config.start;
+    }
+
+    /** Nivel de la curva (m); -Infinity antes de que empiece la inundación. */
+    get level() {
+        return this.active ? this.eta : -Infinity;
+    }
+
+    /** Fondo efectivo del campo (m): `max(0, η* − depth)`. */
+    get floor() {
+        return Math.max(0, this.eta - this.config.depth);
+    }
+
+    /** Velocidad de subida (m/s) a la altura actual. */
+    get riseSpeed() {
+        return this.config.speed + this.config.perStage * stageOf(this.eta, this.climb);
+    }
+
+    /** Avanza la curva y el campo un paso fijo `dt`. */
+    step(roundTime, dt) {
+        this.roundTime = roundTime;
+        const dh = this.active ? this.riseSpeed * dt : 0;
+        this.eta += dh;
+        const half = halfWidth(stageOf(this.eta, this.climb), this.climb);
+        this.water.setSpan(this.climb.centerX - half, this.climb.centerX + half);
+        this.water.raiseFloor(this.floor);
+        if (dh > 0) this.water.rise(dh, this.eta);
+    }
+
+    /** Deja el agua como al empezar. */
+    reset() {
+        this.water.reset();
+        this.eta = this.data.pool.surface;
+        this.roundTime = 0;
+    }
+
+    dispose() {}
 }
