@@ -24,8 +24,8 @@ test("mantener RT 1 s emite el caudal del agua y el tanque baja lo mismo", async
     game.frames(60);
     const grown = particleSystem.GetParticleCount() - before;
     const spent = full - tank(game);
-    console.log(`1 s de RT: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 200)`);
-    assert.ok(Math.abs(spent - (1 + 200 * 59 / 60)) <= 2, `tanque -${spent}`);
+    console.log(`1 s de RT: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 155)`);
+    assert.ok(Math.abs(spent - (1 + 155 * 59 / 60)) <= 2, `tanque -${spent}`);
     assert.ok(grown <= spent && grown >= spent - 3, `creció ${grown}`);
     assert.equal(players[0].tanks.get(2), 180, "el resto del inventario conserva lo suyo");
     assert.equal(players[1].tanks.get(4), 600, "el otro jugador no disparó");
@@ -35,7 +35,7 @@ test("mantener hasta vaciar: el tanque llega a 0 y deja de emitir", async () => 
     const game = await start();
     const { damage } = game.state;
     game.setPad(0, { buttons: [RT] });
-    game.frames(200);
+    game.frames(260);
     assert.equal(tank(game), 0);
     const shotsOpened = damage.nextShot;
     game.frames(60);
@@ -47,7 +47,7 @@ test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma
     const game = await start();
     const { players, damage } = game.state;
     game.setPad(0, { buttons: [RT] });
-    game.frames(200);
+    game.frames(260);
     game.setPad(0);
     game.frames(2);
     const opened = damage.nextShot;

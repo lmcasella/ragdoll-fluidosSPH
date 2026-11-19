@@ -40,9 +40,9 @@ export const PERSIST_MAX = 1200;
  * PERSIST_MAX.
  */
 export const WEAPONS = [
-    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 200, speed: 14, spread: 0.035, tank: 600, dps: 0, lanes: 2 },
-    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 180, speed: 14, spread: 0.035, tank: 272, dps: 20, lanes: 2 },
-    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 120, speed: 10, spread: 0.017, tank: 180, dps: 12, lanes: 2 },
+    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 155, speed: 14, spread: 0.035, tank: 600, dps: 0, lanes: 1 },
+    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 155, speed: 14, spread: 0.035, tank: 272, dps: 20, lanes: 1 },
+    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 111, speed: 10, spread: 0.017, tank: 180, dps: 12, lanes: 1 },
     { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 100, speed: 18, spread: 0.017, tank: 152, dps: 0, lanes: 1, persist: true },
 ];
 

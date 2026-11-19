@@ -41,7 +41,7 @@ test("el agua de J1 moja a J2, le baja ~3/s y J1 no se moja", async () => {
     console.log(`J2 mojado=${p2.wet}, vida ${hpMid.toFixed(2)} -> ${p2.hp.toFixed(2)} en 0,5 s (${rate.toFixed(2)}/s), J1 mojado=${p1.wet}, tanque J1=${p1.tanks.get(4)}, tanque J2=${p2.tanks.get(4)}, roundTime=${match.roundTime.toFixed(1)}`);
     assert.ok(Math.abs(rate - 3) <= 0.4, `ritmo ${rate}/s`);
     assert.ok(!p1.wet, "J1 no se moja");
-    assert.ok(Math.abs(p1.tanks.get(4) - (600 - 200)) <= 4, `tanque ${p1.tanks.get(4)}`);
+    assert.ok(Math.abs(p1.tanks.get(4) - (600 - 155)) <= 4, `tanque ${p1.tanks.get(4)}`);
     assert.equal(p2.tanks.get(4), 600, "J2 no disparó");
 });
 
