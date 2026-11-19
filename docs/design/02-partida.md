@@ -11,7 +11,7 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
    Si los dos caen a la vez, es empate y nadie suma.
 3. **Partida** ✅: al mejor de 3 (gana quien llega a 2). El cartel final ofrece **revancha** con disparar (A / RT, Espacio, Enter). El HUD muestra las victorias como puntos y el número de ronda.
 4. **Loop cerrado sin recargar** #102:
-   - **Título:** el juego arranca en el estado `title`, con los robots quietos en sus puntos de aparición y un cartel "RAGDOLL FLUIDOS", con el subtítulo "A / Start / Enter para empezar". La partida la inicia el menú principal (abajo): `Match.begin()`.
+   - **Título:** el juego arranca en el estado `title`, con los robots quietos en sus puntos de aparición y un cartel "WATERBOTS", con el subtítulo "A / Start / Enter para empezar". La partida la inicia el menú principal (abajo): `Match.begin()`.
    - **Cuenta regresiva:** antes de cada ronda, la primera incluida, hay 3 s en el estado `countdown` con el cartel "3", "2", "1". Sin movimiento, disparos, golpes ni peligros, y `roundTime` no avanza. Al pasar a `playing` se muestra "¡YA!" durante 0,6 s.
    - **Fin de partida:** el cartel muestra el marcador ("2 – 1") y "A revancha · Start menú". Durante el primer segundo se ignoran los botones, para que nadie pida la revancha sin querer. La revancha pasa a `countdown`; Start vuelve a `title`.
    - **Teclado de respaldo** para `start`: Escape (cualquiera de los dos jugadores). En el gamepad es el botón 9 (Start) del mapeo standard.

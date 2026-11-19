@@ -23,7 +23,7 @@ test("el juego arranca en el título, con los controles apagados", () => {
     assert.equal(match.state, "title");
     assert.equal(match.controlsActive, false);
     assert.equal(match.hazardsActive, false);
-    assert.equal(match.banner.title, "RAGDOLL FLUIDOS");
+    assert.equal(match.banner.title, "WATERBOTS");
     assert.equal(match.update([alive, alive], [], 5), null);
     assert.equal(match.state, "title");
 });

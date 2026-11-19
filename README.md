@@ -1,6 +1,6 @@
-# ragdoll-fluidosSPH
+# Waterbots
 
-Pelea 1 contra 1 de robots ragdoll que se disparan fluidos SPH, en el navegador. Proyecto de Simulación 1 (UNAHUR): Box2D (LiquidFun), SPH y raycast.
+**Waterbots**: pelea 1 contra 1 de robots ragdoll que se disparan fluidos SPH, en el navegador. Proyecto de Simulación 1 (UNAHUR): Box2D (LiquidFun), SPH y raycast.
 
 ## Cómo jugar
 
