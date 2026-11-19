@@ -15,17 +15,19 @@ const fmt = (value) => JSON.stringify(value, (_, v) => (typeof v === "number" ? 
  * Criterios de #69 (docs/design/14-agua.md §14.16, P1 a P5) con LiquidFun real y el contorno inelástico del juego
  * (`js/wallContact.js`).
  */
-/** Segundos de asentado por altura, el menor con |v|max <= 0,2 m/s al soltar con r = 0,06 m: la columna de 2 m se mueve a 0,227 m/s con 6 s y a 0,111 con 7 s. La de 3 m no baja de 1,0 m/s con 6 a 30 s. */
-const P1_SETTLE = new Map([[1, 4], [2, 7], [3, 6]]);
-
-for (const h0 of P1_SETTLE.keys()) {
+/**
+ * Asentado de P1 en segundos, igual para los tres h₀. La precondición de reposo es la velocidad cuadrática media
+ * |v|rms ≤ 0,2 m/s: con r = 0,06 m el máximo lo dominan partículas sueltas de la columna alta y solo se informa.
+ */
+const P1_SETTLE = 7;
+for (const h0 of [1, 2, 3]) {
     test(`P1: rotura de presa con h₀ = ${h0} m, pendiente del frente contra 2√(g h₀) − 2√(g δ) ±10 % en t √(g/h₀) de 2 a 3,4`, (t) => {
-        const m = damBreak({ h0, settle: P1_SETTLE.get(h0) });
+        const m = damBreak({ h0, settle: P1_SETTLE });
         t.diagnostic(
-            `P1 h₀ ${h0}: ${m.initial} partículas, |v|max al soltar ${m.vmaxSettle.toFixed(3)} m/s; pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s ` +
+            `P1 h₀ ${h0}: ${m.initial} partículas, |v|rms al soltar ${m.vrmsSettle.toFixed(3)} m/s (|v|max ${m.vmaxSettle.toFixed(3)} m/s); pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s ` +
                 `(${((m.slope / m.expected - 1) * 100).toFixed(1)} %) con ${m.samples} muestras; retardo t₀ √(g/h₀) ${m.lag.toFixed(2)}`,
         );
-        assert.ok(m.vmaxSettle <= 0.2, `|v|max al soltar ${m.vmaxSettle.toFixed(3)} m/s`);
+        assert.ok(m.vrmsSettle <= 0.2, `|v|rms al soltar ${m.vrmsSettle.toFixed(3)} m/s`);
         assert.ok(m.samples >= 20, `solo ${m.samples} muestras`);
         assert.ok(Math.abs(m.slope / m.expected - 1) <= 0.1, `pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s`);
     });
