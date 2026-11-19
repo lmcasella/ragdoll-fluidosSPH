@@ -148,9 +148,10 @@ test("las n partículas de un frame se reparten sobre el tramo recorrido, separa
     assert.equal(emitter.fire(0, player, true, 0.25, 2), 8);
     const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
     const step = 14 / 155;
+    const credit = 0.25 * 155 - 38;
     for (let j = 0; j < 8; j++) {
         const x = Box2D.HEAPF32[pos + 2 * (1 + j)];
-        assert.ok(Math.abs(x - (SHOT_SYSTEM.radius + 0.05 + step * (7 - j))) < 1e-5, `partícula ${j}: x=${x}`);
+        assert.ok(Math.abs(x - (SHOT_SYSTEM.radius + 0.05 + step * (credit + 7 - j))) < 1e-5, `partícula ${j}: x=${x}`);
     }
 });
 
