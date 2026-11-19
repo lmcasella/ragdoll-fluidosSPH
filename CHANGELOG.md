@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-11-19
+
+### Added
+- Referencias de estudio en `docs/referencias.md`: matemáticos, conceptos y algoritmos usados y descartados, con dónde se usan.
+
 ## [0.15.2] - 2026-11-19
 
 ### Changed
