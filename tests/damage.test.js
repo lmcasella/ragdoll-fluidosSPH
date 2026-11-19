@@ -115,13 +115,13 @@ test("el ácido daña particleDamage(ácido) por partícula y la consume", () =>
     assert.deepEqual(destroyed, [7]);
     assert.equal(hurts.length, 1);
     assert.equal(hurts[0].amount, particleDamage(weaponById(FLUID.ACID)));
-    assert.ok(Math.abs(hurts[0].amount - 20 / 45) < 1e-12);
+    assert.ok(Math.abs(hurts[0].amount - 20 / 180) < 1e-12);
 });
 
 test("el chorro entero de ácido sobre el rival saca el DPS de la tabla", () => {
     const { damage, hit, hurts } = setup();
-    for (let i = 0; i < 45; i++) {
-        const t = 10 + i / 45;
+    for (let i = 0; i < 180; i++) {
+        const t = 10 + i / 180;
         hit(1, t, i);
         damage.process(t);
     }

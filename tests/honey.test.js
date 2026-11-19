@@ -202,7 +202,7 @@ test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el 
 });
 
 // J2 a 3 m de J1 (J1 mira a la derecha y J2 a la izquierda); los dos disparan a la vez
-test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s; a los 8 s sigue toda la miel y nada del ácido", async () => {
+test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s; a los 8 s la miel se conserva y nada del ácido", async () => {
     const game = await start();
     const { players, damage } = game.state;
     shift(game, J2, 7.5 + 3 - torso(game, J2).get_x());
@@ -230,10 +230,12 @@ test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s;
     }
     j2Stuck ||= game.state.players[J2].sticky;
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
-    assert.ok(emitted >= 35, `emitió ${emitted}`);
+    assert.ok(emitted >= 140, `emitió ${emitted}`);
     game.frames(60 * 8);
     assert.equal(j2Stuck, true, "J2 quedó pegado");
-    assert.equal(count(game, FLUID.HONEY, firstTag - 1), emitted, "toda la miel disparada sigue en el sistema");
+    const honey = honeyTotal(game);
+    console.log(`miel emitida ${emitted}, en el sistema ${count(game, FLUID.HONEY, firstTag - 1)}, en las columnas ${fmt(honey.field)}`);
+    assert.ok(Math.abs(honey.total - emitted) < 1e-3 * emitted, `${honey.total} contra ${emitted}: la miel se conserva entre partículas y columnas`);
     assert.equal(count(game, FLUID.ACID), 0, "el ácido venció");
 });
 
@@ -248,7 +250,7 @@ test("la miel que cae al agua del nivel no se destruye: queda en las columnas y 
     game.frames(90);
     game.setPad(0);
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
-    assert.ok(emitted >= 35);
+    assert.ok(emitted >= 140);
     game.frames(60 * 8);
     const honey = honeyTotal(game);
     console.log(`miel emitida ${emitted}, en el sistema ${honey.particles}, en las columnas ${fmt(honey.field)} (en la pileta ${fmt(honey.pool)})`);
@@ -256,28 +258,35 @@ test("la miel que cae al agua del nivel no se destruye: queda en las columnas y 
     assert.ok(Math.abs(honey.total - emitted) < 1e-3 * emitted, `${honey.total} contra ${emitted}`);
 });
 
-test(`tope: con 375 partículas de miel disparadas quedan como mucho ${PERSIST_MAX} y son las más nuevas`, async () => {
+/**
+ * La miel de los disparos se absorbe en las columnas del campo al llegar al piso y al borde de la isla, así que
+ * 1500 disparadas nunca coexisten en el sistema. Se crean en el aire, con id de disparo creciente, y se mide el
+ * primer frame de limpieza, antes de que caigan.
+ */
+test(`tope: con 1500 partículas de miel disparadas quedan como mucho ${PERSIST_MAX} y son las más nuevas`, async () => {
     const game = await start();
-    const { players, damage } = game.state;
+    const { store, damage } = game.state;
     const firstTag = damage.nextShot;
-    players[0].weapon = FLUID.HONEY;
-    let emitted = 0;
-    game.setPad(0, { buttons: [RT] });
-    for (let i = 0; i < 60 * 16 && emitted < 375; i++) {
-        const tank = players[0].tanks.get(FLUID.HONEY);
-        if (tank === 0) {
-            emitted += weaponById(FLUID.HONEY).tank;
-            players[0].tanks.set(FLUID.HONEY, weaponById(FLUID.HONEY).tank);
-        }
-        game.frame();
+    const total = 1500;
+    const def = new Box2D.b2ParticleDef();
+    const [r, g, b] = weaponById(FLUID.HONEY).color;
+    const color = new Box2D.b2ParticleColor(r, g, b, 255);
+    const position = new Box2D.b2Vec2(0, 0);
+    def.set_flags(PARTICLE.VISCOUS | PARTICLE.CONTACT_LISTENER);
+    def.set_color(color);
+    for (let n = 0; n < total; n++) {
+        position.set_x(2 + (n % 50) * 0.15);
+        position.set_y(20 + Math.floor(n / 50) * 0.15);
+        def.set_position(position);
+        store.create(def, { kind: FLUID.HONEY, origin: ORIGIN.SHOT, shot: firstTag + n });
     }
-    emitted += weaponById(FLUID.HONEY).tank - players[0].tanks.get(FLUID.HONEY);
-    game.setPad(0);
-    game.frames(5);
+    Box2D.destroy(def);
+    Box2D.destroy(color);
+    Box2D.destroy(position);
+    game.frames(2);
     const left = tags(game, FLUID.HONEY).filter((tag) => tag > 0);
-    console.log(`emitió ${emitted} (tanque rellenado a mano), quedan ${left.length}, id más chico ${Math.min(...left)} (primer disparo ${firstTag})`);
-    assert.ok(emitted >= 375, `emitió ${emitted}`);
+    console.log(`creó ${total}, quedan ${left.length}, id más chico ${Math.min(...left)} (primero ${firstTag})`);
     assert.ok(left.length <= PERSIST_MAX, `quedan ${left.length}`);
     assert.ok(left.length >= PERSIST_MAX - 5, `quedan ${left.length}: no se destruyó de más`);
-    assert.ok(Math.min(...left) > firstTag, "se destruyeron las más viejas");
+    assert.equal(Math.min(...left), firstTag + total - left.length, "se destruyeron las más viejas");
 });
