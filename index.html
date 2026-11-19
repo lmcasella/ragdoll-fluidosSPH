@@ -599,7 +599,7 @@
                 lastTime = nowMs;
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
-                const botGame = { players, match, flood, water, pickups: pickups.points };
+                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null };
                 bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
                 inputs = input.poll();
                 inputs.forEach((s, k) => {

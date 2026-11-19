@@ -7,7 +7,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 ## 16.1 Qué es
 
 - Mapa **Infinito** en la fila Mapa del menú: habilitado y default. **Clásico** no cambia y queda como mapa de testing. Rondas, reglas y partida sin cambios ([02](02-partida.md)).
-- **Etapa 0** = el clásico reducido a sus plataformas bajas: pisos, islas, pileta y solo las plataformas de `LEVEL.solids` con tope ≤ `baseMaxTop` (8 m) y las armas de `LEVEL.pickups` sobre ellas, aparición de siempre, sin las paredes de `LEVEL` ni el sensor de la pileta. El clásico tiene plataformas altas (tope 10,3 y 13,6) que no se alcanzan desde ninguna otra, y así nadie llegaría a las filas generadas.
+- **Etapa 0** = el clásico reducido a sus plataformas bajas: pisos, islas, pileta y solo las plataformas de `LEVEL.solids` con tope ≤ `baseMaxTop` (8 m) (sin las armas de `LEVEL.pickups`: la etapa 0 no lleva armas), aparición de siempre, sin las paredes de `LEVEL` ni el sensor de la pileta. El clásico tiene plataformas altas (tope 10,3 y 13,6) que no se alcanzan desde ninguna otra, y así nadie llegaría a las filas generadas.
 - Encima, **etapas** de 15 m (etapa `n` = `y` ∈ [15n, 15n + 15)) con paredes propias y filas de plataformas atravesables generadas con semilla.
 - El agua sube sin techo desde los 5 s. Se genera hacia arriba y se libera lo que queda hundido.
 
@@ -23,7 +23,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `rows` | `{ gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1.5, overlap: 1.5, fairness: 0.2, tries: 50, transition: 3.5 }` | Generador (16.3) |
 | `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | `up.dy` es el desnivel máximo del invariante de alcance; el grafo del bot usa la regla completa |
 | `pickupLift` | 0.6 | Altura del ícono sobre el tope (m), como en `LEVEL.pickups` |
-| `pickups` | `[{ period: 3, weights: { WATER: 0.4, HONEY: 0.4, LAVA: 0.2 } }, { period: 2, weights: { LAVA: 1 } }, { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 2)` para la etapa `n ≥ 1`. Claves = nombres de `FLUID` |
+| `pickups` | `[{ period: 3, weights: { WATER: 1 } }, { period: 3, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } }, { period: 2, weights: { LAVA: 1 } }, { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 3)` para la etapa `n ≥ 1`. Claves = nombres de `FLUID` |
 | `repair` | `{ perStage: 1, item: null }` | Prevista para #156. Con `item: null`, `Climb` la ignora. No se implementa acá |
 | `flood` | `{ start: 5, speed: 0.4, perStage: 0.06, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m) |
@@ -49,7 +49,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 ## 16.4 Armas e ítem de reparación
 
-- Etapa 0: solo `LEVEL.pickups`. Las filas generadas dentro de la etapa 0 (de 10,3 a 15 m) no llevan armas.
+- Armas por etapa: etapa 0, ninguna (ni los puntos de `LEVEL.pickups` del clásico ni filas generadas de 10,3 a 15 m); etapa 1, agua; etapa 2, agua y miel con lava ocasional; etapa 3, lava; etapa 4 en adelante, ácido y lava.
 - Etapa `n ≥ 1`: la fila lleva un par de armas si `índice de la fila dentro de su etapa % period === 0`. Van sobre las plataformas más a la izquierda y más a la derecha de la fila, en `(x de la plataforma, y_k + 0,6)`, con **la misma arma** en las dos (un sorteo por par con `weights`).
 - Reparación: solo la entrada `repair` de la tabla (16.2). #156 decide qué es y dónde va.
 

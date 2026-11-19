@@ -58,15 +58,15 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
     assert.ok(!game.hudTexts.includes("VACÍO"));
 });
 
-test("Infinito: tocar un punto de aparición da esa arma equipada con el tanque lleno y vuelve la mira", async () => {
+test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) equipada con el tanque lleno y vuelve la mira", async () => {
     const game = await infinite();
-    const point = game.state.pickups.points.find((p) => p.weapon === FLUID.HONEY);
-    assert.ok(point, "hay un punto de miel en la etapa 0");
+    const point = game.state.pickups.points.find((p) => p.weapon === FLUID.WATER);
+    assert.ok(point, "hay un punto de agua en la etapa 1");
     place(game, 0, point.x, point.y);
     game.frames(5);
     const p1 = game.state.players[0];
-    assert.equal(p1.weapon, FLUID.HONEY);
-    assert.equal(p1.tanks.get(FLUID.HONEY), tankOf(FLUID.HONEY));
+    assert.equal(p1.weapon, FLUID.WATER);
+    assert.equal(p1.tanks.get(FLUID.WATER), tankOf(FLUID.WATER));
     assert.equal(game.state.players[1].weapon, null);
     game.setPad(0, { buttons: [FIRE], axes: AIM_RIGHT });
     game.frames(20);
@@ -83,9 +83,13 @@ test("Clásico: sigue arrancando con agua y el tanque lleno", async () => {
     }
 });
 
-test("Infinito: el bot de J2 sin arma va a buscar el punto de aparición cercano y lo recoge en 15 s", { timeout: 120000 }, async () => {
+test("Infinito: el bot de J2 sin arma, en la etapa 1, va a buscar el punto de aparición cercano y lo recoge en 15 s", { timeout: 120000 }, async () => {
     const game = await infinite("?bot=2&seed=1");
     assert.equal(game.state.players[1].weapon, null);
+    assert.ok(game.state.pickups.points.every((p) => p.y > CLIMB.baseMaxTop), "la etapa 0 no tiene armas");
+    const [first] = game.state.pickups.points;
+    const near = platformsOfStage(game, 1).find((s) => Math.abs(s.x - first.x) < s.w / 2 + 3 && Math.abs(s.y + s.h / 2 - first.y + CLIMB.pickupLift) < 1e-6);
+    place(game, 1, near.x + near.w / 2 - 0.4, near.y + near.h / 2 + 0.9);
     let at = null;
     for (let frame = 0; frame < 15 * 60 && at === null; frame++) {
         game.frame();

@@ -25,7 +25,10 @@ import { WEAPONS, weaponById } from "./weapons.js";
  *   `align` (tolerancia al alinearse bajo un destino);
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
  *   `replan`: cada cuánto reelige destino;
- * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo.
+ * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
+ * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
+ * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
+ * - `evade`: ventana (s) tras recibir daño o líquido en la que salta a la plataforma de arriba o rueda alejándose.
  */
 export const BOT = {
     melee: { range: 1.6, stop: 1.3, vertical: 1.2, airRange: 2.2, airDrop: 0.8, kickDrop: 1.4 },
@@ -47,6 +50,11 @@ export const BOT = {
     hopCost: 0.3,
     replan: 0.5,
     pickupReach: 3,
+    burst: 0.5,
+    burstCooldown: 0.7,
+    reserve: 0.25,
+    reserveRange: 3,
+    evade: 0.5,
 };
 
 /**
@@ -186,6 +194,10 @@ export class Bot {
         this.aimOffset = 0;
         this.aimStamp = -Infinity;
         this.weaponStamp = -Infinity;
+        this.burstUntil = -Infinity;
+        this.burstReadyAt = -Infinity;
+        this.hurtAt = -Infinity;
+        this.lastHp = null;
     }
 
     press(button) {
@@ -214,7 +226,7 @@ export class Bot {
 
     /**
      * Calcula el gamepad de este frame.
-     * @param {object} game `{ players, match, flood, water }` del juego.
+     * @param {object} game `{ players, match, flood, water, pickups, climbing }` del juego (`climbing`: el mapa es Infinito).
      * @param {number} now Reloj de simulación, s.
      * @returns {object} El gamepad virtual (el mismo objeto cada vez).
      */
@@ -269,6 +281,7 @@ export class Bot {
         const foeNode = this.supportOf(foe);
         if (foeNode !== null) this.foeNode = foeNode;
         const cfg = this.config;
+        this.watchHurt(me, now);
 
         if (me.isStunned(now) || me.reacting(now) || me.rolling(now)) {
             if (adx < cfg.shoot.max) this.aim(dx, dy);
@@ -283,18 +296,69 @@ export class Bot {
             return;
         }
         if (this.melee(me, foe, cur, adx, dx, dy, dir, now)) return;
+        const foeTop = foeNode === null ? foePos.get_y() : this.nav.nodes[foeNode].top;
+        this.move(game, me, foe, cur, foeNode, foeTop, below, adx, dx, dy, dir, now);
+        this.fight(me, foe, cur, foeNode, adx, dx, dy, now);
+    }
+
+    /** Anota cuándo el robot perdió vida o quedó mojado, pegado o quemado (para la evasión). */
+    watchHurt(me, now) {
+        const status = me.wet || me.sticky || me.burns.size > 0;
+        if (status || (this.lastHp !== null && me.hp < this.lastHp)) this.hurtAt = now;
+        this.lastHp = me.hp;
+    }
+
+    /**
+     * Capa de movimiento (stick izquierdo): salir de bajo la línea segura, evadir, buscar un arma y, si no, ir a la meta.
+     * En Infinito (`game.climbing`) la meta es la plataforma más alta alcanzable y solo persigue al rival si está en la
+     * misma plataforma o en una vecina que no queda más abajo; en el clásico persigue siempre.
+     */
+    move(game, me, foe, cur, foeNode, foeTop, below, adx, dx, dy, dir, now) {
         if (below) {
             this.escape(me, cur);
             return;
         }
+        if (this.evade(me, cur, dir, now)) return;
         if (this.seekPickup(me, cur, game.pickups ?? [])) return;
-        if (this.shoot(me, foe, cur, foeNode, adx, dx, dy, now)) return;
-        const foeTop = foeNode === null ? foePos.get_y() : this.nav.nodes[foeNode].top;
         if (foeTop < this.minTop) {
             this.navigate(me, cur, this.highest(cur));
             return;
         }
+        if (game.climbing && !this.engages(cur, foeNode, foeTop)) {
+            this.navigate(me, cur, this.highest(cur));
+            return;
+        }
         this.chase(me, foe, cur, adx, dx, dy, dir, now);
+    }
+
+    /** Verdadero si el rival está en la plataforma `cur` o en una vecina del grafo que no queda más abajo. */
+    engages(cur, foeNode, foeTop) {
+        if (cur === null || foeNode === null) return false;
+        if (foeNode === cur) return true;
+        return this.nav.edges[cur].includes(foeNode) && foeTop >= this.nav.nodes[cur].top - 1e-9;
+    }
+
+    /**
+     * Tras recibir daño o líquido en la ventana `evade`: salta a la plataforma de arriba más alta que tenga una arista
+     * desde la actual o, si no hay, rueda alejándose del rival. Devuelve verdadero si usó el movimiento.
+     */
+    evade(me, cur, dir, now) {
+        if (cur === null || now - this.hurtAt > this.config.evade) return false;
+        const { nodes, edges } = this.nav;
+        let up = null;
+        for (const to of edges[cur]) {
+            if (nodes[to].top <= nodes[cur].top || nodes[to].top < this.minTop) continue;
+            if (up === null || nodes[to].top > nodes[up].top) up = to;
+        }
+        if (up !== null) {
+            this.navigate(me, cur, up);
+            return true;
+        }
+        if (!this.canRoll(me, cur, -dir, now)) return false;
+        this.press(PAD.block);
+        this.walk(-dir);
+        this.pulse(PAD.jump);
+        return true;
     }
 
     /**
@@ -315,7 +379,7 @@ export class Bot {
         const dist = this.distances(cur);
         let best = null;
         this.nav.nodes.forEach((n, i) => {
-            if (dist[i] === Infinity || n.top < line) return;
+            if (dist[i] === Infinity || n.top < line || n.top < this.nav.nodes[cur].top) return;
             if (best === null || dist[i] < dist[best] || (dist[i] === dist[best] && n.top > this.nav.nodes[best].top)) best = i;
         });
         this.navigate(me, cur, best ?? this.highest(cur));
@@ -430,6 +494,7 @@ export class Bot {
         if (cur === null || this.armed(me)) return false;
         const { dist, parent } = this.search(cur);
         let best = null;
+        let lower = null;
         for (const point of points) {
             if (!point.active) continue;
             const node = this.pickupNode(point);
@@ -437,24 +502,36 @@ export class Bot {
             let hops = 0;
             for (let n = node; parent[n] !== -1; n = parent[n]) hops++;
             if (hops > this.config.pickupReach) continue;
-            if (best === null || dist[node] < best.cost) best = { point, node, cost: dist[node] };
+            const isLower = this.nav.nodes[node].top < this.nav.nodes[cur].top - 1e-9;
+            const slot = isLower ? lower : best;
+            if (slot === null || dist[node] < slot.cost) {
+                const found = { point, node, cost: dist[node] };
+                if (isLower) lower = found;
+                else best = found;
+            }
         }
+        best ??= lower;
         if (best === null) return false;
         if (best.node === cur) this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
         else this.navigate(me, cur, best.node);
         return true;
     }
 
-    /** Dispara con línea de vista a distancia media. Devuelve verdadero si usó el frame. */
-    shoot(me, foe, cur, foeNode, adx, dx, dy, now) {
+    /**
+     * Capa de combate (stick derecho y gatillo), superpuesta al movimiento: con línea de vista a distancia media apunta y
+     * dispara en ráfagas de `burst` s con `burstCooldown` s entre ráfagas, sin gastar la `reserve` del tanque salvo con
+     * el rival a menos de `reserveRange`.
+     */
+    fight(me, foe, cur, foeNode, adx, dx, dy, now) {
         const cfg = this.config.shoot;
-        if (adx > cfg.max) return false;
-        if (adx < cfg.min && cur !== null && cur === foeNode) return false;
-        if ((me.tanks.get(me.weapon) ?? 0) <= 0) {
+        if (adx > cfg.max) return;
+        if (adx < cfg.min && cur !== null && cur === foeNode) return;
+        const tank = me.tanks.get(me.weapon) ?? 0;
+        if (tank <= 0) {
             this.pickWeapon(me, now);
-            return false;
+            return;
         }
-        if (!this.lineOfSight(me, foe)) return false;
+        if (!this.lineOfSight(me, foe)) return;
         this.pickWeapon(me, now);
         if (now - this.aimStamp >= cfg.aimRefresh) {
             this.aimOffset = (this.rng() * 2 - 1) * cfg.aimError;
@@ -464,8 +541,12 @@ export class Bot {
         const lift = this.lift(adx, dy, weaponById(me.weapon)?.speed ?? 14);
         const angle = Math.atan2(dy + lift, adx) + this.aimOffset;
         this.aim(sign * Math.cos(angle), Math.sin(angle));
-        this.press(PAD.fire);
-        return true;
+        if (adx >= this.config.reserveRange && tank <= this.config.reserve * weaponById(me.weapon).tank) return;
+        if (now >= this.burstUntil && now >= this.burstReadyAt) {
+            this.burstUntil = now + this.config.burst;
+            this.burstReadyAt = this.burstUntil + this.config.burstCooldown;
+        }
+        if (now < this.burstUntil) this.press(PAD.fire);
     }
 
     /** Elevación (m) que compensa la caída del chorro a `distance` horizontal con velocidad `speed`. */
