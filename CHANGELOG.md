@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-11-19
+
+### Added
+- Escenarios reportados al jugar como tests sobre la escena real (`tests/user-scenarios.test.js`): gotas que se estiran en película, miel que se vuelve agua, ácido que no cambia el agua y volumen dibujado distinto del real. Quedan como pendientes con su issue hasta que se arreglen; se pueden grabar con `USER_SCENARIOS_RECORD=<carpeta>`.
+
 ## [0.15.5] - 2026-11-19
 
 ### Added
