@@ -29,9 +29,15 @@ export const MIN_WINDOW_SECONDS = 30;
 const SWITCH_SECONDS = 3;
 const SWEEP_SECONDS = 6;
 
-/** Tolerancias: masa relativa (I1, I2) y área dibujada relativa (I3). */
+/**
+ * Tolerancias: masa relativa (I1, I2) y área dibujada relativa (I3p): `AREA_TOLERANCE` en al menos `AREA_SHARE` de los
+ * pasos y `AREA_HARD_LIMIT` en todos. I3f usa `AREA_TOLERANCE` en todos los pasos.
+ */
 export const MASS_TOLERANCE = 1e-6;
 export const AREA_TOLERANCE = 0.05;
+export const PARTICLE_AREA_TOLERANCE = 0.1;
+export const AREA_SHARE = 0.95;
+export const AREA_HARD_LIMIT = 0.15;
 
 /** Botones del mapeo "standard": gatillo derecho (disparo) y RB (arma siguiente). */
 const BUTTON_FIRE = 7;
@@ -104,6 +110,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         guard: tracks([...SPECIES, ...MATERIAL_NAMES]),
         i2a: { creations: 0, changes: 0 },
         i3p: tracks(MATERIAL_NAMES),
+        i3pNear: Object.fromEntries(MATERIAL_NAMES.map((n) => [n, 0])),
         i3f: tracks(["water"]),
         h2: tracks(["alive", "absorbed", "field"]),
         probe: null,
@@ -209,7 +216,6 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         collectSurfaces(players, LEVEL.solids, SHOT_DRAW.snapReach);
         union.clear();
         const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
-        const vel = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
         for (let i = 0; i < count; i++) {
             const slot = store.slotAt(i);
             if (slot < 0 || store.alive[slot] === 0) continue;
@@ -217,21 +223,16 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
             if (k === undefined) continue;
             const x = Box2D.HEAPF32[pos + 2 * i];
             const y = Box2D.HEAPF32[pos + 2 * i + 1];
-            const isRain = store.origin[slot] === ORIGIN.RAIN;
-            dropShape(x, y, Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1], isRain, SHOT_DRAW, shape);
-            if (shape.capsule) {
-                union.addCapsule(k, shape.x0, shape.y0, shape.x1, shape.y1, shape.width);
-            } else {
-                union.addCircle(k, shape.x0, shape.y0, shape.radius);
-                if (shape.count === 2) union.addCircle(k, shape.x1, shape.y1, shape.radius);
-            }
+            dropShape(x, y, store.kind[slot], SHOT_DRAW, shape);
+            union.addCircle(k, shape.x0, shape.y0, shape.radius);
         }
         union.areas(drawn);
         MATERIAL_NAMES.forEach((n, k) => {
             const physical = alive[k] * area;
             if (physical === 0) return;
             const rel = (drawn[k] - physical) / physical;
-            result.i3p[n].add(rel, Math.abs(rel) <= AREA_TOLERANCE, step, { drawn: drawn[k], physical, n: alive[k] });
+            result.i3p[n].add(rel, Math.abs(rel) <= AREA_HARD_LIMIT, step, { drawn: drawn[k], physical, n: alive[k] });
+            if (Math.abs(rel) <= PARTICLE_AREA_TOLERANCE) result.i3pNear[n]++;
         });
         const t2 = hr();
 

@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-19
+
+### Fixed
+- El agua, el ácido, la miel y la lava se dibujan con la cantidad que tienen en la física: la lluvia ya no forma pelotas al caer y el agua de lluvia y la de los disparos se ven iguales.
+
 ## [0.17.0] - 2026-11-19
 
 ### Added
