@@ -127,7 +127,7 @@
             import { withReversedClip, withoutJointTracks } from "./js/clips.js";
             import { DamageSystem } from "./js/damage.js";
             import { createParticleSystem } from "./js/particles.js";
-            import { ParticleStore, ORIGIN } from "./js/particleStore.js";
+            import { ParticleStore, ORIGIN, SINK } from "./js/particleStore.js";
             import { WallContact } from "./js/wallContact.js";
             import {
                 WEAPONS,
@@ -452,8 +452,10 @@
                     const shot = store.shot[slot];
                     const persist = PERSIST_FLUIDS.has(store.kind[slot]);
                     const expired = shot > 0 && shot < floor && !persist;
-                    if (expired || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
-                        store.destroy(i);
+                    if (y < minY - 1 || x < minX - 1 || x > maxX + 1) {
+                        store.destroy(i, SINK.OUT);
+                    } else if (expired) {
+                        store.destroy(i, SINK.EXPIRED);
                     } else if (persist && shot > 0) {
                         persistentes.push(i);
                     }
@@ -461,7 +463,7 @@
                 if (persistentes.length > PERSIST_MAX) {
                     persistentes.sort((a, b) => store.shot[store.slotAt(a)] - store.shot[store.slotAt(b)]);
                     for (let n = persistentes.length - PERSIST_MAX - 1; n >= 0; n--) {
-                        store.destroy(persistentes[n]);
+                        store.destroy(persistentes[n], SINK.PERSIST_CAP);
                     }
                 }
             }

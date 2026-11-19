@@ -6,6 +6,7 @@
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
 import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
+import { SINK } from "./particleStore.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -251,7 +252,7 @@ export class DamageSystem {
                 owner.player.burn(owner.bodyId);
             }
         }
-        for (const index of consumed) this.store.destroy(index);
+        for (const index of consumed) this.store.destroy(index, SINK.HIT);
         this.stickHoney(now);
 
         this.impacts.length = 0;

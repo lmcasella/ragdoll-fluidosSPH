@@ -1,5 +1,6 @@
 import { FLUID } from "./weapons.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
+import { SINK } from "./particleStore.js";
 
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
@@ -10,7 +11,7 @@ const MAX_ABSORB_PASSES = 4;
 /**
  * Material de cada id de fluido del sistema de disparos y fracción en volumen de miel de la partícula (`X_v`).
  */
-const KIND_MATERIAL = {
+export const KIND_MATERIAL = {
     [FLUID.WATER]: { material: MATERIALS.water, honey: 0 },
     [FLUID.ACID]: { material: MATERIALS.acid, honey: 0 },
     [FLUID.HONEY]: { material: MATERIALS.honey, honey: 1 },
@@ -108,7 +109,7 @@ export class Immersion {
         const momentum = sg * area * vx;
         const energy = this.heat * area + this.inelasticLoss(x, area, momentum, sg, vx, vy);
         water.deposit(x, area, momentum, energy, entry.honey * area);
-        this.store.destroy(i);
+        this.store.destroy(i, SINK.ABSORBED);
         this.stats.absorbed++;
         this.stats.volume += area;
         this.stats.verticalImpulse += sg * SIGMA_W * area * vy;

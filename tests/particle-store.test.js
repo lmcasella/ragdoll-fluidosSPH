@@ -15,7 +15,7 @@ globalThis.PIXI = {
     },
 };
 
-const { ParticleStore, ORIGIN } = await import("../js/particleStore.js");
+const { ParticleStore, ORIGIN, SINK } = await import("../js/particleStore.js");
 const { createParticleSystem } = await import("../js/particles.js");
 const { SHOT_SYSTEM, FLUID } = await import("../js/weapons.js");
 const { stepWorld } = await import("../lib/ragimporter.js");
@@ -65,7 +65,7 @@ test("S1: destruir las de índice par y llamar a stepWorld conserva el orden de 
     const before = userData();
     assert.deepEqual(before, Array.from({ length: 20 }, (_, i) => i + 1), "userData = slot + 1");
 
-    for (let i = 0; i < 20; i += 2) store.destroy(i);
+    for (let i = 0; i < 20; i += 2) store.destroy(i, SINK.OUT);
     step();
 
     assert.equal(system.GetParticleCount(), 10);
@@ -93,7 +93,7 @@ test("S2: destruir y crear en el mismo frame nunca comparte slot entre una zombi
             const index = Math.floor(random() * system.GetParticleCount());
             const slot = store.slotAt(index);
             if (store.alive[slot] === 1) zombies.add(slot);
-            store.destroy(index);
+            store.destroy(index, SINK.OUT);
         }
         const births = Math.floor(random() * 4);
         for (let b = 0; b < births; b++) {
@@ -123,9 +123,9 @@ test("S2: destruir y crear en el mismo frame nunca comparte slot entre una zombi
 test("S4: con el sistema lleno y zombis pendientes, create devuelve -1 y no cambia ningún índice ni userData", () => {
     const { system, store, make, step, userData, xs } = scene(8);
     for (let i = 0; i < 8; i++) make(i, { kind: FLUID.HONEY, shot: i + 1 });
-    store.destroy(1);
-    store.destroy(4);
-    store.destroy(6);
+    store.destroy(1, SINK.OUT);
+    store.destroy(4, SINK.OUT);
+    store.destroy(6, SINK.OUT);
     const dataBefore = userData();
     const xsBefore = xs();
     const countBefore = system.GetParticleCount();
@@ -152,8 +152,8 @@ test("destroy es idempotente, afterStep libera el slot y reset destruye todo", (
     const { system, store, make, step } = scene(8);
     for (let i = 0; i < 3; i++) make(i, { kind: FLUID.LAVA, origin: ORIGIN.MAP, shot: 0 });
     assert.equal(store.origin[0], ORIGIN.MAP);
-    store.destroy(1);
-    store.destroy(1);
+    store.destroy(1, SINK.OUT);
+    store.destroy(1, SINK.OUT);
     assert.equal(store.pendingCount, 1);
     assert.equal(store.freeCount, 8 - 3);
     step();
@@ -164,4 +164,22 @@ test("destroy es idempotente, afterStep libera el slot y reset destruye todo", (
     step();
     assert.equal(system.GetParticleCount(), 0);
     assert.equal(store.freeCount, 8);
+});
+
+test("libro de masa: created y destroyed por causa y tipo; destroy exige causa; reset lo pone en cero", () => {
+    const { store, make } = scene(8);
+    for (let i = 0; i < 3; i++) make(i, { kind: FLUID.ACID, origin: ORIGIN.SHOT, shot: 1 });
+    make(3, { kind: FLUID.HONEY, origin: ORIGIN.SHOT, shot: 1 });
+    assert.equal(store.created[FLUID.ACID], 3);
+    assert.equal(store.created[FLUID.HONEY], 1);
+    assert.throws(() => store.destroy(0), /causa/);
+    assert.throws(() => store.destroy(0, 99), /causa/);
+    store.destroy(0, SINK.HIT);
+    store.destroy(0, SINK.HIT);
+    store.destroy(3, SINK.PERSIST_CAP);
+    assert.equal(store.destroyed[SINK.HIT][FLUID.ACID], 1);
+    assert.equal(store.destroyed[SINK.PERSIST_CAP][FLUID.HONEY], 1);
+    store.reset();
+    assert.equal(store.destroyed[SINK.RESET][FLUID.ACID], 0);
+    assert.equal(store.created[FLUID.ACID], 0);
 });

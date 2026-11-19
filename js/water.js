@@ -23,7 +23,8 @@ const PROJ_TOLERANCE = 1e-10;
 
 /**
  * Datos del campo de alturas (docs/design/14-agua.md §14.3): `dx` (m), `cfl`, `maxSubsteps`, `hDry` (m),
- * `manning` (s/m^(1/3)), `ambientT` (°C) y `draw` (datos de dibujo: `alpha` es la opacidad del agua, `color` y
+ * `hMin` (m, espesor mínimo de una película mojada, invariante I4 de §14.16 G), `manning` (s/m^(1/3)),
+ * `ambientT` (°C) y `draw` (datos de dibujo: `alpha` es la opacidad del agua, `color` y
  * `lineColor` RGB del relleno y de la línea de superficie, `lineWidth` el grosor de la línea en píxeles).
  */
 export const WATER_FIELD = {
@@ -31,6 +32,7 @@ export const WATER_FIELD = {
     cfl: 0.45,
     maxSubsteps: 32,
     hDry: 1e-3,
+    hMin: 1.85e-3,
     manning: 0.012,
     ambientT: 20,
     draw: { alpha: 0.55, color: [40, 120, 255], lineColor: [170, 220, 255], lineWidth: 2 },

@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-11-19
+
+### Added
+- Tests permanentes de coherencia de los fluidos: masa por sustancia, identidad de cada material, volumen dibujado contra el físico y espesor mínimo del agua.
+- Lo que hoy falla en esos tests figura como pendiente (`todo`) con el issue que lo arregla.
+- El diseño del agua define el espesor mínimo de una lámina (`hMin` = 1,85 mm) y las especies de cada material.
+
 ## [0.15.4] - 2026-11-19
 
 ### Added
