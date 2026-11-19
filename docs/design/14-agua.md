@@ -394,7 +394,7 @@ Reemplaza el preset de #40 y #41 (`VISCOUS` + `STATIC_PRESSURE` + damping 1,0 en
 | Parámetro | Valor | Antes | Por qué |
 |---|---|---|---|
 | `radius` | **0,06 m** ✅ #100 | 0,12 (#69) | [D10](#1418-decisiones-del-usuario): con 0,12 la gota era del tamaño de una pierna y una sola frenaba o empujaba al robot ([14.1](#141-unidades-rebanada-2d-y-materiales)). El límite de 0,12 del relevamiento era por la inundación en partículas, que ya no existe |
-| `maxCount` | **12.000** ✅ #100 | 3.000 | El presupuesto de 3.000 por 4, porque cada volumen de agua lleva 4 veces más partículas: disparos vivos (tanques llenos de los dos jugadores, ~2.400) + miel persistente (`PERSIST_MAX` = 1.200) + lluvia en vuelo (~1.720, ver [14.7](#147-inundación-con-lluvia-absorbida--71)) + agua retenida en plataformas (tope de diseño 3.200, ver I7 y [14.7b](#147b-evaporación-de-agua-detenida-d7)) + vapor (tope 1.200) + piedra. *Verificado* (#100): el heap de 16 MiB alcanza con el sistema lleno hasta `maxCount` |
+| `maxCount` | **12.000** ✅ #100 | 3.000 | El presupuesto de 3.000 por 4, porque cada volumen de agua lleva 4 veces más partículas: disparos vivos (tanques llenos de los dos jugadores, ~2.400) + miel persistente (sin tope propio desde #160) + lluvia en vuelo (~1.720, ver [14.7](#147-inundación-con-lluvia-absorbida--71)) + agua retenida en plataformas (tope de diseño 3.200, ver I7 y [14.7b](#147b-evaporación-de-agua-detenida-d7)) + vapor (tope 1.200) + piedra. *Verificado* (#100): el heap de 16 MiB alcanza con el sistema lleno hasta `maxCount` |
 | `destroyByAge` | **`false`** (explícito) | `false` | El motor no borra partículas por su cuenta; lo verifica `ParticleStore` ([14.2](#142-identidad-estable-de-partículas-particlestore)) |
 | `density` | **`σ_w` = 12,0 kg/m²** (0,0972 kg por partícula) | 1 (por defecto) | Masa física de la partícula de agua, coherente con la flotación ([D1, D2](#1418-decisiones-del-usuario)); D10 no la cambia |
 | `dampingStrength` | **0,5** | 1,0 | Relevamiento (`D4`): con 0,5 y presión 0,1, temblor 0,064 m/s, densidad 1,00–1,09 y frente −27 % |
@@ -461,7 +461,7 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
 - **Energía:** el calor latente `L_v · m dφ` lo aporta el aire ambiente y se contabiliza en `E_perdida` con signo negativo. La partícula no se enfría por evaporar: el aire se toma como reservorio. Es una simplificación declarada. En los monitores, la energía de la partícula se cuenta como `m (1 − φ) e`, la que sale como vapor como `m φ e_v` (con `e_v = e + L_v`) y se mantiene `−L_v m φ` en `E_perdida`: el balance cierra por construcción, porque `m (1 − φ) e + m φ (e + L_v) − L_v m φ = m e`.
 - **Predicción para un charco:** al inicio, el tiempo de vida de un charco de N partículas es `τ_N = N A_p / (F_evap e_r P Σ f_i)`. Solo evaporan las partículas de la superficie y los bordes, así que `τ_N / τ_1 = N f_1 / Σ f_i` y crece con el espesor del charco. A medida que se evapora la capa de arriba, las de abajo quedan expuestas, y la predicción se toma como tasa inicial.
 - **Paso:** una vez por paso fijo, después de `immersion.step`. Costo: un recorrido de los contactos (ya medido en 0,05–0,2 ms) y uno de las partículas detenidas.
-- **Relación con D5:** reemplaza el vencimiento de 6 s para el agua y el ácido ([14.18](#1418-decisiones-del-usuario)).
+- **Relación con D5:** reemplaza el vencimiento de 6 s para el agua y el ácido; desde #160 ya no hay vencimiento por tiempo ([14.18](#1418-decisiones-del-usuario)).
 
 ## 14.8 Térmica y fases
 
@@ -557,7 +557,7 @@ El diseño de reacciones de #30 ([04-fluidos §4.4](04-fluidos.md#44-reacciones-
 - **Charcos de miel del mapa (#23), desde #110:** son **partículas**, no columnas con `M` inicial (lo que decía este diseño antes de #110 queda retirado: la miel no entra al campo, [D11](#1418-decisiones-del-usuario)). Lo que se le pide a #23:
   - crearlas con `store.create` (así entran en el libro de masa como inyectado `I_honey` y valen los invariantes de [14.16 G](#g-invariantes-globales-108)), con `kind` miel, `origin` `MAP`, `shot` 0, el color y los flags del arma (`VISCOUS`) y `CONTACT_LISTENER`;
   - desde el estado asentado guardado, separadas un radio, como cualquier grupo inicial;
-  - con `shot` 0 no vencen ni cuentan para `PERSIST_MAX` (como hoy en `limpiarParticulas`), pero sí para `maxCount`: el tamaño de los charcos es dato del nivel y #23 informa cuántas partículas suma;
+  - con `shot` 0 se recortan al final por rendimiento (`PERF`) y cuentan para `maxCount`: el tamaño de los charcos es dato del nivel y #23 informa cuántas partículas suma;
   - pegan con la regla de partículas de #41 (la del mapa pega a cualquiera), sin lógica nueva;
   - un charco bajo la superficie (fondo de la pileta o isla que se inunda) recibe la inmersión de [14.4](#144-absorción-e-inmersión) y se queda en el fondo;
   - `M` inicial del campo = 0 (`water.reset()` no cambia).
@@ -681,7 +681,7 @@ Los sistemas reciben `water` y `store` por constructor desde la raíz de composi
 | Dos carriles por arma derivan de costado y fallan P2; un carril cumple P2 con los caudales de la tabla | `tests/pure-water.test.js` (#100) | *Verificado en ejecución* |
 | Heap de 16 MiB con el sistema de disparos lleno hasta `maxCount` = 12.000 | `tests/heap.test.js` (#100) | *Verificado en ejecución* |
 | El área del polígono de `drawWater` es exactamente `Σ_{h > h_dry} h dx` (bordes por los mismos centros de celda, medias celdas planas en los extremos) | Lectura de `js/render.js`, `drawWater` (#108) | *Verificado* en el código |
-| Sumideros de partículas fuera de la absorción: bordes del mundo, vencimiento D5 y tope `PERSIST_MAX` en `limpiarParticulas` (`index.html`), ácido que daña en `DamageSystem.process`; `ParticleStore` no cuenta creaciones ni destrucciones | Lectura de `index.html`, `js/damage.js` y `js/particleStore.js` (#108) | *Verificado* en el código |
+| Sumideros de partículas fuera de la absorción: bordes del mundo y recorte por rendimiento `PERF` (#160) en `js/particleStore.js`, ácido que daña en `DamageSystem.process` | Lectura de `index.html`, `js/damage.js` y `js/particleStore.js` (#108) | *Verificado* en el código |
 | El campo no tiene sumideros ni fuentes fuera de `deposit` (paredes reflectivas; `settle` lleva a 0 solo `h` > −10⁻¹²), y el flujo de `M` es el de masa por `M/h` de la celda aguas arriba | Lectura de `js/water.js` (#108) | *Verificado* en el código |
 | La inmersión es genérica por material: `Immersion.step` separa por `MATERIALS[m].miscible` e `immerse` solo lee `SG` y `Cd`; la miel inmiscible no necesita lógica nueva | Lectura de `js/immersion.js` y `js/materials.js` (#110, 19/11) | *Verificado* en el código |
 | Los tanques no se recargan en la ronda (`tanks.set(id, tank − made)` en `js/weapons.js`; `index.html`, ayuda "el tanque no se recarga"): como mucho 2 × 152 = 304 partículas de miel disparada por ronda | Lectura de `js/weapons.js` e `index.html` (#110) | *Verificado* en el código |
@@ -699,7 +699,7 @@ Para `physics-analyst`. Cada criterio tiene referencia, valor esperado y toleran
 |---|---|---|---|---|
 | S1 | Crear 20 partículas, destruir las de índice par, `stepWorld`: el `userData` de las sobrevivientes sigue el orden original y el estado por slot coincide | Contrato de `SolveZombie` (compactación estable) | Igualdad exacta | 0 errores |
 | S2 | Destruir y crear en el mismo frame nunca comparte un slot entre una zombi y una viva | Liberación diferida | 0 colisiones en 10.000 ciclos aleatorios con semilla fija | 0 |
-| S3 | El comportamiento de daño, el vencimiento y el tope de miel no cambian (tests actuales de #13, #18 y #41 en verde) | Regresión | Mismos resultados | Los de cada test |
+| S3 | El comportamiento de daño no cambia (tests actuales de #13, #18 y #41 en verde) | Regresión | Mismos resultados | Los de cada test |
 | S4 | Con el sistema lleno (`maxCount`) y zombis pendientes de compactar, `store.create` devuelve −1, no compacta y no cambia ningún índice ni `userData` hasta el próximo `stepWorld` | Contrato de `CreateParticle` sin destrucción por edad | −1; índices iguales | 0 cambios |
 | S5 | `ParticleStore` lanza un error si `SHOT_SYSTEM.destroyByAge` no es `false` | Verificación en los datos | Error | — |
 
@@ -931,8 +931,7 @@ La absorción (`ABSORBED`) **no es sumidero**: es transferencia al campo y apare
 |---|---|---|---|
 | `OUT` | `index.html`, `limpiarParticulas` (`y < minY − 1`, `x` fuera de `minX − 1 … maxX + 1`) | Sí | Borde abierto del dominio: la masa sale del mundo |
 | `EVAPORATED` y `φ` | `js/evaporation.js` (#73) | Sí | Pasa al aire, que no se simula ([14.7b](#147b-evaporación-de-agua-detenida-d7)) |
-| `EXPIRED` | `index.html`, `limpiarParticulas` (`shot < liveShotFloor`, 6 s de `SHOT_LIFETIME` en `js/damage.js`) | **No** | Vencimiento D5: regla de juego. Agua y ácido → #73 (lo reemplaza D7); lava → #75 |
-| `PERSIST_CAP` | `index.html`, `limpiarParticulas` (`PERSIST_MAX` = 1200, `js/weapons.js`) | **No** | **Límite de recursos**, no física (#110): acota las partículas de miel disparada que siguen vivas, porque la miel no se evapora, no vence y desde #110 tampoco se absorbe. Hoy no puede activarse: los tanques no se recargan y una ronda dispara como mucho 2 × 152 = 304 partículas de miel, contra 1200 (la del mapa, `shot` 0, no cuenta). **Efecto en I1:** no se suma al balance; si se activa, I1 e I2b de miel fallan por `n · m_miel` y el test `PERSIST_CAP` falla sin `todo`. Esconderlo en el balance taparía una desaparición no física. Cualquier fuente nueva de miel en la ronda (recarga, puntos de aparición de #14) tiene que mantener la miel disparada por ronda ≤ `PERSIST_MAX`, o revisar este tope |
+| `PERF` | `js/particleStore.js`, `trim` (#160) | **No** | Recorte de las más viejas por debajo de 50 fps sostenidos (frame > 20 ms durante 1 s, de a 100 por frame): límite de rendimiento, no física. Sin carga no se activa; si se activa, I1 e I2b no cierran por `n · m` |
 | `HIT` | `js/damage.js`, `process` (ácido que daña se destruye) | **No** | La reacción real del ácido con el acero es despreciable en una ronda ([15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 17): el ácido no desaparece al tocar al robot |
 
 #### I1. Masa por especie
@@ -1043,7 +1042,7 @@ Las letras del primer borrador (A, B, C, D1, D2, F, K1, E, G, H, I, J, K2) queda
 **Alcance de #110** (bug, [D11](#1418-decisiones-del-usuario)): la miel inmiscible con el campo.
 - `MATERIALS.honey`: `miscible: false` y `Cd: 1.2`, y su docstring. Sin lógica nueva en `Immersion` ([14.4](#144-absorción-e-inmersión)).
 - Se retira el pegado por columnas (`stickOnHoneyColumns`, `HONEY_COLUMN_FRACTION`, `DamageSystem.water` y su asignación en `index.html`); el pegado sigue con la regla de partículas de #41 hasta #77 ([14.10](#1410-adherencia)).
-- `M` del campo se conserva sin fuente ([14.9](#149-mezcla-por-concentración-y-viscosidad)); `PERSIST_MAX` sigue como límite de recursos ([14.16 G](#g-invariantes-globales-108)).
+- `M` del campo se conserva sin fuente ([14.9](#149-mezcla-por-concentración-y-viscosidad)); desde #160 la miel disparada no tiene tope propio.
 - Sin cambios en `js/render.js` ni en `js/water.js`.
 - Criterios H1–H6 ([14.16](#h-miel-inmiscible-en-el-campo-110)); se quitan los `todo` de U2, I3f miel y `PERSIST_CAP`, y el motivo `#110` de I1, I2b e I3f agua.
 
@@ -1077,7 +1076,7 @@ Decididas por el usuario (18/11). Ninguna bloquea ya a un sub-issue. D7 llegó c
 | D2 | Empuje del chorro | **Revisada (18/11):** densidad física (`σ_w` = 12,0) y empuje balanceado bajando el caudal; la primera versión (caudal y velocidad actuales, 544 N) se descartó | Velocidades conservadas. Con `r` = 0,12: caudales a la mitad, agua 50/s → 272 N, ácido 45/s → 245 N, lava 30/s → 117 N, miel 25/s → 175 N. **Desde D10** (`r` = 0,06), caudal al tope de un carril: agua 155/s → 210,9 N (1,6 veces el peso del robot), ácido 155/s → 210,9 N, lava 111/s → 107,9 N, miel 100/s → 175 N; tanques 600/272/180/152; un solo carril; criterios P2, P2b y P5 ([14.6](#146-disparos-con-agua-pura)) |
 | D3 | Tiempos térmicos | **Reales, sin escalar** | La lava tarda ~1,25 min en solidificar en el agua con `r` = 0,06 (~2,5 min con 0,12); no hay plataformas de piedra temporales dentro de una ronda ([14.8](#148-térmica-y-fases)) |
 | D4 | Miel pegajosa | **Se retira el estado `pegado`** cuando llegue la adherencia (#77); hasta entonces sigue el temporizador actual de #41 | [14.10](#1410-adherencia) |
-| D5 | Charcos en plataformas | **Siguen venciendo a los 6 s**, como regla de presupuesto; los del piso se absorben en el campo. **Desde #73, D7 la reemplaza para el agua y el ácido**: D5 queda solo para la lava, hasta que #75 la haga solidificar; la miel sigue con `PERSIST_MAX` | [14.4](#144-absorción-e-inmersión) |
+| D5 | Charcos en plataformas | **Desde #160 no vencen**: las partículas ya no desaparecen solas; solo se recortan las más viejas por debajo de 50 fps sostenidos (`PERF`). Los del piso se absorben en el campo y D7 evapora el agua y el ácido detenidos | [14.4](#144-absorción-e-inmersión) |
 | D6 | Reglas de la pileta | **Se mantienen:** el sensor mata y la pileta no moja antes de la inundación | [14.5](#145-flotación-de-arquímedes-por-pieza) |
 | D7 | Lluvia y gotas sobre plataformas | Siguen como partículas: escurren por física, se juntan y se absorben si llegan al campo. **Se evaporan** con una tasa proporcional a su superficie expuesta (fracción del contorno sin vecinas), acelerada respecto de la real con un factor nombrado; el volumen evaporado entra en los monitores | Modelo, módulo y criterios en [14.7b](#147b-evaporación-de-agua-detenida-d7) (`F_evap` = 3·10⁵, gota expuesta 4,8 s con `r` = 0,12 y ~2,4 s con 0,06; E1–E4). **Reemplaza a D5 para el agua y el ácido:** es un modelo físico aproximado, con un factor nombrado, en lugar de una desaparición por reloj; trata igual a la lluvia y a los disparos; un charco grande dura más que una gota, como se pidió; y el tope de `maxCount` sigue protegiendo el presupuesto. D5 queda como respaldo si #73 no llega |
 | D9 | Gotas que empujan a los robots (#100) | **No se reduce el agua en juego:** `density` y el agua total quedan como están; se corrige el modelo de contacto | Escape entre dos sólidos en `WallContact` ([14.6](#146-disparos-con-agua-pura)); sin cambio de la masa del robot; criterios C1–C6 y C8–C14. El arrastre del aire sobre la lluvia queda fuera de #100. D10 completa la corrección |

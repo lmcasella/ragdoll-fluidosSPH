@@ -296,7 +296,7 @@ Se descartó el **arrastre cuadrático**: con pasos de 1/60 s y velocidades de e
 
 - **Paso fijo:** es física, como el movimiento, así que se aplica **una vez por paso** dentro del `while` del loop, con `dt` = `STEP_SETTINGS.dt`. El orden queda `flood.step` → `stepWorld` → **`immersion.step(dt)`** → `damage.process` → golpes. Como va después de `stepWorld`, los índices son los del paso que terminó y no se crea ni se destruye nada. *Verificado* que escribir el buffer de velocidad persiste (viento, [04-fluidos](04-fluidos.md#las-armas)).
 - **Zombis:** `DestroyParticle` marca la partícula y el motor la quita en el próximo `Step`; los índices del paso siguen valiendo (lo mismo supone `damage.process`). *Por verificar en el test:* la partícula consumida por el daño no rompe el puente.
-- **Agua disparada que entra al agua del nivel:** **se queda** como partícula de disparo, frenada y neutra, y vence con su tramo a los 6 s (`liveShotFloor`), como cualquier charco. No se "funde" ni se borra, porque el usuario se quejó de que los disparos desaparecen. El tope de 1.500 no se ve afectado: el presupuesto ya suponía 6 s de vida ([09](09-arquitectura.md#93-presupuestos-y-métricas)).
+- **Agua disparada que entra al agua del nivel:** **se queda** como partícula de disparo, frenada y neutra, y no vence (#160), como cualquier charco. No se "funde" ni se borra, porque el usuario se quejó de que los disparos desaparecen. Bajo carga rige el recorte `PERF` ([04](04-fluidos.md)).
 - **Contactos:** un disparo sumergido sigue tocando cuerpos. El ácido dentro de la inundación sigue dañando, y el agua sigue mojando.
 
 ### Interfaz para #30
@@ -320,4 +320,4 @@ Se descartó el **arrastre cuadrático**: con pasos de 1/60 s y velocidades de e
 2. **Lluvia no es agua:** con la inundación emitiendo, un disparo quieto a y = 10, lejos del agua asentada, no figura en `submerged`.
 3. **Interfaz:** `submerged`/`kinds` contienen los índices y tipos de los disparos dentro de la pileta, y ninguno de los que están fuera.
 4. **Costo (gameplay, `tests/helpers/game.js`):** inundación al tope, como en `tests/flood.test.js`, y los dos jugadores disparando agua hacia el agua durante 300 frames con gamepad simulado. Se mide el promedio de `stepWorld` + `flood.step` + `immersion.step` + `damage.process`. Falla por encima de 16 ms y la meta de 8 ms se revisa a mano. `immersion.step` solo: < 0,5 ms de media. Los valores se anotan en [9.2](09-arquitectura.md#92-rendimiento-medido).
-5. **Sin borrado:** en esa partida, los disparos que entran al agua siguen vivos hasta su vencimiento.
+5. **Sin borrado:** en esa partida, los disparos que entran al agua siguen vivos.

@@ -6,17 +6,24 @@
  * arreglos tipados indexados por slot (`vx`, `vy` guardan la velocidad del último subpaso para el contorno
  * inelástico, `js/wallContact.js`). El slot de una destruida se libera en `afterStep()`.
  * Libro de masa: `created[kind]` cuenta las creaciones y `destroyed[cause][kind]` las destrucciones por causa.
+ * Recorte (#160): si los fotogramas se vuelven lentos se destruyen las más viejas con `SINK.PERF`.
  */
+
+/**
+ * Datos del recorte por rendimiento. `slowFrameMs` y `slowTime` (s): frame lento sostenido que activa el recorte,
+ * de a `trimBatch` partículas por frame.
+ */
+export const PARTICLES = { slowFrameMs: 20, slowTime: 1, trimBatch: 100 };
 
 /** Origen de cada partícula, para el dibujo y la limpieza. */
 export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4 };
 
 /**
  * Causa de cada destrucción, obligatoria en `destroy` (libro de masa, docs/design/14-agua.md §14.2): `ABSORBED`
- * pasa al campo, `OUT` salió del mundo, `EXPIRED` venció el disparo, `PERSIST_CAP` tope de miel, `HIT` ácido
- * consumido al dañar, `EVAPORATED` pasó al aire y `RESET` ronda nueva.
+ * pasa al campo, `OUT` salió del mundo, `HIT` ácido consumido al dañar, `EVAPORATED` pasó al aire,
+ * `RESET` ronda nueva y `PERF` recorte de las más viejas por rendimiento.
  */
-export const SINK = { ABSORBED: 1, OUT: 2, EXPIRED: 3, PERSIST_CAP: 4, HIT: 5, EVAPORATED: 6, RESET: 7 };
+export const SINK = { ABSORBED: 1, OUT: 2, HIT: 3, EVAPORATED: 4, RESET: 5, PERF: 6 };
 
 const SINK_SLOTS = Math.max(...Object.values(SINK)) + 1;
 const KIND_SLOTS = 256;
@@ -37,6 +44,9 @@ export class ParticleStore {
         this.shot = new Int32Array(capacity);
         this.vx = new Float32Array(capacity);
         this.vy = new Float32Array(capacity);
+        this.slowTime = 0;
+        this.trimKey = new Float64Array(capacity);
+        this.trimOrder = [];
         this.free = new Int32Array(capacity);
         this.pending = new Int32Array(capacity);
         this.freeCount = capacity;
@@ -86,6 +96,36 @@ export class ParticleStore {
         this.pending[this.pendingCount++] = slot;
     }
 
+    /**
+     * Recorte por rendimiento, una vez por frame. `frameMs` es el tiempo de frame medido por quien llama (en las
+     * pruebas se simula) y `dt` los segundos reales del frame. Si `frameMs` supera `slowFrameMs` de forma sostenida
+     * durante `slowTime`, destruye hasta `trimBatch` partículas con `SINK.PERF` en ese frame, las de id de
+     * disparo menor primero; las del mapa (disparo 0) van al final. Devuelve cuántas destruyó.
+     */
+    trim(frameMs, dt) {
+        if (!(frameMs > PARTICLES.slowFrameMs)) {
+            this.slowTime = 0;
+            return 0;
+        }
+        this.slowTime += dt;
+        if (this.slowTime < PARTICLES.slowTime) return 0;
+        const total = this.system.GetParticleCount();
+        const order = this.trimOrder;
+        order.length = 0;
+        for (let i = 0; i < total; i++) {
+            const slot = this.slotAt(i);
+            if (slot < 0 || this.alive[slot] === 0) continue;
+            const shot = this.shot[slot] > 0 ? this.shot[slot] : 2 ** 31;
+            this.trimKey[i] = shot;
+            order.push(i);
+        }
+        const key = this.trimKey;
+        order.sort((a, b) => key[a] - key[b] || a - b);
+        const count = Math.min(PARTICLES.trimBatch, order.length);
+        for (let n = 0; n < count; n++) this.destroy(order[n], SINK.PERF);
+        return count;
+    }
+
     /** Libera los slots de las destruidas. Llamar inmediatamente después de cada `stepWorld`. */
     afterStep() {
         while (this.pendingCount > 0) this.free[this.freeCount++] = this.pending[--this.pendingCount];
@@ -96,5 +136,6 @@ export class ParticleStore {
         for (let i = this.system.GetParticleCount() - 1; i >= 0; i--) this.destroy(i, SINK.RESET);
         this.created.fill(0);
         for (const book of this.destroyed) book.fill(0);
+        this.slowTime = 0;
     }
 }

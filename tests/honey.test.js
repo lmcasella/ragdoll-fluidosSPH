@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
-const { FLUID, PERSIST_MAX, weaponById } = await import("../js/weapons.js");
+const { FLUID, weaponById } = await import("../js/weapons.js");
 const { ORIGIN, SINK } = await import("../js/particleStore.js");
 const { PARTICLE } = await import("../js/particles.js");
 
@@ -250,7 +250,7 @@ test("la miel que cae al agua del nivel no se absorbe ni se destruye: queda como
  * Un tanque no emite 1500 partículas de miel, así que se crean en el aire, con id de disparo creciente, y se mide el
  * primer frame de limpieza, antes de que caigan.
  */
-test(`tope: con 1500 partículas de miel disparadas quedan como mucho ${PERSIST_MAX} y son las más nuevas`, async () => {
+test(`sin tope: 1500 partículas de miel disparadas se conservan todas`, async () => {
     const game = await start();
     const { store, damage } = game.state;
     const firstTag = damage.nextShot;
@@ -272,8 +272,6 @@ test(`tope: con 1500 partículas de miel disparadas quedan como mucho ${PERSIST_
     Box2D.destroy(position);
     game.frames(2);
     const left = tags(game, FLUID.HONEY).filter((tag) => tag > 0);
-    console.log(`creó ${total}, quedan ${left.length}, id más chico ${Math.min(...left)} (primero ${firstTag})`);
-    assert.ok(left.length <= PERSIST_MAX, `quedan ${left.length}`);
-    assert.ok(left.length >= PERSIST_MAX - 5, `quedan ${left.length}: no se destruyó de más`);
-    assert.equal(Math.min(...left), firstTag + total - left.length, "se destruyeron las más viejas");
+    console.log(`creó ${total}, quedan ${left.length}`);
+    assert.equal(left.length, total, `quedan ${left.length} de ${total}`);
 });

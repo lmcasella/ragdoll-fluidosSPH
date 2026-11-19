@@ -29,21 +29,17 @@ export const SHOT_SYSTEM = {
     surfaceTensionNormalStrength: 0,
 };
 
-/** Tope de partículas de armas `persist` (la miel) que quedan en el mapa; las más viejas se destruyen primero. */
-export const PERSIST_MAX = 1200;
-
 /**
  * Tabla de armas. `rate`: partículas/s; `speed`: m/s; `spread`: rad (±); `tank`: partículas; `dps`: daño por
  * segundo con el chorro entero (0 si el arma aplica un estado). `lanes`: carriles paralelos separados 1,5 r y
  * centrados en el eje, repartidos por turno; cada arma cumple `rate / lanes ≤ speed / (1,5 r)`: un carril
- * sin explosión al crear. `persist`: no vence a los 6 s del disparo; queda como charco y cuenta para
- * PERSIST_MAX.
+ * sin explosión al crear.
  */
 export const WEAPONS = [
     { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 155, speed: 14, spread: 0.035, tank: 600, dps: 0, lanes: 1 },
     { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 155, speed: 14, spread: 0.035, tank: 272, dps: 20, lanes: 1 },
     { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 111, speed: 10, spread: 0.017, tank: 180, dps: 12, lanes: 1 },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 100, speed: 18, spread: 0.017, tank: 152, dps: 0, lanes: 1, persist: true },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 100, speed: 18, spread: 0.017, tank: 152, dps: 0, lanes: 1 },
 ];
 
 /**
@@ -59,9 +55,6 @@ export function weaponById(id) {
 
 /** Tipo de fluido por color de partícula (para las que no tienen disparo asociado). Los pares (r, g) salen de la tabla. */
 const byColor = new Map(WEAPONS.map((w) => [w.color[0] * 256 + w.color[1], w.id]));
-
-/** Ids de las armas con `persist`. */
-export const PERSIST_FLUIDS = new Set(WEAPONS.filter((w) => w.persist).map((w) => w.id));
 
 export function fluidFromColor(r, g) {
     return byColor.get(r * 256 + g) ?? 0;

@@ -5,6 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-19
+
+### Added
+- Las partículas de los disparos ya no desaparecen solas: se quitan el vencimiento a los 6 s y el tope de miel.
+- Recorte por rendimiento: solo si el juego baja de 50 fps (frame de más de 20 ms durante 1 s) se destruyen las partículas más viejas, de a 100 por frame, hasta recuperar; las del mapa al final. Sin carga no se recorta nada.
+
+### Removed
+- Las causas de destrucción `EXPIRED` y `PERSIST_CAP` y la constante `PERSIST_MAX`.
+
 ## [0.27.0] - 2026-11-19
 
 ### Added

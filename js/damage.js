@@ -13,7 +13,8 @@ const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
 const IMPACT_COOLDOWN = 0.25;
 const SELF_IMMUNITY = 0.4; // s en que un disparo no daña a quien lo disparó
 const SHOT_SLICE = 0.1; // s que dura un id de disparo abierto
-const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se destruyen
+/** Segundos hasta que se olvida el id de un disparo (atribución de daño). No destruye partículas. */
+const SHOT_LIFETIME = 6;
 
 export class DamageSystem {
     constructor(world, store, weapons = WEAPONS) {
