@@ -97,7 +97,7 @@ test("I3: 20 gotas en x₀ generan dos frentes a ±√(g h) (±10 %)", (t) => {
     scene.dispose();
 });
 
-test("I5: la lava soltada en agua quieta de 3 m cae a la velocidad terminal √(2 g (SG − 1) A_p / (C_d D)) = 2,19 m/s (±15 %)", (t) => {
+test("I5: la lava soltada en agua quieta de 3 m cae a la velocidad terminal √(2 g (SG − 1) A_p / (C_d D)) = 1,55 m/s (±15 %)", (t) => {
     const scene = makeScene();
     const diameter = 1.5 * RADIUS;
     const expected = Math.sqrt((2 * G * (MATERIALS.lava.SG - 1) * A_P) / (MATERIALS.lava.Cd * diameter));
@@ -114,7 +114,7 @@ test("I5: la lava soltada en agua quieta de 3 m cae a la velocidad terminal √(
     const top = Math.max(...window.map((w) => w.y));
     const bottom = Math.min(...window.map((w) => w.y));
     t.diagnostic(`I5: velocidad media entre 0,9 y 1,3 s ${mean.toFixed(3)} m/s contra ${expected.toFixed(3)} m/s (${((mean / expected - 1) * 100).toFixed(1)} %); tolerancia ±15 %; la ventana va de y ${top.toFixed(2)} a ${bottom.toFixed(2)} m`);
-    assert.ok(Math.abs(expected - 2.19) < 0.01, `terminal esperada ${expected}`);
+    assert.ok(Math.abs(expected - 1.55) < 0.01, `terminal esperada ${expected}`);
     assert.ok(bottom > 0.4, "la ventana de medición está dentro del agua, lejos del fondo");
     assert.ok(Math.abs(mean / expected - 1) <= 0.15, `velocidad media ${mean}`);
     assert.equal(scene.immersion.count, 1);
@@ -179,7 +179,7 @@ test("I6: el tope por masa reducida recorta el impulso sobre una columna delgada
     t.diagnostic(`I6 (tope): columna de 0,05 m (${massColumn.toFixed(3)} kg) contra partícula de ${massParticle.toFixed(3)} kg; impulso ${impulse.toFixed(4)} kg·m/s contra m_red · |v_rel| = ${(reduced * Math.abs(r.rel0)).toFixed(4)}; v_rel ${r.rel0.toFixed(3)} → ${r.rel1.toFixed(6)} m/s; suma ${(r.particleChange + r.columnChange).toExponential(2)}; recortes ${scene.immersion.stats.capped - before}`);
     assert.ok(scene.immersion.stats.capped > before, "el tope se activó");
     assert.ok(impulse <= reduced * Math.abs(r.rel0) * (1 + 1e-6), "el impulso supera m_red · |v_rel|");
-    assert.ok(r.rel1 * r.rel0 >= -1e-6, `la velocidad relativa se invirtió: ${r.rel0} → ${r.rel1}`);
+    assert.ok((r.rel1 * r.rel0) / (r.rel0 * r.rel0) >= -1e-6, `la velocidad relativa se invirtió: ${r.rel0} → ${r.rel1}`);
     assert.ok(Math.abs(r.particleChange + r.columnChange) / impulse < 1e-6);
     scene.dispose();
 });
@@ -203,6 +203,6 @@ test("una gota que cae al piso seco de una isla se absorbe como película", () =
     scene.spawn(FLUID.WATER, 5.05, 4.05);
     scene.immersion.step(DT);
     assert.equal(scene.immersion.stats.absorbed, 1);
-    assert.ok(scene.water.h[column] > 0.1, `h ${scene.water.h[column]}`);
+    assert.ok(Math.abs(scene.water.h[column] - A_P / scene.water.dx) < 1e-3 * (A_P / scene.water.dx), `h ${scene.water.h[column]} contra A_p / dx ${A_P / scene.water.dx}`);
     scene.dispose();
 });

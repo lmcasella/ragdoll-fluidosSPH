@@ -36,7 +36,7 @@ function scene() {
     Box2D.destroy(shape);
     const system = createParticleSystem(world, SHOT_SYSTEM);
     const store = new ParticleStore(system, SHOT_SYSTEM);
-    const wall = new WallContact(system, store);
+    const wall = new WallContact(system, store, SHOT_SYSTEM);
     const def = new Box2D.b2ParticleDef();
     const position = new Box2D.b2Vec2(0, 0);
     const velocity = new Box2D.b2Vec2(0, 0);

@@ -108,14 +108,14 @@ function positionsOf(system) {
  * composición, como pseudo-instancia de `stepWorld`.
  */
 function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {
-    return new WallContact(system, store);
+    return new WallContact(system, store, SHOT_SYSTEM);
 }
 
 /**
  * P1: rotura de presa. Columna de agua de `length` × `h0` separada `r` de las paredes (relleno por `ParticleStore`
  * de `length − 2 r` de ancho, con la altura corregida para conservar `h0` de agua), contra la pared izquierda y con
  * una compuerta a la derecha sin tapa, asentada `settle` s con el contorno y soltada al sacar la compuerta en
- * t = 0. Devuelve `vmaxSettle`, la rapidez máxima al soltar (precondición ≤ 0,2 m/s).
+ * t = 0. Devuelve `vrmsSettle`, la velocidad cuadrática media de las partículas al soltar (precondición de reposo ≤ 0,2 m/s; el máximo, `vmaxSettle`, lo dominan partículas sueltas de la columna alta y solo se informa).
  * Frente: la x más lejana con profundidad (partículas · A_p / bin) ≥ δ = `1,5 r` (una capa) en bins de 0,36 m,
  * interpolada linealmente dentro del bin (desde la pared de la presa). Con capa mínima δ el frente avanza a
  * `c = 2√(g h₀) − 2√(g δ)`: `slope` es la pendiente por mínimos cuadrados del frente en la ventana
@@ -138,13 +138,19 @@ export function damBreak({ h0 = 2, length = 8, settle = 4, makeRecorder = null }
     const initial = system.GetParticleCount();
     const recorder = makeRecorder?.({ system });
     const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
-    const maxSpeed = () => {
-        let v = 0;
-        for (let i = 0; i < system.GetParticleCount(); i++) v = Math.max(v, Math.hypot(Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1]));
-        return v;
+    const speeds = () => {
+        let max = 0;
+        let sum = 0;
+        const n = system.GetParticleCount();
+        for (let i = 0; i < n; i++) {
+            const sq = Box2D.HEAPF32[vel + 2 * i] ** 2 + Box2D.HEAPF32[vel + 2 * i + 1] ** 2;
+            max = Math.max(max, Math.sqrt(sq));
+            sum += sq;
+        }
+        return { max, rms: Math.sqrt(sum / Math.max(1, n)) };
     };
     for (let step = 0; step < Math.round(settle / DT); step++) stepWorld(world, [wall]);
-    const vmaxSettle = maxSpeed();
+    const { max: vmaxSettle, rms: vrmsSettle } = speeds();
     world.DestroyBody(gate);
     wall.invalidate();
     const BIN = 0.36;
@@ -184,7 +190,7 @@ export function damBreak({ h0 = 2, length = 8, settle = 4, makeRecorder = null }
     const expected = 2 * c0 - 2 * Math.sqrt(G * delta);
     const lag = (mt - mx / expected) * tScale;
     wall.dispose();
-    return { initial, vmaxSettle, curve, slope, expected, lag, samples: window.length, system, world };
+    return { initial, vmaxSettle, vrmsSettle, curve, slope, expected, lag, samples: window.length, system, world };
 }
 
 /**

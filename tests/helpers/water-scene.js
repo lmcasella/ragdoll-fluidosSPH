@@ -48,7 +48,7 @@ export function makeScene({ fill = null } = {}) {
     buildLevel(world);
     const system = createParticleSystem(world, SHOT_SYSTEM);
     const store = new ParticleStore(system, SHOT_SYSTEM);
-    const wall = new WallContact(system, store);
+    const wall = new WallContact(system, store, SHOT_SYSTEM);
     const water = new ShallowWater();
     if (fill !== null) fillField(water, fill);
     const immersion = new Immersion(system, store, water);

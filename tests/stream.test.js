@@ -24,18 +24,18 @@ test("mantener RT 1 s emite el caudal del agua y el tanque baja lo mismo", async
     game.frames(60);
     const grown = particleSystem.GetParticleCount() - before;
     const spent = full - tank(game);
-    console.log(`1 s de RT: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 50)`);
-    assert.ok(Math.abs(spent - 50) <= 2, `tanque -${spent}`);
+    console.log(`1 s de RT: el sistema creció ${grown} partículas, el tanque bajó ${spent} (caudal 155)`);
+    assert.ok(Math.abs(spent - (1 + 155 * 59 / 60)) <= 2, `tanque -${spent}`);
     assert.ok(grown <= spent && grown >= spent - 3, `creció ${grown}`);
-    assert.equal(players[0].tanks.get(2), 45, "el resto del inventario conserva lo suyo");
-    assert.equal(players[1].tanks.get(4), 150, "el otro jugador no disparó");
+    assert.equal(players[0].tanks.get(2), 180, "el resto del inventario conserva lo suyo");
+    assert.equal(players[1].tanks.get(4), 600, "el otro jugador no disparó");
 });
 
 test("mantener hasta vaciar: el tanque llega a 0 y deja de emitir", async () => {
     const game = await start();
     const { damage } = game.state;
     game.setPad(0, { buttons: [RT] });
-    game.frames(200);
+    game.frames(260);
     assert.equal(tank(game), 0);
     const shotsOpened = damage.nextShot;
     game.frames(60);
@@ -47,7 +47,7 @@ test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma
     const game = await start();
     const { players, damage } = game.state;
     game.setPad(0, { buttons: [RT] });
-    game.frames(200);
+    game.frames(260);
     game.setPad(0);
     game.frames(2);
     const opened = damage.nextShot;
@@ -59,7 +59,7 @@ test("soltar y volver a apretar con el tanque vacío sigue sin emitir; otra arma
     game.setPad(0, { buttons: [RT] });
     game.frames(30);
     assert.equal(players[0].weapon, 1);
-    assert.ok(players[0].tanks.get(4) < 150);
+    assert.ok(players[0].tanks.get(4) < 600);
 });
 
 test("durante el golpe no sale chorro, y al terminar arranca como una pulsación nueva", async () => {
@@ -73,7 +73,7 @@ test("durante el golpe no sale chorro, y al terminar arranca como una pulsación
     assert.equal(tank(game), during, "sin chorro mientras pega");
     game.frames(40);
     assert.ok(tank(game) < during, "después del golpe, con RT apretado, el chorro sigue");
-    assert.equal(players[0].tanks.get(2), 45);
+    assert.equal(players[0].tanks.get(2), 180);
 });
 test("un salto grande del reloj real sin frames no vence los disparos", async () => {
     const game = await start();
@@ -129,19 +129,19 @@ test("al empezar la ronda siguiente los tanques están llenos y el botón apreta
     const { match, players } = game.state;
     game.setPad(0, { buttons: [RT] });
     game.frames(30);
-    assert.ok(tank(game) < 150);
+    assert.ok(tank(game) < 600);
     finishRound(game);
     assert.equal(match.round, 2);
     assert.equal(match.state, "playing");
-    assert.equal(tank(game), 150, "el robot nuevo trae el inventario lleno");
-    assert.equal(players[0].tanks.get(3), 38);
+    assert.equal(tank(game), 600, "el robot nuevo trae el inventario lleno");
+    assert.equal(players[0].tanks.get(3), 152);
     game.frames(30); // RT sigue apretado desde la ronda anterior
-    assert.equal(tank(game), 150);
+    assert.equal(tank(game), 600);
     game.setPad(0);
     game.frames(2);
     game.setPad(0, { buttons: [RT] });
     game.frames(10);
-    assert.ok(tank(game) < 150);
+    assert.ok(tank(game) < 600);
 });
 
 test("la revancha con RT funciona, no gasta el tanque y hay que soltar RT antes de disparar", async () => {
@@ -158,12 +158,12 @@ test("la revancha con RT funciona, no gasta el tanque y hay que soltar RT antes 
     assert.equal(match.round, 1);
     assert.deepEqual(match.wins, [0, 0]);
     game.frames(40);
-    assert.equal(players[0].tanks.get(4), 150, "RT de la revancha no dispara");
+    assert.equal(players[0].tanks.get(4), 600, "RT de la revancha no dispara");
     game.setPad(0);
     game.frames(2);
     game.setPad(0, { buttons: [RT] });
     game.frames(10);
-    assert.ok(players[0].tanks.get(4) < 150);
+    assert.ok(players[0].tanks.get(4) < 600);
 });
 
 test("la revancha con Enter (J2) también funciona", async () => {
@@ -177,5 +177,5 @@ test("la revancha con Enter (J2) también funciona", async () => {
     assert.equal(match.state, "playing");
     game.emit("keyup", { code: "Enter" });
     game.frames(30);
-    assert.equal(game.state.players[1].tanks.get(4), 150);
+    assert.equal(game.state.players[1].tanks.get(4), 600);
 });
