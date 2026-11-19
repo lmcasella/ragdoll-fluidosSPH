@@ -13,10 +13,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - Las etapas de arriba traen armas sobre sus plataformas más externas, cada vez más seguidas y más peligrosas (agua, miel y lava al principio, ácido y lava después).
 - En Infinito un robot se ahoga cuando el agua cubre su torso, en cualquier parte del mapa. No hay sensor en la pileta.
 - Clásico sigue disponible en el menú, y es el mapa con el que corren las pruebas.
+- En Infinito los robots arrancan sin armas, solo con golpes: el gatillo no hace nada, no se dibuja la mira láser, la rueda de armas no se muestra y el HUD no muestra tanque. Recoger un ícono da el arma equipada con el tanque lleno. El equipo inicial es un dato por mapa (CLIMB.loadout); Clásico sigue con agua.
+- El bot sin arma, o con el tanque vacío, va a buscar un punto de aparición listo sobre la línea segura a 3 aristas o menos (BOT.pickupReach); el golpe contra un rival cercano sigue teniendo prioridad.
+- Premio por etapa: el primer robot que se apoya en una plataforma de la etapa 1 en adelante recupera toda la vida y llena todos sus tanques, una vez por etapa y por ronda (CLIMB.stagePrize). Un cartel chico arriba, ETAPA n · J1, dura 1,5 s y suena el efecto de recoger un arma.
 
 ### Changed
 - Por única vez, la elección guardada del menú se ignora para que todos arranquen con Infinito; la nueva elección se guarda aparte.
 - El campo de agua puede angostarse a las paredes de la etapa y subir su fondo efectivo; en Clásico no cambia nada.
+- El cartel de controles (#163) ya no se dibuja durante la partida: se muestra solo en el menú principal, debajo de las opciones.
 
 ## [0.28.0] - 2026-11-19
 

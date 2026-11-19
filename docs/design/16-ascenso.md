@@ -29,6 +29,8 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m) |
 | `spawnRayTop` | 9 | Inicio del rayo de aparición en Infinito (m), por debajo de la primera fila generada (≥ 9,9 m de cara inferior) |
 | `seamMargin` | 0.2 | 16.9, costuras de LiquidFun |
+| `loadout` | `{ weapon: null, weapons: [] }` | Equipo inicial del mapa (16.10); Clásico usa `LOADOUT` de `js/weapons.js` |
+| `stagePrize` | `{ banner: 1.5, repair: "full", refill: true }` | Premio por etapa (16.10) |
 
 ## 16.3 Geometría y generador
 
@@ -181,3 +183,10 @@ Recortable, en este orden (se recorta primero lo de arriba):
 3. **Densidad progresiva de armas:** `period` fijo en 2 para toda etapa ≥ 1, con los mismos `weights` por etapa.
 4. **Span activo del campo:** el campo queda en x 0–56 y `drawLevel` se dibuja después de `drawWater`. Hay agua dentro de las paredes, aunque oculta, y sube el costo (C3 se mide igual).
 5. **Cámara acotada al ancho de la etapa:** queda en `{ 0, 56, 0, Infinity }`.
+
+## 16.10 Equipo inicial, bot y premio por etapa (decisiones del game designer, 19/11)
+
+- **Sin líquidos al empezar.** En Infinito cada robot arranca con `CLIMB.loadout` (`weapon: null`, sin tanques): solo melee. Sin arma, el gatillo no hace nada, no se dibuja la mira láser, la rueda de armas no se abre y el HUD no muestra tanque. Recoger un punto de aparición da el arma con el tanque lleno y, si el robot no tenía arma equipada, la equipa. `equipLoadout(player, loadout = LOADOUT)` recibe el equipo del mapa.
+- **El bot busca armas.** Sin arma, o con todos los tanques vacíos, si hay un punto de aparición listo en un nodo sobre la línea segura y a `BOT.pickupReach` (3) aristas o menos de la ruta de menor costo, su meta es ese punto (el más barato). Si no, sigue como antes. El golpe contra un rival cercano (< 2 m) sigue teniendo prioridad.
+- **Premio por etapa.** El primer robot que se apoya en una plataforma de la etapa `n ≥ 1` (tope ≥ base de la etapa) gana el premio de esa etapa, una vez por etapa y por ronda: según `stagePrize`, la vida al máximo (`repair: "full"`) y todos sus tanques llenos (`refill`). `StagePrizes.detect` solo anota eventos `{ k, stage }` después de `stepWorld` y `StagePrizes.apply` es el único lugar que los aplica (#162 cambiará la vida al máximo por daño % a 0 acá). Un cartel chico arriba, `ETAPA n · J1`, dura `banner` s y suena el efecto `pickup`.
+- **Controles (#163).** El cartel de controles ya no se dibuja durante la partida: `drawMenu` lo dibuja (`CONTROLS_HELP`) debajo de las filas, solo en el menú principal.
