@@ -13,10 +13,10 @@ export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4 };
 
 /**
  * Causa de cada destrucción, obligatoria en `destroy` (libro de masa, docs/design/14-agua.md §14.2): `ABSORBED`
- * pasa al campo, `OUT` salió del mundo, `EXPIRED` venció el disparo, `PERSIST_CAP` tope de miel, `HIT` ácido
- * consumido al dañar, `EVAPORATED` pasó al aire y `RESET` ronda nueva.
+ * pasa al campo, `OUT` salió del mundo, `HIT` ácido consumido al dañar, `EVAPORATED` pasó al aire,
+ * `RESET` ronda nueva y `PERF` recorte de las más viejas por rendimiento.
  */
-export const SINK = { ABSORBED: 1, OUT: 2, EXPIRED: 3, PERSIST_CAP: 4, HIT: 5, EVAPORATED: 6, RESET: 7 };
+export const SINK = { ABSORBED: 1, OUT: 2, HIT: 3, EVAPORATED: 4, RESET: 5, PERF: 6 };
 
 const SINK_SLOTS = Math.max(...Object.values(SINK)) + 1;
 const KIND_SLOTS = 256;
