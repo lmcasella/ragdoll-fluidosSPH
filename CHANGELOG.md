@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-11-19
+
+### Added
+- Diseño de química (`docs/design/15-quimica.md`): cómo interactúan de verdad todas las sustancias del juego entre sí.
+
 ## [0.15.3] - 2026-11-19
 
 ### Added
