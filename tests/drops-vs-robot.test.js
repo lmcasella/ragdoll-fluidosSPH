@@ -16,6 +16,7 @@ const STICK_RIGHT = [1, 0, 0, 0];
 const MIN_JUMP = 0.9;
 const AHEAD = 2.0;
 const GRACE = 0.3;
+const START_X = 2.5;
 
 const fmt = (value, digits = 3) => Number(value).toFixed(digits);
 
@@ -180,7 +181,7 @@ test("C8: el salto parado dentro de un charco alcanza al menos 90 % del salto en
 
 /**
  * C13: el robot quieto (gamepad en reposo) con gotas creadas superpuestas a los pies apoyados: una por pie, o una
- * fila bajo cada pie (`row`, más severo que el criterio: solo se informa, sin assert). Devuelve la subida máxima del torso en 3 s y los contadores del escape.
+ * fila bajo cada pie (`row`, 6 gotas superpuestas). Devuelve la subida máxima del torso en 3 s y los contadores del escape.
  */
 async function overlapped({ mode, escape = true }) {
     const { game, player, surface } = await standing({ escape });
@@ -208,8 +209,71 @@ test("C13: gotas creadas superpuestas a los pies apoyados no lanzan al robot má
             `C13 (${mode}): salto en seco ${fmt(dry)} m; sin escape ${fmt(before.rise)} m; con escape ${fmt(after.rise)} m ` +
                 `(tope ${fmt(1.1 * dry)} m), eventos ${after.stats.events}, impagable ${after.stats.unpaid} J`,
         );
-        if (mode !== "one") continue;
         assert.ok(after.rise <= 1.1 * dry, `${mode}: ${after.rise} sobre ${1.1 * dry}`);
         assert.equal(after.stats.unpaid, 0, `${mode}: impagable ${after.stats.unpaid} J`);
     }
 });
+
+/**
+ * Gota entre los pies (#100, C14): el robot camina hacia la izquierda hasta `START_X` (para que los 2 s de marcha a
+ * la derecha no lleguen al borde del piso), se asienta, camina con el stick 2 s con una gota entre sus dos pies y
+ * después se detiene y salta. `scenario` es `feet` (una gota en reposo a la altura de reposo, en el punto medio entre los pies
+ * del robot asentado) o `stride` (el robot ya camina; en el instante de mayor separación entre los pies se crea la
+ * gota en el punto medio). Sin gota (`none`) da la referencia en seco. Devuelve la velocidad media del torso en los
+ * 2 s, la velocidad en los primeros 0,5 s, la subida del salto y los contadores del escape.
+ */
+async function betweenFeet({ scenario, escape = true }) {
+    const { game, player, surface } = await standing({ escape });
+    game.setPad(0, { axes: [-1, 0, 0, 0] });
+    for (let f = 0; f < 180 && player().torso.GetPosition().get_x() > START_X; f++) game.frame();
+    game.setPad(0);
+    game.frames(60);
+    const midpoint = () => {
+        const xs = player().rig.feet.map((id) => player().rag.bodies.get(id).GetPosition().get_x());
+        return [(xs[0] + xs[1]) / 2, Math.abs(xs[0] - xs[1])];
+    };
+    if (scenario === "stride") {
+        game.setPad(0, { axes: STICK_RIGHT });
+        let best = 0;
+        for (let f = 0; f < 120; f++) {
+            game.frame();
+            const [, gap] = midpoint();
+            if (f > 20 && gap >= 0.35) break;
+            best = Math.max(best, gap);
+        }
+        dropsAt(game, [[midpoint()[0], surface + REST_HEIGHT]]);
+    } else if (scenario === "feet") {
+        dropsAt(game, [[midpoint()[0], surface + REST_HEIGHT]]);
+        game.setPad(0, { axes: STICK_RIGHT });
+    } else game.setPad(0, { axes: STICK_RIGHT });
+    game.state.wallContact.resetStats();
+    const start = player().torso.GetPosition().get_x();
+    let early = start;
+    for (let f = 0; f < 120; f++) {
+        game.frame();
+        if (f === 29) early = player().torso.GetPosition().get_x();
+    }
+    const speed = (player().torso.GetPosition().get_x() - start) / 2;
+    const earlySpeed = (early - start) / 0.5;
+    const stats = { ...game.state.wallContact.stats };
+    game.setPad(0);
+    game.frames(30);
+    return { speed, earlySpeed, rise: jumpRise(game, player), stats };
+}
+
+for (const scenario of ["feet", "stride"]) {
+    test(`C14${scenario === "feet" ? "a" : "c"}: una gota entre los pies no estanca la zancada ni el salto (${scenario})`, async () => {
+        const dry = await betweenFeet({ scenario: "none" });
+        const before = await betweenFeet({ scenario, escape: false });
+        const after = await betweenFeet({ scenario });
+        const line = (name, r) =>
+            `${name}: velocidad ${fmt(r.speed)} m/s (${fmt((r.speed / dry.speed - 1) * 100, 1)} %), primeros 0,5 s ${fmt(r.earlySpeed)} m/s ` +
+            `(${fmt((r.earlySpeed / dry.earlySpeed - 1) * 100, 1)} %), salto ${fmt(r.rise)} m (${fmt((r.rise / dry.rise) * 100, 1)} %)`;
+        console.log(
+            `C14 ${scenario}\n  ${line("seco", dry)}\n  ${line("sin escape", before)}\n  ${line("con escape", after)}\n` +
+                `  eventos ${after.stats.events}, impagable ${after.stats.unpaid} J`,
+        );
+        assert.ok(after.speed >= 0.9 * dry.speed, `velocidad ${after.speed} contra ${dry.speed}`);
+        assert.ok(after.rise >= MIN_JUMP * dry.rise, `salto ${after.rise} contra ${dry.rise}`);
+    });
+}
