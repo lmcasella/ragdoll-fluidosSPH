@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-11-19
+
+### Fixed
+- Las gotas que caen sobre piso seco forman un charco que deja de extenderse. Antes la película se estiraba sin parar en láminas más finas que un espesor posible (hasta 13 m a los 60 s con 10 gotas); ahora se junta y queda en unos 5 m.
+
 ## [0.22.1] - 2026-11-19
 
 ### Fixed
