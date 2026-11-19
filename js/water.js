@@ -7,6 +7,14 @@ const G = 10;
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
 
+/**
+ * Densidad del agua de la ficha 3 (docs/design/15-quimica.md) a 20 °C (kg/m³) y pendiente de la densidad de la
+ * solución con la concentración, 6,8 kg/m³ por 1 % m/m de H2SO4 (lineal hasta el 8 %). La densidad de la columna
+ * es relativa al agua del modelo: `ρ_w (1 + 6,8 · (100 w) / 998,2)`, que con `w` = 0 vale `ρ_w`.
+ */
+const RHO_W_FICHA = 998.2;
+const RHO_PER_PERCENT = 6.8;
+
 /** Altura por debajo de la cual una cara se trata como seca en las velocidades de onda (m). */
 const TINY = 1e-12;
 const SQRT_G = Math.sqrt(G);
@@ -25,7 +33,8 @@ const PROJ_TOLERANCE = 1e-10;
  * Datos del campo de alturas (docs/design/14-agua.md §14.3): `dx` (m), `cfl`, `maxSubsteps`, `hDry` (m),
  * `hMin` (m, espesor mínimo de una película mojada, invariante I4 de §14.16 G), `manning` (s/m^(1/3)),
  * `ambientT` (°C) y `draw` (datos de dibujo: `alpha` es la opacidad del agua, `color` y
- * `lineColor` RGB del relleno y de la línea de superficie, `lineWidth` el grosor de la línea en píxeles).
+ * `lineColor` RGB del relleno y de la línea de superficie, `lineWidth` el grosor de la línea en píxeles,
+ * `colorStep` las celdas entre paradas del degradado de color por composición, #98).
  */
 export const WATER_FIELD = {
     dx: 0.1,
@@ -35,7 +44,7 @@ export const WATER_FIELD = {
     hMin: 1.85e-3,
     manning: 0.012,
     ambientT: 20,
-    draw: { alpha: 0.55, color: [40, 120, 255], lineColor: [170, 220, 255], lineWidth: 2 },
+    draw: { alpha: 0.55, color: [40, 120, 255], lineColor: [170, 220, 255], lineWidth: 2, colorStep: 4 },
 };
 
 const minmod = (a, b) => (a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b);
@@ -81,7 +90,8 @@ function project(h, u, b, bs) {
  * HLL, reconstrucción hidrostática (Audusse et al., 2004), MUSCL con minmod y SSP-RK2. Es JS puro: no usa
  * `Box2D`. Unidades: metros, segundos, rebanada 2D con `σ_w` = `SIGMA_W`.
  *
- * `h` (m), `q` (m²/s), `E` (J/m) y `M` (m) son los arreglos de estado; `b` es el lecho, `d` el
+ * `h` (m), `q` (m²/s), `E` (J/m), `M` (m) y `A` (kg/m, masa de H2SO4 de la columna, #98) son los arreglos de
+ * estado; `A` no se recorta nunca: el recorte a `[0, w_a]` vale solo al calcular propiedades. `b` es el lecho, `d` el
  * desplazamiento por cuerpos (cero hasta #74) y `boiled` los J pendientes de vaporización.
  * `stats` cuenta los subpasos, las repeticiones con `dt/2` (`halvings`), las activaciones del tope de
  * subpasos (`capHits`), el `h` mínimo aceptado (`minH`) y la cantidad de movimiento que se anuló en celdas
@@ -102,11 +112,12 @@ export class ShallowWater {
         this.q = make();
         this.E = make();
         this.M = make();
+        this.A = make();
         this.d = make();
         this.boiled = make();
-        this.saved = { h: make(), q: make(), E: make(), M: make() };
-        this.stage = { h: make(), q: make(), E: make(), M: make() };
-        this.rate = { h: make(), q: make(), E: make(), M: make() };
+        this.saved = { h: make(), q: make(), E: make(), M: make(), A: make() };
+        this.stage = { h: make(), q: make(), E: make(), M: make(), A: make() };
+        this.rate = { h: make(), q: make(), E: make(), M: make(), A: make() };
         this.ext = { H: make(N + 2), ETA: make(N + 2), U: make(N + 2), SH: make(N + 2), SETA: make(N + 2), SU: make(N + 2) };
         this.face = {
             hL: make(N + 1),
@@ -118,11 +129,16 @@ export class ShallowWater {
             fqR: make(N + 1),
             fE: make(N + 1),
             fM: make(N + 1),
+            fA: make(N + 1),
         };
         this.cWater = MATERIALS.water.c;
         this.lnMuWater = Math.log(MATERIALS.water.mu);
         this.lnMuHoney = Math.log(MATERIALS.honey.mu);
         this.sgHoney = MATERIALS.honey.SG;
+        this.sgAcid = MATERIALS.acid.SG;
+        this.wAcid = MATERIALS.acid.species.H2SO4;
+        this.sigmaWater = MATERIALS.water.sigmaE;
+        this.sigmaAcid = MATERIALS.acid.sigmaE;
         for (let i = 0; i < N; i++) {
             const xc = this.center(i);
             let top = 0;
@@ -139,7 +155,7 @@ export class ShallowWater {
         return this.x0 + (i + 0.5) * this.dx;
     }
 
-    /** Vuelve al estado asentado: lago en `pool.surface` entre `x1` y `x2`, `q` = 0, `T` ambiente, sin miel. */
+    /** Vuelve al estado asentado: lago en `pool.surface` entre `x1` y `x2`, `q` = 0, `T` ambiente, sin miel ni ácido. */
     reset() {
         const { N, level, config } = this;
         const pool = level.pool;
@@ -150,6 +166,7 @@ export class ShallowWater {
             this.q[i] = 0;
             this.E[i] = SIGMA_W * this.cWater * this.h[i] * config.ambientT;
             this.M[i] = 0;
+            this.A[i] = 0;
             this.d[i] = 0;
             this.boiled[i] = 0;
         }
@@ -168,6 +185,23 @@ export class ShallowWater {
         const h = this.h[i];
         if (h < this.config.hDry) return 0;
         return Math.min(1, Math.max(0, this.M[i] / h));
+    }
+
+    /**
+     * Fracción másica de H2SO4 de la columna `i` sin recortar, `w = A / m_col` con
+     * `m_col = σ_w (h + (SG_a − 1) V_a + (SG_h − 1) M)` y `V_a = A / (SG_a σ_w w_a)` (mezcla ideal, #98). Vale 0
+     * si la columna está seca; es lo que vigila el principio del máximo.
+     */
+    acidRatio(i) {
+        const h = this.h[i];
+        if (h <= this.config.hDry) return 0;
+        const va = this.A[i] / (this.sgAcid * SIGMA_W * this.wAcid);
+        return this.A[i] / (SIGMA_W * (h + (this.sgAcid - 1) * va + (this.sgHoney - 1) * this.M[i]));
+    }
+
+    /** Fracción másica de H2SO4 de la columna `i` recortada a `[0, w_a]`, la que usan las propiedades. */
+    acidFraction(i) {
+        return Math.min(this.wAcid, Math.max(0, this.acidRatio(i)));
     }
 
     /** Viscosidad dinámica de la mezcla (Pa·s), regla logarítmica `ln μ = X ln μ_miel + (1 − X) ln μ_agua`. */
@@ -207,9 +241,26 @@ export class ShallowWater {
         return this.sample(x, (i) => this.uOf(i));
     }
 
-    /** Densidad de la columna `ρ_col = ρ_w (1 + (SG_miel − 1) X_v)` en `x` (kg/m³). */
+    /**
+     * Densidad de la columna `ρ_col = ρ_w (1 + 6,8 · (100 w) / 998,2 + (SG_miel − 1) X_v)` en `x` (kg/m³), con `w`
+     * la fracción másica de H2SO4 (ficha 3, lineal hasta el 8 %).
+     */
     densityAt(x) {
-        return this.sample(x, (i) => RHO_W * (1 + (this.sgHoney - 1) * this.honeyFraction(i)));
+        return this.sample(
+            x,
+            (i) => RHO_W * (1 + (RHO_PER_PERCENT * 100 * this.acidFraction(i)) / RHO_W_FICHA + (this.sgHoney - 1) * this.honeyFraction(i)),
+        );
+    }
+
+    /** Fracción másica de H2SO4 recortada en `x`. */
+    acidFractionAt(x) {
+        return this.sample(x, (i) => this.acidFraction(i));
+    }
+
+    /** Conductividad eléctrica (S/m) en `x`, lineal en `w` entre la del agua y la del ácido al 8 % (ficha 3). */
+    conductivityAt(x) {
+        const k = (this.sigmaAcid - this.sigmaWater) / this.wAcid;
+        return this.sigmaWater + k * this.acidFractionAt(x);
     }
 
     /** Viscosidad dinámica de la mezcla en `x` (Pa·s). */
@@ -250,12 +301,19 @@ export class ShallowWater {
         return sum * this.dx;
     }
 
+    /** Masa de H2SO4 `Σ A dx` (kg). */
+    acid() {
+        let sum = 0;
+        for (let i = 0; i < this.N; i++) sum += this.A[i];
+        return sum * this.dx;
+    }
+
     /**
      * Suma una fuente en `x` repartida entre las dos celdas vecinas con pesos lineales (cloud-in-cell):
-     * `area` (m²), `momentum` (`Σ SG A v_x`, m³/s), `energy` (J) y `honey` (m²). Se aplica en el acto: equivale
-     * a acumularla y sumarla al principio de `step`, porque nada corre entre ambos.
+     * `area` (m²), `momentum` (`Σ SG A v_x`, m³/s), `energy` (J), `honey` (m²) y `acid` (kg de H2SO4). Se aplica
+     * en el acto: equivale a acumularla y sumarla al principio de `step`, porque nada corre entre ambos.
      */
-    deposit(x, area, momentum, energy, honey) {
+    deposit(x, area, momentum, energy, honey, acid = 0) {
         const { N, dx } = this;
         const s = (x - this.x0) / dx - 0.5;
         const i = Math.floor(s);
@@ -266,6 +324,7 @@ export class ShallowWater {
             this.q[c] += (w * momentum) / dx;
             this.E[c] += (w * energy) / dx;
             this.M[c] += (w * honey) / dx;
+            this.A[c] += (w * acid) / dx;
         }
     }
 
@@ -275,14 +334,14 @@ export class ShallowWater {
     }
 
     /**
-     * Calcula en `rate` la derivada temporal del estado `(h, q, E, M)` y devuelve la mayor velocidad de onda
-     * `max(|S_L|, |S_R|)` sobre las caras (m/s).
+     * Calcula en `rate` la derivada temporal del estado `(h, q, E, M, A)` y devuelve la mayor velocidad de onda
+     * `max(|S_L|, |S_R|)` sobre las caras (m/s). Los escalares `E`, `M` y `A` usan upwind sobre el flujo de masa.
      */
-    evaluate(h, q, E, M) {
+    evaluate(h, q, E, M, A) {
         const { N, dx, b, d, rate } = this;
         const hd = this.config.hDry;
         const { H, ETA, U, SH, SETA, SU } = this.ext;
-        const { hL, hR, bL, bR, fm, fqL, fqR, fE, fM } = this.face;
+        const { hL, hR, bL, bR, fm, fqL, fqR, fE, fM, fA } = this.face;
         for (let i = 0; i < N; i++) {
             const k = i + 1;
             const hh = h[i];
@@ -394,15 +453,18 @@ export class ShallowWater {
             if (f === 0 || f === N) {
                 fE[f] = 0;
                 fM[f] = 0;
+                fA[f] = 0;
             } else if (gM >= 0) {
                 const c = f - 1;
                 const s = h[c] > 0 ? gM / h[c] : 0;
                 fE[f] = s * E[c];
                 fM[f] = s * M[c];
+                fA[f] = s * A[c];
             } else {
                 const s = h[f] > 0 ? gM / h[f] : 0;
                 fE[f] = s * E[f];
                 fM[f] = s * M[f];
+                fA[f] = s * A[f];
             }
         }
         for (let i = 0; i < N; i++) {
@@ -411,6 +473,7 @@ export class ShallowWater {
             rate.q[i] = -(fqL[i + 1] - fqR[i] - sc) / dx;
             rate.E[i] = -(fE[i + 1] - fE[i]) / dx;
             rate.M[i] = -(fM[i + 1] - fM[i]) / dx;
+            rate.A[i] = -(fA[i + 1] - fA[i]) / dx;
         }
         return smax;
     }
@@ -454,21 +517,23 @@ export class ShallowWater {
 
     /** Un subpaso SSP-RK2 de `dt`; devuelve `false` (sin cambiar el estado) si algún `h` quedó negativo. */
     attempt(dt) {
-        const { N, h, q, E, M, stage, rate } = this;
-        this.evaluate(h, q, E, M);
+        const { N, h, q, E, M, A, stage, rate } = this;
+        this.evaluate(h, q, E, M, A);
         for (let i = 0; i < N; i++) {
             stage.h[i] = h[i] + dt * rate.h[i];
             stage.q[i] = q[i] + dt * rate.q[i];
             stage.E[i] = E[i] + dt * rate.E[i];
             stage.M[i] = M[i] + dt * rate.M[i];
+            stage.A[i] = A[i] + dt * rate.A[i];
         }
         if (!this.settle(stage)) return false;
-        this.evaluate(stage.h, stage.q, stage.E, stage.M);
+        this.evaluate(stage.h, stage.q, stage.E, stage.M, stage.A);
         for (let i = 0; i < N; i++) {
             stage.h[i] = 0.5 * (h[i] + stage.h[i] + dt * rate.h[i]);
             stage.q[i] = 0.5 * (q[i] + stage.q[i] + dt * rate.q[i]);
             stage.E[i] = 0.5 * (E[i] + stage.E[i] + dt * rate.E[i]);
             stage.M[i] = 0.5 * (M[i] + stage.M[i] + dt * rate.M[i]);
+            stage.A[i] = 0.5 * (A[i] + stage.A[i] + dt * rate.A[i]);
         }
         if (!this.settle(stage)) return false;
         this.friction(stage, dt);
@@ -478,6 +543,7 @@ export class ShallowWater {
             q[i] = stage.q[i];
             E[i] = stage.E[i];
             M[i] = stage.M[i];
+            A[i] = stage.A[i];
             this.stats.minH = Math.min(this.stats.minH, h[i]);
         }
         return true;
@@ -502,16 +568,18 @@ export class ShallowWater {
 
     /** Avanza un subpaso de `dt`; si da `h < 0` lo repite en dos mitades, hasta `MAX_HALVINGS` niveles. */
     advance(dt, depth = 0) {
-        const { saved, h, q, E, M } = this;
+        const { saved, h, q, E, M, A } = this;
         saved.h.set(h);
         saved.q.set(q);
         saved.E.set(E);
         saved.M.set(M);
+        saved.A.set(A);
         if (this.attempt(dt)) return;
         h.set(saved.h);
         q.set(saved.q);
         E.set(saved.E);
         M.set(saved.M);
+        A.set(saved.A);
         if (depth >= MAX_HALVINGS) throw new Error("ShallowWater: h negativa con dt mínimo");
         this.stats.halvings++;
         this.advance(dt / 2, depth + 1);

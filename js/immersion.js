@@ -24,7 +24,7 @@ export const KIND_MATERIAL = {
  *
  * Absorción: toda partícula miscible con `y ≤ η(x) + r` suma a la columna su volumen, su cantidad de
  * movimiento horizontal (`SG · A_p · v_x`, Boussinesq), su energía térmica (a la temperatura ambiente más la
- * pérdida inelástica del choque) y su miel, y se destruye con `store.destroy`. La cantidad de movimiento
+ * pérdida inelástica del choque) su miel y su H2SO4 (`SG · σ_w · A_p · species.H2SO4`, kg), y se destruye con `store.destroy`. La cantidad de movimiento
  * vertical no genera ola: se suma a `stats.verticalImpulse` (kg·m/s de la rebanada) como impulso sobre el lecho.
  *
  * Inmersión: la partícula inmiscible con `y < η(x)` recibe el empuje de Arquímedes `g ρ_col/(ρ_w SG)` y el
@@ -108,7 +108,8 @@ export class Immersion {
         const sg = entry.material.SG;
         const momentum = sg * area * vx;
         const energy = this.heat * area + this.inelasticLoss(x, area, momentum, sg, vx, vy);
-        water.deposit(x, area, momentum, energy, entry.honey * area);
+        const acid = sg * SIGMA_W * area * (entry.material.species.H2SO4 ?? 0);
+        water.deposit(x, area, momentum, energy, entry.honey * area, acid);
         this.store.destroy(i, SINK.ABSORBED);
         this.stats.absorbed++;
         this.stats.volume += area;
