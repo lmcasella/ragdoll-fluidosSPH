@@ -68,8 +68,8 @@ export class Immersion {
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
         const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
         const heap = Box2D.HEAPF32;
-        const minX = water.x0;
-        const maxX = water.x0 + water.N * water.dx;
+        const minX = water.x0 + water.i0 * water.dx;
+        const maxX = water.x0 + water.i1 * water.dx;
         const absorbedAtStart = this.stats.absorbed;
         for (let i = 0; i < total; i++) {
             const slot = store.slotAt(i);
@@ -124,12 +124,12 @@ export class Immersion {
      */
     inelasticLoss(x, area, momentum, sg, vx, vy) {
         const { water } = this;
-        const { N, dx } = water;
+        const { i0, i1, dx } = water;
         const s = (x - water.x0) / dx - 0.5;
         const i = Math.floor(s);
         const w1 = s - i;
-        const c0 = Math.min(Math.max(i, 0), N - 1);
-        const c1 = Math.min(Math.max(i + 1, 0), N - 1);
+        const c0 = Math.min(Math.max(i, i0), i1 - 1);
+        const c1 = Math.min(Math.max(i + 1, i0), i1 - 1);
         let deltaK = this.columnKinetic(c0, c0 === c1 ? 1 : 1 - w1, area, momentum);
         if (c1 !== c0) deltaK += this.columnKinetic(c1, w1, area, momentum);
         const kinetic = 0.5 * sg * SIGMA_W * area * (vx * vx + vy * vy);
@@ -159,7 +159,7 @@ export class Immersion {
         const rx = vx - current;
         const k = (0.5 * rho * material.Cd * diameter * Math.hypot(rx, vy)) / (sg * RHO_W * area);
         let f = (k * dt) / (1 + k * dt);
-        const column = Math.min(Math.max(Math.floor((x - water.x0) / water.dx), 0), water.N - 1);
+        const column = Math.min(Math.max(Math.floor((x - water.x0) / water.dx), water.i0), water.i1 - 1);
         const massColumn = SIGMA_W * water.h[column] * water.dx;
         const massParticle = sg * SIGMA_W * area;
         const cap = massColumn / (massParticle + massColumn);

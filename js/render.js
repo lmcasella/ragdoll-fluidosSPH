@@ -353,6 +353,42 @@ export function drawMenu(ctx, width, height, rows) {
             ctx.fillText(text, x + MENU_LAYOUT.valueX + j * MENU_LAYOUT.valueWidth, y);
         });
     });
+    drawControlsHelp(ctx, width, height, rows.length);
+}
+
+/** Líneas de ayuda de controles del menú principal (#163): ya no se muestran durante la partida. */
+export const CONTROLS_HELP = [
+    "Armas: 1 Agua · 2 Ácido · 3 Lava · 4 Miel · se recogen en el mapa",
+    "Gamepad: stick izq. mover · arriba saltar · stick der. apuntar · A/RT disparar (mantener) · X golpe · LB/RB arma",
+    "Teclado J1: A/D · W · Espacio · F golpe · 1-4 · mouse apunta, clic mantenido dispara",
+    "Teclado J2: ←/→ · ↑ · Enter · Num 5 golpe · Num − bloqueo · Num 1-4",
+    "Caer a la pileta = robot destruido · Al mejor de 3 rondas",
+];
+
+/** Dibuja `CONTROLS_HELP` centrado, debajo de las `rowCount` filas del menú. */
+export function drawControlsHelp(ctx, width, height, rowCount) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.font = "14px Segoe UI";
+    ctx.fillStyle = "#aaaaaa";
+    const y0 = height / 2 + MENU_LAYOUT.top + rowCount * MENU_LAYOUT.rowHeight + 6;
+    CONTROLS_HELP.forEach((line, i) => ctx.fillText(line, width / 2, y0 + i * 20));
+    ctx.textAlign = "left";
+}
+
+/**
+ * Cartel chico del premio por etapa (#25), arriba y centrado en píxeles de pantalla, sin fondo para no tapar el juego.
+ * `alpha` ∈ [0, 1] lo desvanece al final.
+ */
+export function drawStageBanner(ctx, width, text, alpha = 1) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.font = "bold 20px Segoe UI";
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#ffd84a";
+    ctx.fillText(text, width / 2, 124);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
 }
 
 const TANK_BAR = { width: 180, height: 10 };
@@ -369,22 +405,24 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
         ctx.textAlign = left ? "left" : "right";
         ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
         const weapon = weapons.find((w) => w.id === player.weapon);
-        ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}% · ${weapon.name}`, x, height - 30);
+        ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}%${weapon ? ` · ${weapon.name}` : ""}`, x, height - 30);
 
-        const left0 = left ? x : x - TANK_BAR.width;
-        const top = height - 22;
-        const ratio = Math.max(0, Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank));
-        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-        ctx.fillRect(left0, top, TANK_BAR.width, TANK_BAR.height);
-        ctx.fillStyle = `rgb(${weapon.color.join(", ")})`;
-        ctx.fillRect(left0, top, TANK_BAR.width * ratio, TANK_BAR.height);
-        if (ratio === 0) {
-            ctx.fillStyle = "#ff5555";
-            ctx.font = "bold 12px Segoe UI";
-            ctx.textAlign = "left";
-            ctx.fillText("VACÍO", left0 + 4, top + TANK_BAR.height - 1);
-            ctx.font = "bold 24px Segoe UI";
-            ctx.textAlign = left ? "left" : "right";
+        if (weapon) {
+            const left0 = left ? x : x - TANK_BAR.width;
+            const top = height - 22;
+            const ratio = Math.max(0, Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank));
+            ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.fillRect(left0, top, TANK_BAR.width, TANK_BAR.height);
+            ctx.fillStyle = `rgb(${weapon.color.join(", ")})`;
+            ctx.fillRect(left0, top, TANK_BAR.width * ratio, TANK_BAR.height);
+            if (ratio === 0) {
+                ctx.fillStyle = "#ff5555";
+                ctx.font = "bold 12px Segoe UI";
+                ctx.textAlign = "left";
+                ctx.fillText("VACÍO", left0 + 4, top + TANK_BAR.height - 1);
+                ctx.font = "bold 24px Segoe UI";
+                ctx.textAlign = left ? "left" : "right";
+            }
         }
         for (let w = 0; w < match.winsNeeded; w++) {
             const cx = left ? x + 10 + w * 26 : x - 10 - w * 26;
@@ -621,7 +659,7 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
  * llamada y se reutilizan.
  */
 export function waterOutline(water, out) {
-    const { N, dx, x0, b, h } = water;
+    const { N, i1, dx, x0, b, h } = water;
     const wet = water.config.hDry;
     if (!out.xs || out.xs.length < 4 * N + 4) {
         out.xs = new Float64Array(4 * N + 4);
@@ -633,14 +671,14 @@ export function waterOutline(water, out) {
     const { xs, ys } = out;
     let count = 0;
     let v = 0;
-    let i = 0;
-    while (i < N) {
+    let i = water.i0;
+    while (i < i1) {
         if (h[i] <= wet) {
             i++;
             continue;
         }
         let end = i;
-        while (end + 1 < N && h[end + 1] > wet) end++;
+        while (end + 1 < i1 && h[end + 1] > wet) end++;
         const left = x0 + i * dx;
         const right = x0 + (end + 1) * dx;
         const first = v;
@@ -717,12 +755,20 @@ function tintedFill(ctx, water, left, right, step) {
  * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los tramos con ácido se rellenan con
  * un degradado horizontal de `fieldColor`, con una parada cada `draw.colorStep` celdas y en las dos caras; la
  * geometría no cambia. Los datos de dibujo son `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
+ * `deep` (opcional, `{ floor, bottom }` en metros): con `floor > 0` pinta además un rectángulo del color del agua entre las
+ * caras del span, de `floor` a `bottom` (borde inferior de la cámara), para que no se vea el fondo efectivo.
  */
-export function drawWater(ctx, water, scale) {
+export function drawWater(ctx, water, scale, deep = null) {
     const { alpha, color, lineColor, lineWidth, colorStep } = water.config.draw;
     waterOutline(water, outline);
     const { xs, ys } = outline;
     const flat = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    if (deep && deep.floor > 0 && deep.bottom < deep.floor) {
+        const left = water.x0 + water.i0 * water.dx;
+        ctx.fillStyle = flat;
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(left, deep.bottom, (water.i1 - water.i0) * water.dx, deep.floor - deep.bottom);
+    }
     ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
     ctx.lineWidth = lineWidth / scale;
     ctx.lineJoin = "round";

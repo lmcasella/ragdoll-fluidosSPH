@@ -35,6 +35,8 @@ export class DamageSystem {
         /** Dueños (`{ player, index, bodyId }`) de un pie que empezó contacto con algo que no es un robot; los vacía quien los consume. */
         this.footfalls = [];
         this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
+        /** `(x) => η` (m) de la superficie bajo la cual se ahoga un robot (tope del torso), o `null` si no hay (mapa clásico). */
+        this.drownSurface = null;
         /** Puntero de fixture sensor → función que recibe el puntero del cuerpo que lo tocó; solo debe encolar (ver `js/pickups.js`). */
         this.sensorHooks = new Map();
         this.lastImpact = new Map();
@@ -194,6 +196,15 @@ export class DamageSystem {
         }
     }
 
+    /** Altura (m) del punto más alto del torso: el máximo del AABB de sus fixtures. */
+    torsoTop(player) {
+        let top = -Infinity;
+        for (let fixture = player.torso.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
+            top = Math.max(top, fixture.GetAABB(0).get_upperBound().get_y());
+        }
+        return top;
+    }
+
     /**
      * Aplica lo encolado durante el paso; llamar después de stepWorld y de `store.afterStep()`.
      * `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
@@ -202,6 +213,14 @@ export class DamageSystem {
     process(now, waterLevel = -Infinity) {
         for (const owner of this.drowned) owner.player.drown(now);
         this.drowned.length = 0;
+
+        if (this.drownSurface) {
+            for (const player of this.players) {
+                if (player.dead) continue;
+                const x = player.torso.GetPosition().get_x();
+                if (this.torsoTop(player) < this.drownSurface(x)) player.drown(now);
+            }
+        }
 
         if (waterLevel !== -Infinity) {
             for (const player of this.players) {

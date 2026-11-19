@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
 const { DIFFICULTY } = await import("../js/bot.js");
-const { MENU } = await import("../js/menu.js");
+const { MENU, Menu } = await import("../js/menu.js");
 
 const A = 0;
 const START = 9;
@@ -111,16 +111,39 @@ test("menu: cada dificultad aplica su preset al bot", async () => {
     console.log(`presets aplicados: ${JSON.stringify(DIFFICULTY)}`);
 });
 
-test("menu: Infinito no se puede elegir, ni siquiera desde lo guardado", async () => {
+test("menu: Infinito es el mapa por defecto, habilitado, y Clásico se puede elegir", async () => {
+    const fresh = new Menu({ storage: null });
+    assert.equal(fresh.choice.map, "infinite");
+    const infinite = MENU.rows.find((row) => row.id === "map").values.find((v) => v.id === "infinite");
+    assert.ok(!infinite.disabled);
+
     const game = await title();
     const { menu } = game.state;
     tap(game, stick(0, -1));
     assert.equal(menu.cursor, ROW.map);
-    for (let i = 0; i < 3; i++) tap(game, stick(1, 0));
+    tap(game, stick(-1, 0));
     assert.equal(menu.choice.map, "classic");
+    tap(game, stick(1, 0));
+    assert.equal(menu.choice.map, "infinite");
+});
 
-    const stored = memory({ [MENU.storageKey]: JSON.stringify({ map: "infinite" }) });
-    assert.equal((await title({ storage: stored })).state.menu.choice.map, "classic");
+test("menu: una elección guardada con la clave anterior se ignora y llega el default Infinito", async () => {
+    const old = memory({ "ragdoll-fluidos.menu": JSON.stringify({ mode: "bot", difficulty: "hard", map: "classic" }) });
+    assert.deepEqual((await title({ storage: old })).state.menu.choice, { mode: "versus", difficulty: "normal", map: "infinite", bots: [] });
+    assert.notEqual(MENU.storageKey, "ragdoll-fluidos.menu");
+});
+
+test("menu: Clásico elegido se guarda y se arranca como mapa clásico", async () => {
+    const storage = memory();
+    const game = await title({ storage });
+    tap(game, stick(0, -1));
+    tap(game, stick(-1, 0));
+    assert.equal(JSON.parse(storage.data.get(MENU.storageKey)).map, "classic");
+    tap(game, stick(0, 1));
+    tap(game, button(A));
+    assert.equal(game.state.match.state, "countdown");
+    assert.equal(game.state.map, "classic");
+    assert.equal(game.state.climb, null);
 });
 
 test("menu: el teclado navega como respaldo (flechas, WASD, Enter)", async () => {
@@ -180,7 +203,7 @@ test("menu: mantener el stick no saltea filas (retardo y repetición)", async ()
 });
 
 test("menu: sin localStorage, con almacenamiento que falla o con datos rotos arranca con los defaults", async () => {
-    const defaults = { mode: "versus", difficulty: "normal", map: "classic", bots: [] };
+    const defaults = { mode: "versus", difficulty: "normal", map: "infinite", bots: [] };
     assert.deepEqual((await title()).state.menu.choice, defaults);
 
     const broken = { getItem: () => { throw new Error("bloqueado"); }, setItem: () => { throw new Error("bloqueado"); } };
@@ -203,10 +226,10 @@ test("menu: recuerda la última elección", async () => {
     tap(first, stick(1, 0));
     tap(first, stick(0, 1));
     tap(first, stick(1, 0));
-    assert.deepEqual(JSON.parse(storage.data.get(MENU.storageKey)), { mode: "bot", difficulty: "hard", map: "classic" });
+    assert.deepEqual(JSON.parse(storage.data.get(MENU.storageKey)), { mode: "bot", difficulty: "hard", map: "infinite" });
 
     const second = await title({ storage });
-    assert.deepEqual(second.state.menu.choice, { mode: "bot", difficulty: "hard", map: "classic", bots: [1] });
+    assert.deepEqual(second.state.menu.choice, { mode: "bot", difficulty: "hard", map: "infinite", bots: [1] });
 });
 
 test("menu: ?bot= preselecciona el modo y gana sobre lo guardado", async () => {

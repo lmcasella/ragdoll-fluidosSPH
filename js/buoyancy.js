@@ -135,10 +135,10 @@ export class Buoyancy {
 
     /** Pendiente de la superficie `∂η/∂x` en la columna `c` con sus vecinas mojadas (0 si no tiene). */
     slope(c) {
-        const { b, h, N, dx, config } = this.water;
+        const { b, h, i0, i1, dx, config } = this.water;
         const hd = config.hDry;
-        const left = c > 0 && h[c - 1] > hd;
-        const right = c < N - 1 && h[c + 1] > hd;
+        const left = c > i0 && h[c - 1] > hd;
+        const right = c < i1 - 1 && h[c + 1] > hd;
         const eta = b[c] + h[c];
         if (left && right) return (b[c + 1] + h[c + 1] - b[c - 1] - h[c - 1]) / (2 * dx);
         if (right) return (b[c + 1] + h[c + 1] - eta) / dx;
@@ -190,9 +190,9 @@ export class Buoyancy {
                 if (wx > maxX) maxX = wx;
                 if (wy < minY) minY = wy;
             }
-            if (maxX <= x0 || minX >= x0 + N * dx) continue;
-            const c0 = Math.max(0, Math.floor((minX - x0) / dx));
-            const c1 = Math.min(N - 1, Math.floor((maxX - x0) / dx));
+            if (maxX <= x0 + water.i0 * dx || minX >= x0 + water.i1 * dx) continue;
+            const c0 = Math.max(water.i0, Math.floor((minX - x0) / dx));
+            const c1 = Math.min(water.i1 - 1, Math.floor((maxX - x0) / dx));
 
             for (let c = c0; c <= c1; c++) {
                 if (h[c] <= hd) continue;
@@ -310,7 +310,7 @@ export class Buoyancy {
      */
     edgeDrag(ax, ay, bx, by, cd, cxm, cym, vcx, vcy, omega, dt) {
         const { water } = this;
-        const { x0, dx, N, h, b, config } = water;
+        const { x0, dx, h, b, config } = water;
         const ex = bx - ax;
         const ey = by - ay;
         const len = Math.hypot(ex, ey);
@@ -327,8 +327,8 @@ export class Buoyancy {
             c0 = Math.floor((Math.min(ax, bx) - x0) / dx);
             c1 = Math.floor((Math.max(ax, bx) - x0) / dx);
         }
-        c0 = Math.max(c0, 0);
-        c1 = Math.min(c1, N - 1);
+        c0 = Math.max(c0, water.i0);
+        c1 = Math.min(c1, water.i1 - 1);
         for (let c = c0; c <= c1; c++) {
             if (h[c] <= config.hDry) continue;
             let t0 = 0;

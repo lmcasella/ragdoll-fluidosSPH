@@ -5,6 +5,26 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-19
+
+### Added
+- Mapa **Infinito**, ahora habilitado y elegido por defecto en el menú: la primera etapa es el mapa clásico y arriba hay etapas de 15 m con paredes propias y filas de 2 a 4 plataformas atravesables de 3 a 6 m de ancho, generadas al azar. Cada plataforma tiene debajo otra que solapa con ella al menos 1,5 m, así que siempre se alcanza saltando en vertical a través de ella, y los dos lados del mapa tienen un ancho de plataformas parecido (±20 %). Desde la etapa 1 el ancho entre paredes es de 36 m y se angosta 4 m por etapa hasta un mínimo de 24 m. A cada ronda le toca un mapa nuevo; con `?seed=N` en la URL todas las rondas repiten el mismo.
+- El agua sube sin techo desde los 5 s de ronda (0,4 m/s y 0,06 m/s más en cada etapa). Se genera hacia arriba conforme sube la cámara y lo que queda hundido bajo el agua desaparece.
+- Las etapas de arriba traen armas sobre sus plataformas más externas, cada vez más seguidas y más peligrosas (agua, miel y lava al principio, ácido y lava después).
+- En Infinito un robot se ahoga cuando el agua cubre su torso, en cualquier parte del mapa. No hay sensor en la pileta.
+- Clásico sigue disponible en el menú, y es el mapa con el que corren las pruebas.
+- En Infinito los robots arrancan sin armas, solo con golpes: el gatillo no hace nada, no se dibuja la mira láser, la rueda de armas no se muestra y el HUD no muestra tanque. Recoger un ícono da el arma equipada con el tanque lleno. El equipo inicial es un dato por mapa (CLIMB.loadout); Clásico sigue con agua.
+- El bot sin arma, o con el tanque vacío, va a buscar un punto de aparición listo sobre la línea segura a 3 aristas o menos (BOT.pickupReach); el golpe contra un rival cercano sigue teniendo prioridad.
+- Premio por etapa: el primer robot que se apoya en una plataforma de la etapa 1 en adelante recupera toda la vida y llena todos sus tanques, una vez por etapa y por ronda (CLIMB.stagePrize). Un cartel chico arriba, ETAPA n · J1, dura 1,5 s y suena el efecto de recoger un arma.
+
+### Changed
+- Por única vez, la elección guardada del menú se ignora para que todos arranquen con Infinito; la nueva elección se guarda aparte.
+- El campo de agua puede angostarse a las paredes de la etapa y subir su fondo efectivo; en Clásico no cambia nada.
+- El cartel de controles (#163) ya no se dibuja durante la partida: se muestra solo en el menú principal, debajo de las opciones.
+
+### Fixed
+- Los robots ya no caen a través de una plataforma atravesable al caminar sobre ella, al darse vuelta encima ni al aterrizar rápido: una vez apoyado, la plataforma sigue sólida hasta que te vas o bajás con abajo + A.
+
 ## [0.28.0] - 2026-11-19
 
 ### Added
@@ -20,6 +40,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - Salto variable: un toque de A (o de la tecla de salto) da un salto bajo de unos 1,2 m medidos, y mantener el botón conserva el salto completo de antes (unos 4,1 m). Soltar el salto mientras el robot sube le corta la velocidad vertical a la mitad.
 - Caída rápida: con el stick izquierdo abajo (o la tecla abajo) mientras el robot cae, la gravedad efectiva sube un 30 % y la caída tarda cerca de un 13 % menos. Abajo + A sobre una plataforma atravesable sigue bajando como antes.
 - El bot mantiene el salto apretado mientras sube, para conservar el salto completo.
+- El bot prefiere subir en vertical, a través de la plataforma que tiene justo encima, antes que en diagonal, y conserva el destino de su salto cuando el mapa de Infinito genera o libera filas en pleno vuelo.
 
 ## [0.26.1] - 2026-11-19
 

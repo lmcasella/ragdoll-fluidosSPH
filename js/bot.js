@@ -13,15 +13,19 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `reaction`: [mín, máx] de la demora entre ver que el rival empieza un golpe y actuar; `defense`: probabilidad de que
  *   la defensa acierte; `blockRange` y `blockHold` (cuánto sigue bloqueando después de ver el último golpe);
  * - `lowHp`: vida desde la que prefiere rodar hacia atrás; `rollRoom`: espacio libre (m) que tiene que haber detrás para rodar;
- * - `floodMargin`: sube si el agua queda a menos de esto del piso que pisa; `edgeMargin`: distancia mínima al borde de
- *   una plataforma al caminar sin cruzar;
+ * - `safeMargin` y `safeLead`: con la inundación activa, la línea segura es el nivel del agua + `safeMargin` (m) + la
+ *   velocidad de subida × `safeLead` (s); el bot no elige ni cruza plataformas por debajo y, si está debajo, sube;
+ *   `edgeMargin`: distancia mínima al borde de una plataforma al caminar sin cruzar;
  * - `reach`: regla de alcance del salto: subir hasta `up.dy` con hueco hasta `up.gap`, o hasta `short.dy` con hueco
  *   hasta `short.gap`; `downGap` es el hueco máximo al bajar o cruzar a nivel;
+ * - `through`: subida vertical a través de una plataforma que solapa por encima: `overlap` (m) horizontal mínimo;
+ *   `cost`: costo de cada arista del grafo, menor para `through` que para un salto diagonal (`jump`);
  * - `jump`: `distance` (a cuánto del destino salta), `edge` (a cuánto del borde salta aunque esté lejos), `inset` (margen
  *   dentro del destino donde suelta el stick), `dropBelow` (desnivel desde el que ya no salta sino que se deja caer),
  *   `align` (tolerancia al alinearse bajo un destino);
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
- *   `replan`: cada cuánto reelige destino.
+ *   `replan`: cada cuánto reelige destino;
+ * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo.
  */
 export const BOT = {
     melee: { range: 1.6, stop: 1.3, vertical: 1.2, airRange: 2.2, airDrop: 0.8, kickDrop: 1.4 },
@@ -32,13 +36,17 @@ export const BOT = {
     blockHold: 0.3,
     lowHp: 30,
     rollRoom: 3.6,
-    floodMargin: 2,
+    safeMargin: 4,
+    safeLead: 5,
     edgeMargin: 0.5,
     reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
+    through: { overlap: 1.5 },
+    cost: { through: 0.6, jump: 1 },
     jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3 },
     highBonus: 4,
     hopCost: 0.3,
     replan: 0.5,
+    pickupReach: 3,
 };
 
 /**
@@ -58,6 +66,9 @@ export function botConfig(difficulty) {
 }
 
 const GRAVITY = 10;
+
+/** Altura máxima (m) de un punto de aparición sobre la plataforma que lo sostiene. */
+const PICKUP_ABOVE = 1.2;
 const WALK_DEADZONE = 0.15;
 
 /** Generador pseudoaleatorio determinista (mulberry32): mismo `seed`, misma secuencia. */
@@ -87,17 +98,22 @@ export function buildNav(level = LEVEL, config = BOT) {
         nodes.push({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top, oneWay: !!s.oneWay });
     }
     const { up, short, downGap } = config.reach;
+    const { through, cost } = config;
     const edges = nodes.map(() => []);
+    const costs = nodes.map(() => []);
     nodes.forEach((a, i) => {
         nodes.forEach((b, j) => {
             if (i === j) return;
             const gap = Math.max(0, b.minX - a.maxX, a.minX - b.maxX);
             const dy = b.top - a.top;
             const ok = dy > 0 ? (dy <= up.dy && gap <= up.gap) || (dy <= short.dy && gap <= short.gap) : gap <= downGap;
-            if (ok) edges[i].push(j);
+            if (!ok) return;
+            const vertical = dy > 0 && dy <= up.dy && Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX) >= through.overlap;
+            edges[i].push(j);
+            costs[i].push(vertical ? cost.through : cost.jump);
         });
     });
-    return { nodes, edges };
+    return { nodes, edges, costs };
 }
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -134,8 +150,29 @@ export class Bot {
         this.reset();
     }
 
+    /**
+     * Reemplaza el grafo por el de `level` (el nivel cambió). `committed`, `goal` y `foeNode` son índices de nodo: se
+     * traducen al nodo igual del grafo nuevo (mismo tramo y tope) o se olvidan si ya no existe, para no perder el
+     * destino de un salto en el aire cada vez que se genera o libera una fila.
+     */
+    setNav(level) {
+        const old = this.nav;
+        this.nav = buildNav(level, this.config);
+        const same = (i) => {
+            const n = old.nodes[i];
+            const j = n === undefined ? -1 : this.nav.nodes.findIndex((m) => m.top === n.top && m.minX === n.minX && m.maxX === n.maxX);
+            return j < 0 ? null : j;
+        };
+        this.minTop = -Infinity;
+        this.committed = this.committed === null ? null : same(this.committed);
+        this.goal = this.goal === null ? null : same(this.goal);
+        this.foeNode = this.foeNode === null ? null : same(this.foeNode);
+        this.replanAt = 0;
+    }
+
     /** Olvida lo percibido y decidido (ronda nueva). */
     reset() {
+        this.minTop = -Infinity;
         this.jumping = false;
         this.committed = null;
         this.goal = null;
@@ -214,12 +251,14 @@ export class Bot {
                 foe = p;
             }
         });
-        const cur = this.supportOf(me);
+        const cur = me.grounded && me.torso.GetLinearVelocity().get_y() < 1 ? this.supportOf(me) : null;
         if (cur !== null) this.committed = null;
         const level = this.floodLevel(game, mx);
-        const danger = cur !== null && level + this.config.floodMargin > this.nav.nodes[cur].top;
+        this.minTop = this.safeLine(game, level);
+        const below = cur !== null && this.nav.nodes[cur].top < this.minTop;
         if (!foe) {
-            this.navigate(me, cur, this.highest(cur));
+            if (below) this.escape(me, cur);
+            else this.navigate(me, cur, this.highest(cur));
             return;
         }
         const foePos = foe.torso.GetPosition();
@@ -244,12 +283,43 @@ export class Bot {
             return;
         }
         if (this.melee(me, foe, cur, adx, dx, dy, dir, now)) return;
-        if (danger) {
+        if (below) {
+            this.escape(me, cur);
+            return;
+        }
+        if (this.seekPickup(me, cur, game.pickups ?? [])) return;
+        if (this.shoot(me, foe, cur, foeNode, adx, dx, dy, now)) return;
+        const foeTop = foeNode === null ? foePos.get_y() : this.nav.nodes[foeNode].top;
+        if (foeTop < this.minTop) {
             this.navigate(me, cur, this.highest(cur));
             return;
         }
-        if (this.shoot(me, foe, cur, foeNode, adx, dx, dy, now)) return;
         this.chase(me, foe, cur, adx, dx, dy, dir, now);
+    }
+
+    /**
+     * Línea segura (m): nivel del agua + `safeMargin` + velocidad de subida × `safeLead`; `-Infinity` sin inundación.
+     */
+    safeLine(game, level) {
+        const rise = game.flood.riseSpeed ?? game.flood.config?.riseSpeed ?? 0;
+        return level + this.config.safeMargin + rise * this.config.safeLead;
+    }
+
+    /**
+     * Sube desde una plataforma bajo la línea segura: va a la más cercana (en saltos) que esté sobre la línea, o a la más
+     * alta alcanzable si ninguna llega; en este tramo puede pasar por plataformas bajo la línea.
+     */
+    escape(me, cur) {
+        const line = this.minTop;
+        this.minTop = -Infinity;
+        const dist = this.distances(cur);
+        let best = null;
+        this.nav.nodes.forEach((n, i) => {
+            if (dist[i] === Infinity || n.top < line) return;
+            if (best === null || dist[i] < dist[best] || (dist[i] === dist[best] && n.top > this.nav.nodes[best].top)) best = i;
+        });
+        this.navigate(me, cur, best ?? this.highest(cur));
+        this.minTop = line;
     }
 
     /**
@@ -336,12 +406,55 @@ export class Bot {
         return Math.max(flood.level, wet);
     }
 
+    /** Verdadero si algún tanque del inventario tiene partículas. */
+    armed(me) {
+        for (const tank of me.tanks.values()) if (tank > 0) return true;
+        return false;
+    }
+
+    /** Nodo de la plataforma que sostiene el punto de aparición `point` (la más alta bajo él, a menos de 1,2 m), o `null`. */
+    pickupNode(point) {
+        let best = null;
+        this.nav.nodes.forEach((n, i) => {
+            if (point.x < n.minX || point.x > n.maxX || n.top > point.y || point.y - n.top > PICKUP_ABOVE) return;
+            if (best === null || n.top > this.nav.nodes[best].top) best = i;
+        });
+        return best;
+    }
+
+    /**
+     * Sin arma o con los tanques vacíos, va al punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea
+     * segura y a `pickupReach` aristas o menos. Devuelve verdadero si usó el frame.
+     */
+    seekPickup(me, cur, points) {
+        if (cur === null || this.armed(me)) return false;
+        const { dist, parent } = this.search(cur);
+        let best = null;
+        for (const point of points) {
+            if (!point.active) continue;
+            const node = this.pickupNode(point);
+            if (node === null || dist[node] === Infinity) continue;
+            let hops = 0;
+            for (let n = node; parent[n] !== -1; n = parent[n]) hops++;
+            if (hops > this.config.pickupReach) continue;
+            if (best === null || dist[node] < best.cost) best = { point, node, cost: dist[node] };
+        }
+        if (best === null) return false;
+        if (best.node === cur) this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
+        else this.navigate(me, cur, best.node);
+        return true;
+    }
+
     /** Dispara con línea de vista a distancia media. Devuelve verdadero si usó el frame. */
     shoot(me, foe, cur, foeNode, adx, dx, dy, now) {
         const cfg = this.config.shoot;
         if (adx > cfg.max) return false;
         if (adx < cfg.min && cur !== null && cur === foeNode) return false;
-        if ((me.tanks.get(me.weapon) ?? 0) <= 0 || !this.lineOfSight(me, foe)) return false;
+        if ((me.tanks.get(me.weapon) ?? 0) <= 0) {
+            this.pickWeapon(me, now);
+            return false;
+        }
+        if (!this.lineOfSight(me, foe)) return false;
         this.pickWeapon(me, now);
         if (now - this.aimStamp >= cfg.aimRefresh) {
             this.aimOffset = (this.rng() * 2 - 1) * cfg.aimError;
@@ -432,33 +545,39 @@ export class Bot {
         return best;
     }
 
-    /** Saltos mínimos de ruta desde `from` a cada nodo (`Infinity` si no se llega). */
+    /**
+     * Costo mínimo de ruta desde `from` a cada nodo (`Infinity` si no se llega). No pasa por nodos con tope bajo
+     * `minTop` (la línea segura).
+     */
     distances(from) {
-        const dist = this.nav.nodes.map(() => Infinity);
-        const queue = [from];
-        dist[from] = 0;
-        for (let head = 0; head < queue.length; head++) {
-            for (const to of this.nav.edges[queue[head]]) {
-                if (dist[to] !== Infinity) continue;
-                dist[to] = dist[queue[head]] + 1;
-                queue.push(to);
-            }
-        }
-        return dist;
+        return this.search(from).dist;
     }
 
-    /** Primer nodo de la ruta más corta de `from` a `goal`, o -1 si no hay. */
-    nextStep(from, goal) {
-        const parent = this.nav.nodes.map(() => -2);
+    /** Ruta de menor costo desde `from` (Dijkstra sobre `nav.costs`): `{ dist, parent }` por nodo. */
+    search(from) {
+        const { nodes, edges, costs } = this.nav;
+        const dist = nodes.map(() => Infinity);
+        const parent = nodes.map(() => -2);
+        const done = nodes.map(() => false);
+        dist[from] = 0;
         parent[from] = -1;
-        const queue = [from];
-        for (let head = 0; head < queue.length && parent[goal] === -2; head++) {
-            for (const to of this.nav.edges[queue[head]]) {
-                if (parent[to] !== -2) continue;
-                parent[to] = queue[head];
-                queue.push(to);
-            }
+        for (;;) {
+            let node = -1;
+            for (let i = 0; i < nodes.length; i++) if (!done[i] && dist[i] < Infinity && (node < 0 || dist[i] < dist[node])) node = i;
+            if (node < 0) break;
+            done[node] = true;
+            edges[node].forEach((to, k) => {
+                if (nodes[to].top < this.minTop || dist[node] + costs[node][k] >= dist[to]) return;
+                dist[to] = dist[node] + costs[node][k];
+                parent[to] = node;
+            });
         }
+        return { dist, parent };
+    }
+
+    /** Primer nodo de la ruta de menor costo de `from` a `goal`, o -1 si no hay. */
+    nextStep(from, goal) {
+        const { parent } = this.search(from);
         if (parent[goal] === -2) return -1;
         let node = goal;
         while (parent[node] !== from) node = parent[node];

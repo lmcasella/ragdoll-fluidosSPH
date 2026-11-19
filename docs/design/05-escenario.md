@@ -14,7 +14,7 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
 - **Aparición** ✅: J1 en x = 7,5 y J2 en x = 48,5. La altura sale de un rayo vertical desde el techo ([08-raycast](08-raycast.md)).
 - **Cámara compartida** ✅: encuadra a los dos robots con margen (6 × 4 m), hace zoom según la distancia (máximo ×1,6), nunca muestra fuera del mapa y se suaviza en el tiempo.
 - **Pendiente:**
-  - mapa definitivo con puntos de armas (#25);
+  - mapa definitivo con puntos de armas (#25): es el mapa Infinito, diseñado en [16](16-ascenso.md). Lo de esta sección describe el Clásico, que queda como mapa de testing y como etapa 0 del Infinito;
   - plataformas **cinemáticas** (#33);
   - plataformas de **piedra temporal** (lava + agua, #30).
 

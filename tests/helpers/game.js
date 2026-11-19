@@ -40,6 +40,8 @@ export function giveAllWeapons(game) {
  * elección por defecto del menú (o la que pidan `?bot=` y `localStorage`), para que las pruebas de gameplay no pasen
  * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  * `options.storage` es el `localStorage` falso del juego (con `getItem` y `setItem`); sin él no hay almacenamiento.
+ * `game.hudTexts` y `game.laserMoves` espían lo dibujado en el último frame (capas HUD y mira).
+ * `options.map` es el mapa de la partida ("classic" por defecto, o "infinite"); se escribe en el menú antes de arrancar.
  */
 export async function loadGame(options = {}) {
     globalThis.__TEST_HOOKS__ = true;
@@ -61,9 +63,17 @@ export async function loadGame(options = {}) {
         addEventListener: (type, fn) => (handlers[type] ??= []).push(fn),
     };
     const elements = new Map();
+    const spy = { hudTexts: [], laserMoves: 0 };
+    const spies = {
+        hudCanvas: { clearRect: () => (spy.hudTexts.length = 0), fillText: (text) => spy.hudTexts.push(String(text)) },
+        pickupCanvas: { clearRect: () => (spy.laserMoves = 0), moveTo: () => spy.laserMoves++ },
+    };
     globalThis.document = {
         getElementById: (id) => {
-            if (!elements.has(id)) elements.set(id, inert({ width: 0, height: 0, getContext: () => inert({ createLinearGradient: () => inert() }) }));
+            if (!elements.has(id)) {
+                const context = inert({ createLinearGradient: () => inert(), ...spies[id] });
+                elements.set(id, inert({ width: 0, height: 0, getContext: () => context }));
+            }
             return elements.get(id);
         },
     };
@@ -107,6 +117,7 @@ export async function loadGame(options = {}) {
     }
 
     if (!options.intro) {
+        globalThis.game.menu.values.map = options.map ?? "classic";
         globalThis.game.arrancarPartida();
         globalThis.game.match.state = "playing";
     }
@@ -123,6 +134,14 @@ export async function loadGame(options = {}) {
     return {
         state: globalThis.game,
         handlers,
+        /** Textos que se dibujaron en el HUD en el último frame. */
+        get hudTexts() {
+            return spy.hudTexts;
+        },
+        /** Trazos `moveTo` del canvas de la capa de mira (mira láser y golpes) en el último frame. */
+        get laserMoves() {
+            return spy.laserMoves;
+        },
         get now() {
             return clock / 1000;
         },

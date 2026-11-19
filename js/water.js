@@ -98,7 +98,8 @@ function project(h, u, b, bs) {
  * desplazamiento por cuerpos (cero hasta #74) y `boiled` los J pendientes de vaporización.
  * `stats` cuenta los subpasos, las repeticiones con `dt/2` (`halvings`), las activaciones del tope de
  * subpasos (`capHits`), el `h` mínimo aceptado (`minH`) y la cantidad de movimiento que se anuló en celdas
- * secas (`droppedMomentum`, ΣΔq·dx).
+ * secas (`droppedMomentum`, ΣΔq·dx), `sourced` (m², agua sumada por `rise`) y `floorCut` (lo quitado por `raiseFloor`).
+ * `[i0, i1)` es el span activo (ver `setSpan`); las sumas de volumen y compañía recorren todo `[0, N)`.
  */
 export class ShallowWater {
     constructor(level = LEVEL, config = WATER_FIELD) {
@@ -150,6 +151,7 @@ export class ShallowWater {
             }
             this.b[i] = top;
         }
+        this.bed0 = Float64Array.from(this.b);
         this.reset();
     }
 
@@ -158,10 +160,16 @@ export class ShallowWater {
         return this.x0 + (i + 0.5) * this.dx;
     }
 
-    /** Vuelve al estado asentado: lago en `pool.surface` entre `x1` y `x2`, `q` = 0, `T` ambiente, sin miel ni ácido. */
+    /**
+     * Vuelve al estado asentado: lecho original, span completo, lago en `pool.surface` entre `x1` y `x2`, `q` = 0, `T`
+     * ambiente, sin miel ni ácido.
+     */
     reset() {
         const { N, level, config } = this;
         const pool = level.pool;
+        this.b.set(this.bed0);
+        this.i0 = 0;
+        this.i1 = N;
         for (let i = 0; i < N; i++) {
             const xc = this.center(i);
             const wet = pool && xc > pool.x1 && xc < pool.x2;
@@ -173,7 +181,72 @@ export class ShallowWater {
             this.d[i] = 0;
             this.boiled[i] = 0;
         }
-        this.stats = { steps: 0, substeps: 0, halvings: 0, capHits: 0, minH: Infinity, droppedMomentum: 0 };
+        this.stats = {
+            steps: 0,
+            substeps: 0,
+            halvings: 0,
+            capHits: 0,
+            minH: Infinity,
+            droppedMomentum: 0,
+            sourced: 0,
+            floorCut: { volume: 0, momentum: 0, energy: 0, honey: 0, acid: 0 },
+        };
+    }
+
+    /**
+     * Angosta el span activo a las columnas cuyo centro está entre `x1` y `x2` (m); nunca lo ensancha. Las columnas de
+     * afuera quedan congeladas: conservan su contenido y las sumas de `volume()` y compañía las siguen contando, pero no se
+     * integran, no se muestrean y no reciben depósitos. Las caras del span son paredes reflectivas.
+     */
+    setSpan(x1, x2) {
+        const first = Math.ceil((x1 - this.x0) / this.dx - 1e-9);
+        const last = Math.floor((x2 - this.x0) / this.dx + 1e-9);
+        this.i0 = Math.max(this.i0, first);
+        this.i1 = Math.min(this.i1, last);
+    }
+
+    /**
+     * Sube el lecho del span a `y` donde esté más bajo. Lo que queda bajo el nuevo lecho se quita de la columna
+     * proporcionalmente (`h`, `q`, `E`, `M` y `A`) y se suma a `stats.floorCut`; mantiene `η` donde `h ≥ Δ`.
+     */
+    raiseFloor(y) {
+        const { b, h, q, E, M, A, dx } = this;
+        const cut = this.stats.floorCut;
+        for (let i = this.i0; i < this.i1; i++) {
+            if (b[i] >= y) continue;
+            const delta = y - b[i];
+            b[i] = y;
+            const hh = h[i];
+            if (hh <= 0) continue;
+            const take = Math.min(hh, delta);
+            const lost = take / hh;
+            const keep = 1 - lost;
+            cut.volume += take * dx;
+            cut.momentum += q[i] * lost * dx;
+            cut.energy += E[i] * lost * dx;
+            cut.honey += M[i] * lost * dx;
+            cut.acid += A[i] * lost * dx;
+            h[i] = hh - take;
+            q[i] *= keep;
+            E[i] *= keep;
+            M[i] *= keep;
+            A[i] *= keep;
+        }
+    }
+
+    /**
+     * Fuente de agua de la inundación del ascenso: suma `dh` (m) a toda columna del span con lecho bajo `eta`, a la
+     * temperatura ambiente. Cada columna de lecho `b` recibe en total `η* − b`. Suma `dh · dx` a `stats.sourced` (m²).
+     */
+    rise(dh, eta) {
+        const { b, h, E, dx } = this;
+        const heat = SIGMA_W * this.cWater * dh * this.config.ambientT;
+        for (let i = this.i0; i < this.i1; i++) {
+            if (b[i] >= eta) continue;
+            h[i] += dh;
+            E[i] += heat;
+            this.stats.sourced += dh * dx;
+        }
     }
 
     /** Velocidad de la columna `i` (m/s), desingularizada como en Kurganov y Petrova (2007). */
@@ -224,7 +297,7 @@ export class ShallowWater {
     /** Interpolación lineal entre centros de celda de `fn(i)` en `x`, sin extrapolar. */
     sample(x, fn) {
         const s = (x - this.x0) / this.dx - 0.5;
-        const i = Math.min(Math.max(Math.floor(s), 0), this.N - 2);
+        const i = Math.min(Math.max(Math.floor(s), this.i0), this.i1 - 2);
         const t = Math.min(1, Math.max(0, s - i));
         return (1 - t) * fn(i) + t * fn(i + 1);
     }
@@ -317,11 +390,11 @@ export class ShallowWater {
      * en el acto: equivale a acumularla y sumarla al principio de `step`, porque nada corre entre ambos.
      */
     deposit(x, area, momentum, energy, honey, acid = 0) {
-        const { N, dx } = this;
+        const { i0, i1, dx } = this;
         const s = (x - this.x0) / dx - 0.5;
         const i = Math.floor(s);
         const w1 = s - i;
-        const targets = [[Math.min(Math.max(i, 0), N - 1), 1 - w1], [Math.min(Math.max(i + 1, 0), N - 1), w1]];
+        const targets = [[Math.min(Math.max(i, i0), i1 - 1), 1 - w1], [Math.min(Math.max(i + 1, i0), i1 - 1), w1]];
         for (const [c, w] of targets) {
             this.h[c] += (w * area) / dx;
             this.q[c] += (w * momentum) / dx;
@@ -341,24 +414,24 @@ export class ShallowWater {
      * `max(|S_L|, |S_R|)` sobre las caras (m/s). Los escalares `E`, `M` y `A` usan upwind sobre el flujo de masa.
      */
     evaluate(h, q, E, M, A) {
-        const { N, dx, b, d, rate } = this;
+        const { i0, i1, dx, b, d, rate } = this;
         const hd = this.config.hDry;
         const { H, ETA, U, SH, SETA, SU } = this.ext;
         const { hL, hR, bL, bR, fm, fqL, fqR, fE, fM, fA } = this.face;
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             const k = i + 1;
             const hh = h[i];
             H[k] = hh;
             ETA[k] = b[i] + d[i] + hh;
             U[k] = (2 * hh * q[i]) / (hh * hh + Math.max(hh * hh, hd * hd));
         }
-        H[0] = H[1];
-        ETA[0] = ETA[1];
-        U[0] = -U[1];
-        H[N + 1] = H[N];
-        ETA[N + 1] = ETA[N];
-        U[N + 1] = -U[N];
-        for (let k = 1; k <= N; k++) {
+        H[i0] = H[i0 + 1];
+        ETA[i0] = ETA[i0 + 1];
+        U[i0] = -U[i0 + 1];
+        H[i1 + 1] = H[i1];
+        ETA[i1 + 1] = ETA[i1];
+        U[i1 + 1] = -U[i1];
+        for (let k = i0 + 1; k <= i1; k++) {
             if (H[k] < hd || H[k - 1] < hd || H[k + 1] < hd) {
                 SH[k] = 0;
                 SETA[k] = 0;
@@ -371,12 +444,12 @@ export class ShallowWater {
             }
         }
         let smax = 0;
-        for (let f = 0; f <= N; f++) {
+        for (let f = i0; f <= i1; f++) {
             const hRf = H[f + 1] - SH[f + 1] / 2;
             const bRf = ETA[f + 1] - SETA[f + 1] / 2 - hRf;
             const uRf = U[f + 1] - SU[f + 1] / 2;
             let hLf, bLf, uLf, hRv = hRf, bRv = bRf, uRv = uRf;
-            if (f === 0) {
+            if (f === i0) {
                 hLf = hRf;
                 bLf = bRf;
                 uLf = -uRf;
@@ -385,7 +458,7 @@ export class ShallowWater {
                 bLf = ETA[f] + SETA[f] / 2 - hLf;
                 uLf = U[f] + SU[f] / 2;
             }
-            if (f === N) {
+            if (f === i1) {
                 hRv = hLf;
                 bRv = bLf;
                 uRv = -uLf;
@@ -453,7 +526,7 @@ export class ShallowWater {
             fm[f] = gM;
             fqL[f] = gQ + 0.5 * G * (hLf * hLf - hLs * hLs);
             fqR[f] = gQ + 0.5 * G * (hRv * hRv - hRs * hRs);
-            if (f === 0 || f === N) {
+            if (f === i0 || f === i1) {
                 fE[f] = 0;
                 fM[f] = 0;
                 fA[f] = 0;
@@ -470,7 +543,7 @@ export class ShallowWater {
                 fA[f] = s * A[f];
             }
         }
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             const sc = -G * ((hR[i] + hL[i + 1]) / 2) * (bL[i + 1] - bR[i]);
             rate.h[i] = -(fm[i + 1] - fm[i]) / dx;
             rate.q[i] = -(fqL[i + 1] - fqR[i] - sc) / dx;
@@ -485,10 +558,10 @@ export class ShallowWater {
      * Mayor velocidad de onda `|u| + c` sobre las celdas mojadas (m/s), sin calcular flujos.
      */
     maxSpeed(h, q) {
-        const { N } = this;
+        const { i0, i1 } = this;
         const hd = this.config.hDry;
         let smax = 0;
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             const hh = h[i];
             if (hh <= TINY) continue;
             const u = (2 * hh * q[i]) / (hh * hh + Math.max(hh * hh, hd * hd));
@@ -502,10 +575,10 @@ export class ShallowWater {
      * `false` si alguna altura es negativa (las negativas por redondeo, hasta 10⁻¹², se llevan a 0).
      */
     settle(s) {
-        const { N, dx } = this;
+        const { i0, i1, dx } = this;
         const hd = this.config.hDry;
         let ok = true;
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             if (s.h[i] < 0) {
                 if (s.h[i] > -1e-12) s.h[i] = 0;
                 else ok = false;
@@ -526,17 +599,17 @@ export class ShallowWater {
      * que va a `stats.droppedMomentum`.
      */
     consolidate() {
-        const { N, h, q, E, M, A, b, d, dx } = this;
+        const { i0, i1, h, q, E, M, A, b, d, dx } = this;
         const { hMin, hDry } = this.config;
         for (let sweep = 0; sweep < MAX_CONSOLIDATE_SWEEPS; sweep++) {
             const forward = sweep % 2 === 0;
             let changed = false;
-            for (let n = 0; n < N; n++) {
-                const i = forward ? n : N - 1 - n;
+            for (let n = i0; n < i1; n++) {
+                const i = forward ? n : i0 + i1 - 1 - n;
                 const hh = h[i];
                 if (!(hh > 0 && hh < hMin)) continue;
-                const hl = i > 0 ? h[i - 1] : 0;
-                const hr = i < N - 1 ? h[i + 1] : 0;
+                const hl = i > i0 ? h[i - 1] : 0;
+                const hr = i < i1 - 1 ? h[i + 1] : 0;
                 if (hl <= 0 && hr <= 0) continue;
                 let j;
                 if (hl > hr) j = i - 1;
@@ -556,7 +629,7 @@ export class ShallowWater {
             }
             if (!changed) break;
         }
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             if (h[i] < hDry && q[i] !== 0) {
                 this.stats.droppedMomentum += q[i] * dx;
                 q[i] = 0;
@@ -566,9 +639,9 @@ export class ShallowWater {
 
     /** Un subpaso SSP-RK2 de `dt`; devuelve `false` (sin cambiar el estado) si algún `h` quedó negativo. */
     attempt(dt) {
-        const { N, h, q, E, M, A, stage, rate } = this;
+        const { i0, i1, h, q, E, M, A, stage, rate } = this;
         this.evaluate(h, q, E, M, A);
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             stage.h[i] = h[i] + dt * rate.h[i];
             stage.q[i] = q[i] + dt * rate.q[i];
             stage.E[i] = E[i] + dt * rate.E[i];
@@ -577,7 +650,7 @@ export class ShallowWater {
         }
         if (!this.settle(stage)) return false;
         this.evaluate(stage.h, stage.q, stage.E, stage.M, stage.A);
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             stage.h[i] = 0.5 * (h[i] + stage.h[i] + dt * rate.h[i]);
             stage.q[i] = 0.5 * (q[i] + stage.q[i] + dt * rate.q[i]);
             stage.E[i] = 0.5 * (E[i] + stage.E[i] + dt * rate.E[i]);
@@ -587,7 +660,7 @@ export class ShallowWater {
         if (!this.settle(stage)) return false;
         this.friction(stage, dt);
         this.settle(stage);
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             h[i] = stage.h[i];
             q[i] = stage.q[i];
             E[i] = stage.E[i];
@@ -600,10 +673,10 @@ export class ShallowWater {
 
     /** Fricción de fondo semi-implícita (Manning y película laminar) sobre `q` del estado `s`. */
     friction(s, dt) {
-        const { N, config } = this;
+        const { i0, i1, config } = this;
         const n2 = config.manning * config.manning;
         const nuWater = MATERIALS.water.mu / RHO_W;
-        for (let i = 0; i < N; i++) {
+        for (let i = i0; i < i1; i++) {
             const hh = s.h[i];
             if (hh < config.hDry) continue;
             const inv = 1 / hh;
@@ -640,14 +713,14 @@ export class ShallowWater {
      * llegar al tope se recorta `|u|` a `U_MAX` y se cuenta en `stats.capHits`.
      */
     step(dt) {
-        const { N, h, q, config } = this;
+        const { i0, i1, h, q, config } = this;
         this.settle(this);
         const smax = this.maxSpeed(h, q);
         let n = Math.max(1, Math.ceil((dt * smax) / (config.cfl * this.dx)));
         if (n > config.maxSubsteps) {
             n = config.maxSubsteps;
             this.stats.capHits++;
-            for (let i = 0; i < N; i++) {
+            for (let i = i0; i < i1; i++) {
                 const hh = h[i];
                 const lim = hh * U_MAX;
                 if (Math.abs(q[i]) > lim) q[i] = Math.sign(q[i]) * lim;
