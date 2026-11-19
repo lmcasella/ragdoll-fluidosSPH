@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.7] - 2026-11-19
+
+### Fixed
+- La miel ya no se convierte en agua al caer a la pileta: se hunde, queda en el fondo como miel y sigue pegando.
+- El agua con miel disuelta ya no pega.
+
 ## [0.15.6] - 2026-11-19
 
 ### Added

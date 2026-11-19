@@ -20,11 +20,11 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
   - Velocidad `2√(g h)` del frente de una rotura de presa sobre lecho seco; fija el tope de velocidad del campo.
   - Dónde se usa: `js/water.js:14`.
 - **Principio de Arquímedes** — Arquímedes de Siracusa.
-  - El empuje es el peso del fluido desalojado; con gravedad específica `SG`, la aceleración es `g ρ_col/(ρ_w SG)`.
-  - Dónde se usa: `js/immersion.js:30`, `js/immersion.js:155`, `js/materials.js:8`.
+  - El empuje es el peso del fluido desalojado; con gravedad específica `SG`, la aceleración es `g ρ_col/(ρ_w SG)`. Desde #110 vale también para la miel (`SG` 1,42): se hunde y queda en el fondo.
+  - Dónde se usa: `js/immersion.js:30`, `js/immersion.js:155`, `js/materials.js:8`, `js/materials.js:18`.
 - **Arrastre cuadrático** — Isaac Newton (*Principia*, libro II).
-  - Fuerza de arrastre proporcional a `|v_rel|²` con coeficiente `C_d`; frena a la partícula inmiscible hacia la corriente.
-  - Dónde se usa: `js/immersion.js:157`, `js/materials.js:9`.
+  - Fuerza de arrastre proporcional a `|v_rel|²` con coeficiente `C_d`; frena a la partícula inmiscible hacia la corriente. Desde #110 también a la miel (`C_d` 1,2).
+  - Dónde se usa: `js/immersion.js:157`, `js/materials.js:9`, `js/materials.js:18`.
 - **Aproximación de Boussinesq** — Joseph Boussinesq.
   - La densidad de la mezcla solo entra en el empuje y en la cantidad de movimiento aportada (`SG · A · v_x`), no en la dinámica de la columna.
   - Dónde se usa: `js/immersion.js:26`, `js/immersion.js:109`.
@@ -112,10 +112,10 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
   - Dónde se usa: `js/water.js:188`.
 - **Separación de operadores (Lie–Trotter)** — Sophus Lie y Hale Trotter (1959).
   - Las fuentes (absorción, reacción) se aplican aparte del avance del campo.
-  - Dónde se usa: `js/water.js:255`, `index.html:555`.
+  - Dónde se usa: `js/water.js:255`, `index.html:554`.
 - **Paso fijo con acumulador** — Glenn Fiedler (*Fix Your Timestep*, 2004).
   - Simula en pasos de 1/60 s sin importar el frame; la escala de tiempo da la cámara lenta.
-  - Dónde se usa: `index.html:489`, `index.html:511`, `index.html:543`.
+  - Dónde se usa: `index.html:488`, `index.html:510`, `index.html:542`.
 - **Secuencia áurea (equidistribución)** — Hermann Weyl (1916).
   - `(i · φ⁻¹) mod 1` reparte puntos de forma pareja y determinista.
   - Dónde se usa: `js/weapons.js:88`, `js/weapons.js:174`, `js/flood.js:7`, `js/flood.js:89`.
@@ -128,7 +128,7 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
 
 - **Solver de Box2D** — Erin Catto.
   - Impulsos secuenciales con integración de Euler semi-implícita; `stepWorld` lo llama 8 veces por paso con 20 iteraciones de velocidad.
-  - Dónde se usa: `lib/ragimporter.js:66`, `lib/ragimporter.js:92`, `index.html:553`.
+  - Dónde se usa: `lib/ragimporter.js:66`, `lib/ragimporter.js:92`, `index.html:552`.
 - **Control PD de articulaciones** — Nicolas Minorsky (1922, control PID).
   - El motor corrige el ángulo con `G · error − D · (velocidad − tasa)`, con tope de velocidad y de torque.
   - Dónde se usa: `lib/instance.js:35`.
@@ -147,16 +147,16 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
   - Dónde se usa: `js/wallContact.js:189`, `js/wallContact.js:193`, `docs/design/14-agua.md:292`.
 - **Velocidad de acercamiento** — mecánica clásica.
   - Velocidad relativa proyectada sobre la normal del contacto; sobre `IMPACT_SPEED` hay daño.
-  - Dónde se usa: `js/damage.js:116`, `js/damage.js:124`.
+  - Dónde se usa: `js/damage.js:112`, `js/damage.js:120`.
 
 ## Geometría y raycast
 
 - **Raycast de Box2D (`b2World.RayCast`)** — Erin Catto.
   - Recorre un árbol de cajas (AABB) y llama al callback por cada figura cruzada; lo que devuelve define el modo (−1 ignora, `fraction` recorta).
-  - Dónde se usa: `js/raycast.js:14`, `js/raycast.js:45`, `js/weapons.js:165`, `js/ActiveRagdoll.js:272`, `index.html:331`.
+  - Dónde se usa: `js/raycast.js:14`, `js/raycast.js:45`, `js/weapons.js:165`, `js/ActiveRagdoll.js:272`, `index.html:330`.
 - **Caja envolvente alineada (AABB)** — técnica estándar de detección de colisiones.
   - `[minX, minY, maxX, maxY]` de cada figura, usada para pegar miel, ubicar la gota y calcular el punto más bajo del robot.
-  - Dónde se usa: `js/ActiveRagdoll.js:215`, `js/wallContact.js:312`, `js/damage.js:155`.
+  - Dónde se usa: `js/ActiveRagdoll.js:215`, `js/wallContact.js:312`, `js/damage.js:154`.
 - **Rotación 2D con espejo** — trigonometría elemental.
   - Lleva la boca del arma del sistema local del cuerpo al del mundo, con `flipX`.
   - Dónde se usa: `js/ActiveRagdoll.js:278`.
@@ -189,7 +189,7 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
   - Dónde se usa: `js/camera.js:70`, `js/camera.js:75`.
 - **Metaballs (efecto "goo")** — James Blinn (1982), aproximado con desenfoque y umbral.
   - Une las gotas vecinas en una sola masa de líquido.
-  - Dónde se usa: `index.html:64`, `index.html:477`.
+  - Dónde se usa: `index.html:64`, `index.html:476`.
 - **Zona muerta radial** — técnica estándar de entrada analógica.
   - El stick de apuntar solo cuenta si la norma `√(x² + y²)` supera el umbral.
   - Dónde se usa: `js/Input.js:48`, `js/Input.js:208`.
@@ -218,8 +218,11 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
   - Caudal de la cresta `√g (2H/3)^{3/2}` con la carga total `H`.
   - Dónde se usa: `tests/shallow-water.test.js:331`, `tests/shallow-water.test.js:334`, `tests/shallow-water.test.js:362`.
 - **Velocidad terminal en agua** — Arquímedes y arrastre cuadrático de Newton.
-  - `√(2 g (SG − 1) A_p / (C_d D))` = 1,55 m/s para la lava (±15 %).
-  - Dónde se usa: `tests/immersion.test.js:100`, `tests/immersion.test.js:103`.
+  - `√(2 g (SG − 1) A_p / (C_d D))` = 1,55 m/s para la lava y 0,79 m/s para la miel (±15 %).
+  - Dónde se usa: `tests/immersion.test.js:100`, `tests/immersion.test.js:103`, `tests/immersion.test.js:124`, `tests/immersion.test.js:142`.
+- **Flujo de Couette y esfuerzo de fondo de Manning** — Maurice Couette (1890); Robert Manning (1889).
+  - Cota del desplazamiento horizontal de la miel apoyada en el fondo (H6, ≤ 0,5 m en 60 s): el arrastre del modelo no tiene apantallamiento y sobreestima ~10² veces la fuerza de la capa de Couette cerca del lecho.
+  - Dónde se usa: `tests/user-scenarios.test.js:218`, `tests/user-scenarios.test.js:273`, `tests/invariants.test.js:215`.
 - **Conservación de la cantidad de movimiento** — Isaac Newton.
   - Lo absorbido suma `Σ SG A_p v_x` y la reacción de la inmersión no invierte velocidades.
   - Dónde se usa: `tests/immersion.test.js:34`, `tests/immersion.test.js:143`.
@@ -275,10 +278,14 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
   - Se optó por partículas sueltas con crédito acumulado (`js/weapons.js:146`) porque no funcionó (se ven como balas que rebotan).
 - **Pegar la miel con `BeginParticleBodyContact`** — Box2D (Erin Catto).
   - Se descartó en `docs/design/12-decisiones.md:33`.
-  - Se optó por una consulta geométrica por paso (`js/damage.js:144`) porque no funcionó (un robot quieto en el charco deja de recibir avisos).
+  - Se optó por una consulta geométrica por paso (`js/damage.js:145`) porque no funcionó (un robot quieto en el charco deja de recibir avisos).
 - **Tensión superficial (`TENSILE`) en los disparos** — LiquidFun (Google).
   - Se descartó en `docs/design/12-decisiones.md:31`.
   - Se optó por tensiones en 0 (`js/weapons.js:28`) porque no funcionó (causaba el rebote de las gotas y no daba cohesión física).
 - **`b2DistanceJoint` para el gancho** — Box2D (Erin Catto).
   - Se descartó en `docs/design/12-decisiones.md:38`.
   - Se optó por `b2RopeJoint` porque no funcionó (es una barra rígida y empuja hacia afuera).
+- **Pegado por columnas de miel disuelta en el campo** — diseño propio del proyecto.
+  - Sumaba la miel `M` de las columnas del campo para pegar al robot (`stickOnHoneyColumns`).
+  - Se descartó en `docs/design/14-agua.md` (D11, #110).
+  - Se optó por miel inmiscible con pegado por partículas porque la miel se volvía agua (regresión).

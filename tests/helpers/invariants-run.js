@@ -9,6 +9,7 @@
  */
 import { loadGame } from "./game.js";
 import { UnionArea, polygonArea } from "./drawn-area.js";
+import { HoneyProbe } from "./honey-probe.js";
 
 const { LEVEL } = await import("../../js/level.js");
 const { MATERIALS, SIGMA_W, REACTIONS } = await import("../../js/materials.js");
@@ -103,7 +104,9 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         guard: tracks([...SPECIES, ...MATERIAL_NAMES]),
         i2a: { creations: 0, changes: 0 },
         i3p: tracks(MATERIAL_NAMES),
-        i3f: tracks(["water", "honey"]),
+        i3f: tracks(["water"]),
+        h2: tracks(["alive", "absorbed", "field"]),
+        probe: null,
         i4: new Track("I4"),
         i4tips: { cells: 0, thin: 0, minH: Infinity },
         steps: 0,
@@ -134,6 +137,8 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         destroy(i, cause);
     };
 
+    const probe = new HoneyProbe(game);
+    result.probe = probe;
     const union = new UnionArea();
     const shape = {};
     const outline = {};
@@ -238,7 +243,13 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         const physicalHoney = honeyField;
         const relWater = (drawnField - physicalWater) / physicalWater;
         result.i3f.water.add(relWater, Math.abs(relWater) <= AREA_TOLERANCE, step, { drawn: drawnField, physical: physicalWater, honey: physicalHoney });
-        if (physicalHoney > 0) result.i3f.honey.add(-1, false, step, { drawn: 0, physical: physicalHoney });
+        const liveHoney = alive[kindIndex.get(FLUID.HONEY)];
+        const expectedHoney = store.created[FLUID.HONEY] - store.destroyed[SINK.OUT][FLUID.HONEY];
+        result.h2.alive.add(liveHoney - expectedHoney, liveHoney === expectedHoney, step, { alive: liveHoney, expected: expectedHoney });
+        const absorbedHoney = store.destroyed[SINK.ABSORBED][FLUID.HONEY];
+        result.h2.absorbed.add(absorbedHoney, absorbedHoney === 0, step);
+        result.h2.field.add(field.honey, field.honey <= 1e-6 * inj.honey, step, { injected: inj.honey });
+        probe.sample();
         const t3 = hr();
 
         const hDry = water.config.hDry;

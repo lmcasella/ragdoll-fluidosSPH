@@ -283,7 +283,6 @@
             const emitter = new ShotEmitter(store, damage, WEAPONS, raycaster);
             const match = new Match(players.length);
             const water = new ShallowWater();
-            damage.water = water;
             const flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
 

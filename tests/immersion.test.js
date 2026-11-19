@@ -33,7 +33,7 @@ test("I1: N gotas de agua caen en la pileta y el volumen del campo crece N · A_
 
 test("I2: la cantidad de movimiento horizontal absorbida, antes de water.step, es Σ SG · A_p · v_x (error relativo < 1e-6)", (t) => {
     const scene = makeScene();
-    const kinds = [FLUID.WATER, FLUID.ACID, FLUID.HONEY];
+    const kinds = [FLUID.WATER, FLUID.ACID];
     const n = 45;
     let expected = 0;
     let scale = 0;
@@ -121,6 +121,31 @@ test("I5: la lava soltada en agua quieta de 3 m cae a la velocidad terminal √(
     scene.dispose();
 });
 
+test("H1 (#110): la miel soltada a 2,8 m en agua quieta de 3 m cae a la velocidad terminal √(2 g (SG − 1) A_p / (C_d D)) = 0,79 m/s (±15 %) y no se absorbe", (t) => {
+    const scene = makeScene();
+    const diameter = 1.5 * RADIUS;
+    const expected = Math.sqrt((2 * G * (MATERIALS.honey.SG - 1) * A_P) / (MATERIALS.honey.Cd * diameter));
+    scene.spawn(FLUID.HONEY, 28, 2.8);
+    const speeds = [];
+    let reachedBottom = -1;
+    for (let s = 1; s <= 600; s++) {
+        scene.step();
+        const p = particle(scene.system, 0);
+        if (p.y <= 2.2 && p.y >= 0.6) speeds.push(-p.vy);
+        if (reachedBottom < 0 && p.y < 0.6) {
+            reachedBottom = s;
+            break;
+        }
+    }
+    const mean = speeds.reduce((a, v) => a + v, 0) / speeds.length;
+    t.diagnostic(`H1: velocidad media entre y = 2,2 y 0,6 m ${mean.toFixed(3)} m/s contra ${expected.toFixed(3)} m/s (${((mean / expected - 1) * 100).toFixed(1)} %), ${speeds.length} pasos; tolerancia ±15 %; absorbidas ${scene.immersion.stats.absorbed}`);
+    assert.ok(Math.abs(expected - 0.79) < 0.01, `terminal esperada ${expected}`);
+    assert.ok(reachedBottom > 0, "la partícula no llegó a y = 0,6 m");
+    assert.ok(Math.abs(mean / expected - 1) <= 0.15, `velocidad media ${mean}`);
+    assert.equal(scene.immersion.stats.absorbed, 0);
+    assert.equal(scene.immersion.count, 1);
+    scene.dispose();
+});
 /**
  * Un paso de `immersion.step` con una sola partícula en `(x, y)`: cambio de cantidad de movimiento horizontal
  * (kg·m/s de la rebanada) de la partícula y de las columnas, y velocidad relativa horizontal antes y después
@@ -140,26 +165,26 @@ function exchange(scene, kind, x, y, vx, vy, column) {
     return { particleChange, columnChange, rel0, rel1 };
 }
 
-test("I6: la reacción de la inmersión conserva la cantidad de movimiento y ninguna velocidad relativa se invierte (< 1e-6)", (t) => {
+for (const [label, kind] of [["I6", FLUID.LAVA], ["H3 (miel, #110)", FLUID.HONEY]]) test(`${label}: la reacción de la inmersión conserva la cantidad de movimiento y ninguna velocidad relativa se invierte (< 1e-6)`, (t) => {
     const scene = makeScene();
     const { water, immersion, system } = scene;
     for (let i = 0; i < water.N; i++) if (water.h[i] > 0) water.q[i] = 1.5 * water.h[i];
     const cases = [[-3, -5], [4, -5], [10, -8], [1.5, 0], [0, -3]];
     const columns = cases.map(([vx, vy], k) => {
         const x = 20.05 + k * 3;
-        scene.spawn(FLUID.LAVA, x, 1.5, vx, vy);
+        scene.spawn(kind, x, 1.5, vx, vy);
         return Math.floor(x / water.dx);
     });
     const before = cases.map((_, k) => ({ ...particle(system, k), rel: particle(system, k).vx - water.uOf(columns[k]) }));
     const q0 = water.momentum();
     immersion.step(DT);
     const after = cases.map((_, k) => ({ ...particle(system, k), rel: particle(system, k).vx - water.uOf(columns[k]) }));
-    const particleChange = cases.reduce((sum, _, k) => sum + SG.get(FLUID.LAVA) * SIGMA_W * A_P * (after[k].vx - before[k].vx), 0);
-    const exchanged = cases.reduce((sum, _, k) => sum + SG.get(FLUID.LAVA) * SIGMA_W * A_P * Math.abs(after[k].vx - before[k].vx), 0);
+    const particleChange = cases.reduce((sum, _, k) => sum + SG.get(kind) * SIGMA_W * A_P * (after[k].vx - before[k].vx), 0);
+    const exchanged = cases.reduce((sum, _, k) => sum + SG.get(kind) * SIGMA_W * A_P * Math.abs(after[k].vx - before[k].vx), 0);
     const columnChange = SIGMA_W * (water.momentum() - q0);
     const relative = Math.abs(particleChange + columnChange) / exchanged;
     const ratios = cases.map((_, k) => (before[k].rel === 0 ? 1 : (after[k].rel * before[k].rel) / (before[k].rel * before[k].rel)));
-    t.diagnostic(`I6 (agua de 3 m, corriente de 1,5 m/s, 5 partículas): |Δp partículas + Δp columnas| ${Math.abs(particleChange + columnChange).toExponential(2)} kg·m/s sobre ${exchanged.toFixed(3)} kg·m/s intercambiados (relativo ${relative.toExponential(2)}); cocientes rel_después/rel_antes ${ratios.map((r) => r.toFixed(3)).join(", ")}; tolerancia 1e-6, sin inversión (cociente ≥ 0); recortes por masa reducida ${immersion.stats.capped}`);
+    t.diagnostic(`${label} (agua de 3 m, corriente de 1,5 m/s, 5 partículas): |Δp partículas + Δp columnas| ${Math.abs(particleChange + columnChange).toExponential(2)} kg·m/s sobre ${exchanged.toFixed(3)} kg·m/s intercambiados (relativo ${relative.toExponential(2)}); cocientes rel_después/rel_antes ${ratios.map((r) => r.toFixed(3)).join(", ")}; tolerancia 1e-6, sin inversión (cociente ≥ 0); recortes por masa reducida ${immersion.stats.capped}`);
     assert.equal(immersion.count, cases.length);
     assert.ok(relative < 1e-6, `suma relativa ${relative}`);
     assert.ok(Math.min(...ratios) >= 0, `una velocidad relativa se invirtió: ${ratios}`);

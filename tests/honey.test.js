@@ -6,7 +6,7 @@ import "./helpers/fluid-bench.js";
 import { loadGame } from "./helpers/game.js";
 
 const { FLUID, PERSIST_MAX, weaponById } = await import("../js/weapons.js");
-const { ORIGIN } = await import("../js/particleStore.js");
+const { ORIGIN, SINK } = await import("../js/particleStore.js");
 const { PARTICLE } = await import("../js/particles.js");
 
 const RT = 7;
@@ -166,26 +166,6 @@ test("quieto 3 s sobre el charco: pegado en todos los pasos y no se pierde miel 
     assert.ok(Math.abs(after.total - before.total) < 1e-3 * before.total, `${after.total} contra ${before.total}`);
 });
 
-/** Una película de 0,3 m de agua con fracción de miel `fraction` bajo el robot J2 (columnas dentro de ±0,8 m de su torso) o a `offset` m de distancia. */
-async function filmUnder(fraction, offset = 0) {
-    const game = await standing(false);
-    const { water } = game.state;
-    const x = torso(game, J2).get_x() + offset;
-    for (let i = 0; i < water.N; i++) {
-        if (Math.abs(water.center(i) - x) > 0.8) continue;
-        water.h[i] = 0.3;
-        water.M[i] = 0.3 * fraction;
-    }
-    game.frames(3);
-    return game;
-}
-
-test("miel en las columnas del campo (§14.10): X_v ≥ 0,5 pega, X_v < 0,5 no pega y una película lejos no pega", async () => {
-    assert.equal((await filmUnder(1)).state.players[J2].sticky, true, "X_v 1");
-    assert.equal((await filmUnder(0.5)).state.players[J2].sticky, true, "X_v 0,5");
-    assert.equal((await filmUnder(0.4)).state.players[J2].sticky, false, "X_v 0,4");
-    assert.equal((await filmUnder(1, 4)).state.players[J2].sticky, false, "película a 4 m");
-});
 test("charco destruido: deja de estar pegado a los 0,3 s + 1 paso y recupera el movimiento", async () => {
     const game = await standing(true);
     assert.equal(game.state.players[J2].sticky, true);
@@ -239,12 +219,11 @@ test("J1 dispara miel a J2 a ~3 m: J2 queda pegado, J1 no en los primeros 0,4 s;
     assert.equal(count(game, FLUID.ACID), 0, "el ácido venció");
 });
 
-test("la miel que cae al agua del nivel no se destruye: queda en las columnas y se conserva a los 8 s", async () => {
+test("la miel que cae al agua del nivel no se absorbe ni se destruye: queda como partículas y se conserva a los 8 s (#110)", async () => {
     const game = await start();
-    const { players, damage } = game.state;
+    const { players, store, particleSystem } = game.state;
     shift(game, 0, 16.5 - torso(game, 0).get_x());
     game.frames(30);
-    const firstTag = damage.nextShot;
     players[0].weapon = FLUID.HONEY;
     game.setPad(0, { buttons: [RT], axes: [0, 0, 0.87, -0.5] }); // stick derecho a 30° sobre la horizontal: cae en la pileta
     game.frames(90);
@@ -253,14 +232,21 @@ test("la miel que cae al agua del nivel no se destruye: queda en las columnas y 
     assert.ok(emitted >= 140);
     game.frames(60 * 8);
     const honey = honeyTotal(game);
-    console.log(`miel emitida ${emitted}, en el sistema ${honey.particles}, en las columnas ${fmt(honey.field)} (en la pileta ${fmt(honey.pool)})`);
-    assert.ok(honey.pool > 0, "ninguna cayó a la pileta: la prueba no ejercita el agua");
-    assert.ok(Math.abs(honey.total - emitted) < 1e-3 * emitted, `${honey.total} contra ${emitted}`);
+    const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
+    let inPool = 0;
+    for (let i = 0; i < particleSystem.GetParticleCount(); i++) {
+        const slot = store.slotAt(i);
+        const x = Box2D.HEAPF32[pos + 2 * i];
+        if (store.alive[slot] === 1 && store.kind[slot] === FLUID.HONEY && x > 18 && x < 38) inPool++;
+    }
+    console.log(`miel emitida ${emitted}, en el sistema ${honey.particles}, en la pileta ${inPool}, en las columnas ${fmt(honey.field)}`);
+    assert.ok(inPool > 0, "ninguna cayó a la pileta: la prueba no ejercita el agua");
+    assert.equal(honey.field, 0, "el campo no tiene miel");
+    assert.equal(store.destroyed[SINK.ABSORBED][FLUID.HONEY], 0, "ninguna partícula de miel absorbida");
+    assert.equal(honey.particles, emitted, `${honey.particles} partículas contra ${emitted} emitidas`);
 });
-
 /**
- * La miel de los disparos se absorbe en las columnas del campo al llegar al piso y al borde de la isla, así que
- * 1500 disparadas nunca coexisten en el sistema. Se crean en el aire, con id de disparo creciente, y se mide el
+ * Un tanque no emite 1500 partículas de miel, así que se crean en el aire, con id de disparo creciente, y se mide el
  * primer frame de limpieza, antes de que caigan.
  */
 test(`tope: con 1500 partículas de miel disparadas quedan como mucho ${PERSIST_MAX} y son las más nuevas`, async () => {

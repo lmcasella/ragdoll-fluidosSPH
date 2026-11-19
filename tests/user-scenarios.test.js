@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { loadGame } from "./helpers/game.js";
 import { recordGame } from "./helpers/recorder.js";
+import { HoneyProbe } from "./helpers/honey-probe.js";
 import { runStandardScene, AREA_TOLERANCE, MATERIAL_NAMES, STEPS_PER_SECOND } from "./helpers/invariants-run.js";
 
 const { LEVEL } = await import("../js/level.js");
@@ -43,10 +44,11 @@ function save(recorder, name) {
     if (recorder) recorder.save(join(RECORD_DIR, `${name}.json`));
 }
 
-/** Un frame del juego; graba cada `RECORD_STRIDE` frames si hay grabador. */
-function tick(game, recorder, frame) {
+/** Un frame del juego; graba cada `RECORD_STRIDE` frames si hay grabador y llama a `onFrame` si se pasó. */
+function tick(game, recorder, frame, onFrame = null) {
     game.frame();
     if (recorder && frame % RECORD_STRIDE === 0) recorder.capture();
+    if (onFrame) onFrame();
 }
 
 async function start() {
@@ -90,15 +92,15 @@ function dropper(game) {
  * bajo, equipando el arma con RB, y sigue hasta `seconds` desde que empezó a apretar el gatillo. Devuelve las
  * partículas emitidas.
  */
-function fireTank(game, kind, targetX, targetY, seconds, recorder) {
+function fireTank(game, kind, targetX, targetY, seconds, recorder, onFrame = null) {
     const player = game.state.players[0];
     const weapon = weaponById(kind);
     let guard = 0;
     while (player.weapon !== kind && guard++ < WEAPON_ORDER.length) {
         game.setPad(0, { buttons: [BUTTON_NEXT_WEAPON] });
-        tick(game, recorder, 0);
+        tick(game, recorder, 0, onFrame);
         game.setPad(0);
-        tick(game, recorder, 0);
+        tick(game, recorder, 0, onFrame);
     }
     assert.equal(player.weapon, kind, "el arma quedó equipada");
     const muzzle = player.muzzle();
@@ -113,7 +115,7 @@ function fireTank(game, kind, targetX, targetY, seconds, recorder) {
     for (let f = 0; f < frames; f++) {
         const empty = (player.tanks.get(kind) ?? 0) === 0;
         game.setPad(0, { buttons: empty ? [] : [BUTTON_FIRE], axes: [0, 0, Math.cos(angle), -Math.sin(angle)] });
-        tick(game, recorder, f);
+        tick(game, recorder, f, onFrame);
     }
     game.setPad(0);
     return game.state.store.created[kind] - before;
@@ -193,12 +195,45 @@ test("U1 (#111): 10 gotas sobre una isla seca; en t = 10, 30 y 60 s el ancho moj
     assert.equal(store.destroyed[SINK.ABSORBED][FLUID.WATER], created, "todas las gotas se absorbieron en el campo");
     verdict(t, checks);
 });
-test("U2 (#110): un tanque de miel a la pileta; a los 10 s la masa de miel en partículas = inyectada (< 1e-6), Σ M dx = 0 y el centroide queda bajo la mitad de la profundidad", async (t) => {
-    const game = await start();
+/** Controles de H2 sobre el juego en curso: miel viva = inyectada − `OUT`, 0 absorbida y `SG · σ_w · Σ M dx` < 1e-6 · `I_honey`. */
+function honeyConservation(game, label) {
     const { water, store, particleSystem } = game.state;
+    let alive = 0;
+    for (let i = 0; i < particleSystem.GetParticleCount(); i++) {
+        const slot = store.slotAt(i);
+        if (slot >= 0 && store.alive[slot] === 1 && store.kind[slot] === FLUID.HONEY) alive++;
+    }
+    const injected = store.created[FLUID.HONEY];
+    const out = store.destroyed[SINK.OUT][FLUID.HONEY];
+    const absorbed = store.destroyed[SINK.ABSORBED][FLUID.HONEY];
+    const fieldKg = MATERIALS.honey.SG * SIGMA_W * water.honey();
+    const injectedKg = injected * MATERIALS.honey.SG * SIGMA_W * game.state.immersion.area;
+    return [
+        { name: `${label}, partículas de miel vivas = inyectadas − OUT`, issue: "#110", ok: alive === injected - out, detail: `${alive} contra ${injected} − ${out}` },
+        { name: `${label}, miel absorbida`, issue: "#110", ok: absorbed === 0, detail: `${absorbed} partículas contra 0` },
+        { name: `${label}, SG · σ_w · Σ M dx < 1e-6 · I_honey`, issue: "#110", ok: fieldKg <= 1e-6 * injectedKg, detail: `${fieldKg.toExponential(3)} kg contra < ${(1e-6 * injectedKg).toExponential(3)} kg` },
+    ];
+}
+
+test("U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 s del último disparo y H6 en 60 s (desplazamiento del fondo ≤ 0,5 m)", async (t) => {
+    const game = await start();
+    const { store, particleSystem } = game.state;
     const recorder = recorderFor(game, "u2-miel-en-pileta");
-    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, recorder);
-    save(recorder, "u2-miel-en-pileta");
+    const probe = new HoneyProbe(game);
+    let frame = 0;
+    let lastShot = 0;
+    let created = store.created[FLUID.HONEY];
+    const onFrame = () => {
+        frame++;
+        if (store.created[FLUID.HONEY] > created) {
+            created = store.created[FLUID.HONEY];
+            lastShot = frame;
+        }
+        probe.sample();
+    };
+    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, recorder, onFrame);
+    assert.ok(injected > 0, "el tanque disparó miel");
+    const checks = honeyConservation(game, "t = 10 s");
 
     const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
     let alive = 0;
@@ -211,16 +246,52 @@ test("U2 (#110): un tanque de miel a la pileta; a los 10 s la masa de miel en pa
     }
     const half = LEVEL.pool.bottom + (LEVEL.pool.surface - LEVEL.pool.bottom) / 2;
     const centroid = alive > 0 ? sumY / alive : NaN;
-    const missing = Math.abs(alive - injected) / injected;
-    const field = water.honey();
-    assert.ok(injected > 0, "el tanque disparó miel");
-    verdict(t, [
-        { name: "masa de miel en partículas = inyectada", issue: "#110", ok: missing < 1e-6, detail: `${alive} de ${injected} partículas, error relativo ${missing.toExponential(2)} contra < 1e-6` },
-        { name: "Σ M dx = 0", issue: "#110", ok: field === 0, detail: `${field.toExponential(3)} m² (${num(field / game.state.immersion.area, 4)} partículas) contra 0` },
-        { name: "centroide de la miel bajo la mitad de la profundidad", issue: "#110", ok: centroid < half, detail: `${Number.isNaN(centroid) ? "sin partículas de miel" : `y = ${num(centroid)} m de las ${alive} partículas que quedan`} contra < ${half} m` },
-    ]);
+    checks.push({ name: "t = 10 s, centroide de la miel bajo la mitad de la profundidad", issue: "#110", ok: centroid < half, detail: `y = ${num(centroid)} m de ${alive} partículas contra < ${half} m` });
+
+    let settledAt = null;
+    const total = Math.round(60 * STEPS_PER_SECOND);
+    while (frame < total) {
+        tick(game, recorder, frame, onFrame);
+        if (settledAt === null && frame >= lastShot + 10 * STEPS_PER_SECOND) {
+            settledAt = { fraction: probe.settledFraction, submerged: probe.submerged, settled: probe.settled, seconds: (frame - lastShot) / STEPS_PER_SECOND };
+        }
+    }
+    save(recorder, "u2-miel-en-pileta");
+    checks.push(...honeyConservation(game, "t = 60 s"));
+    checks.push(
+        { name: "H4, a los 10 s del último disparo ≥ 90 % de la miel sumergida está a y < pool.bottom + 0,5 m", issue: "#110", ok: settledAt !== null && settledAt.fraction >= 0.9, detail: settledAt ? `${settledAt.settled} de ${settledAt.submerged} (${pct(settledAt.fraction)}) a los ${num(settledAt.seconds)} s del último disparo` : "no se llegó a la medición" },
+        { name: "H4, 0 pasos con y > η − 2r desde que toca el fondo", issue: "#110", ok: probe.resurfaced === 0, detail: `${probe.resurfaced} pasos-partícula (${probe.resurfacedParticles.size} partículas)` },
+    );
+    t.diagnostic(`H6: desplazamiento medio máx de la miel apoyada ${num(probe.maxShift)} m (paso ${probe.maxShiftStep}), final ${num(probe.shift)} m; |u_c| máx de las columnas del fondo ${num(probe.maxColumnSpeed)} m/s`);
+    const h6 = { name: "H6, desplazamiento horizontal del centroide de la miel apoyada en 60 s ≤ 0,5 m", issue: "#110", ok: probe.maxShift <= 0.5, detail: `${num(probe.maxShift)} m, |u_c| máx ${num(probe.maxColumnSpeed)} m/s` };
+    const failed = checks.filter((c) => !c.ok);
+    for (const c of checks.concat(h6)) t.diagnostic(`${c.ok ? "ok" : "FALLA"} ${c.name}: ${c.detail}`);
+    assert.equal(failed.length, 0, failed.map((c) => `${c.name}: ${c.detail}`).join(" | "));
+    assert.ok(h6.ok, `${h6.name}: ${h6.detail}`);
 });
 
+test("U2b (#110): H6 con ola: 150 gotas de agua pasan sobre la capa de miel del fondo; desplazamiento del centroide apoyado ≤ 0,5 m", async (t) => {
+    const game = await start();
+    const { store } = game.state;
+    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, null);
+    for (let f = 0; f < 20 * STEPS_PER_SECOND; f++) game.frame();
+    const recorder = recorderFor(game, "u2b-ola-sobre-miel");
+    const probe = new HoneyProbe(game);
+    probe.sample();
+    const initial = probe.centroid;
+    const drops = dropper(game);
+    const x0 = initial - 6;
+    for (let k = 0; k < 150; k++) drops.spawn(FLUID.WATER, x0, LEVEL.pool.surface + 0.3 + k * 0.09);
+    drops.dispose();
+    for (let frame = 0; frame < 25 * STEPS_PER_SECOND; frame++) tick(game, recorder, frame, () => probe.sample());
+    save(recorder, "u2b-ola-sobre-miel");
+    const alive = store.created[FLUID.HONEY] - store.destroyed[SINK.OUT][FLUID.HONEY];
+    t.diagnostic(`ola desde x = ${num(x0)} m sobre la capa apoyada (centroide inicial ${num(initial)} m): desplazamiento medio máx ${num(probe.maxShift)} m, final ${num(probe.shift)} m; |u_c| máx de las columnas bajo la capa ${num(probe.maxColumnSpeed)} m/s; miel viva ${alive} de ${injected}; absorbidas ${store.destroyed[SINK.ABSORBED][FLUID.HONEY]}`);
+    assert.equal(store.destroyed[SINK.ABSORBED][FLUID.HONEY], 0);
+    assert.ok(probe.touchedEver > 0, "la capa de miel no llegó al fondo");
+    assert.ok(probe.maxColumnSpeed >= 0.3, `la ola no pasó sobre la capa: |u_c| máx ${probe.maxColumnSpeed} m/s`);
+    assert.ok(probe.maxShift <= 0.5, `desplazamiento ${probe.maxShift} m`);
+});
 test("U3 (#98 y #110): un tanque de ácido a la pileta; concentración media = m_H2SO4 / m_total (±1 %) y ρ_col = 998 + 6,8 · w[%] (±0,1 %)", async (t) => {
     const game = await start();
     const { water, store, immersion } = game.state;

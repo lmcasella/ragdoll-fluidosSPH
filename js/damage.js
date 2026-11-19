@@ -14,8 +14,6 @@ const IMPACT_COOLDOWN = 0.25;
 const SELF_IMMUNITY = 0.4; // s en que un disparo no daña a quien lo disparó
 const SHOT_SLICE = 0.1; // s que dura un id de disparo abierto
 const SHOT_LIFETIME = 6; // s hasta que el id se borra y sus partículas se destruyen
-/** `X_v` mínima de una columna del campo de alturas para pegar (docs/design/14-agua.md §14.10). */
-const HONEY_COLUMN_FRACTION = 0.5;
 
 export class DamageSystem {
     constructor(world, store, weapons = WEAPONS) {
@@ -34,8 +32,6 @@ export class DamageSystem {
         this.honeyBoxes = [];
         this.drowned = [];
         this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
-        /** `ShallowWater` del nivel; si está, `stickHoney` suma la miel de las columnas. */
-        this.water = null;
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };
         this.manifold = new Box2D.b2WorldManifold();
@@ -151,14 +147,12 @@ export class DamageSystem {
         const store = this.store;
         const count = system.GetParticleCount();
         const players = this.players;
-        if ((count === 0 && !this.water) || players.length === 0) return;
+        if (count === 0 || players.length === 0) return;
         const pad = 2 * system.GetRadius();
         const boxes = this.honeyBoxes;
         boxes.length = 0;
         for (const player of players) boxes.push(player.dead ? null : player.fixtureBoxes());
         let pending = players.length; // robots que todavía no quedaron pegados en este paso
-        if (this.water) pending -= this.stickOnHoneyColumns(boxes, pad);
-        if (count === 0) return;
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
         for (let i = 0; i < count && pending > 0; i++) {
             const slot = store.slotAt(i);
@@ -182,35 +176,6 @@ export class DamageSystem {
                 }
             }
         }
-    }
-
-    /**
-     * Miel absorbida por el campo de alturas (docs/design/14-agua.md §14.10): pega al robot si alguna columna bajo sus
-     * cajas tiene mojado, una fracción de miel `X_v ≥ 0,5` y su superficie a menos de `pad` del punto más bajo del robot.
-     * Anula en `boxes` a los robots que pegó y devuelve cuántos fueron.
-     */
-    stickOnHoneyColumns(boxes, pad) {
-        const water = this.water;
-        const hDry = water.config.hDry;
-        let stuck = 0;
-        for (let k = 0; k < boxes.length; k++) {
-            const b = boxes[k];
-            if (!b) continue;
-            const u = b.length - 4;
-            const lowest = b[u + 1];
-            const first = Math.max(0, Math.floor((b[u] - water.x0) / water.dx));
-            const last = Math.min(water.N - 1, Math.floor((b[u + 2] - water.x0) / water.dx));
-            for (let c = first; c <= last; c++) {
-                if (water.h[c] <= hDry || water.honeyFraction(c) < HONEY_COLUMN_FRACTION) continue;
-                if (water.b[c] + water.h[c] + pad >= lowest) {
-                    this.players[k].stick();
-                    boxes[k] = null;
-                    stuck++;
-                    break;
-                }
-            }
-        }
-        return stuck;
     }
 
     /**

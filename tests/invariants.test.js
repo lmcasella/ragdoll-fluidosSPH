@@ -45,7 +45,6 @@ const acidAbsorbed = cause("ABSORBED", "acid");
 const expiredWaterAcid = cause("EXPIRED", "water") + cause("EXPIRED", "acid");
 const hitAcid = cause("HIT", "acid");
 const expiredLava = cause("EXPIRED", "lava");
-const capHoney = cause("PERSIST_CAP", "honey");
 
 test("escena estándar: la ventana dura el mínimo exigido y los sumideros de la escena", (t) => {
     t.diagnostic(
@@ -73,7 +72,7 @@ const ACID_CAUSES = [
 const I1_CAUSES = {
     H2O: [ACID_CAUSES, () => `ácido absorbido sin trazador: ${acidAbsorbed} partículas depositadas como agua; vencimiento D5 de agua y ácido (EXPIRED): ${expiredWaterAcid}; ácido destruido al dañar (HIT): ${hitAcid}`],
     H2SO4: [ACID_CAUSES, () => `H2SO4 del ácido absorbido (${acidAbsorbed} partículas) desaparece sin trazador; EXPIRED agua y ácido: ${expiredWaterAcid}; HIT: ${hitAcid}`],
-    honey: [[[capHoney > 0, "#110"]], () => `tope PERSIST_CAP: ${capHoney} partículas`],
+    honey: [[], () => `tope PERSIST_CAP: ${cause("PERSIST_CAP", "honey")} partículas`],
     basalt: [[[expiredLava > 0, "#75"]], () => `vencimiento D5 de la lava (EXPIRED): ${expiredLava} partículas`],
 };
 
@@ -94,7 +93,7 @@ test("I2a identidad: store.kind no cambia entre create y destroy (0 cambios)", (
 const I2_CAUSES = {
     water: [[[acidAbsorbed > 0, "#98"], [cause("EXPIRED", "water") > 0, "#73"]], () => `el ácido absorbido (${acidAbsorbed} partículas) entra como agua; EXPIRED agua: ${cause("EXPIRED", "water")}`],
     acid: [ACID_CAUSES, () => `ácido absorbido sin trazador (${acidAbsorbed} partículas); EXPIRED: ${cause("EXPIRED", "acid")}; HIT: ${hitAcid}`],
-    honey: [[[capHoney > 0, "#110"]], () => `tope PERSIST_CAP: ${capHoney} partículas`],
+    honey: [[], () => `tope PERSIST_CAP: ${cause("PERSIST_CAP", "honey")} partículas`],
     lava: [[[expiredLava > 0, "#75"]], () => `vencimiento D5 de la lava (EXPIRED): ${expiredLava} partículas`],
 };
 
@@ -181,15 +180,8 @@ test("I3f campo, agua: área de waterOutline = volumen físico de agua del campo
     const track = run.i3f.water;
     assert.ok(track.evals > 0);
     const info = track.maxInfo;
-    t.diagnostic(`error máx ${pct(track.max)} en el paso ${track.maxStep}: dibujado ${num(info.drawn)} m², físico ${num(info.physical)} m², miel en el campo ${num(info.honey)} m² (dibujada como agua)`);
-    verdict(t, track, [[info.honey > 0, "#110"]], `la miel del campo se dibuja como agua: ${pct(track.max)} de error con ${num(info.honey)} m² de miel`);
-});
-
-test("I3f campo, miel: el campo dibuja la miel absorbida con el color del agua (área de miel dibujada = ΣM dx ±5 %)", (t) => {
-    const track = run.i3f.honey;
-    assert.ok(track.evals > 0, "la miel nunca entró al campo");
-    const info = track.maxInfo;
-    verdict(t, track, [[info.physical > 0, "#110"]], `miel física ${num(info.physical)} m² contra ${num(info.drawn)} m² dibujados con su color; falla en ${track.fails} de ${track.evals} pasos`);
+    t.diagnostic(`error máx ${pct(track.max)} en el paso ${track.maxStep}: dibujado ${num(info.drawn)} m², físico ${num(info.physical)} m², miel en el campo ${num(info.honey)} m²`);
+    verdict(t, track, [], `${pct(track.max)} de error con ${num(info.honey)} m² de miel en el campo`);
 });
 
 test("I4 espesor mínimo: 0 columnas interiores con hDry < h < hMin al final de cada paso", (t) => {
@@ -206,12 +198,30 @@ test("I4 espesor mínimo: 0 columnas interiores con hDry < h < hMin al final de 
     );
 });
 
-test("PERSIST_CAP: el tope de miel no se activa en la escena estándar (0 partículas destruidas)", (t) => {
-    const destroyed = cause("PERSIST_CAP", "honey");
-    if (destroyed > 0) t.todo(`#110: tope PERSIST_CAP activo, ${destroyed} partículas de miel destruidas contra 0 esperadas`);
-    assert.equal(destroyed, 0);
+test("PERSIST_CAP: el tope de miel no se activa en la escena estándar (0 partículas destruidas)", () => {
+    assert.equal(cause("PERSIST_CAP", "honey"), 0);
 });
 
+test("H2 miel conservada como miel en cada paso: vivas = inyectadas − OUT, 0 absorbidas y SG · σ_w · Σ M dx < 1e-6 · I_honey", () => {
+    for (const track of Object.values(run.h2)) assert.ok(track.evals > 0, `${track.name}: sin evaluaciones`);
+    const { alive, absorbed, field } = run.h2;
+    assert.equal(alive.fails, 0, `partículas de miel vivas distintas de inyectadas − OUT en ${alive.fails} de ${alive.evals} pasos (el primero, ${alive.firstFail}; desvío máx ${alive.max})`);
+    assert.equal(absorbed.fails, 0, `miel absorbida (ABSORBED) hasta ${absorbed.max} partículas en ${absorbed.fails} pasos`);
+    assert.equal(field.fails, 0, `Σ M dx de miel en el campo hasta ${num(field.max)} kg contra I_honey en ${field.fails} pasos`);
+    assert.equal(run.i1.honey.fails, 0);
+    assert.equal(run.i2b.honey.fails, 0);
+});
+
+test("H6 escena estándar: desplazamiento horizontal del centroide de la miel apoyada en el fondo en 60 s ≤ 0,5 m", (t) => {
+    const probe = run.probe;
+    t.diagnostic(`partículas de miel que tocaron el fondo de la pileta: ${probe.touchedEver}; máx de miel sumergida en el mismo paso: ${probe.maxSubmerged}`);
+    t.diagnostic(`desplazamiento medio máx ${num(probe.maxShift)} m (paso ${probe.maxShiftStep}); |u_c| máx de las columnas bajo la miel del fondo ${num(probe.maxColumnSpeed)} m/s; partículas que volvieron a la superficie desde el fondo: ${probe.resurfacedParticles.size} (${probe.resurfaced} pasos-partícula)`);
+    if (probe.touchedEver === 0) {
+        t.skip("la escena estándar no lleva miel al fondo de la pileta (0 partículas apoyadas): H6 se mide en U2 y U2b");
+        return;
+    }
+    assert.ok(probe.maxShift <= 0.5, `desplazamiento ${probe.maxShift} m`);
+});
 test("costo de la suite de invariantes", (t) => {
     const c = run.cost;
     t.diagnostic(
