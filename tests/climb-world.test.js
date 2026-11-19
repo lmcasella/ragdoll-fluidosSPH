@@ -112,8 +112,8 @@ test("C4: con la inundación activa el bot de J2 sube pasando los 60 m locales (
     assert.deepEqual(failures, []);
 });
 
-test("C5 y C7: sin pads el agua ahoga a los dos robots antes de los 30 s y el libro del campo cierra en cada paso", { timeout: 300000 }, async () => {
-    globalThis.location = { search: "" };
+test("C5 y C7: sin pads (semilla 1) el agua ahoga a los dos robots antes de los 30 s y el libro del campo cierra en cada paso", { timeout: 300000 }, async () => {
+    globalThis.location = { search: "?seed=1" };
     const game = await loadGame({ map: "infinite" });
     const { water, players, match, immersion } = game.state;
     const initial = water.volume();

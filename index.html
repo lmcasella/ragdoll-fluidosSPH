@@ -233,8 +233,10 @@
                 return lowest;
             }
 
-            // Altura de aparición: en Clásico un rayo vertical desde el techo encuentra la superficie en x; en Infinito el
-            // tope de la plataforma sorteada ya es el dato
+            /**
+             * Altura de aparición: en Clásico un rayo vertical desde el techo encuentra la superficie en x; en Infinito
+             * el tope (`top`) de la plataforma sorteada ya es el dato.
+             */
             function spawnOnGround(def, x, top) {
                 const hit = top === undefined ? raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY) : null;
                 const surface = top ?? (hit ? hit.y : LEVEL.bounds.minY);

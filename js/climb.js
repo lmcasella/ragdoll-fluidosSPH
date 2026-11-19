@@ -425,7 +425,7 @@ export class Climb {
         this.clear();
         this.vector.Set(0, 0);
         this.body.SetTransform(this.vector, 0);
-        this.pickups.shift?.(0);
+        this.pickups.shift(0);
         this.generator = new ClimbGenerator(seed, this.config);
         this.stagesBuilt = -1;
         this.stageReached = 0;
@@ -447,7 +447,7 @@ export class Climb {
      */
     update({ top, level, reached = -Infinity }) {
         const offset = this.offsetY;
-        this.pickups.shift?.(offset);
+        this.pickups.shift(offset);
         const stage = stageOf(reached - offset, this.config);
         if (reached > -Infinity && stage > this.stageReached) {
             this.stageReached = stage;
