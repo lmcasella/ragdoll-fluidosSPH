@@ -3,7 +3,7 @@
  * conectar) en s desde el inicio del ataque; `origin` es la articulación cuya ancla emite los rayos; `base` es la
  * dirección: `aim` (la mira) o `side` (el lado de la mira, `tilt` rad hacia abajo); `reach` en m y `spread` en rad
  * (rayos al centro y a ±`spread`); `damage` antes del multiplicador de la parte; `push` = [lateral, arriba] en m/s
- * sumados a todo el robot golpeado; `stun` en s; `reaction` = `simple` o `stumble`. `impulse` (N·s) se aplica en el
+ * sumados a todo el robot golpeado; `stun` en s; `reaction` = `simple` o `stumble`; `lunge` (m/s, opcional) es el paso adelante del atacante hasta el fin de la ventana activa. `impulse` (N·s) se aplica en el
  * punto de impacto. `combo`: secuencia, `grace` (s de tolerancia tras terminar un golpe para encadenar) y `cooldown`
  * (s tras cortarse o terminar un ataque).
  */
@@ -36,6 +36,7 @@ export const MELEE = {
             push: [1.5, 0],
             stun: 0.4,
             reaction: "simple",
+            lunge: 5,
         },
         combo3: {
             duration: 1.0,
@@ -49,6 +50,7 @@ export const MELEE = {
             push: [6, 4],
             stun: 0.7,
             reaction: "stumble",
+            lunge: 5,
         },
         airPunch: {
             duration: 0.9,
