@@ -18,6 +18,18 @@ Juego web 1v1 de robots ragdoll que pelean con fluidos SPH, para la materia Simu
 | Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los decide `planner` con la taxonomía de abajo y los opera `github-clerk`. |
 | `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Se actualiza en cada merge.** |
 | `README.md` | Cómo correr, probar y jugar. |
+| `docs/referencias.md` | Material de estudio: matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan. **Se actualiza en cada merge.** |
+
+### Formato de `docs/referencias.md`
+
+Cada entrada tiene solo esto, sin fechas, historia ni detalles:
+
+- **Nombre** — quién lo inventó o formuló.
+- Una línea de descripción.
+- Dónde se usa: `ruta:línea` (una o varias).
+- Opcional: un ejemplo de implementación corto.
+
+Lo descartado va en su propia sección, con la misma entrada más una línea: "se optó por <otra solución> porque no funcionó (<motivo breve>)".
 
 Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corrige el código, o `architect` actualiza el GDD.
 
@@ -130,7 +142,7 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
    - **invariantes globales** (tests permanentes sobre la escena real del juego, en cada PR): la masa de cada material (partículas + campo) se conserva; ningún material cambia de identidad sin una reacción diseñada; el volumen dibujado coincide con el físico; no hay películas de agua más finas que el espesor mínimo del diseño;
    - **escenarios del usuario:** cada falla que reporta el usuario se convierte primero en un test que la reproduce, y no se cierra hasta que pasa;
    - **regresiones:** si algo que funcionaba en `main` cambia sin que el diseño lo pida, no se mergea. No se presenta como "cambio de comportamiento".
-5. **Documentar (obligatorio en cada PR):** `doc-writer` agrega la entrada de `CHANGELOG.md`, actualiza `README.md` y revisa si el diseño cambió. Si cambió, actualiza el archivo de `docs/design/` correspondiente (estado y valores reales); si cambió una decisión de diseño, la registra `architect`.
+5. **Documentar (obligatorio en cada PR):** `doc-writer` agrega la entrada de `CHANGELOG.md`, actualiza `README.md`, actualiza `docs/referencias.md` (entradas nuevas, descartadas y las `ruta:línea` que se movieron) y revisa si el diseño cambió. Si cambió, actualiza el archivo de `docs/design/` correspondiente (estado y valores reales); si cambió una decisión de diseño, la registra `architect`.
 6. **PR y merge:** push y PR con título igual al commit convencional de la tarea, cuerpo según la plantilla y `Closes #<n>`. Se mergea con merge commit y se borra la rama.
 7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`, no rama por rama.
 
@@ -142,6 +154,7 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 - Los tests pasan y la funcionalidad se ejercitó (en Node con gamepad simulado, y en navegador si toca el render).
 - Respeta los patrones de arquitectura y las reglas de memoria nativa.
 - `CHANGELOG.md` tiene la entrada de la versión nueva.
+- `docs/referencias.md` refleja los algoritmos y modelos del diff (nuevos, descartados y líneas de código vigentes).
 - Se revisó si el diseño cambió: `docs/design/` refleja lo que hay en `main` después del merge (estado ✅/🔨 y valores reales), y `README.md` también.
 - La rama, los commits y el título del PR siguen las convenciones, y el PR cierra su issue.
 
