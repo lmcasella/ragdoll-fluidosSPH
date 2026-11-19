@@ -22,13 +22,14 @@ import { WEAPONS, weaponById } from "./weapons.js";
  *   `cost`: costo de cada arista del grafo, menor para `through` que para un salto diagonal (`jump`);
  * - `jump`: `distance` (a cuánto del destino salta), `edge` (a cuánto del borde salta aunque esté lejos), `inset` (margen
  *   dentro del destino donde suelta el stick), `dropBelow` (desnivel desde el que ya no salta sino que se deja caer),
- *   `align` (tolerancia al alinearse bajo un destino);
+ *   `align` (tolerancia al alinearse bajo un destino) y `settle` (velocidad horizontal máxima, m/s, para saltar en vertical bajo un destino);
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
  *   `replan`: cada cuánto reelige destino;
  * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
  * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
  * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
- * - `evade`: ventana (s) tras recibir daño o líquido en la que salta a la plataforma de arriba o rueda alejándose.
+ * - `evade`: ventana (s) tras recibir daño o líquido en la que salta a la plataforma de arriba o rueda alejándose;
+ * - `stuck`: 	ime` (s) sin apoyo y sin alejarse más de `radius` (m) (encajado en una plataforma), tras lo que salta empujando de un lado a otro para zafarse.
  */
 export const BOT = {
     melee: { range: 1.6, stop: 1.3, vertical: 1.2, airRange: 2.2, airDrop: 0.8, kickDrop: 1.4 },
@@ -45,7 +46,7 @@ export const BOT = {
     reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
     through: { overlap: 1.5 },
     cost: { through: 0.6, jump: 1 },
-    jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3 },
+    jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3, settle: 0.6 },
     highBonus: 4,
     hopCost: 0.3,
     replan: 0.5,
@@ -55,6 +56,7 @@ export const BOT = {
     reserve: 0.25,
     reserveRange: 3,
     evade: 0.5,
+    stuck: { time: 1, radius: 0.4 },
 };
 
 /**
@@ -149,6 +151,8 @@ export class Bot {
         this.raycaster = getRaycaster(world);
         this.rng = rng ?? seededRandom(seed);
         this.nav = buildNav(level, config);
+        /** Desplazamiento vertical (m) del mapa (Infinito): el grafo es local, la altura en el mundo es `top + offsetY`. */
+        this.offsetY = 0;
         this.pad = {
             connected: true,
             axes: [0, 0, 0, 0],
@@ -198,6 +202,7 @@ export class Bot {
         this.burstReadyAt = -Infinity;
         this.hurtAt = -Infinity;
         this.lastHp = null;
+        this.anchor = null;
     }
 
     press(button) {
@@ -226,17 +231,37 @@ export class Bot {
 
     /**
      * Calcula el gamepad de este frame.
-     * @param {object} game `{ players, match, flood, water, pickups, climbing }` del juego (`climbing`: el mapa es Infinito).
+     * @param {object} game `{ players, match, flood, water, pickups, climbing, offsetY }` del juego (`climbing`: el mapa es Infinito; `offsetY`: lo que bajó el mapa).
      * @param {number} now Reloj de simulación, s.
      * @returns {object} El gamepad virtual (el mismo objeto cada vez).
      */
     update(game, now) {
+        this.offsetY = game.offsetY ?? 0;
         this.pad.axes.fill(0);
         for (const b of this.pad.buttons) b.pressed = false;
-        this.think(game, now);
+        if (!this.unstick(game.players[this.k], now)) this.think(game, now);
         this.holdJump(game.players[this.k]);
         this.previous.forEach((_, i) => (this.previous[i] = this.pad.buttons[i].pressed));
         return this.pad;
+    }
+
+    /** Si lleva `stuck.time` s sin apoyo y sin moverse (encajado en una plataforma), salta empujando de un lado a otro. Devuelve verdadero si usó el frame. */
+    unstick(me, now) {
+        const a = this.anchor;
+        if (me.dead) {
+            this.anchor = null;
+            return false;
+        }
+        const x = me.torso.GetPosition().get_x();
+        const y = me.torso.GetPosition().get_y() - this.offsetY;
+        if (me.grounded || a === null || Math.hypot(x - a.x, y - a.y) > this.config.stuck.radius) {
+            this.anchor = { x, y, at: now };
+            return false;
+        }
+        if (now - a.at < this.config.stuck.time) return false;
+        this.walk(Math.floor((now - a.at) * 2) % 2 === 0 ? 1 : -1);
+        this.pulse(PAD.jump);
+        return true;
     }
 
     /** Mantiene el salto apretado mientras el robot sube, para no recibir el corte del salto variable. */
@@ -266,7 +291,7 @@ export class Bot {
         const cur = me.grounded && me.torso.GetLinearVelocity().get_y() < 1 ? this.supportOf(me) : null;
         if (cur !== null) this.committed = null;
         const level = this.floodLevel(game, mx);
-        this.minTop = this.safeLine(game, level);
+        this.minTop = this.safeLine(game, level) - this.offsetY;
         const below = cur !== null && this.nav.nodes[cur].top < this.minTop;
         if (!foe) {
             if (below) this.escape(me, cur);
@@ -296,7 +321,7 @@ export class Bot {
             return;
         }
         if (this.melee(me, foe, cur, adx, dx, dy, dir, now)) return;
-        const foeTop = foeNode === null ? foePos.get_y() : this.nav.nodes[foeNode].top;
+        const foeTop = foeNode === null ? foePos.get_y() - this.offsetY : this.nav.nodes[foeNode].top;
         this.move(game, me, foe, cur, foeNode, foeTop, below, adx, dx, dy, dir, now);
         this.fight(me, foe, cur, foeNode, adx, dx, dy, now);
     }
@@ -600,7 +625,7 @@ export class Bot {
     pickGoal(cur, foe) {
         const dist = this.distances(cur);
         const fx = foe.torso.GetPosition().get_x();
-        const fy = this.foeNode === null ? foe.torso.GetPosition().get_y() : this.nav.nodes[this.foeNode].top;
+        const fy = this.foeNode === null ? foe.torso.GetPosition().get_y() - this.offsetY : this.nav.nodes[this.foeNode].top;
         let best = cur;
         let bestScore = -Infinity;
         this.nav.nodes.forEach((n, i) => {
@@ -668,7 +693,7 @@ export class Bot {
     /** Plataforma sobre la que está parado el robot (pies a la altura de su tope), o `null` si está en el aire. */
     supportOf(player) {
         const x = player.torso.GetPosition().get_x();
-        const low = player.lowestPoint();
+        const low = player.lowestPoint() - this.offsetY;
         let best = null;
         this.nav.nodes.forEach((n, i) => {
             if (x < n.minX - 0.3 || x > n.maxX + 0.3 || Math.abs(low - n.top) > 0.35) return;
@@ -712,7 +737,7 @@ export class Bot {
             } else if (dy < 0 && a.oneWay) {
                 this.pad.axes[1] = 1;
                 this.pulse(PAD.jump);
-            } else if (dy >= 0) {
+            } else if (dy >= 0 && Math.abs(me.torso.GetLinearVelocity().get_x()) <= jump.settle) {
                 this.pulse(PAD.jump);
             }
             return;
@@ -729,7 +754,7 @@ export class Bot {
     airControl(me, px) {
         let dest = this.committed;
         if (dest === null) {
-            const low = me.lowestPoint();
+            const low = me.lowestPoint() - this.offsetY;
             let bestGap = Infinity;
             this.nav.nodes.forEach((n, i) => {
                 if (n.top > low + 0.3) return;

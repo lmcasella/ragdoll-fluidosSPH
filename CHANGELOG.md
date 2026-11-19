@@ -5,6 +5,22 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-19
+
+### Added
+- Infinito natural y en movimiento. Las plataformas ya no van en filas: cada una crece desde otra de apoyo, con altura, ancho e irregularidad variables, de 3 a 7 por cada 10 m de altura, y los dos jugadores se mueven por todo el mapa (se quitó la justicia entre lados). Arrancan anchas (5 a 9 m en la etapa 0) y se acortan hasta 2 a 4 m desde la etapa 5, con alguna más larga o más corta de vez en cuando.
+- Cada jugador arranca en una plataforma al azar de la etapa 0 de la que se puede seguir subiendo, a entre 4 y 10 m del otro, mirándose, para que en una laptop no se vean chicos.
+- El mapa baja despacio (0,15 m/s, 0,02 m/s más por etapa alcanzada) mientras el agua lo llena; un robot apoyado baja con la plataforma y saltar desde abajo la atraviesa. El agua, que arranca a 2 m, sube ahora a 0,25 m/s más 0,04 m/s por etapa, porque el descenso del mapa suma subida relativa.
+- Las plataformas atravesables pueden moverse (`OneWayPlatforms.addPlatform(fixture, { moving: true })`) y el bot sabe que el mapa baja (`offsetY`).
+- Tests: generador por ramas (50 semillas), mapa que baja, aparición cercana, bot contra bot desde el arranque.
+
+### Changed
+- En Infinito no hay islas, pileta ni plataformas del clásico: solo paredes a los costados y plataformas. Todo el mapa es un único cuerpo cinemático.
+- Las etapas, las armas y el premio por etapa se miden en la altura del mapa (la generada), no en la del mundo. Las armas salen una cada cierta cantidad de plataformas de la etapa, no por filas.
+- El bot espera a frenarse bajo la plataforma de destino antes de saltar en vertical y, si queda encajado en una plataforma sin moverse durante 1 s, salta de un lado a otro para zafarse.
+
+### Removed
+- El generador por filas, la base con las plataformas bajas del clásico, la justicia entre lados, las rutas separadas por costado y el manejo de las costuras de la grilla de LiquidFun (con el mapa bajando, la altura en el mundo no llega a la primera costura).
 ## [0.29.1] - 2026-11-19
 
 ### Fixed

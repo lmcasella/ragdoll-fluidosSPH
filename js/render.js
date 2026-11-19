@@ -522,9 +522,9 @@ function buildGrid(reach) {
 
 // Piezas de los robots (las mismas formas que dibuja drawRobot) y sólidos del nivel. Los polígonos se omiten:
 // los rigs actuales no los usan.
-export function collectSurfaces(players, solids, reach = 0) {
+export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
     surfaceCount = 0;
-    for (const s of solids) addSurface(0, s.x, s.y, 0, s.w / 2, s.h / 2, 0);
+    for (const s of solids) addSurface(0, s.x, s.y + offsetY, 0, s.w / 2, s.h / 2, 0);
     for (const player of players) {
         for (const item of player.renderItems) {
             if (item.type === "polygon") continue;

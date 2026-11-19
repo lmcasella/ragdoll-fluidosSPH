@@ -33,15 +33,21 @@ function place(game, k, x, y) {
     Box2D.destroy(v);
 }
 
-/** Plataformas generadas de la etapa `stage`, de la más ancha a la más angosta. */
+/** Plataformas de la etapa `stage` (alturas locales), de la más ancha a la más angosta. */
 function platformsOfStage(game, stage) {
     return game.state.climb.level.solids
         .filter((s) => s.kind === "platform" && s.y + s.h / 2 >= stage * CLIMB.stageHeight && s.y + s.h / 2 < (stage + 1) * CLIMB.stageHeight)
         .sort((a, b) => b.w - a.w);
 }
 
+/** Plataformas de la etapa stage sin arma encima, para que pararse no recoja nada. */
+function bareOfStage(game, stage) {
+    const points = game.state.climb.points;
+    return platformsOfStage(game, stage).filter((s) => !points.some((p) => Math.abs(p.x - s.x) < 1e-6 && Math.abs(p.y - (s.y + s.h / 2 + CLIMB.pickupLift)) < 1e-6));
+}
+
 function standOn(game, k, solid) {
-    place(game, k, solid.x, solid.y + solid.h / 2 + 0.9);
+    place(game, k, solid.x, solid.y + solid.h / 2 + 0.9 + game.state.climb.offsetY);
 }
 
 test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y no hay mira láser ni tanque en el HUD", async () => {
@@ -62,7 +68,7 @@ test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) e
     const game = await infinite();
     const point = game.state.pickups.points.find((p) => p.weapon === FLUID.WATER);
     assert.ok(point, "hay un punto de agua en la etapa 1");
-    place(game, 0, point.x, point.y);
+    place(game, 0, point.x, point.y + game.state.pickups.offsetY);
     game.frames(5);
     const p1 = game.state.players[0];
     assert.equal(p1.weapon, FLUID.WATER);
@@ -86,10 +92,10 @@ test("Clásico: sigue arrancando con agua y el tanque lleno", async () => {
 test("Infinito: el bot de J2 sin arma, en la etapa 1, va a buscar el punto de aparición cercano y lo recoge en 15 s", { timeout: 120000 }, async () => {
     const game = await infinite("?bot=2&seed=1");
     assert.equal(game.state.players[1].weapon, null);
-    assert.ok(game.state.pickups.points.every((p) => p.y > CLIMB.baseMaxTop), "la etapa 0 no tiene armas");
+    assert.ok(game.state.pickups.points.every((p) => p.y >= CLIMB.stageHeight), "la etapa 0 no tiene armas");
     const [first] = game.state.pickups.points;
     const near = platformsOfStage(game, 1).find((s) => Math.abs(s.x - first.x) < s.w / 2 + 3 && Math.abs(s.y + s.h / 2 - first.y + CLIMB.pickupLift) < 1e-6);
-    place(game, 1, near.x + near.w / 2 - 0.4, near.y + near.h / 2 + 0.9);
+    place(game, 1, near.x + near.w / 2 - 0.4, near.y + near.h / 2 + 0.9 + game.state.climb.offsetY);
     let at = null;
     for (let frame = 0; frame < 15 * 60 && at === null; frame++) {
         game.frame();
@@ -104,8 +110,8 @@ test("Infinito: el bot de J2 sin arma, en la etapa 1, va a buscar el punto de ap
 test("Premio por etapa: el primero que se apoya en la etapa 1 recupera la vida y llena los tanques; el segundo, la misma ronda y la ronda nueva", async () => {
     const game = await infinite();
     const { players, stagePrizes } = game.state;
-    const [first, second] = platformsOfStage(game, 1);
-    assert.ok(first && second, "hay dos plataformas en la etapa 1");
+    const [first, second] = bareOfStage(game, 1);
+    assert.ok(first && second, "hay dos plataformas sin arma en la etapa 1");
     for (const player of players) {
         player.hp = 40;
         player.weapon = FLUID.WATER;
@@ -135,7 +141,7 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 recupera la vida y
 
     game.state.arrancarPartida();
     game.state.match.state = "playing";
-    const again = platformsOfStage(game, 1)[0];
+    const again = bareOfStage(game, 1)[0];
     players[0].hp = 30;
     standOn(game, 0, again);
     game.frames(40);
@@ -144,7 +150,7 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 recupera la vida y
 
 test("Premio por etapa: el cartel desaparece al cumplirse el tiempo de la tabla", async () => {
     const game = await infinite();
-    const [platform] = platformsOfStage(game, 1);
+    const [platform] = bareOfStage(game, 1);
     standOn(game, 0, platform);
     game.frames(40);
     assert.ok(game.hudTexts.includes("ETAPA 1 · J1"));

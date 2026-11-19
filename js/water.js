@@ -151,13 +151,26 @@ export class ShallowWater {
             }
             this.b[i] = top;
         }
-        this.bed0 = Float64Array.from(this.b);
+        this.bedLevel = Float64Array.from(this.b);
+        this.bed0 = this.bedLevel;
+        this.start = null;
         this.reset();
     }
 
     /** Coordenada x del centro de la celda `i` (m). */
     center(i) {
         return this.x0 + (i + 0.5) * this.dx;
+    }
+
+    /**
+     * Cambia con qué arranca la ronda: 
+ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua hasta
+     * surface m en todo el ancho, el mapa del ascenso). Reinicia el campo.
+     */
+    setStart(start) {
+        this.start = start;
+        this.bed0 = start ? new Float64Array(this.N) : this.bedLevel;
+        this.reset();
     }
 
     /**
@@ -172,8 +185,8 @@ export class ShallowWater {
         this.i1 = N;
         for (let i = 0; i < N; i++) {
             const xc = this.center(i);
-            const wet = pool && xc > pool.x1 && xc < pool.x2;
-            this.h[i] = wet ? Math.max(0, pool.surface - this.b[i]) : 0;
+            const wet = this.start || (pool && xc > pool.x1 && xc < pool.x2);
+            this.h[i] = wet ? Math.max(0, (this.start?.surface ?? pool.surface) - this.b[i]) : 0;
             this.q[i] = 0;
             this.E[i] = SIGMA_W * this.cWater * this.h[i] * config.ambientT;
             this.M[i] = 0;

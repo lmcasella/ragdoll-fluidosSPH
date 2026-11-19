@@ -195,18 +195,19 @@ export class Flood {
 
 /**
  * Inundación del ascenso infinito (docs/design/16-ascenso.md §16.5): el agua sube sin techo, solo en el campo de alturas
- * (JS puro, no crea partículas ni llueve). La curva `η*` vale `pool.surface` hasta `flood.start` y después sube
- * `v = speed + perStage · etapa(η*)` m/s. Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
+ * (JS puro, no crea partículas ni llueve). La curva `η*` (mundo) vale `flood.surface` hasta `flood.start` y después sube
+ * `v = speed + perStage · etapa` m/s, con la etapa de la altura local `η* − offsetY()` (el mapa baja). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
  * al ancho de la etapa, sube el fondo efectivo (`floor`, a `depth` m bajo `η*`) y suma `v · dt` a las columnas bajo `η*`.
  * Misma interfaz que `Flood`: `active`, `level`, `config.start`, `step`, `reset` y `dispose`.
  */
 export class RisingFlood {
-    constructor(water, level = LEVEL, climb = CLIMB) {
+    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0) {
         this.water = water;
         this.data = level;
         this.climb = climb;
         this.config = climb.flood;
-        this.eta = level.pool.surface;
+        this.offsetY = offsetY;
+        this.eta = climb.flood.surface;
         this.roundTime = 0;
         this.speed = 0;
     }
@@ -227,7 +228,7 @@ export class RisingFlood {
 
     /** Velocidad de subida (m/s) a la altura actual. */
     get riseSpeed() {
-        return this.config.speed + this.config.perStage * stageOf(this.eta, this.climb);
+        return this.config.speed + this.config.perStage * stageOf(this.eta - this.offsetY(), this.climb);
     }
 
     /** Avanza la curva y el campo un paso fijo `dt`. */
@@ -235,7 +236,7 @@ export class RisingFlood {
         this.roundTime = roundTime;
         const dh = this.active ? this.riseSpeed * dt : 0;
         this.eta += dh;
-        const half = halfWidth(stageOf(this.eta, this.climb), this.climb);
+        const half = halfWidth(stageOf(this.eta - this.offsetY(), this.climb), this.climb);
         this.water.setSpan(this.climb.centerX - half, this.climb.centerX + half);
         this.water.raiseFloor(this.floor);
         if (dh > 0) this.water.rise(dh, this.eta);
@@ -244,7 +245,7 @@ export class RisingFlood {
     /** Deja el agua como al empezar. */
     reset() {
         this.water.reset();
-        this.eta = this.data.pool.surface;
+        this.eta = this.config.surface;
         this.roundTime = 0;
     }
 

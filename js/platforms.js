@@ -33,7 +33,7 @@ export class OneWayPlatforms {
         this.config = config;
         /** Reloj de simulación (s) del último `update`; marca el inicio de las bajadas. */
         this.now = 0;
-        /** Puntero de fixture → { minX, maxX, bottom, top, fixture }. */
+        /** Puntero de fixture → { minX, maxX, bottom, top, fixture, moving }. */
         this.platforms = new Map();
         /** Clave → dueño `{ bodies, drops, pairs }`. */
         this.owners = new Map();
@@ -48,15 +48,22 @@ export class OneWayPlatforms {
         world.SetContactFilter(this.filter);
     }
 
-    addPlatform(fixture) {
-        const aabb = fixture.GetAABB(0);
-        this.platforms.set(Box2D.getPointer(fixture), {
-            fixture,
-            minX: aabb.get_lowerBound().get_x(),
-            maxX: aabb.get_upperBound().get_x(),
-            bottom: aabb.get_lowerBound().get_y(),
-            top: aabb.get_upperBound().get_y(),
-        });
+    /**
+     * Registra la plataforma `fixture` con los límites de su caja. Con `moving` (su cuerpo se mueve) `update` los vuelve a
+     * leer en cada paso.
+     */
+    addPlatform(fixture, { moving = false } = {}) {
+        const platform = { fixture, moving, minX: 0, maxX: 0, bottom: 0, top: 0 };
+        this.refresh(platform);
+        this.platforms.set(Box2D.getPointer(fixture), platform);
+    }
+
+    refresh(platform) {
+        const aabb = platform.fixture.GetAABB(0);
+        platform.minX = aabb.get_lowerBound().get_x();
+        platform.maxX = aabb.get_upperBound().get_x();
+        platform.bottom = aabb.get_lowerBound().get_y();
+        platform.top = aabb.get_upperBound().get_y();
     }
 
     removePlatform(fixture) {
@@ -116,6 +123,7 @@ export class OneWayPlatforms {
     /** Se llama después de cada `stepWorld`: cierra las bajadas terminadas y vuelve a filtrar los pares que cambiaron. */
     update(now) {
         this.now = now;
+        for (const p of this.platforms.values()) if (p.moving) this.refresh(p);
         this.syncImplicit();
         for (const owner of this.owners.values()) this.updateOwner(owner);
         for (const owner of this.implicit.values()) this.updateOwner(owner);

@@ -326,7 +326,7 @@ export class WallContact {
             const along = sign * rel;
             const alongPlus = Math.max(0, along);
             const invD = Math.max(0, 1 / mcD - 1 / mp);
-            const invO = bodyO.GetType() === STATIC ? 0 : Math.max(0, 1 / mcO - 1 / mp);
+            const invO = bodyO.GetType() !== DYNAMIC ? 0 : Math.max(0, 1 / mcO - 1 / mp);
             const inv = invD + invO;
             if (inv <= 0) continue;
             const mu = 1 / inv;

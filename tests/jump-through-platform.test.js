@@ -33,7 +33,7 @@ function jump(game, platform, axis, frames = 150) {
         game.setPad(0, { buttons: [0], axes: [axis, 0, 0, 0] });
         game.frame();
         const player = game.state.players[0];
-        const low = player.lowestPoint();
+        const low = player.lowestPoint() - (game.state.climb?.offsetY ?? 0);
         if (!Number.isFinite(low)) continue;
         high = Math.max(high, low);
     }
@@ -70,7 +70,7 @@ test("salto completo: Infinito, bajo plataformas generadas con solapamiento y a 
     globalThis.location = { search: "?seed=1" };
     const game = await loadGame({ map: "infinite" });
     for (const p of game.state.players) Object.assign(p, { drown: noop, hurt: noop, burn: noop, takeDamage: noop });
-    game.state.climb.update({ top: 70, level: 0 });
+    game.state.climb.update({ top: 70, level: -Infinity });
     const solids = game.state.climb.level.solids;
     const rows = solids.filter((s) => s.oneWay && s.x < 30 && s.y < 60).sort((a, b) => a.y - b.y).slice(0, 40);
     let tried = 0;
