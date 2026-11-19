@@ -28,6 +28,11 @@
             }
             #pickupCanvas {
                 pointer-events: none;
+                z-index: 10;
+            }
+            #hudCanvas {
+                pointer-events: none;
+                z-index: 20;
             }
             #panel {
                 position: absolute;
@@ -107,6 +112,7 @@
             <canvas id="canvas"></canvas>
             <canvas id="fluidCanvas"></canvas>
             <canvas id="pickupCanvas"></canvas>
+            <canvas id="hudCanvas"></canvas>
         </div>
 
         <script type="module">
@@ -228,11 +234,13 @@
             const fluidCtx = fluidCanvas.getContext("2d");
             const pickupCanvas = document.getElementById("pickupCanvas");
             const pickupCtx = pickupCanvas.getContext("2d");
+            const hudCanvas = document.getElementById("hudCanvas");
+            const hudCtx = hudCanvas.getContext("2d");
 
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [canvas, fluidCanvas, pickupCanvas]) {
+                for (const c of [canvas, fluidCanvas, pickupCanvas, hudCanvas]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }
@@ -649,6 +657,8 @@
                 fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
                 pickupCtx.setTransform(1, 0, 0, 1, 0, 0);
                 pickupCtx.clearRect(0, 0, pickupCanvas.width, pickupCanvas.height);
+                hudCtx.setTransform(1, 0, 0, 1, 0, 0);
+                hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
 
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
@@ -658,11 +668,13 @@
                 drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
-                    drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
                 drawWater(ctx, water, scale);
-                drawHits(ctx, melee.hits, scale, now);
                 drawPickups(pickupCtx, pickups.points, WEAPONS);
+                players.forEach((player, k) => {
+                    drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
+                });
+                drawHits(pickupCtx, melee.hits, scale, now);
                 players.forEach((player, k) => {
                     const wheel = controls[k].wheel;
                     if (!wheel || player.dead) return;
@@ -683,9 +695,9 @@
                 });
 
                 drawHud(
-                    ctx,
-                    canvas.width,
-                    canvas.height,
+                    hudCtx,
+                    hudCanvas.width,
+                    hudCanvas.height,
                     players,
                     match,
                     PLAYER_COLORS,
