@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-19
+
+### Added
+- Menú principal antes de la partida, que se maneja con gamepad: stick izquierdo o cruceta arriba/abajo elige la fila, izquierda/derecha cambia el valor, y A o Start sobre Jugar arranca (B no hace nada en el menú raíz). Se elige el modo (1v1, Contra el bot o Bot contra bot), la dificultad del bot (Fácil, Normal o Difícil, que cambian su demora de reacción, su error de puntería y cuánto defiende) y el mapa (Clásico; Infinito aparece deshabilitado, "próximamente"). El teclado funciona de respaldo con flechas o WASD y Enter, y nunca pisa al gamepad. Mantener el stick repite con retardo, sin saltear filas. La última elección se recuerda en el navegador; si no se puede guardar, arranca con 1v1, Normal y Clásico. `?bot=2` y `?bot=1,2` siguen funcionando y preseleccionan el modo.
+
+### Changed
+- Al terminar la partida, Start vuelve al menú principal, que ahora es la pantalla de título. Los bots se crean al elegir Jugar y se quitan al volver al menú.
+
 ## [0.25.0] - 2026-11-19
 
 ### Added

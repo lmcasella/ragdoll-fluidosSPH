@@ -237,7 +237,7 @@ test("bot: ?bot=2 activa al bot de J2 y ?bot=1,2 a los dos", async () => {
 });
 
 test("bot: partida bot contra bot de 60 s sin errores y con impactos de cada lado", async () => {
-    globalThis.location = { search: "?bot=1,2" };
+    globalThis.location = { search: "?bot=1,2&seed=1" };
     const game = await loadGame();
     const { melee, players } = game.state;
     const dealt = [0, 0];

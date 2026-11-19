@@ -11,10 +11,28 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
    Si los dos caen a la vez, es empate y nadie suma.
 3. **Partida** ✅: al mejor de 3 (gana quien llega a 2). El cartel final ofrece **revancha** con disparar (A / RT, Espacio, Enter). El HUD muestra las victorias como puntos y el número de ronda.
 4. **Loop cerrado sin recargar** #102:
-   - **Título:** el juego arranca en el estado `title`, con los robots quietos en sus puntos de aparición y un cartel "RAGDOLL FLUIDOS", con el subtítulo "A / Start / Enter para empezar". A (`action`) o Start (`start`) inician la partida.
+   - **Título:** el juego arranca en el estado `title`, con los robots quietos en sus puntos de aparición y un cartel "RAGDOLL FLUIDOS", con el subtítulo "A / Start / Enter para empezar". La partida la inicia el menú principal (abajo): `Match.begin()`.
    - **Cuenta regresiva:** antes de cada ronda, la primera incluida, hay 3 s en el estado `countdown` con el cartel "3", "2", "1". Sin movimiento, disparos, golpes ni peligros, y `roundTime` no avanza. Al pasar a `playing` se muestra "¡YA!" durante 0,6 s.
    - **Fin de partida:** el cartel muestra el marcador ("2 – 1") y "A revancha · Start menú". Durante el primer segundo se ignoran los botones, para que nadie pida la revancha sin querer. La revancha pasa a `countdown`; Start vuelve a `title`.
    - **Teclado de respaldo** para `start`: Escape (cualquiera de los dos jugadores). En el gamepad es el botón 9 (Start) del mapeo standard.
+   - **Menú principal** #154: la pantalla de título se amplía con un menú (`js/menu.js`, tabla `MENU`; `Menu` consume las intenciones de `Input.menu`). Una opción por fila; izquierda/derecha cambia el valor:
+
+     | Opción | Valores | Default |
+     |---|---|---|
+     | Modo | 1v1 · Contra el bot · Bot contra bot | 1v1 |
+     | Dificultad (solo con bot) | Fácil · Normal · Difícil | Normal |
+     | Mapa | Clásico · Infinito (deshabilitado, "próximamente", hasta #25) | Clásico, e Infinito cuando exista |
+     | Jugar | — | — |
+
+     Presets de dificultad (`DIFFICULTY` en `js/bot.js`, junto a `BOT`):
+
+     | Preset | Reacción (s) | Error de puntería (rad) | Defensa |
+     |---|---|---|---|
+     | Fácil | 0,30–0,50 | 0,10 | 0,4 |
+     | Normal | 0,15–0,35 | 0,05 | 0,7 |
+     | Difícil | 0,10–0,20 | 0,02 | 0,9 |
+
+     Controles (gamepad primero, cualquier pad real conectado): stick izquierdo o cruceta arriba/abajo elige la fila; izquierda/derecha cambia el valor; A o Start sobre Jugar arranca; B vuelve. Respaldo de teclado: flechas o WASD, Enter y Escape; no pisa al gamepad. El stick tiene repetición con retardo para no saltear filas. El bot no maneja el menú. `?bot=2` y `?bot=1,2` preseleccionan el modo. La última elección se recuerda en `localStorage` (con try/catch; sin almacenamiento, defaults). Start o Escape al terminar la partida vuelve a este menú.
 5. **Inundación (muerte súbita)** ✅ #22: a los 60 s de ronda empieza a **llover desde arriba**. El agua cae, se acumula sobre la pileta y va llenando el mapa desde abajo. Las plataformas bajas quedan bajo el agua, el agua daña por cortocircuito ([04-fluidos](04-fluidos.md#41-armas)) y la pelea se va hacia arriba. Es el uso masivo de partículas del juego; su costo está en [09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas). Detalle en [2.1](#21-inundación--22).
 
 ## 2.1 Inundación ✅ #22

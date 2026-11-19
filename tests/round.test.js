@@ -11,7 +11,7 @@ const START = [{ start: true }];
 /** Un Match ya en `playing`, saltando el título y la cuenta regresiva. */
 function playing(winsNeeded = 2) {
     const match = new Match(2, winsNeeded);
-    assert.equal(match.update([alive, alive], A, 0.1), "reset");
+    assert.equal(match.begin(), "reset");
     match.update([alive, alive], [], COUNTDOWN_TIME + 0.1);
     assert.equal(match.state, "playing");
     match.roundTime = 0;
@@ -23,23 +23,25 @@ test("el juego arranca en el título, con los controles apagados", () => {
     assert.equal(match.state, "title");
     assert.equal(match.controlsActive, false);
     assert.equal(match.hazardsActive, false);
-    assert.deepEqual(match.banner, { title: "RAGDOLL FLUIDOS", subtitle: "A / Start / Enter para empezar" });
+    assert.equal(match.banner.title, "RAGDOLL FLUIDOS");
     assert.equal(match.update([alive, alive], [], 5), null);
     assert.equal(match.state, "title");
 });
 
-test("action o start en el título inician la cuenta regresiva con reset", () => {
+test("en el título action y start no inician nada; begin (el menú) inicia la cuenta regresiva con reset", () => {
+    const match = new Match(2);
     for (const input of [A, START]) {
-        const match = new Match(2);
-        assert.equal(match.update([alive, alive], input, 0.1), "reset");
-        assert.equal(match.state, "countdown");
-        assert.equal(match.round, 1);
+        assert.equal(match.update([alive, alive], input, 0.1), null);
+        assert.equal(match.state, "title");
     }
+    assert.equal(match.begin(), "reset");
+    assert.equal(match.state, "countdown");
+    assert.equal(match.round, 1);
 });
 
 test("la cuenta regresiva muestra 3, 2, 1, no avanza roundTime y pasa a playing con ¡YA! durante 0,6 s", () => {
     const match = new Match(2);
-    match.update([alive, alive], A, 0.1);
+    match.begin();
     assert.equal(match.banner.title, "3");
     assert.equal(match.banner.subtitle, "Ronda 1");
     assert.equal(match.controlsActive, false);

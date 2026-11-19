@@ -50,6 +50,27 @@ export const PAD = {
     start: 9,
     weapons: [12, 15, 13, 14],
 };
+
+/**
+ * Controles del menú, independientes de los de juego. Gamepad (mapeo "standard", cualquier pad real conectado):
+ * `confirm` son A y Start; `back`, B; la cruceta son los botones 12 a 15; el stick izquierdo usa `STICK_DEADZONE`.
+ * Teclado de respaldo (KeyboardEvent.code): el gamepad gana siempre que empuja un eje.
+ */
+export const MENU_CONTROLS = {
+    pad: { confirm: [0, 9], back: [1], up: 12, down: 13, left: 14, right: 15 },
+    keys: {
+        up: ["ArrowUp", "KeyW"],
+        down: ["ArrowDown", "KeyS"],
+        left: ["ArrowLeft", "KeyA"],
+        right: ["ArrowRight", "KeyD"],
+        confirm: ["Enter", "NumpadEnter"],
+        back: ["Escape"],
+    },
+};
+
+/** Repetición de una dirección del menú mantenida: `delay` hasta la primera repetición y después una cada `rate`, en s. */
+export const MENU_REPEAT = { delay: 0.4, rate: 0.12 };
+
 const STICK_DEADZONE = 0.35;
 const AIM_DEADZONE = 0.4;
 
@@ -77,6 +98,9 @@ export const TAP_MAX = 0.25;
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
  * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
+ * `menu` (en la instancia, tras cada poll) son las intenciones del menú, con `MENU_CONTROLS`: `x` e `y` (-1, 0 o +1, con
+ * `y` positivo hacia abajo) valen distinto de cero solo en el frame del flanco y en las repeticiones de `MENU_REPEAT`;
+ * `confirm` y `back` son flancos. Solo leen gamepads reales, no los virtuales de los bots.
  */
 export class Input {
     constructor(playerCount) {
@@ -89,6 +113,9 @@ export class Input {
         this.wheelBlocked = this.layouts.map(() => false);
         this.states = this.layouts.map(() => ({}));
         this.virtualPads = this.layouts.map(() => null);
+        this.menu = { x: 0, y: 0, confirm: false, back: false };
+        this.menuPrev = [];
+        this.menuRepeat = { x: { dir: 0, next: 0 }, y: { dir: 0, next: 0 } };
 
         const gameCodes = new Set(
             this.layouts.flatMap((l) => Object.values(l).flat()),
@@ -248,9 +275,57 @@ export class Input {
             this.states[k] = state;
         });
 
+        this.menu = this.readMenu(pads, now);
         this.pressed.clear();
         this.mouseClicked = false;
         return this.states;
+    }
+
+    /** Intenciones del menú de este poll: gamepads reales primero, teclado como respaldo. */
+    readMenu(pads, now) {
+        const { pad: buttons, keys } = MENU_CONTROLS;
+        const dir = { x: 0, y: 0 };
+        let confirm = false;
+        let back = false;
+        pads.forEach((pad, i) => {
+            const prev = this.menuPrev[i] ?? [];
+            const down = (b) => pad.buttons[b]?.pressed ?? false;
+            const edge = (b) => down(b) && !prev[b];
+            const [lx = 0, ly = 0] = pad.axes;
+            const axis = (neg, pos, v) =>
+                (v > STICK_DEADZONE || down(pos) ? 1 : 0) - (v < -STICK_DEADZONE || down(neg) ? 1 : 0);
+            dir.x ||= axis(buttons.left, buttons.right, lx);
+            dir.y ||= axis(buttons.up, buttons.down, ly);
+            confirm ||= buttons.confirm.some(edge);
+            back ||= buttons.back.some(edge);
+            this.menuPrev[i] = pad.buttons.map((b) => b.pressed);
+        });
+        const held = (codes) => codes.some((c) => this.held.has(c));
+        dir.x ||= (held(keys.right) ? 1 : 0) - (held(keys.left) ? 1 : 0);
+        dir.y ||= (held(keys.down) ? 1 : 0) - (held(keys.up) ? 1 : 0);
+        const tapped = (codes) => codes.some((c) => this.pressed.has(c));
+        return {
+            x: this.repeatMenu(this.menuRepeat.x, dir.x, now),
+            y: this.repeatMenu(this.menuRepeat.y, dir.y, now),
+            confirm: confirm || tapped(keys.confirm),
+            back: back || tapped(keys.back),
+        };
+    }
+
+    /** Devuelve `dir` en el flanco y en cada repetición con retardo; 0 en el resto. */
+    repeatMenu(state, dir, now) {
+        if (dir === 0) {
+            state.dir = 0;
+            return 0;
+        }
+        if (dir !== state.dir) {
+            state.dir = dir;
+            state.next = now + MENU_REPEAT.delay;
+            return dir;
+        }
+        if (now < state.next) return 0;
+        state.next = now + MENU_REPEAT.rate;
+        return dir;
     }
 
     /**
