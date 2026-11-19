@@ -174,7 +174,7 @@ export class ShotEmitter {
             const angle = weapon.spread * (2 * ((s.seq * GOLDEN) % 1) - 1);
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
-            const along = MUZZLE_OFFSET + step * (n - 1 - j);
+            const along = MUZZLE_OFFSET + step * (s.credit + (n - 1 - j));
             if (along > reach) continue;
             const lateral = ((s.seq % weapon.lanes) - (weapon.lanes - 1) / 2) * LANE_SPACING * PARTICLE_RADIUS;
             this.position.set_x(muzzle.x + muzzle.dx * along - muzzle.dy * lateral);

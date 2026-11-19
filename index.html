@@ -485,6 +485,7 @@
             // y los efectos, así una pestaña oculta no vence los charcos y la cámara lenta los alarga igual que a la física.
             let simTime = 0;
             let accumulator = 0;
+            let stepsLastFrame = 0;
             let lastTime = performance.now();
             let firstFrame = true;
 
@@ -531,12 +532,14 @@
                         k,
                         player,
                         state.fire && match.state === "playing" && !player.isPunching(now),
-                        frameDt * match.timeScale,
+                        stepsLastFrame * STEP_SETTINGS.dt,
                         now,
                     );
                 });
 
+                stepsLastFrame = 0;
                 while (accumulator >= STEP_SETTINGS.dt) {
+                    stepsLastFrame++;
                     players.forEach((player, k) => {
                         inputs[k].jump = jumpPending[k];
                         jumpPending[k] = false;
