@@ -263,15 +263,14 @@ test("U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 
         { name: "H4, 0 pasos con y > η − 2r desde que toca el fondo", issue: "#110", ok: probe.resurfaced === 0, detail: `${probe.resurfaced} pasos-partícula (${probe.resurfacedParticles.size} partículas)` },
     );
     t.diagnostic(`H6: desplazamiento medio máx de la miel apoyada ${num(probe.maxShift)} m (paso ${probe.maxShiftStep}), final ${num(probe.shift)} m; |u_c| máx de las columnas del fondo ${num(probe.maxColumnSpeed)} m/s`);
-    const h6 = { name: "H6, desplazamiento horizontal del centroide de la miel apoyada en 60 s ≤ 0,5 m", issue: "apantallamiento del arrastre en la capa del fondo (issue a crear)", ok: probe.maxShift <= 0.5, detail: `${num(probe.maxShift)} m, |u_c| máx ${num(probe.maxColumnSpeed)} m/s` };
+    const h6 = { name: "H6, desplazamiento horizontal del centroide de la miel apoyada en 60 s ≤ 0,5 m", issue: "#110", ok: probe.maxShift <= 0.5, detail: `${num(probe.maxShift)} m, |u_c| máx ${num(probe.maxColumnSpeed)} m/s` };
     const failed = checks.filter((c) => !c.ok);
     for (const c of checks.concat(h6)) t.diagnostic(`${c.ok ? "ok" : "FALLA"} ${c.name}: ${c.detail}`);
     assert.equal(failed.length, 0, failed.map((c) => `${c.name}: ${c.detail}`).join(" | "));
-    if (!h6.ok) t.todo(`${h6.issue}: ${h6.name}, medido ${h6.detail}`);
     assert.ok(h6.ok, `${h6.name}: ${h6.detail}`);
 });
 
-test("U2b (#110): una ola de 150 gotas de agua pasa sobre la capa de miel del fondo; mide desplazamiento y |u_c| (sin criterio, para H6)", async (t) => {
+test("U2b (#110): H6 con ola: 150 gotas de agua pasan sobre la capa de miel del fondo; desplazamiento del centroide apoyado ≤ 0,5 m", async (t) => {
     const game = await start();
     const { store } = game.state;
     const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, null);
@@ -289,6 +288,9 @@ test("U2b (#110): una ola de 150 gotas de agua pasa sobre la capa de miel del fo
     const alive = store.created[FLUID.HONEY] - store.destroyed[SINK.OUT][FLUID.HONEY];
     t.diagnostic(`ola desde x = ${num(x0)} m sobre la capa apoyada (centroide inicial ${num(initial)} m): desplazamiento medio máx ${num(probe.maxShift)} m, final ${num(probe.shift)} m; |u_c| máx de las columnas bajo la capa ${num(probe.maxColumnSpeed)} m/s; miel viva ${alive} de ${injected}; absorbidas ${store.destroyed[SINK.ABSORBED][FLUID.HONEY]}`);
     assert.equal(store.destroyed[SINK.ABSORBED][FLUID.HONEY], 0);
+    assert.ok(probe.touchedEver > 0, "la capa de miel no llegó al fondo");
+    assert.ok(probe.maxColumnSpeed >= 0.3, `la ola no pasó sobre la capa: |u_c| máx ${probe.maxColumnSpeed} m/s`);
+    assert.ok(probe.maxShift <= 0.5, `desplazamiento ${probe.maxShift} m`);
 });
 test("U3 (#98 y #110): un tanque de ácido a la pileta; concentración media = m_H2SO4 / m_total (±1 %) y ρ_col = 998 + 6,8 · w[%] (±0,1 %)", async (t) => {
     const game = await start();

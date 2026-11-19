@@ -216,7 +216,10 @@ test("H6 escena estándar: desplazamiento horizontal del centroide de la miel ap
     const probe = run.probe;
     t.diagnostic(`partículas de miel que tocaron el fondo de la pileta: ${probe.touchedEver}; máx de miel sumergida en el mismo paso: ${probe.maxSubmerged}`);
     t.diagnostic(`desplazamiento medio máx ${num(probe.maxShift)} m (paso ${probe.maxShiftStep}); |u_c| máx de las columnas bajo la miel del fondo ${num(probe.maxColumnSpeed)} m/s; partículas que volvieron a la superficie desde el fondo: ${probe.resurfacedParticles.size} (${probe.resurfaced} pasos-partícula)`);
-    if (probe.maxShift > 0.5) t.todo(`apantallamiento del arrastre en la capa del fondo (issue a crear): desplazamiento ${num(probe.maxShift)} m contra ≤ 0,5 m; |u_c| máx ${num(probe.maxColumnSpeed)} m/s`);
+    if (probe.touchedEver === 0) {
+        t.skip("la escena estándar no lleva miel al fondo de la pileta (0 partículas apoyadas): H6 se mide en U2 y U2b");
+        return;
+    }
     assert.ok(probe.maxShift <= 0.5, `desplazamiento ${probe.maxShift} m`);
 });
 test("costo de la suite de invariantes", (t) => {
