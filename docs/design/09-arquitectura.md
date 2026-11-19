@@ -32,6 +32,14 @@ Previsto: un módulo de métricas (#29), que se integra en `js/debug.js` de #62.
 - `js/grapple.js` (`Grapple`, datos `GRAPPLE`): cuerda `b2RopeJoint` creada y destruida por el juego. Recibe `world`, `ground`, `raycaster` y `damage` por constructor ([03 §3.5](03-robots.md#35-gancho-)).
 - `js/platforms.js` (`OneWayPlatforms`), sin issue todavía: filtro de contactos para las plataformas atravesables ([05 §5.3](05-escenario.md#53-plataformas-atravesables-desde-abajo-)).
 
+**🔨 #104, rig v5 y combate cuerpo a cuerpo** ([03 §3.7](03-robots.md#37-rig-v5-combos-bloqueo-roll-y-estados-de-salto--104)):
+- `js/melee.js` (nuevo; `Melee`, datos `MELEE`): rayos de los ataques, daño, bloqueo, empuje, reacción y eventos de feedback (`hits`). Sale de `index.html` (`golpear`, `PUNCH_*`, `golpes`). No importa nada: recibe `raycaster`, `damage` (solo `ownerOf`) y los jugadores.
+- `js/ActiveRagdoll.js`: máquina de clips nueva (estados de aire, combo, bloqueo, roll, reacciones, `idle`, `aim`), `armsBusy`, datos `AIR` y `ROLL`. Recibe `MELEE` dentro del rig; no importa `melee.js`.
+- `js/Input.js`: intenciones `block`, `roll` y `kick`; en `KEYBOARD_LAYOUTS`, `block` en `KeyG` (J1) y `NumpadSubtract` (J2), y el `punch` de J2 pasa de `ShiftRight` a `Numpad5` ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).
+- `js/render.js`: `drawHits` distingue `"hit"` y `"block"` (datos `HIT_FX`); recibe los eventos, no importa `melee.js`.
+- `js/clips.js`: sin cambios de código; se usa también para `roll_back` y para quitar las pistas de mira de más clips.
+- `index.html`: nombres v5 en `AIM_JOINTS`/`AIM_HOLD`, `ROBOT_RIG` nuevo, giro diferido durante el roll, `!armsBusy` hacia el emisor y el gancho.
+
 **Dependencias de `js/weapons.js`** (#13, con el cambio de #40):
 - `damage.js` → `weapons.js`: solo datos. No hay ciclo: `weapons.js` solo importa `particles.js`, que no importa nada.
 - `weapons.js` → `particles.js` y `level.js` → `particles.js` (#40).
