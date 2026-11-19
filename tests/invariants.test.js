@@ -191,7 +191,7 @@ test("I4 espesor mínimo: 0 columnas interiores con hDry < h < hMin al final de 
     verdict(
         t,
         track,
-        [[true, "#111"]],
+        [],
         `película más fina que hMin: hasta ${track.max} columnas interiores en el paso ${track.maxStep}, en ${track.fails} de ${track.evals} pasos (el primero, ${track.firstFail}); esperado 0`,
     );
 });

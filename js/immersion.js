@@ -70,6 +70,7 @@ export class Immersion {
         const heap = Box2D.HEAPF32;
         const minX = water.x0;
         const maxX = water.x0 + water.N * water.dx;
+        const absorbedAtStart = this.stats.absorbed;
         for (let i = 0; i < total; i++) {
             const slot = store.slotAt(i);
             if (slot < 0 || store.alive[slot] === 0) continue;
@@ -100,6 +101,7 @@ export class Immersion {
             }
             if (this.stats.absorbed === before) break;
         }
+        if (this.stats.absorbed !== absorbedAtStart) water.consolidate();
     }
 
     /** Deposita la partícula `i` en el campo y la destruye. */
