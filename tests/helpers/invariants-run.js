@@ -7,7 +7,7 @@
  * escena para los escenarios del usuario (#109): `windowSeconds`, `leadSeconds` (segundos antes de `flood.start`
  * en que empieza la ventana), `onStart(game)` y `onFrame(game, frame)` para grabar.
  */
-import { loadGame } from "./game.js";
+import { loadGame, giveAllWeapons } from "./game.js";
 import { UnionArea, polygonArea } from "./drawn-area.js";
 import { HoneyProbe } from "./honey-probe.js";
 
@@ -86,6 +86,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     if (REACTIONS.length !== 0) throw new Error("los invariantes I1 e I2b suponen REACTIONS vacía");
     const wall0 = hr();
     const game = await loadGame();
+    giveAllWeapons(game);
     const g = game.state;
     const { water, store, immersion, flood, match, particleSystem, players } = g;
     const startSeconds = LEVEL.flood.start - leadSeconds;

@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { WEAPONS } from "../../js/weapons.js";
 
 const root = new URL("../../", import.meta.url);
 const require = createRequire(import.meta.url);
@@ -23,6 +24,13 @@ function inert(stored = {}) {
 }
 
 export const FRAME_MS = 1000 / 60;
+
+/** Pone en el inventario de cada jugador todas las armas de la tabla con el tanque lleno, como si ya se hubieran recogido. */
+export function giveAllWeapons(game) {
+    for (const player of game.state.players) {
+        for (const w of WEAPONS) player.tanks.set(w.id, w.tank);
+    }
+}
 
 /**
  * Carga el juego en Node. `options.assets` mapea una URL del juego (por ejemplo "./assets/robot.rag.json") a una

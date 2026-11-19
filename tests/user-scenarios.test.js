@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, giveAllWeapons } from "./helpers/game.js";
 import { recordGame } from "./helpers/recorder.js";
 import { HoneyProbe } from "./helpers/honey-probe.js";
 import { runStandardScene, AREA_TOLERANCE, PARTICLE_AREA_TOLERANCE, AREA_SHARE, AREA_HARD_LIMIT, MATERIAL_NAMES, STEPS_PER_SECOND } from "./helpers/invariants-run.js";
@@ -53,6 +53,7 @@ function tick(game, recorder, frame, onFrame = null) {
 
 async function start() {
     const game = await loadGame();
+    giveAllWeapons(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(30);

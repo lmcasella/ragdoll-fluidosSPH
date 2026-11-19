@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
 const { FLUID, PERSIST_MAX, weaponById } = await import("../js/weapons.js");
 const { ORIGIN, SINK } = await import("../js/particleStore.js");
@@ -17,6 +17,7 @@ const STICK_UP = [0, -1, 0, 0];
 
 async function start() {
     const game = await loadGame();
+    giveAllWeapons(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(30);

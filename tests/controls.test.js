@@ -4,10 +4,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WEAPONS } from "../js/weapons.js";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
 async function start() {
     const game = await loadGame();
+    giveAllWeapons(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(60);
