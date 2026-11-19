@@ -203,8 +203,8 @@ async function blockDuel(frames, { p2Aim = AIM_LEFT, pressFrames = COMBO_FRAMES,
     return { game, hits, probes, samples };
 }
 
-test("R8 y R8b: contra un rival que bloquea de frente, el combo no daña, no aturde y emite un evento block por golpe", async (t) => {
-    const { game, hits, probes, samples } = await blockDuel(130);
+test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no dañan, no aturden y emiten block", async (t) => {
+    const { game, hits, probes, samples } = await blockDuel(60, { pressFrames: [0, 15] });
     const p2 = game.state.players[1];
     const arms = new Set(p2.rig.arms);
     const report = probes.map((probe, i) => {
@@ -213,7 +213,7 @@ test("R8 y R8b: contra un rival que bloquea de frente, el combo no daña, no atu
     });
     t.diagnostic(`R8b: ${report.join("; ")}`);
     t.diagnostic(`R8: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}; estados ${[...new Set(samples.map((s) => s.state))]}`);
-    assert.equal(hits.length, 3);
+    assert.equal(hits.length, 2);
     for (const hit of hits) assert.equal(hit.kind, "block");
     assert.equal(p2.hp, 100);
     assert.ok(samples.every((s) => s.state === "block"), "el rival sigue en block, sin aturdimiento ni reacción");
@@ -230,6 +230,23 @@ test("R8 y R8b: contra un rival que bloquea de frente, el combo no daña, no atu
         const first = probe.touched.find((id) => id);
         assert.ok(arms.has(first), `el primer rayo que toca recibe el impacto en ${first}`);
     }
+});
+
+test("el tercer golpe del combo rompe la guardia: sin daño, el rival sale de block y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
+    const { game, hits, samples } = await blockDuel(170);
+    const p2 = game.state.players[1];
+    t.diagnostic(`rotura: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}`);
+    assert.deepEqual(hits.map((h) => h.kind), ["block", "block", "blockBreak"]);
+    assert.equal(p2.hp, 100);
+    const f = hits[2].frame;
+    assert.equal(samples[f - 1].state, "block");
+    assert.equal(samples[f].state, "reactStumble");
+    const stunned = Math.round(0.7 / DT);
+    for (let i = f; i < f + stunned - 1; i++) assert.notEqual(samples[i].state, "block", `frame ${i - f}`);
+    const back = samples.findIndex((s, i) => i > f && s.state === "block");
+    t.diagnostic(`vuelve a block ${back - f} pasos después (${((back - f) * DT).toFixed(3)} s)`);
+    assert.ok(back >= 0, "vuelve a bloquear después");
+    assert.ok((back - f) * DT >= 0.7 - DT);
 });
 
 test("R8: el evento block queda a ±0,01 m del impacto del rayo", async () => {

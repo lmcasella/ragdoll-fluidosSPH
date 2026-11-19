@@ -5,10 +5,12 @@
  * (rayos al centro y a ±`spread`); `damage` antes del multiplicador de la parte; `push` = [lateral, arriba] en m/s
  * sumados a todo el robot golpeado; `stun` en s; `reaction` = `simple` o `stumble`; `lunge` (m/s, opcional) es el paso adelante del atacante hasta el fin de la ventana activa. `impulse` (N·s) se aplica en el
  * punto de impacto. `combo`: secuencia, `grace` (s de tolerancia tras terminar un golpe para encadenar) y `cooldown`
- * (s tras cortarse o terminar un ataque).
+ * (s tras cortarse o terminar un ataque). `breaksGuard` (opcional): si el golpe llega a un bloqueo lo rompe en vez de
+ * ser bloqueado: sin daño, el receptor sale de `block` y queda aturdido `guardBreakStun` s.
  */
 export const MELEE = {
     impulse: 5,
+    guardBreakStun: 0.7,
     combo: { sequence: ["combo1", "combo2", "combo3"], grace: 0.2, cooldown: 0.25 },
     attacks: {
         combo1: {
@@ -51,6 +53,7 @@ export const MELEE = {
             stun: 0.7,
             reaction: "stumble",
             lunge: 5,
+            breaksGuard: true,
         },
         airPunch: {
             duration: 0.9,
@@ -144,7 +147,13 @@ export class Melee {
         this.impulse.set_y(dy * this.config.impulse);
         this.point.set_x(hit.x);
         this.point.set_y(hit.y);
-        if (guarded) {
+        if (guarded && row.breaksGuard) {
+            victim.stun(this.config.guardBreakStun, now);
+            victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
+            victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
+            victim.hit(row.reaction, now);
+            this.events.push({ kind: "blockBreak", victim: owner.index });
+        } else if (guarded) {
             victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
             victim.blocked(now);
             this.events.push({ kind: "block", victim: owner.index });
@@ -157,12 +166,12 @@ export class Melee {
             victim.hit(row.reaction, now);
         }
         attacker.markConnected();
-        this.hits.push({ x: hit.x, y: hit.y, time: now, kind: guarded ? "block" : "hit" });
+        this.hits.push({ x: hit.x, y: hit.y, time: now, kind: guarded ? (row.breaksGuard ? "blockBreak" : "block") : "hit" });
     }
 
     /**
-     * Vacía los eventos de feedback (ronda nueva). `events` (`{ kind: "hit"|"block", victim }`, un golpe que hizo daño o
-     * uno bloqueado) los vacía quien los consume, una vez por frame.
+     * Vacía los eventos de feedback (ronda nueva). `events` (`{ kind: "hit"|"block"|"blockBreak", victim }`: golpe con daño,
+     * bloqueado o que rompió la guardia) los vacía quien los consume, una vez por frame.
      */
     reset() {
         this.hits.length = 0;

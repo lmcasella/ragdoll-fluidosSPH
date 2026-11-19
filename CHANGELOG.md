@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-19
+
+### Added
+- El tercer golpe del combo rompe el bloqueo. Si el rival te está bloqueando de frente, los dos primeros golpes quedan bloqueados, pero el tercero rompe la guardia: no hace daño, lo empuja, lo deja aturdido 0,7 s sin poder volver a bloquear aunque mantenga el botón, y suena y se ve distinto (chispas naranjas más grandes).
+
 ## [0.20.0] - 2026-11-19
 
 ### Added

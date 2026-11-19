@@ -337,6 +337,7 @@ Además, para todos: impulso de 5 N·s en el punto de impacto (como hoy), daño 
   - el ataque cuenta como conectado (no vuelve a pegar en esa ventana);
   - se emite el evento de feedback `block`;
   - al atacante no le pasa nada: ni retroceso ni aturdimiento (decidido el 19/11 para la entrega; premiar el bloqueo queda como idea de pulido).
+- **Rotura de guardia (#136):** un golpe cuya fila de `MELEE` tiene `breaksGuard: true` (solo `combo3`) que cumple las dos condiciones de arriba no queda bloqueado: sin daño, el receptor sale de `block`, queda aturdido `MELEE.guardBreakStun` = 0,7 s (no puede volver a `block` aunque mantenga LT, porque el bloqueo exige no estar aturdido), recibe el `push` de la fila, el impulso en el punto y la reacción de la fila; el ataque cuenta como conectado. Evento de feedback `blockBreak` (sonido `block_break_1..3`, sin `hit`, `hurt` ni `block`) y `kind: "blockBreak"` en `hits`: 8 líneas radiales de 0,15 a 0,8 m en 0,35 s, naranja.
 - **Qué no frena:** chorros de fluido, quemaduras, cortocircuito, pileta, impacto fuerte por `BeginContact` (caídas, choques) y el gancho.
 - **Feedback:** `Melee` agrega a su lista `hits` un evento `{ x, y, time, kind }` con `kind` = `"hit"` o `"block"`. `render.js` (`drawHits`) dibuja `"hit"` como hoy (destello blanco de 0,2 s) y `"block"` como 6 líneas radiales que salen del punto de contacto, de 0,15 a 0,45 m, en 0,25 s, en blanco azulado. Datos `HIT_FX` en `render.js`. La lista reemplaza a `golpes` de `index.html`.
 

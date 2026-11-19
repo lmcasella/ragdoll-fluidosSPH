@@ -289,17 +289,18 @@ export function drawAimLaser(ctx, laser, color, scale) {
 /**
  * Feedback de golpes melee, en metros y segundos. `hit`: un círculo blanco que se agranda (de `radius` a
  * `radius + grow`) y se apaga en `time`. `block`: `rays` líneas radiales que salen del contacto, de `from` a `to`,
- * en blanco azulado.
+ * en blanco azulado. `blockBreak`: lo mismo, más grande y en naranja.
  */
 export const HIT_FX = {
     hit: { time: 0.2, radius: 0.15, grow: 0.4, color: "#ffffff", width: 3 },
     block: { time: 0.25, rays: 6, from: 0.15, to: 0.45, color: "#bfe0ff", width: 2.5 },
+    blockBreak: { time: 0.35, rays: 8, from: 0.15, to: 0.8, color: "#ff8a1f", width: 3 },
 };
 
 /**
  * Dibuja los eventos `{ x, y, time, kind }` de `Melee.hits` y descarta los vencidos.
  * @param {CanvasRenderingContext2D} ctx Contexto con la cámara aplicada.
- * @param {object[]} hits Eventos; `kind` es `"hit"` o `"block"`.
+ * @param {object[]} hits Eventos; `kind` es `"hit"`, `"block"` o `"blockBreak"`.
  * @param {number} scale Píxeles por metro.
  * @param {number} now Reloj de simulación, s.
  */
