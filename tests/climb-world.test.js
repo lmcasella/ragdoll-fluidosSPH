@@ -76,19 +76,20 @@ test("Climb: cameraBounds sigue el ancho de la etapa y no tiene techo", () => {
     Box2D.destroy(gravity);
     const climb = new Climb({ world, platforms: new OneWayPlatforms(world), pickups: new Pickups(world, { sensorHooks: new Map() }, []) });
     assert.deepEqual(climb.cameraBounds(10), { minX: 0, maxX: 56, minY: 0, maxY: Infinity });
-    assert.deepEqual(climb.cameraBounds(35), { minX: 3, maxX: 53, minY: 0, maxY: Infinity });
+    assert.deepEqual(climb.cameraBounds(20), { minX: 10, maxX: 46, minY: 0, maxY: Infinity });
+    assert.deepEqual(climb.cameraBounds(35), { minX: 12, maxX: 44, minY: 0, maxY: Infinity });
     assert.equal(climb.cameraBounds(500).maxX - climb.cameraBounds(500).minX, CLIMB.width.min);
 });
 
 const noop = () => {};
 
-test("C4: con la inundación activa el bot de J2 sube pasando los 60 m (2 etapas) antes de ahogarse, con J1 quieto e inmortal, en 3 semillas", { timeout: 900000, todo: "sin resolver (#25): con la línea segura el bot ya no baja a perseguir, pero no sube de fila de forma confiable (saltos de 2,8 m con hueco de 2 m que fallan y lo dejan caer al agua): alturas 12,5 / 30,5 / 18,6 m en las semillas 1, 2 y 3, todas muertas por ahogo entre 18 y 31 s" }, async () => {
+test("C4: con la inundación activa el bot de J2 sube pasando los 60 m (2 etapas) antes de ahogarse, con J1 quieto e inmortal, en 3 semillas", { timeout: 900000 }, async () => {
     const failures = [];
     for (const seed of [1, 2, 3]) {
         globalThis.location = { search: `?bot=2&seed=${seed}` };
         const game = await loadGame({ map: "infinite" });
         const { players } = game.state;
-        Object.assign(players[0], { drown: noop, hurt: noop, burn: noop });
+        Object.assign(players[0], { drown: noop, hurt: noop, burn: noop, takeDamage: noop });
         assert.equal(game.state.map, "infinite");
         const torsoY = () => players[1].torso.GetPosition().get_y();
         let frames = 0;
@@ -109,7 +110,7 @@ test("Infinito: un robot guiado por el grafo del bot llega del piso a la primera
     globalThis.location = { search: "?bot=2&seed=1" };
     const game = await loadGame({ map: "infinite" });
     const { players, bots, flood } = game.state;
-    Object.assign(players[0], { drown: noop, hurt: noop, burn: noop });
+    Object.assign(players[0], { drown: noop, hurt: noop, burn: noop, takeDamage: noop });
     const bot = bots.get(1);
     const firstRow = () => {
         const from = bot.supportOf(players[1]);
