@@ -125,6 +125,7 @@
             import { Input } from "./js/Input.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
+            import { OneWayPlatforms } from "./js/platforms.js";
             import { Flood } from "./js/flood.js";
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
@@ -254,7 +255,9 @@
             const gravity = new Box2D.b2Vec2(0, -10);
             const world = new Box2D.b2World(gravity);
             Box2D.destroy(gravity);
-            const { killSensors } = buildLevel(world);
+            const { killSensors, oneWayFixtures } = buildLevel(world);
+            const platforms = new OneWayPlatforms(world);
+            oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
             const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
@@ -313,6 +316,7 @@
 
             const players = LEVEL.spawns.map(spawnRobot);
             const instances = players.map((p) => p.rag);
+            players.forEach((p, k) => platforms.addOwner(k, p.rag.bodies.values()));
             const input = new Input(players.length);
             let inputs = input.poll();
             let controls = inputs;
@@ -395,6 +399,8 @@
                     player.destroy();
                     players[k] = spawnRobot(LEVEL.spawns[k]);
                     instances[k] = players[k].rag;
+                    platforms.removeOwner(k);
+                    platforms.addOwner(k, players[k].rag.bodies.values());
                 });
                 wallContact.invalidate();
                 damage.register(players);
@@ -483,6 +489,7 @@
                 nuevo.copyStateFrom(player);
                 players[k] = nuevo;
                 instances[k] = nuevo.rag;
+                platforms.addOwner(k, nuevo.rag.bodies.values());
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
@@ -559,7 +566,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio };
+                globalThis.game = { world, platforms, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio };
             }
 
             function loop(nowMs) {
@@ -567,8 +574,9 @@
                 lastTime = nowMs;
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
+                    const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
                     if (s.roll) jumpPending[k] = "roll";
-                    else if ((s.jump || s.drop) && jumpPending[k] !== "roll") jumpPending[k] = "jump";
+                    else if (!bajando && (s.jump || s.drop) && jumpPending[k] !== "roll") jumpPending[k] = "jump";
                 });
                 raycaster.count = 0;
                 if (input.padButton) audio.unlock();
@@ -632,6 +640,7 @@
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
                     buoyancy.apply(STEP_SETTINGS.dt);
                     stepWorld(world, instances);
+                    platforms.update(now);
                     store.afterStep();
                     immersion.step(STEP_SETTINGS.dt);
                     water.step(STEP_SETTINGS.dt);

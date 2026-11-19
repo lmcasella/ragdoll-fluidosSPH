@@ -33,9 +33,15 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
   - ✅ #39: **ya no se eliminan.** El puente detecta los disparos dentro del agua (pileta, inundación o charcos) y los frena y los hace flotar o hundirse según el fluido ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)).
 - **Inundación:** la lluvia de la muerte súbita cae sobre la pileta y la hace subir (#22, [02-partida](02-partida.md#21-inundación--22)).
 
-## 5.3 Plataformas atravesables desde abajo 🔨
+## 5.3 Plataformas atravesables desde abajo 🔨 (#149)
 
-Pedido del usuario (remapeo del 18/11), **sin issue ni milestone todavía**. Solo diseño y verificación. Un robot atraviesa una plataforma (`kind: "platform"`) al subir desde abajo, y la atraviesa hacia abajo con `drop` (abajo + A, [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).
+Pedido del usuario (remapeo del 18/11; issue #149, requisito del ascenso infinito #25). Un robot atraviesa una plataforma atravesable al subir desde abajo, y la atraviesa hacia abajo con `drop` (abajo + A, [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)). El usuario pidió un **sistema estándar y genérico**, reutilizable por otros sistemas (ascenso infinito, plataformas cinemáticas #33) y fácil de ajustar.
+
+**Decisiones del 19/11 (reemplazan lo que se contradiga más abajo):**
+- **Atravesable es un dato:** `oneWay: true` en el sólido de `LEVEL`. Todas las `kind: "platform"` actuales lo llevan; piso y paredes no. Un sistema que cree plataformas en ejecución las registra con `addPlatform(fixture)` / `removePlatform(fixture)`.
+- **Decisión por dueño, no por pieza:** un dueño es un conjunto de cuerpos que pasa entero o choca entero (`addOwner(key, bodies)` / `removeOwner(key)`; cada robot es un dueño, y cualquier otro sistema puede registrar los suyos). Un cuerpo dinámico sin dueño es su propio dueño. Así ninguna pieza del ragdoll queda trabada a medio cruzar.
+- **Regla estándar por par dueño–plataforma:** sólido solo si el punto más bajo del dueño (mínimo `GetAABB` de sus fixtures) estaba por encima de `tope − ONE_WAY.tolerance` y el dueño no tiene bajada activa en esa plataforma. Si no, fantasma. El estado del par se recalcula después de cada `stepWorld`; cuando cambia, se hace `Refilter` de las fixtures del dueño.
+- **Valores en una tabla** `ONE_WAY` (`tolerance` 0,05 m, `dropMaxTime` 0,4 s) para ajustarlos sin tocar lógica.
 
 ### Verificado en el binding (`vendor/liquidfun.js`, 18/11)
 
@@ -68,6 +74,6 @@ Pedido del usuario (remapeo del 18/11), **sin issue ni milestone todavía**. Sol
 ### Criterios (Node, gamepad simulado)
 
 - Saltar desde abajo de una plataforma de 0,4 m atraviesa y aterriza arriba en el mismo salto.
-- `drop` sobre una plataforma baja al robot por debajo en ≤ 0,5 s, y no vuelve a subir.
+- `drop` sobre una plataforma cruza los pies en ≤ 0,3 s y al robot entero en ≤ 0,6 s (caída libre de 1,6 m desde el reposo: 0,57 s), y no vuelve a subir.
 - Sobre el piso de las islas, `drop` salta (9 m/s).
 - Los robots siguen chocando entre sí y con el piso y las paredes. Las partículas siguen apoyadas en las plataformas.
