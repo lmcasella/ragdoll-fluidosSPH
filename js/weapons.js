@@ -87,11 +87,12 @@ export function cycleWeapon(player, step) {
 
 /**
  * Índice del sector de la rueda al que apunta la dirección (x, y; Y arriba) con `count` sectores iguales: el
- * primero empieza arriba y siguen en sentido horario. -1 con la dirección nula o sin sectores.
+ * primero centrado arriba y los demás en sentido horario, así las direcciones cardinales caen en el medio de un
+ * sector. -1 con la dirección nula o sin sectores.
  */
 export function wheelSector(x, y, count) {
     if (count <= 0 || (x === 0 && y === 0)) return -1;
-    const turn = (Math.atan2(x, y) + 2 * Math.PI) % (2 * Math.PI);
+    const turn = (Math.atan2(x, y) + Math.PI / count + 2 * Math.PI) % (2 * Math.PI);
     return Math.min(count - 1, Math.floor((turn / (2 * Math.PI)) * count));
 }
 

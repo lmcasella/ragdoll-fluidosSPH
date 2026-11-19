@@ -79,13 +79,14 @@ test("cycleWeapon da la vuelta sobre el inventario en el orden de la tabla", () 
     assert.equal(player.weapon, FLUID.HONEY);
 });
 
-test("wheelSector: sectores iguales desde arriba en sentido horario", () => {
+test("wheelSector: sectores iguales, el primero centrado arriba y en sentido horario", () => {
     const at = (deg, count) => {
         const a = (deg * Math.PI) / 180;
         return wheelSector(Math.sin(a), Math.cos(a), count);
     };
-    assert.deepEqual([1, 89, 91, 179, 181, 269, 271, 359].map((d) => at(d, 4)), [0, 0, 1, 1, 2, 2, 3, 3]);
-    assert.deepEqual([10, 119, 121, 239, 241, 350].map((d) => at(d, 3)), [0, 0, 1, 1, 2, 2]);
+    assert.deepEqual([0, 90, 180, 270].map((d) => at(d, 4)), [0, 1, 2, 3], "las cardinales caen en el medio");
+    assert.deepEqual([314, 44, 46, 134, 136, 224, 226, 314.5].map((d) => at(d, 4)), [3, 0, 1, 1, 2, 2, 3, 3]);
+    assert.deepEqual([0, 59, 61, 179, 181, 299, 301].map((d) => at(d, 3)), [0, 0, 1, 1, 2, 2, 0]);
     assert.deepEqual([0, 90, 180, 270, 359.9].map((d) => at(d, 1)), [0, 0, 0, 0, 0]);
     assert.equal(wheelSector(0, 0, 4), -1);
     assert.equal(wheelSector(0, 1, 0), -1);

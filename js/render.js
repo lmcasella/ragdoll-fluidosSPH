@@ -125,8 +125,8 @@ export function drawPickups(ctx, points, weapons) {
 export const WHEEL_RADII = { inner: 0.45, outer: 1.6, selected: 1.75 };
 
 /**
- * Rueda de armas centrada en (cx, cy), en metros. `entries` son los sectores en orden, desde arriba en sentido
- * horario: { name, color, fill (0 a 1, tanque), equipped }. `selected` es el índice apuntado (-1 ninguno), más
+ * Rueda de armas centrada en (cx, cy), en metros. `entries` son los sectores en orden, el primero centrado
+ * arriba y los demás en sentido horario: { name, color, fill (0 a 1, tanque), equipped }. `selected` es el índice apuntado (-1 ninguno), más
  * opaco y más grande; el arma equipada lleva borde blanco. Va en el canvas que queda encima de los fluidos.
  */
 export function drawWeaponWheel(ctx, cx, cy, entries, selected) {
@@ -135,8 +135,8 @@ export function drawWeaponWheel(ctx, cx, cy, entries, selected) {
     entries.forEach((entry, i) => {
         const [r, g, b] = entry.color;
         const outer = i === selected ? WHEEL_RADII.selected : WHEEL_RADII.outer;
-        const from = Math.PI / 2 - (i + 1) * step;
-        const to = Math.PI / 2 - i * step;
+        const from = Math.PI / 2 - (i + 0.5) * step;
+        const to = Math.PI / 2 - (i - 0.5) * step;
         ctx.beginPath();
         ctx.arc(cx, cy, outer, from, to);
         ctx.arc(cx, cy, WHEEL_RADII.inner, to, from, true);
