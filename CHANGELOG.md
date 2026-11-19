@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-19
+
+### Added
+- Salto variable: un toque de A (o de la tecla de salto) da un salto bajo de unos 1,2 m medidos, y mantener el botón conserva el salto completo de antes (unos 4,1 m). Soltar el salto mientras el robot sube le corta la velocidad vertical a la mitad.
+- Caída rápida: con el stick izquierdo abajo (o la tecla abajo) mientras el robot cae, la gravedad efectiva sube un 30 % y la caída tarda cerca de un 13 % menos. Abajo + A sobre una plataforma atravesable sigue bajando como antes.
+- El bot mantiene el salto apretado mientras sube, para conservar el salto completo.
+
 ## [0.26.1] - 2026-11-19
 
 ### Changed

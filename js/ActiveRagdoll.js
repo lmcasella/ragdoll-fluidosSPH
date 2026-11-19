@@ -14,6 +14,13 @@ const SHORT_CIRCUIT_DPS = 3;
 export const STICKY = { speed: 0.1, brake: 0.5, jump: 0.3, down: 10, grace: 0.3 };
 const WALK_SPEED = 6;
 const JUMP_SPEED = 9;
+/**
+ * Salto variable y caída rápida (#152): `cut` multiplica la velocidad vertical al soltar el salto mientras el robot
+ * sube; `fastFall` es la fracción de la gravedad que se suma por paso con el stick abajo mientras cae.
+ */
+export const JUMP = { cut: 0.5, fastFall: 0.3 };
+/** Gravedad del mundo (m/s²), la misma con la que se crea en `index.html`. */
+const GRAVITY = 10;
 const WALK_FRICTION = 0.85;
 
 /**
@@ -107,6 +114,7 @@ export class ActiveRagdoll {
         /** Verdadero desde que aterriza una caída alta (la que activa `fallHigh`) hasta que quien lo consume lo baja. */
         this.landed = false;
         this.jumpAt = -Infinity;
+        this.jumpCuttable = false;
         this.lastBlocked = -Infinity;
     }
 
@@ -353,6 +361,7 @@ export class ActiveRagdoll {
         this.rollDir = old.rollDir;
         this.fallLatched = old.fallLatched;
         this.jumpAt = old.jumpAt;
+        this.jumpCuttable = old.jumpCuttable;
         this.stunnedUntil = old.stunnedUntil;
         this.lastBlocked = old.lastBlocked;
     }
@@ -706,9 +715,16 @@ export class ActiveRagdoll {
             this.framesGrounded = 0;
             this.jumping = true;
             this.jumpAt = now;
-        } else if (this.framesGrounded > 2) {
-            this.jumping = false;
+            this.jumpCuttable = true;
+        } else {
+            if (this.jumpCuttable && velY <= 0) this.jumpCuttable = false;
+            if (this.jumpCuttable && !input.jumpHeld) {
+                this.scaleVertical(JUMP.cut);
+                this.jumpCuttable = false;
+            }
+            if (this.framesGrounded > 2) this.jumping = false;
         }
+        if (input.strongDown && velY < 0 && !this.grounded) this.pull(JUMP.fastFall * GRAVITY * dt);
 
         const state = this.resolveState(input, velX, isMoving, blocking, now);
         if (state === "walk" || state === "walkBack") {
@@ -728,6 +744,16 @@ export class ActiveRagdoll {
             const v = body.GetLinearVelocity();
             this.scratch.set_x(v.get_x());
             this.scratch.set_y(v.get_y() - dv);
+            body.SetLinearVelocity(this.scratch);
+        }
+    }
+
+    // Multiplica la velocidad vertical de todas las piezas por `factor`, igual para todas para no deformar el ragdoll
+    scaleVertical(factor) {
+        for (const body of this.rag.bodies.values()) {
+            const v = body.GetLinearVelocity();
+            this.scratch.set_x(v.get_x());
+            this.scratch.set_y(v.get_y() * factor);
             body.SetLinearVelocity(this.scratch);
         }
     }

@@ -37,9 +37,10 @@ function walkTo(game, x, dir) {
     game.frames(30);
 }
 
+/** Salto completo: mantiene A hasta pasado el apex (#152 corta el salto al soltarlo mientras sube). */
 function jump(game) {
     game.setPad(0, { buttons: [BUTTON_A] });
-    game.frame();
+    game.frames(60);
     game.setPad(0);
 }
 
@@ -123,8 +124,6 @@ test("plataformas: abajo + A sobre el piso de la isla salta", async () => {
     assert.ok(game.state.players[0].grounded);
     assert.equal(game.state.platforms.drop(0), false, "el piso no es atravesable");
     game.setPad(0, PRESS_DROP);
-    game.frame();
-    game.setPad(0, NO_PAD);
     let peak = -Infinity;
     for (let i = 0; i < 12; i++) {
         game.frame();

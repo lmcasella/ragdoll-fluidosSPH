@@ -29,7 +29,7 @@ async function jumpWithAim(aim, { walk = false } = {}) {
     let maxY = startY;
     let jumpStartFrame = -1;
     for (let f = 0; f < 150; f++) {
-        const jumping = f >= 10 && f < 12;
+        const jumping = f >= 10 && f < 70;
         game.setPad(0, { buttons: jumping ? [0] : [], axes: right });
         game.frame();
         const player = game.state.players[0];

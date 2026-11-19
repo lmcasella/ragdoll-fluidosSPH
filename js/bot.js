@@ -136,6 +136,7 @@ export class Bot {
 
     /** Olvida lo percibido y decidido (ronda nueva). */
     reset() {
+        this.jumping = false;
         this.committed = null;
         this.goal = null;
         this.replanAt = 0;
@@ -184,8 +185,19 @@ export class Bot {
         this.pad.axes.fill(0);
         for (const b of this.pad.buttons) b.pressed = false;
         this.think(game, now);
+        this.holdJump(game.players[this.k]);
         this.previous.forEach((_, i) => (this.previous[i] = this.pad.buttons[i].pressed));
         return this.pad;
+    }
+
+    /** Mantiene el salto apretado mientras el robot sube, para no recibir el corte del salto variable. */
+    holdJump(me) {
+        if (this.pad.buttons[PAD.jump].pressed) {
+            this.jumping = true;
+        } else if (this.jumping) {
+            if (!me.dead && me.torso.GetLinearVelocity().get_y() > 0) this.press(PAD.jump);
+            else this.jumping = false;
+        }
     }
 
     think(game, now) {
