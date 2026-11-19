@@ -170,6 +170,8 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 
 **Solo Opus decide.** Los agentes en `sonnet` y `haiku` no eligen entre alternativas ni completan lo que falta: si algo no está especificado, se detienen e informan la pregunta. Para no leer archivos enteros ni listados largos en Opus, la búsqueda se delega a `scout`.
 
+**Un agente que entregó su informe pero sigue con trabajo en segundo plano no terminó:** se lo frena antes de lanzar el siguiente. Los agentes no dejan procesos corriendo al responder.
+
 Los agentes y skills son genéricos: no repiten reglas ni datos del proyecto. Todo lo específico vive en este archivo.
 
 ## Comandos
