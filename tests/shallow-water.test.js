@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { ShallowWater, WATER_FIELD } from "../js/water.js";
 import { LEVEL } from "../js/level.js";
 import { SIGMA_W, MATERIALS } from "../js/materials.js";
+import { fieldColor, drawWater } from "../js/render.js";
 
 const G = 10;
 const DT = 1 / 60;
@@ -487,4 +488,65 @@ test("Q6 principio del máximo del trazador de ácido: (a) rotura de presa con �
         report(t, `Q6b t=${seconds} s`, `max|w − 0,04| = ${fmt(worst)}`, "w constante", "< 1e-12");
         assert.ok(worst < 1e-12);
     }
+});
+
+test("Q5 fieldColor: con w = 0 es exactamente draw.color, crece monótona hacia el tinte con w y no comparte buffer entre llamadas", (t) => {
+    const water = make(LEVEL, WATER_FIELD, "Q5");
+    const base = WATER_FIELD.draw.color;
+    const tint = MATERIALS.acid.tint;
+    const x = (i) => water.center(i);
+    const ws = [0, 0.003, 0.02, 0.04, 0.08];
+    ws.forEach((w, k) => setAcid(water, 190 + 3 * k, w));
+    const colors = ws.map((w, k) => fieldColor(water, x(190 + 3 * k)));
+    assert.deepEqual(colors[0], base);
+    for (let k = 1; k < colors.length; k++) {
+        for (let c = 0; c < 3; c++) {
+            const lo = Math.min(base[c], tint[c]);
+            const hi = Math.max(base[c], tint[c]);
+            assert.ok(colors[k][c] >= lo && colors[k][c] <= hi);
+            assert.ok(Math.abs(colors[k][c] - tint[c]) <= Math.abs(colors[k - 1][c] - tint[c]), `canal ${c} no monótono en w = ${ws[k]}`);
+        }
+    }
+    assert.notStrictEqual(colors[0], colors[1]);
+    const out = [0, 0, 0];
+    assert.strictEqual(fieldColor(water, x(190), out), out);
+    report(t, "Q5 fieldColor", ws.map((w, k) => `w ${100 * w} %: [${colors[k]}]`).join("; "), "w = 0 → draw.color; monótono hacia el tinte", "igualdad exacta");
+});
+
+test("drawWater: relleno plano sin ácido y degradado con una parada cada colorStep celdas y en las dos caras en el tramo con ácido", () => {
+    const water = make(LEVEL, WATER_FIELD, "drawWater");
+    const fills = [];
+    const gradients = [];
+    const ctx = {
+        fillStyle: null,
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        closePath() {},
+        stroke() {},
+        fill() {
+            fills.push(this.fillStyle);
+        },
+        createLinearGradient(x0, y0, x1, y1) {
+            const g = { x0, x1, stops: [], addColorStop: (o, color) => g.stops.push([o, color]) };
+            gradients.push(g);
+            return g;
+        },
+    };
+    drawWater(ctx, water, 20);
+    assert.equal(gradients.length, 0);
+    assert.equal(fills[0], `rgb(${WATER_FIELD.draw.color.join(", ")})`);
+    fills.length = 0;
+    const i = Math.round((24 - water.x0) / water.dx);
+    setAcid(water, i, 0.04);
+    drawWater(ctx, water, 20);
+    assert.equal(gradients.length, 1);
+    assert.strictEqual(fills[0], gradients[0]);
+    const wet = [];
+    for (let c = 0; c < water.N; c++) if (water.h[c] > water.config.hDry) wet.push(c);
+    const cells = wet.filter((c) => c >= Math.round((18 - water.x0) / water.dx) && c < Math.round((38 - water.x0) / water.dx)).length;
+    assert.equal(gradients[0].stops.length, 2 + Math.ceil(cells / WATER_FIELD.draw.colorStep));
+    assert.equal(gradients[0].stops[0][0], 0);
+    assert.equal(gradients[0].stops.at(-1)[0], 1);
+    for (let k = 1; k < gradients[0].stops.length; k++) assert.ok(gradients[0].stops[k][0] >= gradients[0].stops[k - 1][0]);
 });
