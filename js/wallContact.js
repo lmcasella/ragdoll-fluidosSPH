@@ -13,7 +13,7 @@
  * velocidad de continuidad de una película de apriete, tope por la energía que el cierre puede pagar; la energía
  * ganada se descuenta del cierre con un impulso normal. Las partículas fuera del store no se corrigen.
  *
- * Despertar (#160): una partícula en contacto con un cuerpo dinámico reinicia su cuenta de quietud y, si estaba\n * congelada, se despierta en el mismo subpaso en que aparece el contacto, antes de que la fije un paso entero.\n *\n * Es un objeto con `update(substep)` para la lista de instancias de `stepWorld`; no crea objetos nativos por
+ * Es un objeto con `update(substep)` para la lista de instancias de `stepWorld`; no crea objetos nativos por
  * subpaso.
  */
 
@@ -175,10 +175,6 @@ export class WallContact {
             const body = Box2D.wrapPointer(heapI[w + 1], Box2D.b2Body);
             const type = body.GetType();
             const dynamic = type === DYNAMIC;
-            if (dynamic) {
-                store.quiet[slot] = 0;
-                if (store.frozen[slot] === 1) store.wake(index);
-            }
             const px = heapF[pos + 2 * index];
             const py = heapF[pos + 2 * index + 1];
             let bx = 0;

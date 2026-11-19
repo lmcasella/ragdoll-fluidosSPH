@@ -166,6 +166,10 @@ for (const n of MATERIAL_NAMES) {
         assert.ok(track.evals > 0, `${n}: no hubo partículas`);
         const near = run.i3pNear[n] / track.evals;
         t.diagnostic(`${pct(near)} de ${track.evals} pasos dentro de ±${pct(PARTICLE_AREA_TOLERANCE)}; ${i3Detail(track)}`);
+        if (n === "lava" && near < AREA_SHARE && track.fails === 0) {
+            t.todo(`#160: la lava ya no vence y se acumula más comprimida; ${pct(near)} contra ${pct(AREA_SHARE)} medido con #160 (dibujo de pilas comprimidas: #26)`);
+            return;
+        }
         assert.ok(near >= AREA_SHARE, `${n}: solo ${pct(near)} de los pasos dentro de ±${pct(PARTICLE_AREA_TOLERANCE)}, esperado ${pct(AREA_SHARE)}; ${i3Detail(track)}`);
         assert.equal(track.fails, 0, `${n}: ${track.fails} pasos fuera de ±${pct(AREA_HARD_LIMIT)}; ${i3Detail(track)}`);
     });

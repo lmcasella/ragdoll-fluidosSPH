@@ -83,7 +83,6 @@ export class Immersion {
             if (entry.material.miscible) {
                 if (y <= eta + this.radius) this.absorb(i, entry, x, heap[vel + 2 * i], heap[vel + 2 * i + 1]);
             } else if (y < eta) {
-                store.wake(i);
                 this.immerse(i, entry.material, x, vel, dt);
             }
         }
