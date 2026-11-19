@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-11-19
+
+### Fixed
+- La rueda de armas elige solo con lo que apunta: el stick derecho o, en J1 con teclado, el mouse. Las teclas de movimiento ya no eligen sector.
+
 ## [0.19.0] - 2026-11-19
 
 ### Added
