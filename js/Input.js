@@ -10,6 +10,7 @@ export const KEYBOARD_LAYOUTS = [
         down: ["KeyS"],
         jump: ["KeyW"],
         fire: ["Space"],
+        start: ["Escape"],
         punch: ["KeyF"],
         block: ["KeyG"],
         grapple: ["KeyE"],
@@ -24,6 +25,7 @@ export const KEYBOARD_LAYOUTS = [
         down: ["ArrowDown"],
         jump: ["ArrowUp"],
         fire: ["Enter", "NumpadEnter"],
+        start: ["Escape"],
         punch: ["Numpad5"],
         block: ["NumpadSubtract"],
         grapple: ["Numpad0"],
@@ -45,6 +47,7 @@ const PAD = {
     prevWeapon: 4,
     nextWeapon: 5,
     fire: 7,
+    start: 9,
     weapons: [12, 15, 13, 14],
 };
 const STICK_DEADZONE = 0.35;
@@ -59,7 +62,7 @@ export const TAP_MAX = 0.25;
 /**
  * Estado por jugador, leído una vez por frame con poll():
  * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`, `block`;
- * - flancos del frame: `jump`, `drop`, `roll`, `action`, `punch`, `kick`, `weapon` (1-4 o null) y `weaponStep`
+ * - flancos del frame: `jump`, `drop`, `roll`, `action`, `start`, `punch`, `kick`, `weapon` (1-4 o null) y `weaponStep`
  *   (-1, 0 o +1). `roll` es el flanco de salto con `block` mantenido (de cualquier fuente) y gana sobre `jump` y
  *   `drop`; `kick` es el flanco de golpe con abajo fuerte y deja `punch` en falso;
  * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null; es null con la rueda abierta y en el poll
@@ -72,7 +75,7 @@ export const TAP_MAX = 0.25;
  *   dirección;
  * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
- * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `fire` es el disparo mantenido.
+ * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
  */
 export class Input {
@@ -151,6 +154,7 @@ export class Input {
                 drop: false,
                 roll: false,
                 action: wasPressed(layout.fire),
+                start: wasPressed(layout.start),
                 fire: isHeld(layout.fire),
                 grapple: isHeld(layout.grapple),
                 block: isHeld(layout.block),
@@ -250,6 +254,7 @@ export class Input {
         state.down ||= ly > STICK_DEADZONE;
         state.jump ||= edge(PAD.jump);
         state.action ||= edge(PAD.jump) || edge(PAD.fire);
+        state.start ||= edge(PAD.start);
         state.fire ||= down(PAD.fire);
         state.grapple ||= down(PAD.grapple);
         state.block ||= down(PAD.block);
