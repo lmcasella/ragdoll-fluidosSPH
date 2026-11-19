@@ -128,6 +128,8 @@
             import { Flood } from "./js/flood.js";
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
+            import { Buoyancy } from "./js/buoyancy.js";
+            import { MATERIALS } from "./js/materials.js";
             import { Match } from "./js/round.js";
             import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
@@ -331,6 +333,8 @@
             const water = new ShallowWater();
             const flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
+            const buoyancy = new Buoyancy(water, MATERIALS);
+            buoyancy.register(players);
             const pickups = new Pickups(world, damage, LEVEL.pickups);
             const audio = new GameAudio();
             audio.load();
@@ -394,6 +398,7 @@
                 });
                 wallContact.invalidate();
                 damage.register(players);
+                buoyancy.register(players);
                 flood.reset();
                 immersion.reset();
                 pickups.reset();
@@ -480,6 +485,7 @@
                 instances[k] = nuevo.rag;
                 wallContact.invalidate();
                 damage.register(players);
+                buoyancy.register(players);
             }
 
             function laserDe(player) {
@@ -553,7 +559,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, melee, pickups, audio };
+                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio };
             }
 
             function loop(nowMs) {
@@ -624,6 +630,7 @@
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
+                    buoyancy.apply(STEP_SETTINGS.dt);
                     stepWorld(world, instances);
                     store.afterStep();
                     immersion.step(STEP_SETTINGS.dt);
