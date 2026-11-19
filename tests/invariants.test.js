@@ -148,18 +148,18 @@ test("waterOutline: el área del polígono es exactamente Σ h dx de las celdas 
     assert.ok(Math.abs(area - expected) < 1e-9, `área ${area} contra ${expected}`);
 });
 
-test("dropShape: círculo, segundo círculo junto a un cuerpo y trazo de lluvia", () => {
+test("dropShape: círculo, segundo círculo junto a un cuerpo y trazo del agua rápida", () => {
     const out = {};
     dropShape(10, 20, 0, 0, false, SHOT_DRAW, out);
     assert.deepEqual([out.capsule, out.count, out.radius], [false, 1, SHOT_DRAW.radius]);
     dropShape(10, 20, 0, -8, false, SHOT_DRAW, out);
-    assert.equal(out.capsule, false, "una gota que no es de lluvia nunca se dibuja como trazo");
+    assert.equal(out.capsule, false, "una gota que no es de agua nunca se dibuja como trazo");
     dropShape(10, 20, 0, -8, true, SHOT_DRAW, out);
     assert.equal(out.capsule, true);
     assert.equal(out.width, SHOT_DRAW.streakWidth);
     assert.ok(Math.abs(Math.hypot(out.x1 - out.x0, out.y1 - out.y0) - 8 * SHOT_DRAW.streakScale) < 1e-12);
     dropShape(10, 20, 0, -2, true, SHOT_DRAW, out);
-    assert.equal(out.capsule, false, "la lluvia lenta se dibuja como círculo");
+    assert.equal(out.capsule, false, "el agua lenta se dibuja como círculo");
 });
 
 const i3Detail = (track) => {

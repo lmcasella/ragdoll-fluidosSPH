@@ -13,12 +13,12 @@ const SPARKS_PER_FRAME = 3;
 const SPARK_SEGMENTS = 3;
 const SPARK_SEGMENT_LENGTH = 0.3; // m; con 0,12 m quedaban dentro del cuerpo y no se veían al zoom de juego
 const SPARK_COLORS = ["#fff27a", "#e8ffff"];
-/** Radio dibujado de las gotas (0,07 m), apenas mayor que el físico para que el filtro goo una las vecinas sin inflar el chorro. */
-export const PARTICLE_RADIUS = 0.07;
+/** Radio dibujado de las gotas: `√(A_p / π)` con `A_p = (1,5 · 0,06 m)²` el área física de una partícula (0,0508 m), para que el área dibujada sea la física (I3). */
+export const PARTICLE_RADIUS = (1.5 * 0.06) / Math.sqrt(Math.PI);
 
 /**
  * Dibujo de las gotas de disparo y de lluvia. Acercamiento a los cuerpos (m): la fila de contacto física queda a
- * 0,192 m y el segundo círculo cierra ese hueco. La lluvia más rápida que `streakSpeed` (m/s) se dibuja como
+ * 0,192 m y el segundo círculo cierra ese hueco. El agua más rápida que `streakSpeed` (m/s), sea de lluvia o de disparo, se dibuja como
  * trazo de largo `rapidez · streakScale` (s), con tope `streakLength` (m) y ancho `streakWidth` (m).
  */
 export const SHOT_DRAW = {
@@ -427,7 +427,7 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
 
 const stroke = { dx: 0, dy: 0 };
 
-// Decide si una gota de lluvia se dibuja como trazo: rápida (>= draw.streakSpeed, m/s). Devuelve el vector del
+// Decide si una gota de agua se dibuja como trazo: rápida (>= draw.streakSpeed, m/s). Devuelve el vector del
 // trazo en metros (de la cabeza hacia atrás, opuesto a la velocidad) o null si va como círculo. Largo proporcional
 // a la rapidez (draw.streakScale, s) con tope draw.streakLength. Devuelve un objeto compartido: no se retiene.
 export function rainStroke(vx, vy, draw) {
@@ -445,11 +445,11 @@ const NO_SKIN = { radius: PARTICLE_RADIUS, snapReach: 0, snapFullReach: 0, strea
  * Primitivas con que se dibuja una partícula (puro, sin `ctx`): llena `out` y lo devuelve. Con `out.capsule` falso
  * son `out.count` (1 o 2) círculos de radio `out.radius` con centros (`x0`, `y0`) y (`x1`, `y1`); el segundo es el
  * acercado a la superficie del cuerpo (`skinPosition`). Con `out.capsule` verdadero es el trazo de lluvia, una
- * cápsula de ancho `out.width` entre (`x0`, `y0`) y (`x1`, `y1`). `draw` son los datos de `SHOT_DRAW`; `isRain`
- * pide el trazo cuando la gota vuela más rápido que `draw.streakSpeed`. Unidades: metros y m/s.
+ * cápsula de ancho `out.width` entre (`x0`, `y0`) y (`x1`, `y1`). `draw` son los datos de `SHOT_DRAW`; `isWater`
+ * (el material, nunca el origen) pide el trazo cuando la gota vuela más rápido que `draw.streakSpeed`. Unidades: metros y m/s.
  */
-export function dropShape(x, y, vx, vy, isRain, draw, out) {
-    if (isRain) {
+export function dropShape(x, y, vx, vy, isWater, draw, out) {
+    if (isWater) {
         const s = rainStroke(vx, vy, draw);
         if (s) {
             out.capsule = true;
@@ -484,10 +484,10 @@ const shape = { capsule: false, count: 0, radius: 0, width: 0, x0: 0, y0: 0, x1:
  * Dibuja las partículas de `particleSystem` como círculos de `radius`. Con `skin` (`SHOT_DRAW`), las partículas
  * junto a un cuerpo suman un segundo círculo acercado a su superficie (ver `skinPosition`): mover la partícula en
  * vez de duplicarla abría huecos en el agua donde estaba. Lo que se dibuja lo decide `dropShape`.
- * `rain` = `{ ctx, store, origin }`: las gotas de `store` con ese `origin` que vuelan rápido se dibujan como
+ * `streaks` = `{ ctx, store, kind }`: las gotas de `store` de ese `kind` (agua) que vuelan rápido se dibujan como
  * trazos en `rain.ctx`, un canvas aparte sin el filtro goo (el desenfoque y el umbral borrarían una línea fina).
  */
-export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, rain = null) {
+export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, streaks = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
@@ -495,8 +495,8 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
     let velBase = 0;
     let rctx = null;
-    if (rain) {
-        rctx = rain.ctx;
+    if (streaks) {
+        rctx = streaks.ctx;
         velBase = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
         rctx.lineWidth = skin.streakWidth;
         rctx.lineCap = "round";
@@ -508,8 +508,8 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
         const style = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         const x = positions[posBase + i * 2];
         const y = positions[posBase + i * 2 + 1];
-        const isRain = rctx !== null && rain.store.origin[rain.store.slotAt(i)] === rain.origin;
-        dropShape(x, y, isRain ? positions[velBase + i * 2] : 0, isRain ? positions[velBase + i * 2 + 1] : 0, isRain, draw, shape);
+        const isWater = rctx !== null && streaks.store.kind[streaks.store.slotAt(i)] === streaks.kind;
+        dropShape(x, y, isWater ? positions[velBase + i * 2] : 0, isWater ? positions[velBase + i * 2 + 1] : 0, isWater, draw, shape);
         if (shape.capsule) {
             rctx.strokeStyle = style;
             rctx.beginPath();

@@ -217,8 +217,8 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
             if (k === undefined) continue;
             const x = Box2D.HEAPF32[pos + 2 * i];
             const y = Box2D.HEAPF32[pos + 2 * i + 1];
-            const isRain = store.origin[slot] === ORIGIN.RAIN;
-            dropShape(x, y, Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1], isRain, SHOT_DRAW, shape);
+            const isWater = store.kind[slot] === FLUID.WATER;
+            dropShape(x, y, Box2D.HEAPF32[vel + 2 * i], Box2D.HEAPF32[vel + 2 * i + 1], isWater, SHOT_DRAW, shape);
             if (shape.capsule) {
                 union.addCapsule(k, shape.x0, shape.y0, shape.x1, shape.y1, shape.width);
             } else {

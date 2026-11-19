@@ -128,9 +128,10 @@
             import { withReversedClip, withoutJointTracks } from "./js/clips.js";
             import { DamageSystem } from "./js/damage.js";
             import { createParticleSystem } from "./js/particles.js";
-            import { ParticleStore, ORIGIN, SINK } from "./js/particleStore.js";
+            import { ParticleStore, SINK } from "./js/particleStore.js";
             import { WallContact } from "./js/wallContact.js";
             import {
+                FLUID,
                 WEAPONS,
                 PERSIST_MAX,
                 PERSIST_FLUIDS,
@@ -445,7 +446,7 @@
 
             // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
             // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
-            const RAIN_DRAW = { ctx: streakCtx, store, origin: ORIGIN.RAIN };
+            const STREAK_DRAW = { ctx: streakCtx, store, kind: FLUID.WATER };
             const wetSurface = (x) =>
                 flood.active && water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity;
             const GOO_BLUR = 0.07;
@@ -565,7 +566,7 @@
                 camera.apply(streakCtx);
                 drawLevel(ctx, LEVEL, scale);
                 collectSurfaces(players, LEVEL.solids, SHOT_DRAW.snapReach);
-                drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, RAIN_DRAW);
+                drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, STREAK_DRAW);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                     drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
