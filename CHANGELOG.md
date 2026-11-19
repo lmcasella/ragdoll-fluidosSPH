@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-19
+
+### Added
+- Los robots flotan. El agua empuja a cada pieza con el empuje de Arquímedes (también hacia los costados si la superficie tiene pendiente) y la frena con arrastre; el arrastre horizontal también mueve el agua. Los robots tienen flotación neutra: caer al agua no los hunde ni los hace subir solos, y una pieza más liviana que el agua flota y una más pesada se hunde. Las reglas de la pileta no cambian.
+
 ## [0.22.2] - 2026-11-19
 
 ### Fixed
