@@ -64,11 +64,12 @@ export const TAP_MAX = 0.25;
  *   `drop`; `kick` es el flanco de golpe con abajo fuerte y deja `punch` en falso;
  * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null; es null con la rueda abierta y en el poll
  *   en que se suelta;
- * - `wheel`: { open, x, y } mientras la rueda de armas está abierta (LB o su tecla mantenidos `TAP_MAX`), o null. La
- *   dirección es la del stick derecho o, si la rueda la abrió la tecla, la de las teclas de dirección; (0, 0) en la
- *   zona muerta. La fuente que abrió la rueda la sostiene: la otra no la cierra ni cambia su dirección;
- * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: { x, y } o "cancel" con el stick al
- *   centro;
+ * - `wheel`: { open, x, y, pointer? } mientras la rueda de armas está abierta (LB o su tecla mantenidos `TAP_MAX`), o
+ *   null. Elige solo lo que apunta, nunca el movimiento: la dirección es la del stick derecho ((0, 0) en la zona
+ *   muerta) o, en J1 con la tecla y sin stick, `pointer` con el mouse en píxeles para que la raíz de composición la
+ *   resuelva contra el robot. La fuente que abrió la rueda la sostiene: la otra no la cierra ni cambia su dirección;
+ * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: { x, y, pointer? } o "cancel" sin
+ *   dirección;
  * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
  * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `fire` es el disparo mantenido.
@@ -203,16 +204,13 @@ export class Input {
             const held = { pad: padHold, key: keyHold };
             const direction = (source) => {
                 if (stick) return { x: stick.x, y: stick.y };
-                if (source === "pad") return { x: 0, y: 0 };
-                return {
-                    x: (isHeld(layout.right) ? 1 : 0) - (isHeld(layout.left) ? 1 : 0),
-                    y: (isHeld(layout.up) ? 1 : 0) - (isHeld(layout.down) ? 1 : 0),
-                };
+                if (source === "key" && k === 0 && this.mouseActive) return { x: 0, y: 0, pointer: { ...this.mousePos } };
+                return { x: 0, y: 0 };
             };
             let source = this.wheelSources[k];
             if (source && !held[source]) {
                 const d = direction(source);
-                state.wheelPick = d.x === 0 && d.y === 0 ? "cancel" : d;
+                state.wheelPick = d.x === 0 && d.y === 0 && !d.pointer ? "cancel" : d;
                 source = null;
                 this.wheelBlocked[k] = true;
             } else if (!source && prevHold && !this.wheelBlocked[k] && before !== null && now - before >= TAP_MAX) {

@@ -25,12 +25,23 @@ test("LB mantenido, stick a un sector y soltar equipa el arma del sector", async
     assert.equal(player.weapon, FLUID.WATER);
     game.setPad(0, { buttons: [4] });
     game.frames(holdFrames);
-    game.setPad(0, { buttons: [4], axes: [0, 0, 0, 1] });
+    game.setPad(0, { buttons: [4], axes: [0, 0, 1, 0] });
     game.frames(3);
     assert.equal(player.weapon, FLUID.WATER, "mientras está abierta no cambia");
-    game.setPad(0, { axes: [0, 0, 0, 1] });
+    game.setPad(0, { axes: [0, 0, 1, 0] });
     game.frames(1);
-    assert.equal(player.weapon, FLUID.ACID, "abajo: segundo sector de tres");
+    assert.equal(player.weapon, FLUID.ACID, "derecha: medio del segundo sector de tres");
+
+    game.setPad(0, { buttons: [4] });
+    game.frames(holdFrames);
+    game.setPad(0, { buttons: [4], axes: [-1, 0, 0, 0] });
+    game.frames(3);
+    game.setPad(0, { axes: [-1, 0, 0, 0] });
+    game.frames(1);
+    assert.equal(game.state.players[0].weapon, FLUID.ACID, "el stick izquierdo (movimiento) no elige sector");
+    game.setPad(0);
+    game.frames(2);
+    const turned = () => game.state.players[0];
 
     game.setPad(0, { buttons: [4] });
     game.frames(holdFrames);
@@ -38,7 +49,7 @@ test("LB mantenido, stick a un sector y soltar equipa el arma del sector", async
     game.frames(3);
     game.setPad(0, { axes: [0, 0, -1, 0] });
     game.frames(1);
-    assert.equal(player.weapon, FLUID.HONEY, "izquierda: tercer sector de tres");
+    assert.equal(turned().weapon, FLUID.HONEY, "izquierda: tercer sector de tres");
 });
 
 test("soltar con el stick al centro no cambia el arma y el toque corto de LB es arma anterior", async () => {
