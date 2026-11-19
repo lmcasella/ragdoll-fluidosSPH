@@ -5,6 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-19
+
+### Added
+- Robot nuevo (rig v5) con combo de tres golpes (B repetido), bloqueo (LT mantenido) que frena golpes de frente con un destello en el punto de impacto, roll (LT + A), golpe y patada en el aire (B y abajo + B), y salto con pose de aire según la dirección y caída alta.
+- El segundo y el tercer golpe del combo dan un paso adelante para seguir al rival.
+
+### Changed
+- Respaldo de teclado: bloqueo de J1 en G (roll G + W) y golpe de J2 en Numpad 5, para no disparar el aviso de Teclas especiales de Windows con Shift.
+
 ## [0.16.0] - 2026-11-19
 
 ### Added
