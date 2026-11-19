@@ -14,7 +14,7 @@ import { FLUID, SHOT_SYSTEM, refillTanks } from "./weapons.js";
  *   sorteos antes de la fila de respaldo, `transition`: una fila a menos de esto bajo un cambio de etapa ya usa el
  *   ancho de la etapa de arriba);
  * - `reach`: regla de alcance del bot, la misma que usa `buildNav`; `pickupLift`: altura del ícono sobre el tope;
- * - `pickups`: entrada `min(n − 1, 2)` para la etapa `n ≥ 1`, con cada `period` de filas y los `weights` por nombre de `FLUID`;
+ * - `pickups`: armas por etapa, entrada `min(n − 1, 3)` para la etapa `n ≥ 1` (la etapa 0 no lleva armas), con cada `period` de filas y los `weights` por nombre de `FLUID`;
  * - `repair`: prevista para #156, con `item: null` se ignora;
  * - `flood`: `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del fondo efectivo y `sinkBelow` (m bajo el
  *   nivel desde donde se libera lo hundido);
@@ -34,7 +34,8 @@ export const CLIMB = {
     reach: BOT.reach,
     pickupLift: 0.6,
     pickups: [
-        { period: 3, weights: { WATER: 0.4, HONEY: 0.4, LAVA: 0.2 } },
+        { period: 3, weights: { WATER: 1 } },
+        { period: 3, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } },
         { period: 2, weights: { LAVA: 1 } },
         { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } },
     ],
@@ -329,9 +330,6 @@ export class Climb {
         const low = baseSolids(this.base, this.config);
         this.lastY = Math.max(...low.filter((s) => s.kind === "platform").map((s) => s.y + s.h / 2));
         for (const s of low) this.addBox(s.x, s.y, s.w, s.h, s.kind, !!s.oneWay);
-        for (const p of this.base.pickups) {
-            if (p.y - this.config.pickupLift <= this.config.baseMaxTop + EPS) this.points.push(this.pickups.add(p));
-        }
         this.generate(60);
     }
 
