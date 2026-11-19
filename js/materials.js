@@ -15,7 +15,7 @@ export const SIGMA_W = 12.0;
 export const MATERIALS = {
     water: { SG: 1.0, c: 4186, mu: 1.0e-3, miscible: true, species: { H2O: 1 } },
     acid: { SG: 1.05, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
-    honey: { SG: 1.42, mu: 10, miscible: true, species: { honey: 1 } },
+    honey: { SG: 1.42, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
     lava: { SG: 2.6, Cd: 1.2, miscible: false, species: { basalt: 1 } },
 };
 
