@@ -194,7 +194,7 @@ test("U1 (#111): 10 gotas sobre una isla seca; en t = 10, 30 y 60 s el ancho moj
     }
     save(recorder, "u1-gotas-isla-seca");
     assert.equal(store.destroyed[SINK.ABSORBED][FLUID.WATER], created, "todas las gotas se absorbieron en el campo");
-    verdict(t, checks);
+    strict(t, checks);
 });
 /** Controles de H2 sobre el juego en curso: miel viva = inyectada − `OUT`, 0 absorbida y `SG · σ_w · Σ M dx` < 1e-6 · `I_honey`. */
 function honeyConservation(game, label) {

@@ -25,6 +25,9 @@ const U_MAX = 2 * Math.sqrt(G * 15);
 /** Profundidad máxima de repeticiones de un subpaso con `dt/2` tras una altura negativa. */
 const MAX_HALVINGS = 10;
 
+/** Tope de barridos alternados de `consolidate` (#111). */
+const MAX_CONSOLIDATE_SWEEPS = 8;
+
 /** Iteraciones máximas y tolerancia relativa a la carga del Newton de `project` (arranca en `h`, donde `f = bs − b > 0`, y converge monótono). */
 const PROJ_ITERATIONS = 40;
 const PROJ_TOLERANCE = 1e-10;
@@ -515,6 +518,52 @@ export class ShallowWater {
         return ok;
     }
 
+    /**
+     * Impone el espesor mínimo de película (#111): toda columna con `0 < h < hMin` y una vecina mojada le pasa todo
+     * su contenido (`h`, `q`, `E`, `M`, `A`) a la vecina de mayor `h` (empate: la de menor `η = b + d + h`).
+     * Barre en sentidos alternados hasta que nada cambia, con tope `MAX_CONSOLIDATE_SWEEPS`. Después anula `q` en
+     * las columnas con `h < hDry`. Conserva exactamente las cinco sumas salvo la cantidad de movimiento anulada,
+     * que va a `stats.droppedMomentum`.
+     */
+    consolidate() {
+        const { N, h, q, E, M, A, b, d, dx } = this;
+        const { hMin, hDry } = this.config;
+        for (let sweep = 0; sweep < MAX_CONSOLIDATE_SWEEPS; sweep++) {
+            const forward = sweep % 2 === 0;
+            let changed = false;
+            for (let n = 0; n < N; n++) {
+                const i = forward ? n : N - 1 - n;
+                const hh = h[i];
+                if (!(hh > 0 && hh < hMin)) continue;
+                const hl = i > 0 ? h[i - 1] : 0;
+                const hr = i < N - 1 ? h[i + 1] : 0;
+                if (hl <= 0 && hr <= 0) continue;
+                let j;
+                if (hl > hr) j = i - 1;
+                else if (hr > hl) j = i + 1;
+                else j = b[i - 1] + d[i - 1] + hl <= b[i + 1] + d[i + 1] + hr ? i - 1 : i + 1;
+                h[j] += hh;
+                q[j] += q[i];
+                E[j] += E[i];
+                M[j] += M[i];
+                A[j] += A[i];
+                h[i] = 0;
+                q[i] = 0;
+                E[i] = 0;
+                M[i] = 0;
+                A[i] = 0;
+                changed = true;
+            }
+            if (!changed) break;
+        }
+        for (let i = 0; i < N; i++) {
+            if (h[i] < hDry && q[i] !== 0) {
+                this.stats.droppedMomentum += q[i] * dx;
+                q[i] = 0;
+            }
+        }
+    }
+
     /** Un subpaso SSP-RK2 de `dt`; devuelve `false` (sin cambiar el estado) si algún `h` quedó negativo. */
     attempt(dt) {
         const { N, h, q, E, M, A, stage, rate } = this;
@@ -606,6 +655,7 @@ export class ShallowWater {
         }
         const sub = dt / n;
         for (let s = 0; s < n; s++) this.advance(sub);
+        this.consolidate();
         this.stats.steps++;
         this.stats.substeps += n;
     }

@@ -550,3 +550,32 @@ test("drawWater: relleno plano sin ácido y degradado con una parada cada colorS
     assert.equal(gradients[0].stops.at(-1)[0], 1);
     for (let k = 1; k < gradients[0].stops.length; k++) assert.ok(gradients[0].stops[k][0] >= gradients[0].stops[k - 1][0]);
 });
+test("C1 (#111) consolidate: película fina en varias celdas sobre lecho plano deja las mojadas en ≥ hMin o aisladas y conserva h, q, E, M y A (1e-12)", (t) => {
+    const water = make(tank(20), WATER_FIELD, "C1");
+    const { hMin } = water.config;
+    const start = Math.round(8 / water.dx);
+    const heights = [0.3, 0.4, 0.5, 0.2, 0.7, 0.35, 0.6, 0.45];
+    heights.forEach((f, k) => {
+        const i = start + k;
+        water.h[i] = f * hMin;
+        water.q[i] = 1e-3 * (k + 1);
+        water.E[i] = 5 * water.h[i];
+        water.M[i] = 0.1 * water.h[i];
+        water.A[i] = 0.2 * water.h[i];
+    });
+    const sums = () => [water.volume(), water.momentum(), water.energy(), water.honey(), water.acid()];
+    const before = sums();
+    water.consolidate();
+    const after = sums();
+    const dropped = water.stats.droppedMomentum;
+    let thin = 0;
+    for (let i = 0; i < water.N; i++) {
+        if (water.h[i] <= 0 || water.h[i] >= hMin) continue;
+        const lonely = (i === 0 || water.h[i - 1] <= 0) && (i === water.N - 1 || water.h[i + 1] <= 0);
+        if (!lonely) thin++;
+    }
+    const errors = before.map((v, k) => rel(after[k] + (k === 1 ? dropped : 0), v));
+    report(t, "C1", `${thin} columnas finas con vecina mojada; errores relativos de las cinco sumas ${errors.map(fmt).join(", ")}`, "0 columnas finas con vecina mojada; sumas conservadas", "≤ 1e-12");
+    assert.equal(thin, 0);
+    for (const e of errors) assert.ok(e <= 1e-12);
+});
