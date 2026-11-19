@@ -64,14 +64,13 @@ test("precondición: 1e-6 · denominador < 0,1 · masa de la partícula más liv
 });
 
 const ACID_CAUSES = [
-    [acidAbsorbed > 0, "#98"],
     [expiredWaterAcid > 0, "#73"],
     [hitAcid > 0, "#19"],
 ];
 
 const I1_CAUSES = {
-    H2O: [ACID_CAUSES, () => `ácido absorbido sin trazador: ${acidAbsorbed} partículas depositadas como agua; vencimiento D5 de agua y ácido (EXPIRED): ${expiredWaterAcid}; ácido destruido al dañar (HIT): ${hitAcid}`],
-    H2SO4: [ACID_CAUSES, () => `H2SO4 del ácido absorbido (${acidAbsorbed} partículas) desaparece sin trazador; EXPIRED agua y ácido: ${expiredWaterAcid}; HIT: ${hitAcid}`],
+    H2O: [ACID_CAUSES, () => `vencimiento D5 de agua y ácido (EXPIRED): ${expiredWaterAcid}; ácido destruido al dañar (HIT): ${hitAcid}; ácido absorbido (trazador A): ${acidAbsorbed}`],
+    H2SO4: [ACID_CAUSES, () => `EXPIRED agua y ácido: ${expiredWaterAcid}; HIT: ${hitAcid}; ácido absorbido (trazador A): ${acidAbsorbed}`],
     honey: [[], () => `tope PERSIST_CAP: ${cause("PERSIST_CAP", "honey")} partículas`],
     basalt: [[[expiredLava > 0, "#75"]], () => `vencimiento D5 de la lava (EXPIRED): ${expiredLava} partículas`],
 };
@@ -91,8 +90,8 @@ test("I2a identidad: store.kind no cambia entre create y destroy (0 cambios)", (
 });
 
 const I2_CAUSES = {
-    water: [[[acidAbsorbed > 0, "#98"], [cause("EXPIRED", "water") > 0, "#73"]], () => `el ácido absorbido (${acidAbsorbed} partículas) entra como agua; EXPIRED agua: ${cause("EXPIRED", "water")}`],
-    acid: [ACID_CAUSES, () => `ácido absorbido sin trazador (${acidAbsorbed} partículas); EXPIRED: ${cause("EXPIRED", "acid")}; HIT: ${hitAcid}`],
+    water: [[[cause("EXPIRED", "water") > 0, "#73"]], () => `EXPIRED agua: ${cause("EXPIRED", "water")}; ácido absorbido (trazador A): ${acidAbsorbed}`],
+    acid: [ACID_CAUSES, () => `EXPIRED: ${cause("EXPIRED", "acid")}; HIT: ${hitAcid}; ácido absorbido (trazador A): ${acidAbsorbed}`],
     honey: [[], () => `tope PERSIST_CAP: ${cause("PERSIST_CAP", "honey")} partículas`],
     lava: [[[expiredLava > 0, "#75"]], () => `vencimiento D5 de la lava (EXPIRED): ${expiredLava} partículas`],
 };
@@ -196,6 +195,14 @@ test("I4 espesor mínimo: 0 columnas interiores con hDry < h < hMin al final de 
         [[true, "#111"]],
         `película más fina que hMin: hasta ${track.max} columnas interiores en el paso ${track.maxStep}, en ${track.fails} de ${track.evals} pasos (el primero, ${track.firstFail}); esperado 0`,
     );
+});
+
+test("Q6c principio del máximo en la escena estándar: 0 columnas con h > hDry y A < −1e-12 o A / m_col > w_a + 1e-9 en cada paso", (t) => {
+    const track = run.q6c;
+    assert.ok(track.evals > 0);
+    const info = track.maxInfo;
+    t.diagnostic(`columnas fuera de rango hasta ${track.max} en ${track.fails} de ${track.evals} pasos; exceso máx de w sobre w_a ${info ? num(info.worstRatio) : 0}, −A máx ${info ? num(info.worstNegative) : 0} kg/m`);
+    assert.equal(track.fails, 0, `Q6c: ${track.fails} de ${track.evals} pasos fuera del principio del máximo (hasta ${track.max} columnas)`);
 });
 
 test("PERSIST_CAP: el tope de miel no se activa en la escena estándar (0 partículas destruidas)", () => {

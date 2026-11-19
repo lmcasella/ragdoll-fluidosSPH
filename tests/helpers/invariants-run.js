@@ -108,6 +108,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         h2: tracks(["alive", "absorbed", "field"]),
         probe: null,
         i4: new Track("I4"),
+        q6c: new Track("Q6c"),
         i4tips: { cells: 0, thin: 0, minH: Infinity },
         steps: 0,
         seconds: 0,
@@ -168,9 +169,10 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         MATERIAL_NAMES.forEach((n, k) => (result.peak[n] = Math.max(result.peak[n], alive[k])));
 
         const honeyField = water.honey();
+        const acidField = water.acid();
         const field = {
-            water: SIGMA_W * (water.volume() - honeyField),
-            acid: 0,
+            water: SIGMA_W * (water.volume() - honeyField) - acidField / (MATERIALS.acid.SG * MATERIALS.acid.species.H2SO4),
+            acid: acidField / MATERIALS.acid.species.H2SO4,
             honey: MATERIALS.honey.SG * SIGMA_W * honeyField,
             lava: 0,
         };
@@ -254,6 +256,17 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
 
         const hDry = water.config.hDry;
         const hMin = water.config.hMin;
+        let outside = 0;
+        let worstRatio = 0;
+        let worstNegative = 0;
+        for (let k = 0; k < N; k++) {
+            if (h[k] <= hDry) continue;
+            const w = water.acidRatio(k);
+            worstRatio = Math.max(worstRatio, w - MATERIALS.acid.species.H2SO4);
+            worstNegative = Math.max(worstNegative, -water.A[k]);
+            if (water.A[k] < -1e-12 || w > MATERIALS.acid.species.H2SO4 + 1e-9) outside++;
+        }
+        result.q6c.add(outside, outside === 0, step, { worstRatio, worstNegative });
         let thin = 0;
         let minInterior = Infinity;
         let c = 0;
