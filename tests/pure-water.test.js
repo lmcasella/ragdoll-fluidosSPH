@@ -15,7 +15,7 @@ const fmt = (value) => JSON.stringify(value, (_, v) => (typeof v === "number" ? 
  * Criterios de #69 (docs/design/14-agua.md §14.16, P1 a P5) con LiquidFun real y el contorno inelástico del juego
  * (`js/wallContact.js`).
  */
-/** Segundos de asentado por altura, el menor con |v|max <= 0,2 m/s al soltar con r = 0,06 m: la columna de 2 m se mueve a 0,227 m/s con 6 s y a 0,111 con 7 s. La de 3 m no baja de 1,0 m/s con 6 a 30 s (ver informe de #100). */
+/** Segundos de asentado por altura, el menor con |v|max <= 0,2 m/s al soltar con r = 0,06 m: la columna de 2 m se mueve a 0,227 m/s con 6 s y a 0,111 con 7 s. La de 3 m no baja de 1,0 m/s con 6 a 30 s. */
 const P1_SETTLE = new Map([[1, 4], [2, 7], [3, 6]]);
 
 for (const h0 of P1_SETTLE.keys()) {

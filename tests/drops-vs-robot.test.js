@@ -249,8 +249,10 @@ async function betweenFeet({ scenario, escape = true }) {
     game.state.wallContact.resetStats();
     const start = player().torso.GetPosition().get_x();
     let early = start;
+    const trace = [start];
     for (let f = 0; f < 120; f++) {
         game.frame();
+        trace.push(player().torso.GetPosition().get_x());
         if (f === 29) early = player().torso.GetPosition().get_x();
     }
     const speed = (player().torso.GetPosition().get_x() - start) / 2;
@@ -258,7 +260,22 @@ async function betweenFeet({ scenario, escape = true }) {
     const stats = { ...game.state.wallContact.stats };
     game.setPad(0);
     game.frames(30);
-    return { speed, earlySpeed, rise: jumpRise(game, player), stats };
+    return { speed, earlySpeed, trace, rise: jumpRise(game, player), stats };
+}
+
+/**
+ * Segundos desde el inicio hasta el fin de la primera ventana de 0,5 s a partir de la cual todas las siguientes tienen una
+ * velocidad dentro de ±10 % de la misma ventana en seco (60 frames por segundo); `Infinity` si nunca vuelve.
+ */
+function recoveryTime(trace, dryTrace) {
+    const window = 30;
+    const ratio = (k) => (trace[k + window] - trace[k]) / (dryTrace[k + window] - dryTrace[k]);
+    let from = Infinity;
+    for (let k = trace.length - 1 - window; k >= 0; k--) {
+        if (Math.abs(ratio(k) - 1) > 0.1) break;
+        from = k;
+    }
+    return from === Infinity ? Infinity : (from + window) / 60;
 }
 
 for (const scenario of ["feet", "stride"]) {
@@ -273,6 +290,8 @@ for (const scenario of ["feet", "stride"]) {
             `C14 ${scenario}\n  ${line("seco", dry)}\n  ${line("sin escape", before)}\n  ${line("con escape", after)}\n` +
                 `  eventos ${after.stats.events}, impagable ${after.stats.unpaid} J`,
         );
+        console.log(`C14 ${scenario}: vuelve a ±10 % del seco (ventanas de 0,5 s) a los ${fmt(recoveryTime(after.trace, dry.trace), 2)} s`);
+        if (scenario === "feet") assert.ok(Math.abs(after.earlySpeed / dry.earlySpeed - 1) <= 0.1, `primeros 0,5 s ${after.earlySpeed} contra ${dry.earlySpeed}`);
         assert.ok(after.speed >= 0.9 * dry.speed, `velocidad ${after.speed} contra ${dry.speed}`);
         assert.ok(after.rise >= MIN_JUMP * dry.rise, `salto ${after.rise} contra ${dry.rise}`);
     });
