@@ -14,8 +14,9 @@ export const MATCH_OVER_LOCK = 1;
 /**
  * Loop de partida: título, cuenta regresiva y rondas al mejor de N; gana la ronda el último robot en pie y la partida
  * quien llega a `winsNeeded`. Al terminar una ronda hay cámara lenta y un cartel, y se reinicia sin recargar.
- * Estados: `title` -> `countdown` -> `playing` -> `roundOver` -> (`countdown` | `matchOver`); `matchOver` ->
- * `countdown` (revancha, `action`) o `title` (`start`). Toda entrada a `countdown` devuelve "reset".
+ * Estados: `title` (el menú principal, que llama a `begin`) -> `countdown` -> `playing` -> `roundOver` ->
+ * (`countdown` | `matchOver`); `matchOver` -> `countdown` (revancha, `action`) o `title` (`start`). Toda entrada a
+ * `countdown` devuelve "reset".
  */
 export class Match {
     constructor(playerCount, winsNeeded = 2) {
@@ -35,6 +36,14 @@ export class Match {
         return this.state === "roundOver" && elapsed < SLOW_MOTION_TIME ? SLOW_MOTION_SCALE : 1;
     }
 
+    /** Empieza una partida nueva desde el título (lo llama el menú al elegir Jugar); devuelve "reset". */
+    begin() {
+        this.wins.fill(0);
+        this.round = 1;
+        this.matchWinner = null;
+        return this.startCountdown();
+    }
+
     startCountdown() {
         this.state = "countdown";
         this.timer = COUNTDOWN_TIME;
@@ -44,15 +53,7 @@ export class Match {
 
     /** Avanza con tiempo real (`roundTime`, en s, solo en `playing`); devuelve "reset" para volver a armar la ronda. */
     update(players, inputs, dt) {
-        if (this.state === "title") {
-            if (inputs.some((s) => s.action || s.start)) {
-                this.wins.fill(0);
-                this.round = 1;
-                this.matchWinner = null;
-                return this.startCountdown();
-            }
-            return null;
-        }
+        if (this.state === "title") return null;
 
         if (this.state === "countdown") {
             this.timer -= dt;
@@ -121,7 +122,7 @@ export class Match {
     /** Cartel central, o null durante el juego. */
     get banner() {
         if (this.state === "title") {
-            return { title: "RAGDOLL FLUIDOS", subtitle: "A / Start / Enter para empezar" };
+            return { title: "RAGDOLL FLUIDOS", subtitle: "↑↓ elegir · ←→ cambiar · A / Start / Enter sobre Jugar" };
         }
         if (this.state === "countdown") {
             return { title: String(Math.ceil(this.timer)), subtitle: `Ronda ${this.round}` };

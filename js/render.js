@@ -331,6 +331,30 @@ export function drawHits(ctx, hits, scale, now) {
     }
     ctx.globalAlpha = 1;
 }
+const MENU_LAYOUT = { rowHeight: 38, labelX: -300, valueX: -110, valueWidth: 200, top: 100 };
+
+/**
+ * Dibuja las filas del menú principal debajo del cartel del título, en píxeles de pantalla. `rows` es `Menu.view`:
+ * la fila elegida va resaltada, el valor elegido entre corchetes, los deshabilitados atenuados con su nota y las filas
+ * sin efecto (dificultad sin bots) apagadas.
+ */
+export function drawMenu(ctx, width, height, rows) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "left";
+    ctx.font = "24px Segoe UI";
+    rows.forEach((row, i) => {
+        const y = height / 2 + MENU_LAYOUT.top + i * MENU_LAYOUT.rowHeight;
+        const x = width / 2;
+        ctx.fillStyle = !row.enabled ? "#555555" : row.selected ? "#ffd84a" : "#dddddd";
+        ctx.fillText(`${row.selected ? "▶ " : ""}${row.label}`, x + MENU_LAYOUT.labelX, y);
+        row.values.forEach((v, j) => {
+            ctx.fillStyle = !row.enabled || v.disabled ? "#555555" : v.chosen ? (row.selected ? "#ffd84a" : "#ffffff") : "#aaaaaa";
+            const text = `${v.chosen ? "[" : ""}${v.label}${v.chosen ? "]" : ""}${v.note ? ` (${v.note})` : ""}`;
+            ctx.fillText(text, x + MENU_LAYOUT.valueX + j * MENU_LAYOUT.valueWidth, y);
+        });
+    });
+}
+
 const TANK_BAR = { width: 180, height: 10 };
 
 // HUD en pantalla (sin cámara): vida, arma, tanque y rondas ganadas por jugador; cartel central entre rondas.

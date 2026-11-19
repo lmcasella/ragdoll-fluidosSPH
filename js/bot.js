@@ -41,6 +41,22 @@ export const BOT = {
     replan: 0.5,
 };
 
+/**
+ * Presets de dificultad del menú (#154): `reaction` ([mín, máx], s), `aimError` (rad) y `defense` (probabilidad) que
+ * reemplazan esos valores de `BOT`. `normal` es el `BOT` tal cual.
+ */
+export const DIFFICULTY = {
+    easy: { reaction: [0.3, 0.5], aimError: 0.1, defense: 0.4 },
+    normal: { reaction: [0.15, 0.35], aimError: 0.05, defense: 0.7 },
+    hard: { reaction: [0.1, 0.2], aimError: 0.02, defense: 0.9 },
+};
+
+/** Tabla `BOT` con el preset de `difficulty` aplicado (`normal` si no existe). */
+export function botConfig(difficulty) {
+    const preset = DIFFICULTY[difficulty] ?? DIFFICULTY.normal;
+    return { ...BOT, reaction: [...preset.reaction], defense: preset.defense, shoot: { ...BOT.shoot, aimError: preset.aimError } };
+}
+
 const GRAVITY = 10;
 const WALK_DEADZONE = 0.15;
 

@@ -123,7 +123,8 @@
             } from "./lib/ragimporter.js";
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
-            import { Bot } from "./js/bot.js";
+            import { Bot, botConfig } from "./js/bot.js";
+            import { Menu } from "./js/menu.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
@@ -160,6 +161,7 @@
                 drawHits,
                 drawHud,
                 drawLevel,
+                drawMenu,
                 drawParticles,
                 drawPickups,
                 drawWater,
@@ -323,8 +325,30 @@
             let controls = inputs;
             const jumpPending = players.map(() => false);
             const bots = new Map();
-            for (const n of (new URLSearchParams(globalThis.location?.search ?? "").get("bot") ?? "").split(",").map(Number)) {
-                if (n >= 1 && n <= players.length) bots.set(n - 1, new Bot({ k: n - 1, world, seed: (Math.random() * 2 ** 32) >>> 0 }));
+            const botParam = new URLSearchParams(globalThis.location?.search ?? "").get("bot");
+            const urlBots = botParam === null ? null : botParam.split(",").map((n) => Number(n) - 1).filter((k) => k >= 0 && k < players.length);
+            const menu = new Menu({ storage: menuStorage(), bots: urlBots });
+
+            /** `localStorage`, o `null` si el navegador lo bloquea (acceder a la propiedad puede lanzar). */
+            function menuStorage() {
+                try {
+                    return globalThis.localStorage ?? null;
+                } catch {
+                    return null;
+                }
+            }
+
+            /** Quita todos los bots y devuelve sus jugadores al gamepad o teclado. */
+            function quitarBots() {
+                bots.clear();
+                players.forEach((_, k) => input.setVirtualPad(k, null));
+            }
+
+            /** Deja los bots que pide la elección del menú, con el preset de su dificultad. */
+            function ponerBots({ bots: ks, difficulty }) {
+                quitarBots();
+                const config = botConfig(difficulty);
+                for (const k of ks) bots.set(k, new Bot({ k, world, config, seed: (Math.random() * 2 ** 32) >>> 0 }));
             }
 
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
@@ -420,6 +444,13 @@
                 store.reset();
                 accumulator = 0;
                 firstFrame = true;
+            }
+
+            /** Arranca la partida con la elección actual del menú: bots con su preset, marcador en cero y ronda nueva. */
+            function arrancarPartida() {
+                ponerBots(menu.choice);
+                match.begin();
+                reiniciarRonda();
             }
 
             // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
@@ -572,12 +603,14 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, platforms, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio, bots, input };
+                globalThis.game = { world, platforms, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio, bots, input, menu, arrancarPartida };
             }
 
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
+                const enTitulo = match.state === "title";
+                if (enTitulo && bots.size) quitarBots();
                 const botGame = { players, match, flood, water };
                 bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
                 inputs = input.poll();
@@ -589,9 +622,11 @@
                 raycaster.count = 0;
                 if (input.padButton) audio.unlock();
 
+                if (enTitulo && menu.update(input.menu) === "play") arrancarPartida();
                 if (match.update(players, inputs, frameDt) === "reset") {
                     reiniciarRonda();
                 }
+                if (!enTitulo && match.state === "title") menu.reset();
                 controls = match.controlsActive ? inputs : inputs.map(neutro);
                 if (!match.controlsActive) jumpPending.fill(false);
                 if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
@@ -728,6 +763,7 @@
                     WEAPONS,
                     LEVEL.flood.start,
                 );
+                if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);
