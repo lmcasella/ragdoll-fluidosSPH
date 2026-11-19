@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-19
+
+### Added
+- Sonido y música. Suenan los golpes (con el quejido de quien los recibe), los golpes bloqueados, los pasos al caminar, el aterrizaje de una caída alta, la muerte de un robot, recoger un arma y el fin de la ronda. La música cambia sola: una pista durante la ronda, otra cuando empieza la inundación y otra en la pantalla de fin de partida, con un fundido de 1 s entre pistas. Los disparos y los fluidos todavía no hacen ruido. El navegador no deja sonar nada hasta que el jugador toca una tecla, hace clic o aprieta un botón del gamepad.
+
 ## [0.19.0] - 2026-11-19
 
 ### Added

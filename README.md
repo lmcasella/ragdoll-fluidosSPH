@@ -14,6 +14,8 @@ Gana la ronda el último robot en pie; la partida es al mejor de 3. Caer a la pi
 
 El juego está pensado para gamepad; el teclado es respaldo. Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador. Bajar de una plataforma atravesable todavía no hace nada distinto de saltar (no hay plataformas atravesables); el gancho todavía no tiene efecto. Disparar es **mantener** el botón: sale un chorro continuo hasta soltarlo o vaciar el tanque. Cada robot arranca con **agua** (moja al rival y lo deja en cortocircuito, con chispas); el ácido, la lava y la miel se **recogen** tocando sus íconos en el mapa (reaparecen a los 15 s; tocar un arma que ya tenés rellena su tanque, y el agua tiene su propio punto de recarga). Cada arma tiene su tanque, que no se recarga solo; al empezar cada ronda volvés a tener solo el agua llena; la barra del HUD muestra lo que queda ("VACÍO" en rojo si se acaba). Después de reiniciar la ronda o de una revancha hay que soltar el botón antes de volver a disparar. Al final de la partida, disparar inicia la revancha.
 
+El juego tiene sonido y música (archivos en `audio/`): el navegador no lo deja arrancar hasta que se toca una tecla, se hace clic o se aprieta un botón del gamepad. Los disparos y los fluidos todavía no suenan.
+
 ## Correr
 
 Requiere servidor HTTP (módulos ES):
