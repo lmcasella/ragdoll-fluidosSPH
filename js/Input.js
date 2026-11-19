@@ -82,7 +82,8 @@ export const TAP_MAX = 0.25;
 
 /**
  * Estado por jugador, leído una vez por frame con poll():
- * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`, `block`;
+ * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`, `block`, `jumpHeld` (el botón o tecla de salto) y
+ *   `strongDown` (stick izquierdo más allá de `DROP_THRESHOLD` o tecla abajo);
  * - flancos del frame: `jump`, `drop`, `roll`, `action`, `start`, `punch`, `kick`, `weapon` (1-4 o null) y `weaponStep`
  *   (-1, 0 o +1). `roll` es el flanco de salto con `block` mantenido (de cualquier fuente) y gana sobre `jump` y
  *   `drop`; `kick` es el flanco de golpe con abajo fuerte y deja `punch` en falso;
@@ -193,6 +194,8 @@ export class Input {
                 up: isHeld(layout.up),
                 down: isHeld(layout.down),
                 jump: wasPressed(layout.jump),
+                jumpHeld: isHeld(layout.jump),
+                strongDown: false,
                 drop: false,
                 roll: false,
                 action: wasPressed(layout.fire),
@@ -225,6 +228,7 @@ export class Input {
                 padHold = read.prevHold;
                 stick = read.stick;
             }
+            state.strongDown = strongDown;
             const prevHold = keyHold || padHold;
             if (k === 0) {
                 if (this.mouseClicked) state.action = true;
@@ -343,6 +347,7 @@ export class Input {
         state.up ||= ly < -STICK_DEADZONE;
         state.down ||= ly > STICK_DEADZONE;
         state.jump ||= edge(PAD.jump);
+        state.jumpHeld ||= down(PAD.jump);
         state.action ||= edge(PAD.jump) || edge(PAD.fire);
         state.start ||= edge(PAD.start);
         state.fire ||= down(PAD.fire);
