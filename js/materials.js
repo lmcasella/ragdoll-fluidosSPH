@@ -8,7 +8,7 @@ export const SIGMA_W = 12.0;
  * Gravedad específica (`SG`) de cada material: la masa de fluido es `SG · σ_w · A`. `c` es el calor
  * específico (J/(kg·K)), `mu` la viscosidad dinámica (Pa·s) a 20 °C, `Cd` el coeficiente de arrastre de la
  * partícula inmiscible y `miscible` si se absorbe en el campo de alturas (docs/design/14-agua.md §14.4).
- * Valores de referencia de la literatura, a confirmar por physics-reviewer.
+ * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
     water: { SG: 1.0, c: 4186, mu: 1.0e-3, miscible: true },
