@@ -61,7 +61,7 @@ test("la tabla SOUNDS solo usa efectos de golpes, pasos, caídas, muertes, recog
     const files = Object.values(SOUNDS).flatMap((row) => row.files);
     assert.ok(files.length > 0);
     assert.ok(files.every((f) => !/^(laser|explosion)/.test(f)), `archivos: ${files}`);
-    assert.deepEqual(Object.keys(SOUNDS).sort(), ["block", "death", "hit", "hurt", "land", "pickup", "roundEnd", "step"]);
+    assert.deepEqual(Object.keys(SOUNDS).sort(), ["block", "blockBreak", "death", "hit", "hurt", "land", "pickup", "roundEnd", "step"]);
     assert.equal(SOUNDS.step.volume, 0.4);
     assert.equal(SOUNDS.step.cooldown, 0.22);
     assert.equal(SOUNDS.hurt.cooldown, 0.3);
@@ -119,6 +119,22 @@ test("un golpe bloqueado suena block y no hit ni hurt", async () => {
     const events = fake.plays.map((p) => eventOf(p.buffer.url));
     assert.ok(game.state.melee.hits.length === 0 || game.state.melee.hits.every((h) => h.kind === "block"));
     assert.ok(events.includes("block"), `eventos: ${events}`);
+    assert.ok(!events.includes("hit") && !events.includes("hurt"), `eventos: ${events}`);
+});
+
+test("el tercer golpe del combo contra un bloqueo suena blockBreak y no hit ni hurt", async () => {
+    const fake = createFakeAudioContext();
+    const game = await boot(fake, { duel: 0.8 });
+    await unlock(game);
+    game.setPad(1, { buttons: [BUTTON.LT], axes: [-1, 0, -1, 0] });
+    game.frames(10);
+    for (let f = 0; f < 170; f++) {
+        game.setPad(0, { buttons: [0, 15, 39].includes(f) ? [BUTTON.B] : [], axes: AIM_RIGHT });
+        game.frame();
+    }
+    const events = fake.plays.map((p) => eventOf(p.buffer.url));
+    assert.equal(events.filter((e) => e === "block").length, 2, `eventos: ${events}`);
+    assert.equal(events.filter((e) => e === "blockBreak").length, 1, `eventos: ${events}`);
     assert.ok(!events.includes("hit") && !events.includes("hurt"), `eventos: ${events}`);
 });
 

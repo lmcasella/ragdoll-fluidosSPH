@@ -341,8 +341,8 @@
             /** Traduce a sonido los eventos ya resueltos del frame; se llama después de todos los pasos, nunca desde un callback de Box2D. */
             function sonarEventos(now) {
                 for (const e of melee.events) {
-                    if (e.kind === "block") {
-                        audio.play("block", e.victim, now);
+                    if (e.kind === "block" || e.kind === "blockBreak") {
+                        audio.play(e.kind, e.victim, now);
                     } else {
                         audio.play("hit", e.victim, now);
                         audio.play("hurt", e.victim, now);

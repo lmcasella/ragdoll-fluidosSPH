@@ -13,6 +13,7 @@ export const SOUNDS = {
     hit: { files: ["hit_1", "hit_2", "hit_3"], volume: 1 },
     hurt: { files: ["hurt_054", "hurt_055", "hurt_057", "hurt_061", "hurt_064", "hurt_075", "hurt_078"], volume: 1, cooldown: 0.3 },
     block: { files: ["block_1", "block_2", "block_3"], volume: 1 },
+    blockBreak: { files: ["block_break_1", "block_break_2", "block_break_3"], volume: 1 },
     land: { files: ["land_hurt_1", "land_hurt_2", "land_hurt_3"], volume: 1 },
     step: { files: ["feet_04", "feet_05", "feet_08", "feet_10", "feet_12", "feet_14", "feet_17"], volume: 0.4, cooldown: 0.22 },
     death: { files: ["death_1"], volume: 1 },
