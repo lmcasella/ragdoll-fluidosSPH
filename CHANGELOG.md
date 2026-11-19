@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-11-19
+
+### Fixed
+- En Infinito la etapa 0 ya no tiene armas (antes conservaba la miel y el agua del clásico) y las armas de las etapas de arriba siguen un tier: agua en la 1, agua y miel con lava ocasional en la 2, lava en la 3, ácido y lava desde la 4.
+- Los bots son más estratégicos: el movimiento (subir, evadir, buscar armas) y el combate (apuntar y disparar) son independientes, así que ya no se plantan a vaciar el tanque. Disparan en ráfagas de 0,5 s con 0,7 s de pausa mientras se mueven, guardan el 25 % del tanque salvo con el rival a menos de 3 m, saltan o ruedan al recibir daño o líquido, y en Infinito solo persiguen al rival en su plataforma o en una vecina que no esté más abajo. Al buscar un arma o salir del agua no eligen plataformas más bajas si hay otra.
 ## [0.29.0] - 2026-11-19
 
 ### Added
