@@ -8,9 +8,9 @@ Gana la ronda el último robot en pie; la partida es al mejor de 3. Caer a la pi
 
 | | Mover | Saltar | Bajar | Apuntar | Disparar | Golpe | Gancho | Arma |
 |---|---|---|---|---|---|---|---|---|
-| Gamepad | stick izq. | A | stick abajo + A | stick der. | RT | B | X | LB (toque corto) anterior, RB siguiente, cruceta directa (arriba 1, derecha 2, abajo 3, izquierda 4) |
-| J1 teclado | A / D | W | S + W | hacia donde camina (S: abajo) o mouse (si se movió después de usar el stick) | Espacio (o clic) | F | E (o botón derecho) | Q anterior, R siguiente, 1 / 2 / 3 / 4 directa |
-| J2 teclado | ← / → | ↑ | ↓ + ↑ | hacia donde camina (↓: abajo) | Enter | Num 5 | Num 0 | Ctrl der. anterior, Num + siguiente, Num 1 / 2 / 3 / 4 directa |
+| Gamepad | stick izq. | A | stick abajo + A | stick der. | RT | B | X | LB (toque corto) anterior, LB mantenido + stick der. rueda de armas (soltar LB equipa; stick al centro cancela), RB siguiente, cruceta directa (arriba 1, derecha 2, abajo 3, izquierda 4) |
+| J1 teclado | A / D | W | S + W | hacia donde camina (S: abajo) o mouse (si se movió después de usar el stick) | Espacio (o clic) | F | E (o botón derecho) | Q anterior (mantenida + W/A/S/D: rueda), R siguiente, 1 / 2 / 3 / 4 directa |
+| J2 teclado | ← / → | ↑ | ↓ + ↑ | hacia donde camina (↓: abajo) | Enter | Num 5 | Num 0 | Ctrl der. anterior (mantenido + flechas: rueda), Num + siguiente, Num 1 / 2 / 3 / 4 directa |
 
 El juego está pensado para gamepad; el teclado es respaldo. Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador. Bajar de una plataforma atravesable todavía no hace nada distinto de saltar (no hay plataformas atravesables); el gancho todavía no tiene efecto. Disparar es **mantener** el botón: sale un chorro continuo hasta soltarlo o vaciar el tanque. Cada robot arranca con **agua** (moja al rival y lo deja en cortocircuito, con chispas); el ácido, la lava y la miel se **recogen** tocando sus íconos en el mapa (reaparecen a los 15 s; tocar un arma que ya tenés rellena su tanque, y el agua tiene su propio punto de recarga). Cada arma tiene su tanque, que no se recarga solo; al empezar cada ronda volvés a tener solo el agua llena; la barra del HUD muestra lo que queda ("VACÍO" en rojo si se acaba). Después de reiniciar la ronda o de una revancha hay que soltar el botón antes de volver a disparar. Al final de la partida, disparar inicia la revancha.
 
