@@ -19,6 +19,7 @@ const { SINK, ORIGIN } = await import("../js/particleStore.js");
 const { FLUID, weaponById } = await import("../js/weapons.js");
 const { PARTICLE } = await import("../js/particles.js");
 const { WATER_FIELD } = await import("../js/water.js");
+const render = await import("../js/render.js");
 
 /** Carpeta de grabación (vacía: no se graba) y frames entre registros grabados. */
 const RECORD_DIR = process.env.USER_SCENARIOS_RECORD ?? "";
@@ -129,40 +130,69 @@ function verdict(t, checks) {
     assert.equal(failed.length, 0, failed.map((c) => `${c.name}: ${c.detail}`).join(" | "));
 }
 
-test("U1 (#111): 10 gotas sobre una isla seca; a los 10 s el ancho mojado es ≤ V/h_min + 2 dx y el volumen se conserva (< 1e-6)", async (t) => {
+/**
+ * U1 suelta las gotas 4 m sobre la isla con la velocidad inicial de la lluvia (impactan a ~12 m/s): medido, una gota
+ * que llega a 8,9 m/s o menos queda apoyada en el piso (y ≈ 4,11 m contra η + r = 4,06 m) y el campo no la absorbe.
+ *
+ * Mide el campo sobre la isla seca: ancho mojado (celdas con `b > 0` y `h > hDry`), celdas interiores de cada
+ * franja mojada más finas que `hMin` y `h` mínima interior (Infinity si no hay interiores).
+ */
+function wetSurvey(water) {
+    const { h, b, dx, N } = water;
+    const { hDry, hMin } = water.config;
+    let wet = 0;
+    let thin = 0;
+    let minInterior = Infinity;
+    let i = 0;
+    while (i < N) {
+        if (!(b[i] > 0 && h[i] > hDry)) {
+            i++;
+            continue;
+        }
+        let end = i;
+        while (end + 1 < N && b[end + 1] > 0 && h[end + 1] > hDry) end++;
+        wet += (end - i + 1) * dx;
+        for (let k = i + 1; k < end; k++) {
+            if (h[k] < hMin) thin++;
+            minInterior = Math.min(minInterior, h[k]);
+        }
+        i = end + 1;
+    }
+    return { wet, thin, minInterior };
+}
+
+test("U1 (#111): 10 gotas sobre una isla seca; en t = 10, 30 y 60 s el ancho mojado es ≤ V/h_min + 2 dx, no hay interiores entre hDry y h_min y el volumen se conserva (< 1e-6)", async (t) => {
     const game = await start();
     const { water, store, immersion } = game.state;
     const recorder = recorderFor(game, "u1-gotas-isla-seca");
     const drops = dropper(game);
     const v0 = water.volume();
-    for (let k = 0; k < 10; k++) drops.spawn(FLUID.WATER, 13 + 0.12 * k, 9 + 0.4 * k);
+    const islandTop = LEVEL.solids[1].y + LEVEL.solids[1].h / 2;
+    for (let k = 0; k < 10; k++) drops.spawn(FLUID.WATER, 11 + 0.5 * k, islandTop + 4, 0, -LEVEL.flood.dropSpeed);
     drops.dispose();
-    for (let f = 0; f < 10 * STEPS_PER_SECOND; f++) tick(game, recorder, f);
-    save(recorder, "u1-gotas-isla-seca");
-
-    const absorbed = store.destroyed[SINK.ABSORBED][FLUID.WATER];
-    const injected = absorbed * immersion.area;
-    const gained = water.volume() - v0;
-    const { h, b, dx } = water;
-    const { hDry, hMin } = water.config;
-    let wet = 0;
-    let thin = 0;
-    for (let i = 0; i < water.N; i++) {
-        if (b[i] > 0 && h[i] > hDry) {
-            wet += dx;
-            if (h[i] < hMin) thin++;
-        }
+    const created = store.created[FLUID.WATER];
+    const checkpoints = [10, 30, 60];
+    const checks = [];
+    let frame = 0;
+    for (const seconds of checkpoints) {
+        while (frame < seconds * STEPS_PER_SECOND) tick(game, recorder, frame++);
+        const absorbed = store.destroyed[SINK.ABSORBED][FLUID.WATER];
+        const injected = absorbed * immersion.area;
+        const gained = water.volume() - v0;
+        const { wet, thin, minInterior } = wetSurvey(water);
+        const limit = injected / WATER_FIELD.hMin + 2 * water.dx;
+        const conserved = Math.abs(gained - injected) / injected;
+        t.diagnostic(`t = ${seconds} s: ${absorbed} de ${created} gotas absorbidas, ancho mojado ${num(wet)} m, h mínima interior ${Number.isFinite(minInterior) ? num(minInterior) : "sin interiores"} m, límite ${num(limit)} m`);
+        checks.push(
+            { name: `t = ${seconds} s, ancho mojado ≤ V/h_min + 2 dx`, issue: "#111", ok: wet <= limit, detail: `${num(wet)} m contra ≤ ${num(limit)} m, V = ${num(injected)} m²` },
+            { name: `t = ${seconds} s, columnas interiores con hDry < h < hMin`, issue: "#111", ok: thin === 0, detail: `${thin} columnas, h mínima interior ${Number.isFinite(minInterior) ? num(minInterior) : "sin interiores"} m contra 0 columnas` },
+            { name: `t = ${seconds} s, volumen conservado < 1e-6`, issue: "#111", ok: conserved < 1e-6, detail: `${conserved.toExponential(2)} contra < 1e-6` },
+        );
     }
-    const limit = injected / WATER_FIELD.hMin + 2 * dx;
-    const conserved = Math.abs(gained - injected) / injected;
-    assert.ok(absorbed > 0, "al menos una gota llegó al campo");
-    t.diagnostic(`gotas: ${store.created[FLUID.WATER]} creadas, ${absorbed} absorbidas por el campo, ${Object.entries(SINK).map(([cause, id]) => `${cause} ${store.destroyed[id][FLUID.WATER]}`).join(", ")}`);
-    verdict(t, [
-        { name: "ancho mojado ≤ V/h_min + 2 dx", issue: "#111", ok: wet <= limit, detail: `${num(wet)} m (${thin} celdas más finas que h_min) contra ≤ ${num(limit)} m, V = ${num(injected)} m²` },
-        { name: "volumen conservado < 1e-6", issue: "#111", ok: conserved < 1e-6, detail: `${conserved.toExponential(2)} contra < 1e-6` },
-    ]);
+    save(recorder, "u1-gotas-isla-seca");
+    assert.equal(store.destroyed[SINK.ABSORBED][FLUID.WATER], created, "todas las gotas se absorbieron en el campo");
+    verdict(t, checks);
 });
-
 test("U2 (#110): un tanque de miel a la pileta; a los 10 s la masa de miel en partículas = inyectada (< 1e-6), Σ M dx = 0 y el centroide queda bajo la mitad de la profundidad", async (t) => {
     const game = await start();
     const { water, store, particleSystem } = game.state;
@@ -196,6 +226,8 @@ test("U3 (#98 y #110): un tanque de ácido a la pileta; concentración media = m
     const { water, store, immersion } = game.state;
     const recorder = recorderFor(game, "u3-acido-en-pileta");
     const v0 = water.volume();
+    const impactX = 24;
+    const pure = render.fieldColor ? render.fieldColor(water, impactX) : null;
     const injected = fireTank(game, FLUID.ACID, 24, LEVEL.pool.surface, 10, recorder);
     save(recorder, "u3-acido-en-pileta");
 
@@ -218,11 +250,18 @@ test("U3 (#98 y #110): un tanque de ácido a la pileta; concentración media = m
     const expectedRho = 998 + 6.8 * expectedW * 100;
     const rhoError = Math.abs(rho - expectedRho) / expectedRho;
     const wError = Math.abs(measuredW - expectedW) / expectedW;
+    const colorCheck = render.fieldColor
+        ? (() => {
+              const mixed = render.fieldColor(water, impactX);
+              return { name: "color del campo en el impacto distinto del agua pura", issue: "#98", ok: mixed.some((c, k) => c !== pure[k]), detail: `[${mixed}] contra agua pura [${pure}]` };
+          })()
+        : { name: "color del campo depende de la composición", issue: "#98", ok: false, detail: "el color del campo es constante [40,120,255], no depende de la composición" };
     assert.ok(injected > 0, "el tanque disparó ácido");
     assert.ok(absorbed > 0, "el ácido llegó al campo");
     verdict(t, [
         { name: "concentración media de H2SO4 = m_H2SO4 / m_total", issue: "#98", ok: wError <= 0.01, detail: `w = ${pct(measuredW)} (el campo no tiene trazador de H2SO4: 0 kg) contra ${pct(expectedW)} (${num(acidInH2SO4)} kg de ${num(total)} kg; ${absorbed} de ${injected} partículas absorbidas), error relativo ${pct(wError)} contra ±1 %` },
-        { name: "ρ_col = 998 + 6,8 · w[%]", issue: "#98", ok: rhoError <= 0.001, detail: `${num(rho, 6)} kg/m³ contra ${num(expectedRho, 6)} kg/m³, error relativo ${pct(rhoError)} contra ±0,1 %` },
+        { name: "ρ_col = 998 + 6,8 · w[%]", issue: "#98", ok: rhoError <= 0.001, detail: `${num(rho, 6)} kg/m³ contra ${num(expectedRho, 6)} kg/m³, error relativo ${pct(rhoError)} contra ±0,1 %; hoy pasa porque w ≈ 0,3 % y el campo usa densidad fija: el criterio real lo cubre la concentración (#98)` },
+        colorCheck,
     ]);
 });
 
