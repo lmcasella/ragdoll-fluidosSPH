@@ -36,7 +36,7 @@ test("RisingFlood: el nivel y el fondo efectivo siguen la curva y el span sigue 
         water.step(DT);
     }
     assert.ok(flood.active);
-    const expected = 3 + 0.3 * 2;
+    const expected = 3 + 0.4 * 7;
     assert.ok(Math.abs(flood.level - expected) < 0.01, `nivel ${flood.level}, esperado ${expected}`);
     assert.equal(flood.floor, 0);
     const half = halfWidth(stageOf(flood.level));

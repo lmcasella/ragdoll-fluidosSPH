@@ -8,47 +8,47 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 - Mapa **Infinito** en la fila Mapa del menú: habilitado y default. **Clásico** no cambia y queda como mapa de testing. Rondas, reglas y partida sin cambios ([02](02-partida.md)).
 - **Etapa 0** = el clásico reducido a sus plataformas bajas: pisos, islas, pileta y solo las plataformas de `LEVEL.solids` con tope ≤ `baseMaxTop` (8 m) y las armas de `LEVEL.pickups` sobre ellas, aparición de siempre, sin las paredes de `LEVEL` ni el sensor de la pileta. El clásico tiene plataformas altas (tope 10,3 y 13,6) que no se alcanzan desde ninguna otra, y así nadie llegaría a las filas generadas.
-- Encima, **etapas** de 30 m (etapa `n` = `y` ∈ [30n, 30n + 30)) con paredes propias y filas de plataformas atravesables generadas con semilla.
-- El agua sube sin techo desde los 10 s. Se genera hacia arriba y se libera lo que queda hundido.
+- Encima, **etapas** de 15 m (etapa `n` = `y` ∈ [15n, 15n + 15)) con paredes propias y filas de plataformas atravesables generadas con semilla.
+- El agua sube sin techo desde los 5 s. Se genera hacia arriba y se libera lo que queda hundido.
 
 ## 16.2 Tabla `CLIMB` (`js/climb.js`, patrón Datos en tablas)
 
 | Clave | Valor | Uso |
 |---|---|---|
 | `centerX` | 28 | Eje de simetría (m) |
-| `stageHeight` | 30 | Alto de etapa (m) |
-| `width` | `{ base: 56, perStage: 6, min: 24 }` | `W(n) = max(min, base − perStage · n)`; media `half(n) = W(n)/2` |
+| `stageHeight` | 15 | Alto de etapa (m) |
+| `width` | `{ first: 56, base: 40, perStage: 4, min: 24 }` | `W(0) = first`; `W(n) = max(min, base − perStage · n)` para `n ≥ 1`; media `half(n) = W(n)/2` |
 | `baseMaxTop` | 8 | Tope máximo (m) de las plataformas del clásico que entran en la etapa 0 |
 | `wallOuter` | 20 | Las paredes van de `centerX ± half(n)` hacia afuera hasta x = −20 y x = 76 (solo para que la cámara no muestre vacío; el campo y la limpieza siguen en x 0–56) |
-| `rows` | `{ gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1, tries: 50, transition: 3.5 }` | Generador (16.3) |
-| `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | Una sola fuente para el invariante y el grafo del bot |
+| `rows` | `{ gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1.5, overlap: 1.5, fairness: 0.2, tries: 50, transition: 3.5 }` | Generador (16.3) |
+| `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | `up.dy` es el desnivel máximo del invariante de alcance; el grafo del bot usa la regla completa |
 | `pickupLift` | 0.6 | Altura del ícono sobre el tope (m), como en `LEVEL.pickups` |
 | `pickups` | `[{ period: 3, weights: { WATER: 0.4, HONEY: 0.4, LAVA: 0.2 } }, { period: 2, weights: { LAVA: 1 } }, { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 2)` para la etapa `n ≥ 1`. Claves = nombres de `FLUID` |
 | `repair` | `{ perStage: 1, item: null }` | Prevista para #156. Con `item: null`, `Climb` la ignora. No se implementa acá |
-| `flood` | `{ start: 10, speed: 0.3, perStage: 0.05, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
+| `flood` | `{ start: 5, speed: 0.4, perStage: 0.06, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m) |
 | `spawnRayTop` | 9 | Inicio del rayo de aparición en Infinito (m), por debajo de la primera fila generada (≥ 9,9 m de cara inferior) |
 | `seamMargin` | 0.2 | 16.9, costuras de LiquidFun |
 
 ## 16.3 Geometría y generador
 
-**Paredes.** Por etapa `n`, dos rectángulos `kind: "wall"` sin `oneWay`: izquierda x ∈ [−20, 28 − half(n)], derecha x ∈ [28 + half(n), 76], y ∈ [30n, 30n + 30]. La etapa 0 también usa paredes de `CLIMB` (half = 28: caras en x = 0 y 56, como el clásico).
+**Paredes.** Por etapa `n`, dos rectángulos `kind: "wall"` sin `oneWay`: izquierda x ∈ [−20, 28 − half(n)], derecha x ∈ [28 + half(n), 76], y ∈ [15n, 15n + 15]. La etapa 0 también usa paredes de `CLIMB` (half = 28: caras en x = 0 y 56, como el clásico).
 
 **Filas.** La fila −1 es el conjunto de plataformas bajas de la etapa 0 (tope ≤ `baseMaxTop`: 7,0, 5,8 y 7,8 m), cada una con su propio tope; la fila 0 está a `U(gap)` sobre la más alta (7,8 m). Cada fila `k` tiene un tope `y_k = y_{k−1} + U(gap)`; todas sus plataformas comparten `y_k`, son `kind: "platform"`, `oneWay: true`, alto 0,4.
 
 - **Ancho de colocación:** `half(stageOf(y_k + transition))`. Una fila a menos de 3,5 m bajo un cambio de etapa ya usa el ancho de la etapa de arriba, así nadie queda bajo el voladizo de la pared.
-- **Composición** (`count` uniforme en {2, 3, 4}): 2 = un par; 3 = una central (x = 28) + un par; 4 = dos pares. Un par son dos plataformas iguales en `28 ± c`. Anchos uniformes en [3, 6].
-- **Válida si:** todas caben (`|x − 28| + w/2 ≤ half`), hay ≥ 1 m entre plataformas de la fila (también entre las dos de un par: `c − w/2 ≥ 0,5`), y **cada** plataforma es alcanzable desde alguna de la fila `k − 1`.
-- **Alcance** (`reachable(a, b, reach)`, función pura exportada; la misma regla que `buildNav`): `gap = max(0, b.minX − a.maxX, a.minX − b.maxX)`, `dy = b.top − a.top`; vale si `(dy ≤ up.dy y gap ≤ up.gap) o (dy ≤ short.dy y gap ≤ short.gap)`. Una plataforma encima (gap 0) entra en la primera regla.
-- **Intentos:** hasta `tries` sorteos de la fila completa. Si ninguno vale, **fila de respaldo:** un par de ancho 3 en `c = clamp(c_ref, 2, half − 1,5)`, con `c_ref` el `c` del par más central de la fila `k − 1` (o 2 si la fila `k − 1` es la −1). Queda con gap 0 respecto de su referencia, así que el invariante se cumple siempre por construcción.
+- **Composición** (`count` uniforme en {2, 3, 4}): cada plataforma se sortea con ancho uniforme en [3, 6] y una x al azar dentro de las paredes que solape `overlap` con alguna plataforma de la fila `k − 1`. No hay espejo.
+- **Válida si:** todas caben (`|x − 28| + w/2 ≤ half`), hay ≥ `separation` (1,5 m) entre plataformas de la fila, **cada** plataforma tiene en la fila `k − 1` (la −1 para la primera fila) una con **solapamiento horizontal ≥ `overlap`** (1,5 m) y desnivel ≤ `reach.up.dy` (3,3 m), y hay **justicia**: el ancho total de plataformas a la izquierda y a la derecha de x = 28 difiere ≤ `fairness` (20 %) del mayor; una plataforma que cruza el centro cuenta por partes.
+- **Alcance:** el solapamiento reemplaza al salto diagonal como garantía: cada plataforma se alcanza saltando en vertical a través de ella. `reachable(a, b, reach)` (función pura exportada, la regla diagonal de `buildNav`) sigue en el grafo del bot como arista opcional.
+- **Intentos:** hasta `tries` sorteos de la fila completa. Si ninguno vale, **fila de respaldo:** la fila `k − 1` recortada al ancho de la etapa (para la primera fila, un par de ancho 3 en 28 ± 2,25 sobre la plataforma de 7,8 m). Solapa por completo con su referencia; se midieron 2 respaldos en 7.000 filas (50 semillas).
 - **Determinismo:** `ClimbGenerator(seed, config, base)` es JS puro (sin `Box2D`), con `seededRandom` de `js/bot.js`. Una sola secuencia, consumida fila por fila en orden de `y` (forma, armas, todo): el mapa no depende de cuándo se genera cada fila. `next()` devuelve `{ index, y, stage, platforms: [{ x, w }], pickups: [{ x, y, weapon }] }`.
 
 **Semilla.** Nueva por ronda (`Math.random`). Con `?seed=N` (el mismo parámetro de los bots, `botSeed` en `index.html`) **todas las rondas usan N**: el mapa es reproducible.
 
 ## 16.4 Armas e ítem de reparación
 
-- Etapa 0: solo `LEVEL.pickups`. Las filas generadas dentro de la etapa 0 (de 10,3 a 30 m) no llevan armas.
-- Etapa `n ≥ 1`: la fila lleva un par de armas si `índice de la fila dentro de su etapa % period === 0`. Van sobre el par más externo de la fila, en `(x, y_k + 0,6)`, con **la misma arma** en los dos lados (un sorteo por par con `weights`).
+- Etapa 0: solo `LEVEL.pickups`. Las filas generadas dentro de la etapa 0 (de 10,3 a 15 m) no llevan armas.
+- Etapa `n ≥ 1`: la fila lleva un par de armas si `índice de la fila dentro de su etapa % period === 0`. Van sobre las plataformas más a la izquierda y más a la derecha de la fila, en `(x de la plataforma, y_k + 0,6)`, con **la misma arma** en las dos (un sorteo por par con `weights`).
 - Reparación: solo la entrada `repair` de la tabla (16.2). #156 decide qué es y dónde va.
 
 ## 16.5 Agua
@@ -105,7 +105,7 @@ dispose()
 ### Cambios en otros módulos
 
 - **`Pickups`:** `add({ x, y, weapon })` → punto (crea el cuerpo y el hook como hoy el constructor) y `remove(point)` (quita el hook, descarta lo encolado de ese punto, `DestroyBody` y lo saca de `points`). El constructor y `dispose` pasan a usarlos.
-- **`Bot`:** `setNav(level)` = `this.nav = buildNav(level, this.config)`, anula `committed`, `goal` y `foeNode` (son índices de nodos) y pone `replanAt = 0`. El constructor ya acepta `level`.
+- **`Bot`:** `setNav(level)` = `this.nav = buildNav(level, this.config)`, traduce `committed`, `goal` y `foeNode` (son índices de nodo) al nodo igual del grafo nuevo, o los anula si ya no existe, y pone `replanAt = 0`; así un salto en el aire no pierde su destino cuando se genera o libera una fila. El bot sube de preferencia en vertical: las aristas con solapamiento ≥ `BOT.through.overlap` y desnivel ≤ `reach.up.dy` cuestan `BOT.cost.through` (0,6) contra `BOT.cost.jump` (1) de las demás, y la ruta es de costo mínimo (Dijkstra). El constructor ya acepta `level`.
 - **`Camera`:** `setBounds(bounds)` (no toca `x`, `y` ni `zoom`) y el getter `top` (`y + viewH / (2 · scale)`). Con `maxY: Infinity` la cuenta actual ya funciona: `fitWorld` queda dado por el ancho.
 - **`render.js`:** la grilla de superficies sigue a la cámara. `collectSurfaces(players, solids, reach, originY)` pone `GRID_Y0 = floor(originY) − 2`, con `originY` el borde inferior de la cámara, y `GRID_H` = 64. Lo que cae fuera de la grilla no se anota, y `skinPosition` devuelve la posición real fuera de la grilla, en vez de recortar al borde.
 - **`menu.js`:** `map.default = "infinite"`; Infinito sin `disabled` ni `note`.
@@ -160,10 +160,10 @@ Pasos fijos como hoy (`flood.step` = `RisingFlood.step` antes de `buoyancy.apply
 
 | Id | Criterio | Esperado |
 |---|---|---|
-| C1 | Invariante de alcance: `ClimbGenerator` con semillas 1–50 hasta y = 400 m. Cada plataforma alcanzable desde alguna de la fila anterior (`reachable`), dentro de las paredes, a ≥ 1 m de sus vecinas, espejada; filas con `dy` ∈ [2,5; 3,2] (o [1,7; 3,2] junto a una costura); ninguna plataforma ni pared cruza una costura; pares de armas por etapa según `period` y armas solo de `weights` | 0 violaciones; misma semilla, mismas filas |
+| C1 | Invariante de alcance: `ClimbGenerator` con semillas 1–50 hasta y = 400 m. Cada plataforma con solapamiento horizontal ≥ 1,5 m y desnivel ≤ 3,3 m con alguna de la fila anterior (o de la base), dentro de las paredes, a ≥ 1,5 m de sus vecinas, justicia ±20 % entre lados; filas con `dy` ∈ [2,5; 3,2] (o [1,7; 3,2] junto a una costura); ninguna plataforma ni pared cruza una costura; pares de armas por etapa según `period` y armas solo de `weights` | 0 violaciones; misma semilla, mismas filas |
 | C2 | Heap: `Climb` con mundo propio, `level` y `top` subiendo hasta generar y liberar 5 etapas. `heapTop()` (como en `one-way-platforms.test.js`) medido tras la etapa 1 y tras la etapa 6 | No sube; `world.GetBodyCount()` ≤ 200 en todo momento; `platforms.platforms.size` y `pickups.points.length` iguales a los vivos de `climb.level`. Se acepta la deriva de ~16 B por cuerpo del `b2BlockAllocator` (propia de Box2D, también en un lazo sin código del juego), con un margen de 2 trozos de 16 KiB |
 | C3 | Costo del campo: `ShallowWater` + `RisingFlood` (JS puro) con `CLIMB.flood` ×10 en velocidad hasta `η*` ≥ 150 m; se miden los últimos 600 pasos | Subpasos medios ≤ 6, `capHits` = 0, `halvings` = 0, `min h ≥ 0`; ms por `water.step` ≤ 1,5 × el de Clásico con el agua en 15 m (misma máquina, se imprimen los dos) |
-| C4 | Bot que sube: Infinito, `?bot=2`, semillas 1, 2 y 3; J1 sin input e inmortal (el test reemplaza `drown`, `hurt` y `burn` de J1 por no-op) | El torso de J2 pasa y = 60 m vivo, en ≤ 240 s simulados, en 3 de 3 semillas |
+| C4 | Bot que sube: Infinito, `?bot=2`, semillas 1, 2 y 3; J1 sin input e inmortal (el test reemplaza `drown`, `hurt`, `burn` y `takeDamage` de J1 por no-op, para que no muera al caer cuando se hunde la base) | El torso de J2 pasa y = 60 m vivo, en ≤ 240 s simulados, en 3 de 3 semillas |
 | C5 | Ronda que termina por agua: Infinito, sin pads | Los dos robots mueren por `drown` y `match` pasa a `roundOver` antes de los 30 s de ronda |
 | C6 | Menú: `new Menu({ storage: null }).choice.map` | `"infinite"`; Infinito no está deshabilitado |
 | C7 | Libro del campo: en C3 y en C5, en cada paso | `volume()` = inicial + absorbido + `sourced` − `floorCut.volume`, error < 10⁻⁶ relativo |

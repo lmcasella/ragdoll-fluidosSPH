@@ -4,12 +4,15 @@ import { FLUID, SHOT_SYSTEM } from "./weapons.js";
 
 /**
  * Valores del ascenso infinito (docs/design/16-ascenso.md §16.2). Distancias en m, tiempos en s.
- * - `centerX`: eje de simetría; `stageHeight`: alto de una etapa; `width`: ancho entre paredes `W(n) = max(min, base − perStage · n)`;
+ * - `centerX`: eje de simetría; `stageHeight`: alto de una etapa; `width`: ancho entre paredes, `first` en la etapa 0 y
+ *   `W(n) = max(min, base − perStage · n)` desde la 1;
  *   `wallOuter`: cuánto se extienden las paredes más allá de los límites del nivel; `baseMaxTop`: tope máximo (m) de las
  *   plataformas del clásico que entran en la etapa 0 (las más altas no se alcanzan desde otra);
  * - `rows`: generador de filas (`gap` entre topes, `count` de plataformas por fila, `width` de cada una, `thickness`,
- *   `separation` mínima entre plataformas de una fila, `tries` sorteos antes de la fila de respaldo, `transition`: una
- *   fila a menos de esto bajo un cambio de etapa ya usa el ancho de la etapa de arriba);
+ *   `separation` mínima entre plataformas de una fila, `overlap` horizontal mínimo de cada plataforma con alguna de la
+ *   fila de abajo, `fairness` (diferencia máxima relativa del ancho total de plataformas a cada lado del eje), `tries`
+ *   sorteos antes de la fila de respaldo, `transition`: una fila a menos de esto bajo un cambio de etapa ya usa el
+ *   ancho de la etapa de arriba);
  * - `reach`: regla de alcance del bot, la misma que usa `buildNav`; `pickupLift`: altura del ícono sobre el tope;
  * - `pickups`: entrada `min(n − 1, 2)` para la etapa `n ≥ 1`, con cada `period` de filas y los `weights` por nombre de `FLUID`;
  * - `repair`: prevista para #156, con `item: null` se ignora;
@@ -20,11 +23,11 @@ import { FLUID, SHOT_SYSTEM } from "./weapons.js";
  */
 export const CLIMB = {
     centerX: 28,
-    stageHeight: 30,
-    width: { base: 56, perStage: 6, min: 24 },
+    stageHeight: 15,
+    width: { first: 56, base: 40, perStage: 4, min: 24 },
     wallOuter: 20,
     baseMaxTop: 8,
-    rows: { gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1, tries: 50, transition: 3.5 },
+    rows: { gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1.5, overlap: 1.5, fairness: 0.2, tries: 50, transition: 3.5 },
     reach: BOT.reach,
     pickupLift: 0.6,
     pickups: [
@@ -33,7 +36,7 @@ export const CLIMB = {
         { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } },
     ],
     repair: { perStage: 1, item: null },
-    flood: { start: 10, speed: 0.3, perStage: 0.05, depth: 6, sinkBelow: 5 },
+    flood: { start: 5, speed: 0.4, perStage: 0.06, depth: 6, sinkBelow: 5 },
     ahead: 30,
     spawnRayTop: 9,
     seamMargin: 0.2,
@@ -53,8 +56,8 @@ export function stageOf(y, config = CLIMB) {
 
 /** Media distancia (m) entre el eje y las paredes de la etapa `n`. */
 export function halfWidth(n, config = CLIMB) {
-    const { base, perStage, min } = config.width;
-    return Math.max(min, base - perStage * n) / 2;
+    const { first, base, perStage, min } = config.width;
+    return (n === 0 ? first : Math.max(min, base - perStage * n)) / 2;
 }
 
 /**
@@ -130,7 +133,7 @@ export class ClimbGenerator {
         this.previous = {
             y: top,
             platforms: platforms.map((s) => ({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top: s.y + s.h / 2 })),
-            ref: 2,
+            list: [-2.25, 2.25].map((dx) => ({ x: config.centerX + dx, w: config.rows.width[0] })),
         };
     }
 
@@ -148,62 +151,87 @@ export class ClimbGenerator {
         return y;
     }
 
-    /** Sortea la forma de una fila de ancho `half`: `{ center, pairs }` o `null` si no entra. */
-    draw(half) {
-        const { rows } = this.config;
-        const { separation } = rows;
+    /**
+     * Sortea una fila de ancho `half` a la altura `y`: de 2 a 4 plataformas de ancho sorteado, cada una en una x al azar que
+     * solapa `rows.overlap` con alguna de la fila anterior y deja `rows.separation` con las demás. `null` si alguna no entra.
+     */
+    draw(half, y) {
+        const { rows, centerX, reach } = this.config;
         const count = rows.count[0] + Math.floor(this.random() * (rows.count[1] - rows.count[0] + 1));
-        const layout = { center: null, pairs: [] };
-        const pair = (cMin) => {
-            const w = this.uniform(rows.width);
-            const lo = Math.max(w / 2 + separation / 2, cMin(w));
-            const hi = half - w / 2;
-            if (lo > hi) return false;
-            layout.pairs.push({ c: lo + this.random() * (hi - lo), w });
-            return true;
-        };
-        if (count === 3) layout.center = this.uniform(rows.width);
-        if (count === 4) {
-            if (!pair(() => 0)) return null;
-            const first = layout.pairs[0];
-            return pair((w) => first.c + first.w / 2 + separation + w / 2) ? layout : null;
-        }
-        return pair((w) => (layout.center === null ? 0 : (layout.center + w) / 2 + separation)) ? layout : null;
-    }
-
-    /** Plataformas `{ x, w }` de una forma, con la central primero y cada par de izquierda a derecha. */
-    platformsOf(layout) {
-        const { centerX } = this.config;
+        const below = this.previous.platforms.filter((p) => y - p.top <= reach.up.dy + EPS);
+        if (below.length === 0) return null;
         const list = [];
-        if (layout.center !== null) list.push({ x: centerX, w: layout.center });
-        for (const { c, w } of layout.pairs) list.push({ x: centerX - c, w }, { x: centerX + c, w });
+        for (let i = 0; i < count; i++) {
+            let placed = false;
+            for (let t = 0; t < rows.tries && !placed; t++) {
+                const w = this.uniform(rows.width);
+                const p = below[Math.floor(this.random() * below.length)];
+                const lo = Math.max(p.minX + rows.overlap - w / 2, centerX - half + w / 2);
+                const hi = Math.min(p.maxX - rows.overlap + w / 2, centerX + half - w / 2);
+                if (lo > hi) continue;
+                const x = lo + this.random() * (hi - lo);
+                if (list.every((q) => Math.abs(q.x - x) - (q.w + w) / 2 >= rows.separation - EPS)) {
+                    list.push({ x, w });
+                    placed = true;
+                }
+            }
+            if (!placed) return null;
+        }
         return list;
     }
 
-    /** Verdadero si la forma respeta el ancho, la separación y el alcance desde alguna plataforma de la fila anterior. */
+    /** Verdadero si cada plataforma solapa lo exigido con alguna de la fila anterior (desnivel ≤ `reach.up.dy`). */
+    supported(list, y) {
+        const { rows, reach } = this.config;
+        return list.every((p) =>
+            this.previous.platforms.some((q) => y - q.top <= reach.up.dy + EPS && Math.min(q.maxX, p.x + p.w / 2) - Math.max(q.minX, p.x - p.w / 2) >= rows.overlap - EPS),
+        );
+    }
+
+    /** Ancho total de plataformas a la izquierda y a la derecha de `centerX`; una que cruza el centro cuenta por partes. */
+    sides(list) {
+        const { centerX } = this.config;
+        let left = 0;
+        let right = 0;
+        for (const p of list) {
+            left += Math.max(0, Math.min(centerX, p.x + p.w / 2) - (p.x - p.w / 2));
+            right += Math.max(0, p.x + p.w / 2 - Math.max(centerX, p.x - p.w / 2));
+        }
+        return { left, right };
+    }
+
+    /** Verdadero si la fila respeta las paredes, la separación, el solapamiento con la fila anterior y la justicia entre lados. */
     valid(list, y, half) {
-        const { centerX, rows, reach } = this.config;
-        const nodes = list.map((p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: y }));
-        if (nodes.some((n) => Math.max(centerX - n.minX, n.maxX - centerX) > half + EPS)) return false;
-        const sorted = [...nodes].sort((a, b) => a.minX - b.minX);
-        for (let i = 1; i < sorted.length; i++) if (sorted[i].minX - sorted[i - 1].maxX < rows.separation - EPS) return false;
-        return nodes.every((n) => this.previous.platforms.some((p) => reachable(p, n, reach)));
+        const { centerX, rows } = this.config;
+        if (list.some((p) => Math.abs(p.x - centerX) + p.w / 2 > half + EPS)) return false;
+        const sorted = [...list].sort((a, b) => a.x - b.x);
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i].x - sorted[i].w / 2 - (sorted[i - 1].x + sorted[i - 1].w / 2) < rows.separation - EPS) return false;
+        }
+        if (!this.supported(list, y)) return false;
+        const { left, right } = this.sides(list);
+        return Math.abs(left - right) <= rows.fairness * Math.max(left, right) + EPS;
     }
 
-    /** Fila de respaldo: un par de ancho mínimo sobre el par más central de la fila anterior, siempre alcanzable. */
+    /** Fila de respaldo: la anterior recortada al ancho de la etapa; solapa por completo con ella. */
     fallback(half) {
-        const { rows } = this.config;
-        const c = Math.min(Math.max(this.previous.ref, 2), half - 1.5);
-        return { center: null, pairs: [{ c, w: rows.width[0] }] };
+        const { centerX, rows } = this.config;
+        const list = [];
+        for (const p of this.previous.list) {
+            const lo = Math.max(p.x - p.w / 2, centerX - half);
+            const hi = Math.min(p.x + p.w / 2, centerX + half);
+            if (hi - lo >= rows.width[0] - EPS) list.push({ x: (lo + hi) / 2, w: hi - lo });
+        }
+        return list;
     }
 
-    /** Par de armas de la fila: sobre el par más externo, con una sola arma sorteada por `weights`. */
-    pickupsOf(layout, y, stage) {
+    /** Par de armas de la fila: sobre las plataformas más a la izquierda y a la derecha, con una sola arma sorteada por `weights`. */
+    pickupsOf(list, y, stage) {
         if (stage < 1) return [];
         const entry = this.config.pickups[Math.min(stage - 1, this.config.pickups.length - 1)];
         const inStage = this.rowsInStage.get(stage) ?? 0;
         if (inStage % entry.period !== 0) return [];
-        const outer = layout.pairs.reduce((a, b) => (b.c > a.c ? b : a));
+        const sorted = [...list].sort((a, b) => a.x - b.x);
         const entries = Object.entries(entry.weights);
         let roll = this.random() * entries.reduce((sum, [, w]) => sum + w, 0);
         let weapon = FLUID[entries[entries.length - 1][0]];
@@ -214,41 +242,27 @@ export class ClimbGenerator {
                 break;
             }
         }
-        const { centerX, pickupLift } = this.config;
-        return [
-            { x: centerX - outer.c, y: y + pickupLift, weapon },
-            { x: centerX + outer.c, y: y + pickupLift, weapon },
-        ];
+        const { pickupLift } = this.config;
+        return [sorted[0], sorted[sorted.length - 1]].map((p) => ({ x: p.x, y: y + pickupLift, weapon }));
     }
-
     /** Genera la fila siguiente. */
     next() {
         const { rows } = this.config;
         const y = this.avoidSeam(this.previous.y + this.uniform(rows.gap));
         const half = halfWidth(stageOf(y + rows.transition, this.config), this.config);
-        let layout = null;
         let list = null;
-        for (let t = 0; t < rows.tries && layout === null; t++) {
-            const candidate = this.draw(half);
-            if (candidate === null) continue;
-            const platforms = this.platformsOf(candidate);
-            if (this.valid(platforms, y, half)) {
-                layout = candidate;
-                list = platforms;
-            }
+        for (let t = 0; t < rows.tries && list === null; t++) {
+            const candidate = this.draw(half, y);
+            if (candidate !== null && this.valid(candidate, y, half)) list = candidate;
         }
-        if (layout === null) {
-            layout = this.fallback(half);
-            list = this.platformsOf(layout);
-        }
+        if (list === null) list = this.fallback(half);
         const stage = stageOf(y, this.config);
-        const pickups = this.pickupsOf(layout, y, stage);
+        const pickups = this.pickupsOf(list, y, stage);
         this.rowsInStage.set(stage, (this.rowsInStage.get(stage) ?? 0) + 1);
-        const centered = layout.pairs.reduce((a, b) => (b.c < a.c ? b : a));
         this.previous = {
             y,
             platforms: list.map((p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: y })),
-            ref: centered.c,
+            list,
         };
         return { index: this.index++, y, stage, platforms: list, pickups };
     }

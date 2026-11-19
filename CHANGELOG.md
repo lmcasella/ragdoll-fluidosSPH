@@ -8,8 +8,8 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [0.29.0] - 2026-11-19
 
 ### Added
-- Mapa **Infinito**, ahora habilitado y elegido por defecto en el menú: la primera etapa es el mapa clásico y arriba hay etapas de 30 m con paredes propias y filas de plataformas atravesables generadas al azar, siempre al alcance de un salto. Las paredes se angostan 6 m por etapa hasta un mínimo de 24 m. A cada ronda le toca un mapa nuevo; con `?seed=N` en la URL todas las rondas repiten el mismo.
-- El agua sube sin techo desde los 10 s de ronda (0,3 m/s y un poco más rápido en cada etapa). Se genera hacia arriba conforme sube la cámara y lo que queda hundido bajo el agua desaparece.
+- Mapa **Infinito**, ahora habilitado y elegido por defecto en el menú: la primera etapa es el mapa clásico y arriba hay etapas de 15 m con paredes propias y filas de 2 a 4 plataformas atravesables de 3 a 6 m de ancho, generadas al azar. Cada plataforma tiene debajo otra que solapa con ella al menos 1,5 m, así que siempre se alcanza saltando en vertical a través de ella, y los dos lados del mapa tienen un ancho de plataformas parecido (±20 %). Desde la etapa 1 el ancho entre paredes es de 36 m y se angosta 4 m por etapa hasta un mínimo de 24 m. A cada ronda le toca un mapa nuevo; con `?seed=N` en la URL todas las rondas repiten el mismo.
+- El agua sube sin techo desde los 5 s de ronda (0,4 m/s y 0,06 m/s más en cada etapa). Se genera hacia arriba conforme sube la cámara y lo que queda hundido bajo el agua desaparece.
 - Las etapas de arriba traen armas sobre sus plataformas más externas, cada vez más seguidas y más peligrosas (agua, miel y lava al principio, ácido y lava después).
 - En Infinito un robot se ahoga cuando el agua cubre su torso, en cualquier parte del mapa. No hay sensor en la pileta.
 - Clásico sigue disponible en el menú, y es el mapa con el que corren las pruebas.
@@ -33,6 +33,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - Salto variable: un toque de A (o de la tecla de salto) da un salto bajo de unos 1,2 m medidos, y mantener el botón conserva el salto completo de antes (unos 4,1 m). Soltar el salto mientras el robot sube le corta la velocidad vertical a la mitad.
 - Caída rápida: con el stick izquierdo abajo (o la tecla abajo) mientras el robot cae, la gravedad efectiva sube un 30 % y la caída tarda cerca de un 13 % menos. Abajo + A sobre una plataforma atravesable sigue bajando como antes.
 - El bot mantiene el salto apretado mientras sube, para conservar el salto completo.
+- El bot prefiere subir en vertical, a través de la plataforma que tiene justo encima, antes que en diagonal, y conserva el destino de su salto cuando el mapa de Infinito genera o libera filas en pleno vuelo.
 
 ## [0.26.1] - 2026-11-19
 
