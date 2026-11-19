@@ -681,6 +681,8 @@
                 }
                 sonarEventos(now);
                 limpiarParticulas();
+                store.updateSleep(stepsLastFrame * STEP_SETTINGS.dt);
+                store.trim(frameDt * 1000, frameDt);
 
                 camera.update(
                     players.map((p) => {

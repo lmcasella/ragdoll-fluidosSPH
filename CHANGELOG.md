@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-19
+
+### Added
+- Las partículas de los disparos ya no desaparecen: se quitan el vencimiento a los 6 s y el tope de miel. Las que quedan quietas (menos de 0,05 m/s durante 1 s y sin vecinas en movimiento) se congelan: quedan fijas y siguen sosteniendo a las demás. Un robot que las toca, un disparo, una partícula vecina que se mueve o el agua del nivel las despiertan.
+- Recorte por rendimiento: si el frame supera 20 ms (menos de 50 fps) durante 1 s, se destruyen las partículas más viejas (primero las congeladas, luego por disparo; las del mapa al final), de a 100 por frame, hasta recuperar. Sin carga no se recorta nada.
+
+### Removed
+- Las causas de destrucción `EXPIRED` y `PERSIST_CAP` y la constante `PERSIST_MAX`.
 ## [0.27.0] - 2026-11-19
 
 ### Added
