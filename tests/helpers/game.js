@@ -36,7 +36,8 @@ export function giveAllWeapons(game) {
  * Carga el juego en Node. `options.assets` mapea una URL del juego (por ejemplo "./assets/robot.rag.json") a una
  * función que recibe el JSON leído y devuelve el JSON a usar: sirve para probar cambios al rig solo en memoria.
  * `options.audioContext` es el constructor de un `AudioContext` falso (ver `tests/helpers/fake-audio.js`); sin él el
- * juego corre sin `AudioContext`, como en Node.
+ * juego corre sin `AudioContext`, como en Node. El juego arranca en `playing` para que las pruebas de gameplay no pasen
+ * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  */
 export async function loadGame(options = {}) {
     globalThis.__TEST_HOOKS__ = true;
@@ -99,6 +100,8 @@ export async function loadGame(options = {}) {
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
+
+    if (!options.intro) globalThis.game.match.state = "playing";
 
     const padState = [];
     const refreshPads = () => {

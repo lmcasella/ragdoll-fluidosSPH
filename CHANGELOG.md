@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-19
+
+### Added
+- El juego se cierra sin recargar la página. Arranca en una pantalla de título (A, Start o Enter para empezar) y antes de cada ronda hay una cuenta regresiva de 3 s en la que nadie se mueve ni dispara, seguida de un ¡YA!. Al terminar la partida el cartel muestra el marcador: con A o disparar pedís la revancha y con Start (Escape en el teclado) volvés al título. Durante el primer segundo del cartel final los botones se ignoran, para no pedir la revancha sin querer.
+
 ## [0.21.0] - 2026-11-19
 
 ### Added
