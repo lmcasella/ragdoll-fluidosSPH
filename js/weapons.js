@@ -17,8 +17,8 @@ export const CONTACT_LISTENER_PARTICLE = PARTICLE.CONTACT_LISTENER;
  * borraría partículas por su cuenta y los slots quedarían colgados.
  */
 export const SHOT_SYSTEM = {
-    radius: 0.12,
-    maxCount: 3000,
+    radius: 0.06,
+    maxCount: 12000,
     destroyByAge: false,
     gravityScale: 1,
     density: SIGMA_W,
@@ -30,19 +30,20 @@ export const SHOT_SYSTEM = {
 };
 
 /** Tope de partículas de armas `persist` (la miel) que quedan en el mapa; las más viejas se destruyen primero. */
-export const PERSIST_MAX = 300;
+export const PERSIST_MAX = 1200;
 
 /**
  * Tabla de armas. `rate`: partículas/s; `speed`: m/s; `spread`: rad (±); `tank`: partículas; `dps`: daño por
- * segundo con el chorro entero (0 si el arma aplica un estado). Cada arma cumple `rate ≤ speed / (1,5 r)`: un
- * solo carril sin explosión al crear. `persist`: no vence a los 6 s del disparo; queda como charco y cuenta para
+ * segundo con el chorro entero (0 si el arma aplica un estado). `lanes`: carriles paralelos separados 1,5 r y
+ * centrados en el eje, repartidos por turno; cada arma cumple `rate / lanes ≤ speed / (1,5 r)`: un carril
+ * sin explosión al crear. `persist`: no vence a los 6 s del disparo; queda como charco y cuenta para
  * PERSIST_MAX.
  */
 export const WEAPONS = [
-    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 50, speed: 14, spread: 0.035, tank: 150, dps: 0 },
-    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 45, speed: 14, spread: 0.035, tank: 68, dps: 20 },
-    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 30, speed: 10, spread: 0.017, tank: 45, dps: 12 },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 25, speed: 18, spread: 0.017, tank: 38, dps: 0, persist: true },
+    { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 200, speed: 14, spread: 0.035, tank: 600, dps: 0, lanes: 2 },
+    { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 180, speed: 14, spread: 0.035, tank: 272, dps: 20, lanes: 2 },
+    { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 120, speed: 10, spread: 0.017, tank: 180, dps: 12, lanes: 2 },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 100, speed: 18, spread: 0.017, tank: 152, dps: 0, lanes: 1, persist: true },
 ];
 
 /**
@@ -85,6 +86,8 @@ export function cycleWeapon(player, step) {
 }
 
 const GOLDEN = 0.6180339887498949;
+/** Separación entre carriles vecinos, en radios de partícula. */
+const LANE_SPACING = 1.5;
 const PARTICLE_RADIUS = SHOT_SYSTEM.radius;
 /** Distancia de la boca a la primera partícula: no nace dentro del arma. */
 const MUZZLE_OFFSET = PARTICLE_RADIUS + 0.05;
@@ -173,8 +176,9 @@ export class ShotEmitter {
             const sin = Math.sin(angle);
             const along = MUZZLE_OFFSET + step * (n - 1 - j);
             if (along > reach) continue;
-            this.position.set_x(muzzle.x + muzzle.dx * along);
-            this.position.set_y(muzzle.y + muzzle.dy * along);
+            const lateral = ((s.seq % weapon.lanes) - (weapon.lanes - 1) / 2) * LANE_SPACING * PARTICLE_RADIUS;
+            this.position.set_x(muzzle.x + muzzle.dx * along - muzzle.dy * lateral);
+            this.position.set_y(muzzle.y + muzzle.dy * along + muzzle.dx * lateral);
             this.velocity.set_x(weapon.speed * (muzzle.dx * cos - muzzle.dy * sin));
             this.velocity.set_y(weapon.speed * (muzzle.dx * sin + muzzle.dy * cos));
             this.def.set_position(this.position);

@@ -36,7 +36,7 @@ export const LEVEL = {
         emitX1: 1,
         emitX2: 55,
         dropSpeed: 8,
-        maxRate: 300,
+        maxRate: 1200,
     },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
     spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
