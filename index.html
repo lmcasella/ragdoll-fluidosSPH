@@ -344,11 +344,17 @@
                 players.forEach((_, k) => input.setVirtualPad(k, null));
             }
 
+            /** Semilla de los bots: `?seed=N` en la URL la fija para reproducir una partida; si no, es aleatoria. */
+            const botSeed = Number.parseInt(new URLSearchParams(globalThis.location?.search ?? "").get("seed") ?? "", 10);
+
             /** Deja los bots que pide la elección del menú, con el preset de su dificultad. */
             function ponerBots({ bots: ks, difficulty }) {
                 quitarBots();
                 const config = botConfig(difficulty);
-                for (const k of ks) bots.set(k, new Bot({ k, world, config, seed: (Math.random() * 2 ** 32) >>> 0 }));
+                for (const k of ks) {
+                    const seed = Number.isFinite(botSeed) ? botSeed + k : (Math.random() * 2 ** 32) >>> 0;
+                    bots.set(k, new Bot({ k, world, config, seed }));
+                }
             }
 
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
