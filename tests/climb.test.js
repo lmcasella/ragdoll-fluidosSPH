@@ -3,7 +3,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CLIMB, ClimbGenerator, halfWidth, reachable, seamHeights, stageOf, stageWalls } from "../js/climb.js";
+import { CLIMB, ClimbGenerator, baseSolids, halfWidth, reachable, seamHeights, stageOf, stageWalls } from "../js/climb.js";
 import { LEVEL } from "../js/level.js";
 import { FLUID } from "../js/weapons.js";
 
@@ -20,6 +20,7 @@ function rowsUntil(seed, top = TOP) {
 }
 
 const nodeOf = (p, y) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: y });
+const basePlatforms = () => baseSolids().filter((s) => s.kind === "platform").map((s) => ({ x: s.x, w: s.w, y: s.y + s.h / 2 }));
 
 test("costuras: la primera está en 245,76 m y se repiten cada 491,52 m", () => {
     assert.ok(Math.abs(SEAMS[0] - 245.76) < 1e-3, `primera costura ${SEAMS[0]}`);
@@ -33,7 +34,7 @@ test("C1: el generador cumple el invariante de alcance en 50 semillas hasta 400 
     let lowered = 0;
     for (let seed = 1; seed <= 50; seed++) {
         const rows = rowsUntil(seed);
-        let previous = { y: 13.6, platforms: [{ x: 28, w: 12 }] };
+        let previous = { y: 7.8, platforms: basePlatforms() };
         const inStage = new Map();
         for (const row of rows) {
             rowCount++;
@@ -49,7 +50,7 @@ test("C1: el generador cumple el invariante de alcance en 50 semillas hasta 400 
             for (const p of row.platforms) {
                 if (Math.abs(p.x - CLIMB.centerX) + p.w / 2 > half + 1e-9) violations.push(`${where}: fuera de las paredes`);
                 if (p.w < CLIMB.rows.width[0] - 1e-9 || p.w > CLIMB.rows.width[1] + 1e-9) violations.push(`${where}: ancho ${p.w}`);
-                if (!previous.platforms.some((q) => reachable(nodeOf(q, previous.y), nodeOf(p, row.y)))) violations.push(`${where}: inalcanzable`);
+                if (!previous.platforms.some((q) => reachable(nodeOf(q, q.y ?? previous.y), nodeOf(p, row.y)))) violations.push(`${where}: inalcanzable`);
                 const mirror = row.platforms.find((q) => Math.abs(q.x - (2 * CLIMB.centerX - p.x)) < 1e-9 && Math.abs(q.w - p.w) < 1e-9);
                 if (!mirror) violations.push(`${where}: sin espejo`);
             }
@@ -94,11 +95,15 @@ test("C1: la misma semilla da las mismas filas y otra semilla da otras", () => {
     assert.notDeepEqual(rowsUntil(7, 120), rowsUntil(8, 120));
 });
 
-test("C1: la primera fila sale de la plataforma más alta del clásico, sobre el rayo de aparición", () => {
+test("C1: la base de Infinito son las plataformas del clásico con tope ≤ 8 m y la primera fila queda sobre el rayo de aparición", () => {
+    const base = basePlatforms();
+    assert.equal(base.length, 5);
+    assert.ok(base.every((p) => p.y <= CLIMB.baseMaxTop));
+    assert.ok(LEVEL.solids.some((s) => s.kind === "platform" && s.y + s.h / 2 > CLIMB.baseMaxTop), "el clásico conserva las altas");
+    assert.ok(baseSolids().every((s) => s.kind !== "wall"));
     const [first] = rowsUntil(1, 20);
     assert.ok(first.y - CLIMB.rows.thickness >= CLIMB.spawnRayTop + 0.7 - 1e-9, `cara inferior ${first.y - CLIMB.rows.thickness}`);
     assert.equal(first.pickups.length, 0, "la etapa 0 no lleva armas generadas");
-    assert.ok(LEVEL.solids.some((s) => s.kind === "platform" && Math.abs(s.y + s.h / 2 - 13.6) < 1e-9));
 });
 
 test("paredes: la etapa 0 queda en x = 0 y 56 como el clásico y cada una se angosta 6 m", () => {

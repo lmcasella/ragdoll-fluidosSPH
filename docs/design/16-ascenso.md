@@ -7,7 +7,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 ## 16.1 Qué es
 
 - Mapa **Infinito** en la fila Mapa del menú: habilitado y default. **Clásico** no cambia y queda como mapa de testing. Rondas, reglas y partida sin cambios ([02](02-partida.md)).
-- **Etapa 0** = el clásico (pisos, islas, pileta y plataformas de `LEVEL.solids`, armas de `LEVEL.pickups`, aparición de siempre), sin las paredes de `LEVEL` ni el sensor de la pileta.
+- **Etapa 0** = el clásico reducido a sus plataformas bajas: pisos, islas, pileta y solo las plataformas de `LEVEL.solids` con tope ≤ `baseMaxTop` (8 m) y las armas de `LEVEL.pickups` sobre ellas, aparición de siempre, sin las paredes de `LEVEL` ni el sensor de la pileta. El clásico tiene plataformas altas (tope 10,3 y 13,6) que no se alcanzan desde ninguna otra, y así nadie llegaría a las filas generadas.
 - Encima, **etapas** de 30 m (etapa `n` = `y` ∈ [30n, 30n + 30)) con paredes propias y filas de plataformas atravesables generadas con semilla.
 - El agua sube sin techo desde los 10 s. Se genera hacia arriba y se libera lo que queda hundido.
 
@@ -18,6 +18,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `centerX` | 28 | Eje de simetría (m) |
 | `stageHeight` | 30 | Alto de etapa (m) |
 | `width` | `{ base: 56, perStage: 6, min: 24 }` | `W(n) = max(min, base − perStage · n)`; media `half(n) = W(n)/2` |
+| `baseMaxTop` | 8 | Tope máximo (m) de las plataformas del clásico que entran en la etapa 0 |
 | `wallOuter` | 20 | Las paredes van de `centerX ± half(n)` hacia afuera hasta x = −20 y x = 76 (solo para que la cámara no muestre vacío; el campo y la limpieza siguen en x 0–56) |
 | `rows` | `{ gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1, tries: 50, transition: 3.5 }` | Generador (16.3) |
 | `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | Una sola fuente para el invariante y el grafo del bot |
@@ -26,14 +27,14 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `repair` | `{ perStage: 1, item: null }` | Prevista para #156. Con `item: null`, `Climb` la ignora. No se implementa acá |
 | `flood` | `{ start: 10, speed: 0.3, perStage: 0.05, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m) |
-| `spawnRayTop` | 15 | Inicio del rayo de aparición en Infinito (m), por debajo de la primera fila generada (≥ 15,7 m de cara inferior) |
+| `spawnRayTop` | 9 | Inicio del rayo de aparición en Infinito (m), por debajo de la primera fila generada (≥ 9,9 m de cara inferior) |
 | `seamMargin` | 0.2 | 16.9, costuras de LiquidFun |
 
 ## 16.3 Geometría y generador
 
 **Paredes.** Por etapa `n`, dos rectángulos `kind: "wall"` sin `oneWay`: izquierda x ∈ [−20, 28 − half(n)], derecha x ∈ [28 + half(n), 76], y ∈ [30n, 30n + 30]. La etapa 0 también usa paredes de `CLIMB` (half = 28: caras en x = 0 y 56, como el clásico).
 
-**Filas.** La fila −1 es la plataforma más alta de `LEVEL` (x 22–34, tope 13,6). Cada fila `k` tiene un tope `y_k = y_{k−1} + U(gap)`; todas sus plataformas comparten `y_k`, son `kind: "platform"`, `oneWay: true`, alto 0,4.
+**Filas.** La fila −1 es el conjunto de plataformas bajas de la etapa 0 (tope ≤ `baseMaxTop`: 7,0, 5,8 y 7,8 m), cada una con su propio tope; la fila 0 está a `U(gap)` sobre la más alta (7,8 m). Cada fila `k` tiene un tope `y_k = y_{k−1} + U(gap)`; todas sus plataformas comparten `y_k`, son `kind: "platform"`, `oneWay: true`, alto 0,4.
 
 - **Ancho de colocación:** `half(stageOf(y_k + transition))`. Una fila a menos de 3,5 m bajo un cambio de etapa ya usa el ancho de la etapa de arriba, así nadie queda bajo el voladizo de la pared.
 - **Composición** (`count` uniforme en {2, 3, 4}): 2 = un par; 3 = una central (x = 28) + un par; 4 = dos pares. Un par son dos plataformas iguales en `28 ± c`. Anchos uniformes en [3, 6].
@@ -46,7 +47,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 ## 16.4 Armas e ítem de reparación
 
-- Etapa 0: solo `LEVEL.pickups`. Las filas generadas dentro de la etapa 0 (13,6 a 30 m) no llevan armas.
+- Etapa 0: solo `LEVEL.pickups`. Las filas generadas dentro de la etapa 0 (de 10,3 a 30 m) no llevan armas.
 - Etapa `n ≥ 1`: la fila lleva un par de armas si `índice de la fila dentro de su etapa % period === 0`. Van sobre el par más externo de la fila, en `(x, y_k + 0,6)`, con **la misma arma** en los dos lados (un sorteo por par con `weights`).
 - Reparación: solo la entrada `repair` de la tabla (16.2). #156 decide qué es y dónde va.
 
@@ -134,9 +135,9 @@ Pasos fijos como hoy (`flood.step` = `RisingFlood.step` antes de `buoyancy.apply
 | **Columnas fuera de las paredes que se angostan** | Span activo con columnas congeladas (16.5): no se integran, no se leen ni se dibujan, y conservan su volumen (sin sumidero nuevo). El agua bajo el voladizo de la pared queda atrapada, que es lo físico |
 | **Partículas fuera del ancho** | No pueden estar fuera de las paredes (sólidas, hasta x = −20 y 76). Las que caen bajo el fondo efectivo (inmiscibles que se hunden, o lo que cae por donde había pisos destruidos) se destruyen con `SINK.OUT` cuando `y < flood.floor − 1`. Las miscibles bajo el agua ya las absorbe `Immersion` |
 | **Precisión de float** | Box2D y LiquidFun en float32: a 256–512 m el ulp es 3·10⁻⁵ m, contra `linearSlop` 0,005: sin problema hasta miles de metros. El campo es Float64. **El límite real es la grilla de LiquidFun:** `computeTag` (fuente de LiquidFun 1.1, `b2ParticleSystem.cpp`) usa 12 bits para `y / diámetro` con un corrimiento de 2048, y da la vuelta cada 4096 celdas. Con `r` = 0,06 hay **costuras** en `y_s = 245,76 + 491,52 k` m. Ahí se pierden los contactos partícula–partícula, y los partícula–cuerpo de toda fixture cuya caja cruza la costura (el enumerador queda vacío). **Decisión:** ningún sólido generado cruza una costura. Las paredes se parten en dos cuerpos en `y_s`. Si una plataforma (tope a tope − 0,4) quedaría a menos de `seamMargin` de `y_s`, la fila baja hasta quedar entera debajo, con `dy ≥ 1,7` y el alcance intacto. Los contactos entre partículas en la costura se aceptan como defecto. Sin origen flotante: mover mundo, partículas y campo cuesta demasiado para el 24/11 y el agua tarda unos 9 min en llegar a 245 m. Las costuras se calculan con el radio float32 del sistema en tiempo de ejecución |
-| **`LEVEL.bounds`, cámara y `buildLevel`** | `LEVEL` no se muta y sigue siendo el clásico, y la x del campo y la limpieza (0–56). Infinito no usa `buildLevel`: `Climb` construye la etapa 0 desde `LEVEL.solids`, sin las paredes. La cámara recibe `cameraBounds` con `maxY: Infinity`. `floodLevel`, `freeWidth` y `levelOfArea` (`maxY` = 32) son solo de `Flood` |
+| **`LEVEL.bounds`, cámara y `buildLevel`** | `LEVEL` no se muta y sigue siendo el clásico, y la x del campo y la limpieza (0–56). Infinito no usa `buildLevel`: `Climb` construye la etapa 0 desde `LEVEL.solids`, sin las paredes y solo con las plataformas con tope ≤ `baseMaxTop`. La cámara recibe `cameraBounds` con `maxY: Infinity`. `floodLevel`, `freeWidth` y `levelOfArea` (`maxY` = 32) son solo de `Flood` |
 | **Sensor de la pileta** | No se crea en Infinito. Lo reemplaza la regla de ahogo por superficie (16.5), en todo el mapa y desde el segundo 0 |
-| **Rayo de aparición** | En Infinito sale de `spawnRayTop` = 15 m: debajo de toda fila generada y encima de lo que hay sobre x = 7,5 y 48,5 en el clásico (islas, tope 4). Desde `bounds.maxY` pegaría en una fila generada |
+| **Rayo de aparición** | En Infinito sale de `spawnRayTop` = 9 m: debajo de toda fila generada y encima de lo que hay sobre x = 7,5 y 48,5 en el clásico (islas, tope 4). Desde `bounds.maxY` pegaría en una fila generada |
 | **Memoria nativa** | Cuerpos estáticos de una fixture, creados y destruidos simétricamente. Unos 110 vivos a la vez (unos 40 KB). El árbol dinámico y el `b2BlockAllocator` reutilizan lo liberado. Ningún temporal por elemento |
 | **Grilla de dibujo fija (64 × 40 m)** | Sigue a la cámara (16.6). Si no, arriba de 38 m todo cae en la fila del borde |
 
@@ -160,7 +161,7 @@ Pasos fijos como hoy (`flood.step` = `RisingFlood.step` antes de `buoyancy.apply
 | Id | Criterio | Esperado |
 |---|---|---|
 | C1 | Invariante de alcance: `ClimbGenerator` con semillas 1–50 hasta y = 400 m. Cada plataforma alcanzable desde alguna de la fila anterior (`reachable`), dentro de las paredes, a ≥ 1 m de sus vecinas, espejada; filas con `dy` ∈ [2,5; 3,2] (o [1,7; 3,2] junto a una costura); ninguna plataforma ni pared cruza una costura; pares de armas por etapa según `period` y armas solo de `weights` | 0 violaciones; misma semilla, mismas filas |
-| C2 | Heap: `Climb` con mundo propio, `level` y `top` subiendo hasta generar y liberar 5 etapas. `heapTop()` (como en `one-way-platforms.test.js`) medido tras la etapa 1 y tras la etapa 6 | No sube; `world.GetBodyCount()` ≤ 200 en todo momento; `platforms.platforms.size` y `pickups.points.length` iguales a los vivos de `climb.level` |
+| C2 | Heap: `Climb` con mundo propio, `level` y `top` subiendo hasta generar y liberar 5 etapas. `heapTop()` (como en `one-way-platforms.test.js`) medido tras la etapa 1 y tras la etapa 6 | No sube; `world.GetBodyCount()` ≤ 200 en todo momento; `platforms.platforms.size` y `pickups.points.length` iguales a los vivos de `climb.level`. Se acepta la deriva de ~16 B por cuerpo del `b2BlockAllocator` (propia de Box2D, también en un lazo sin código del juego), con un margen de 2 trozos de 16 KiB |
 | C3 | Costo del campo: `ShallowWater` + `RisingFlood` (JS puro) con `CLIMB.flood` ×10 en velocidad hasta `η*` ≥ 150 m; se miden los últimos 600 pasos | Subpasos medios ≤ 6, `capHits` = 0, `halvings` = 0, `min h ≥ 0`; ms por `water.step` ≤ 1,5 × el de Clásico con el agua en 15 m (misma máquina, se imprimen los dos) |
 | C4 | Bot que sube: Infinito, `?bot=2`, semillas 1, 2 y 3; J1 sin input e inmortal (el test reemplaza `drown`, `hurt` y `burn` de J1 por no-op) | El torso de J2 pasa y = 60 m vivo, en ≤ 240 s simulados, en 3 de 3 semillas |
 | C5 | Ronda que termina por agua: Infinito, sin pads | Los dos robots mueren por `drown` y `match` pasa a `roundOver` antes de los 30 s de ronda |

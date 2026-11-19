@@ -5,7 +5,8 @@ import { FLUID, SHOT_SYSTEM } from "./weapons.js";
 /**
  * Valores del ascenso infinito (docs/design/16-ascenso.md §16.2). Distancias en m, tiempos en s.
  * - `centerX`: eje de simetría; `stageHeight`: alto de una etapa; `width`: ancho entre paredes `W(n) = max(min, base − perStage · n)`;
- *   `wallOuter`: cuánto se extienden las paredes más allá de los límites del nivel;
+ *   `wallOuter`: cuánto se extienden las paredes más allá de los límites del nivel; `baseMaxTop`: tope máximo (m) de las
+ *   plataformas del clásico que entran en la etapa 0 (las más altas no se alcanzan desde otra);
  * - `rows`: generador de filas (`gap` entre topes, `count` de plataformas por fila, `width` de cada una, `thickness`,
  *   `separation` mínima entre plataformas de una fila, `tries` sorteos antes de la fila de respaldo, `transition`: una
  *   fila a menos de esto bajo un cambio de etapa ya usa el ancho de la etapa de arriba);
@@ -22,6 +23,7 @@ export const CLIMB = {
     stageHeight: 30,
     width: { base: 56, perStage: 6, min: 24 },
     wallOuter: 20,
+    baseMaxTop: 8,
     rows: { gap: [2.5, 3.2], count: [2, 4], width: [3, 6], thickness: 0.4, separation: 1, tries: 50, transition: 3.5 },
     reach: BOT.reach,
     pickupLift: 0.6,
@@ -33,7 +35,7 @@ export const CLIMB = {
     repair: { perStage: 1, item: null },
     flood: { start: 10, speed: 0.3, perStage: 0.05, depth: 6, sinkBelow: 5 },
     ahead: 30,
-    spawnRayTop: 15,
+    spawnRayTop: 9,
     seamMargin: 0.2,
 };
 
@@ -68,6 +70,11 @@ export function seamHeights(radius, from, to) {
         if (y >= from) seams.push(y);
     }
     return seams;
+}
+
+/** Sólidos del clásico que entran en la etapa 0: sin paredes y solo las plataformas con tope ≤ `baseMaxTop`. */
+export function baseSolids(base = LEVEL, config = CLIMB) {
+    return base.solids.filter((s) => s.kind !== "wall" && (s.kind !== "platform" || s.y + s.h / 2 <= config.baseMaxTop + EPS));
 }
 
 /**
@@ -118,13 +125,11 @@ export class ClimbGenerator {
         this.random = seededRandom(seed);
         this.index = 0;
         this.rowsInStage = new Map();
-        const platforms = base.solids.filter((s) => s.kind === "platform");
+        const platforms = baseSolids(base, config).filter((s) => s.kind === "platform");
         const top = Math.max(...platforms.map((s) => s.y + s.h / 2));
         this.previous = {
             y: top,
-            platforms: platforms
-                .filter((s) => Math.abs(s.y + s.h / 2 - top) < EPS)
-                .map((s) => ({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2 })),
+            platforms: platforms.map((s) => ({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top: s.y + s.h / 2 })),
             ref: 2,
         };
     }
@@ -182,7 +187,7 @@ export class ClimbGenerator {
         if (nodes.some((n) => Math.max(centerX - n.minX, n.maxX - centerX) > half + EPS)) return false;
         const sorted = [...nodes].sort((a, b) => a.minX - b.minX);
         for (let i = 1; i < sorted.length; i++) if (sorted[i].minX - sorted[i - 1].maxX < rows.separation - EPS) return false;
-        return nodes.every((n) => this.previous.platforms.some((p) => reachable({ ...p, top: this.previous.y }, n, reach)));
+        return nodes.every((n) => this.previous.platforms.some((p) => reachable(p, n, reach)));
     }
 
     /** Fila de respaldo: un par de ancho mínimo sobre el par más central de la fila anterior, siempre alcanzable. */
@@ -242,7 +247,7 @@ export class ClimbGenerator {
         const centered = layout.pairs.reduce((a, b) => (b.c < a.c ? b : a));
         this.previous = {
             y,
-            platforms: list.map((p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2 })),
+            platforms: list.map((p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: y })),
             ref: centered.c,
         };
         return { index: this.index++, y, stage, platforms: list, pickups };
@@ -250,8 +255,8 @@ export class ClimbGenerator {
 }
 
 /**
- * Mundo del ascenso infinito (docs/design/16-ascenso.md §16.6): crea la etapa 0 (los pisos, islas y plataformas del
- * nivel clásico sin sus paredes ni el sensor de la pileta), las paredes de cada etapa y las filas de `ClimbGenerator`
+ * Mundo del ascenso infinito (docs/design/16-ascenso.md §16.6): crea la etapa 0 (los pisos, islas y plataformas bajas del
+ * nivel clásico, sin sus paredes ni el sensor de la pileta), las paredes de cada etapa y las filas de `ClimbGenerator`
  * conforme sube la cámara, y libera lo que el agua dejó hundido. Cada elemento es un cuerpo estático con una fixture
  * de caja (fricción 0,8); las plataformas se registran en `OneWayPlatforms` y las armas en `Pickups`. El `b2BodyDef`, el
  * `b2PolygonShape` y los `b2Vec2` de trabajo se crean una vez y se liberan en `dispose`.
@@ -296,11 +301,12 @@ export class Climb {
         this.clear();
         this.generator = new ClimbGenerator(seed, this.config, this.base, this.radius);
         this.stagesBuilt = -1;
-        this.lastY = Math.max(...this.base.solids.filter((s) => s.kind === "platform").map((s) => s.y + s.h / 2));
-        for (const s of this.base.solids) {
-            if (s.kind !== "wall") this.addBox(s.x, s.y, s.w, s.h, s.kind, !!s.oneWay);
+        const low = baseSolids(this.base, this.config);
+        this.lastY = Math.max(...low.filter((s) => s.kind === "platform").map((s) => s.y + s.h / 2));
+        for (const s of low) this.addBox(s.x, s.y, s.w, s.h, s.kind, !!s.oneWay);
+        for (const p of this.base.pickups) {
+            if (p.y - this.config.pickupLift <= this.config.baseMaxTop + EPS) this.points.push(this.pickups.add(p));
         }
-        for (const p of this.base.pickups) this.points.push(this.pickups.add(p));
         this.generate(60);
     }
 

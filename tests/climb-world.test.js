@@ -82,7 +82,7 @@ test("Climb: cameraBounds sigue el ancho de la etapa y no tiene techo", () => {
 
 const noop = () => {};
 
-test("C4: el bot de J2 sube pasando los 60 m con J1 quieto e inmortal en 3 semillas", { timeout: 900000, todo: "sin resolver (#25): la plataforma más alta del clásico (tope 13,6) no es alcanzable en el grafo del bot (buildNav) desde ninguna otra, así que no llega a las filas generadas" }, async () => {
+test("C4: el bot de J2 sube pasando los 60 m (2 etapas) con J1 quieto e inmortal en 3 semillas", { timeout: 900000, todo: "sin resolver (#25): con la base de plataformas bajas el bot llega a la primera fila (tope 10,7 m, t = 20 s) pero solo sube cuando el agua queda a menos de BOT.floodMargin del piso que pisa; en una plataforma segura vuelve a perseguir a J1, que está quieto en el piso de la isla, baja y el agua lo ahoga a los 22,9 s con el torso en 12,5 m como máximo (semilla 1)" }, async () => {
     for (const seed of [1, 2, 3]) {
         globalThis.location = { search: `?bot=2&seed=${seed}` };
         const game = await loadGame({ map: "infinite" });
@@ -101,6 +101,42 @@ test("C4: el bot de J2 sube pasando los 60 m con J1 quieto e inmortal en 3 semil
         assert.ok(!players[1].dead, `J2 murió con el agua en ${game.state.flood.level}`);
         assert.ok(best >= 60, `J2 llegó solo a ${best}`);
     }
+    globalThis.location = { search: "" };
+});
+
+test("Infinito: un robot guiado por el grafo del bot llega del piso a la primera fila generada antes de que el agua lo alcance", { timeout: 300000 }, async () => {
+    globalThis.location = { search: "?bot=2&seed=1" };
+    const game = await loadGame({ map: "infinite" });
+    const { players, bots, flood } = game.state;
+    Object.assign(players[0], { drown: noop, hurt: noop, burn: noop });
+    const bot = bots.get(1);
+    const firstRow = () => {
+        const from = bot.supportOf(players[1]);
+        if (from === null) return null;
+        const dist = bot.distances(from);
+        let best = null;
+        bot.nav.nodes.forEach((n, i) => {
+            if (n.top <= CLIMB.baseMaxTop || dist[i] === Infinity) return;
+            if (best === null || n.top < bot.nav.nodes[best].top - 1e-9 || (Math.abs(n.top - bot.nav.nodes[best].top) < 1e-9 && dist[i] < dist[best])) best = i;
+        });
+        return best;
+    };
+    let arrived = null;
+    let rowTop = null;
+    for (let frame = 0; frame < 60 * 40 && arrived === null && !players[1].dead; frame++) {
+        const goal = firstRow();
+        if (goal !== null) {
+            bot.goal = goal;
+            rowTop = bot.nav.nodes[goal].top;
+        }
+        bot.replanAt = Infinity;
+        game.frame();
+        const cur = bot.supportOf(players[1]);
+        if (cur !== null && players[1].grounded && bot.nav.nodes[cur].top > CLIMB.baseMaxTop) arrived = frame / 60;
+    }
+    console.log(`Infinito: J2 sube del piso a la primera fila generada (tope ${rowTop?.toFixed(2)} m) en ${arrived?.toFixed(1)} s`);
+    assert.ok(arrived !== null, `no llegó, J2 en y ${players[1].torso.GetPosition().get_y().toFixed(2)}, muerto ${players[1].dead}`);
+    assert.ok(arrived < flood.config.start + 10, `llegó tarde: ${arrived} s`);
     globalThis.location = { search: "" };
 });
 
