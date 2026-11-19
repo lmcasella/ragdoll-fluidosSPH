@@ -1,5 +1,3 @@
-// Loop de partida: título, cuenta regresiva y rondas al mejor de N. Gana la ronda el último robot en pie; gana la
-// partida quien llega a `winsNeeded`. Al terminar una ronda hay cámara lenta y un cartel; después se reinicia sin recargar.
 const ROUND_OVER_TIME = 3;
 const SLOW_MOTION_TIME = 1.5;
 const SLOW_MOTION_SCALE = 0.3;
@@ -12,7 +10,10 @@ export const GO_TIME = 0.6;
 
 /** Segundos del fin de partida en que se ignoran los botones, para no pedir la revancha sin querer. */
 export const MATCH_OVER_LOCK = 1;
+
 /**
+ * Loop de partida: título, cuenta regresiva y rondas al mejor de N; gana la ronda el último robot en pie y la partida
+ * quien llega a `winsNeeded`. Al terminar una ronda hay cámara lenta y un cartel, y se reinicia sin recargar.
  * Estados: `title` -> `countdown` -> `playing` -> `roundOver` -> (`countdown` | `matchOver`); `matchOver` ->
  * `countdown` (revancha, `action`) o `title` (`start`). Toda entrada a `countdown` devuelve "reset".
  */
@@ -23,12 +24,12 @@ export class Match {
         this.round = 1;
         this.state = "title";
         this.timer = 0;
-        this.roundTime = 0; // s de juego real de la ronda en curso; solo avanza en "playing"
+        this.roundTime = 0;
         this.roundWinner = null;
         this.matchWinner = null;
     }
 
-    // Escala de tiempo de la simulación (cámara lenta al terminar la ronda)
+    /** Escala de tiempo de la simulación (cámara lenta al terminar la ronda). */
     get timeScale() {
         const elapsed = ROUND_OVER_TIME - this.timer;
         return this.state === "roundOver" && elapsed < SLOW_MOTION_TIME ? SLOW_MOTION_SCALE : 1;
@@ -41,7 +42,7 @@ export class Match {
         return "reset";
     }
 
-    // Avanza con tiempo real; devuelve "reset" cuando hay que volver a armar la ronda
+    /** Avanza con tiempo real (`roundTime`, en s, solo en `playing`); devuelve "reset" para volver a armar la ronda. */
     update(players, inputs, dt) {
         if (this.state === "title") {
             if (inputs.some((s) => s.action || s.start)) {
@@ -107,17 +108,17 @@ export class Match {
         return null;
     }
 
-    // Los peligros que dañan por tiempo (inundación) solo actúan mientras se juega la ronda
+    /** Los peligros que dañan por tiempo (inundación) solo actúan mientras se juega la ronda. */
     get hazardsActive() {
         return this.state === "playing";
     }
 
-    // Los robots solo obedecen al input mientras se juega y en el cartel de fin de ronda
+    /** Los robots solo obedecen al input mientras se juega y en el cartel de fin de ronda. */
     get controlsActive() {
         return this.state === "playing" || this.state === "roundOver";
     }
 
-    // Cartel central, o null durante el juego
+    /** Cartel central, o null durante el juego. */
     get banner() {
         if (this.state === "title") {
             return { title: "RAGDOLL FLUIDOS", subtitle: "A / Start / Enter para empezar" };
