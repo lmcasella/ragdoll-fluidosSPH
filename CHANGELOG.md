@@ -22,6 +22,9 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - El campo de agua puede angostarse a las paredes de la etapa y subir su fondo efectivo; en Clásico no cambia nada.
 - El cartel de controles (#163) ya no se dibuja durante la partida: se muestra solo en el menú principal, debajo de las opciones.
 
+### Fixed
+- Los robots ya no caen a través de una plataforma atravesable al caminar sobre ella, al darse vuelta encima ni al aterrizar rápido: una vez apoyado, la plataforma sigue sólida hasta que te vas o bajás con abajo + A.
+
 ## [0.28.0] - 2026-11-19
 
 ### Added
