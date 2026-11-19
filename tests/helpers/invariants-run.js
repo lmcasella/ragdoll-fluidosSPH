@@ -3,7 +3,9 @@
  * con LiquidFun real y gamepad simulado. Robots quietos hasta `flood.start − 10` s de ronda; la ventana dura 60 s
  * (o hasta el último paso anterior a `reiniciarRonda`, si la ronda termina antes), cada robot cambia de arma cada
  * 3 s en el orden de la tabla de armas y dispara sin soltar, con la mira barriendo de la otra punta de la isla
- * rival al piso entre los dos. Se mide al final de cada paso fijo envolviendo `water.step`.
+ * rival al piso entre los dos. Se mide al final de cada paso fijo envolviendo `water.step`. `options` ajusta la
+ * escena para los escenarios del usuario (#109): `windowSeconds`, `leadSeconds` (segundos antes de `flood.start`
+ * en que empieza la ventana), `onStart(game)` y `onFrame(game, frame)` para grabar.
  */
 import { loadGame } from "./game.js";
 import { UnionArea, polygonArea } from "./drawn-area.js";
@@ -73,13 +75,13 @@ const hr = () => Number(process.hrtime.bigint()) / 1e6;
  * Ejecuta la escena estándar y devuelve las series de cada invariante, los conteos y el costo (ms) de cada
  * medición. Un juego por llamada.
  */
-export async function runStandardScene() {
+export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSeconds = 10, onStart = null, onFrame = null } = {}) {
     if (REACTIONS.length !== 0) throw new Error("los invariantes I1 e I2b suponen REACTIONS vacía");
     const wall0 = hr();
     const game = await loadGame();
     const g = game.state;
     const { water, store, immersion, flood, match, particleSystem, players } = g;
-    const startSeconds = LEVEL.flood.start - 10;
+    const startSeconds = LEVEL.flood.start - leadSeconds;
     const area = immersion.area;
     const mass = Object.fromEntries(MATERIAL_NAMES.map((n) => [n, MATERIALS[n].SG * SIGMA_W * area]));
     const kindIndex = new Map(MATERIAL_NAMES.map((n, k) => [KIND_OF[n], k]));
@@ -298,8 +300,9 @@ export async function runStandardScene() {
         { ax: LEVEL.bounds.maxX - 1, ay: islandTop, bx: floorX, by: LEVEL.pool.bottom },
         { ax: LEVEL.bounds.minX + 1, ay: islandTop, bx: floorX, by: LEVEL.pool.bottom },
     ];
-    const frames = WINDOW_SECONDS * STEPS_PER_SECOND;
+    const frames = windowSeconds * STEPS_PER_SECOND;
     measuring = true;
+    if (onStart) onStart(game);
     for (let f = 0; f < frames && !ended; f++) {
         const sweep = (f / (SWEEP_SECONDS * STEPS_PER_SECOND)) % 1;
         const t = sweep < 0.5 ? sweep * 2 : 2 - sweep * 2;
@@ -316,6 +319,7 @@ export async function runStandardScene() {
             });
         });
         game.frame();
+        if (onFrame) onFrame(game, f);
     }
     measuring = false;
     result.cost.scene = hr() - sceneStart;
