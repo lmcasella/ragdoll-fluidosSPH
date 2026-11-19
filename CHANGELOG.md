@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-11-19
+
+### Changed
+- El juego se llama **Waterbots**: así aparece en el título y en la pestaña del navegador.
+
 ## [0.26.0] - 2026-11-19
 
 ### Added

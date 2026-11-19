@@ -122,7 +122,7 @@ export class Match {
     /** Cartel central, o null durante el juego. */
     get banner() {
         if (this.state === "title") {
-            return { title: "RAGDOLL FLUIDOS", subtitle: "↑↓ elegir · ←→ cambiar · A / Start / Enter sobre Jugar" };
+            return { title: "WATERBOTS", subtitle: "↑↓ elegir · ←→ cambiar · A / Start / Enter sobre Jugar" };
         }
         if (this.state === "countdown") {
             return { title: String(Math.ceil(this.timer)), subtitle: `Ronda ${this.round}` };
