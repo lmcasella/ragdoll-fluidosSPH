@@ -5,10 +5,21 @@
  * cambian. Por eso `userData` guarda solo `slot + 1` (el 0 es "sin slot") y el estado por partícula vive en
  * arreglos tipados indexados por slot (`vx`, `vy` guardan la velocidad del último subpaso para el contorno
  * inelástico, `js/wallContact.js`). El slot de una destruida se libera en `afterStep()`.
+ * Libro de masa: `created[kind]` cuenta las creaciones y `destroyed[cause][kind]` las destrucciones por causa.
  */
 
 /** Origen de cada partícula, para el dibujo y la limpieza. */
 export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4 };
+
+/**
+ * Causa de cada destrucción, obligatoria en `destroy` (libro de masa, docs/design/14-agua.md §14.2): `ABSORBED`
+ * pasa al campo, `OUT` salió del mundo, `EXPIRED` venció el disparo, `PERSIST_CAP` tope de miel, `HIT` ácido
+ * consumido al dañar, `EVAPORATED` pasó al aire y `RESET` ronda nueva.
+ */
+export const SINK = { ABSORBED: 1, OUT: 2, EXPIRED: 3, PERSIST_CAP: 4, HIT: 5, EVAPORATED: 6, RESET: 7 };
+
+const SINK_SLOTS = Math.max(...Object.values(SINK)) + 1;
+const KIND_SLOTS = 256;
 
 export class ParticleStore {
     /**
@@ -30,6 +41,8 @@ export class ParticleStore {
         this.pending = new Int32Array(capacity);
         this.freeCount = capacity;
         this.pendingCount = 0;
+        this.created = new Float64Array(KIND_SLOTS);
+        this.destroyed = Array.from({ length: SINK_SLOTS }, () => new Float64Array(KIND_SLOTS));
         for (let s = 0; s < capacity; s++) this.free[s] = capacity - 1 - s;
     }
 
@@ -45,6 +58,7 @@ export class ParticleStore {
         Box2D.HEAP32[(this.system.GetUserDataBuffer() >> 2) + index] = slot + 1;
         this.alive[slot] = 1;
         this.kind[slot] = props.kind ?? 0;
+        this.created[this.kind[slot]]++;
         this.origin[slot] = props.origin ?? ORIGIN.SHOT;
         this.shot[slot] = props.shot ?? 0;
         const vel = (Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2) + 2 * index;
@@ -58,12 +72,17 @@ export class ParticleStore {
         return Box2D.HEAP32[(this.system.GetUserDataBuffer() >> 2) + i] - 1;
     }
 
-    /** Idempotente: el slot vivo pasa a `pending` y la partícula queda zombi hasta el próximo `Step`. */
-    destroy(i) {
+    /**
+     * Idempotente: el slot vivo pasa a `pending` y la partícula queda zombi hasta el próximo `Step`. `cause` es
+     * un valor de `SINK` y es obligatoria: suma la partícula a `destroyed[cause][kind]`.
+     */
+    destroy(i, cause) {
+        if (!(cause >= 1 && cause < SINK_SLOTS)) throw new Error("ParticleStore.destroy exige una causa de SINK");
         const slot = this.slotAt(i);
         if (slot < 0 || slot >= this.capacity || this.alive[slot] === 0) return;
         this.system.DestroyParticle(i);
         this.alive[slot] = 0;
+        this.destroyed[cause][this.kind[slot]]++;
         this.pending[this.pendingCount++] = slot;
     }
 
@@ -72,8 +91,10 @@ export class ParticleStore {
         while (this.pendingCount > 0) this.free[this.freeCount++] = this.pending[--this.pendingCount];
     }
 
-    /** Destruye todas las partículas vivas (reinicio de ronda). */
+    /** Destruye todas las partículas vivas con la causa `RESET` (reinicio de ronda) y pone el libro en cero. */
     reset() {
-        for (let i = this.system.GetParticleCount() - 1; i >= 0; i--) this.destroy(i);
+        for (let i = this.system.GetParticleCount() - 1; i >= 0; i--) this.destroy(i, SINK.RESET);
+        this.created.fill(0);
+        for (const book of this.destroyed) book.fill(0);
     }
 }

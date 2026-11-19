@@ -8,11 +8,20 @@ export const SIGMA_W = 12.0;
  * Gravedad específica (`SG`) de cada material: la masa de fluido es `SG · σ_w · A`. `c` es el calor
  * específico (J/(kg·K)), `mu` la viscosidad dinámica (Pa·s) a 20 °C, `Cd` el coeficiente de arrastre de la
  * partícula inmiscible y `miscible` si se absorbe en el campo de alturas (docs/design/14-agua.md §14.4).
+ * `species` es la fracción másica de cada especie química del material (cada fila suma 1; el ácido es H2SO4 al
+ * 8 % m/m) y la usan los invariantes de masa (docs/design/14-agua.md §14.1 y §14.16 G).
  * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
-    water: { SG: 1.0, c: 4186, mu: 1.0e-3, miscible: true },
-    acid: { SG: 1.05, miscible: true },
-    honey: { SG: 1.42, mu: 10, miscible: true },
-    lava: { SG: 2.6, Cd: 1.2, miscible: false },
+    water: { SG: 1.0, c: 4186, mu: 1.0e-3, miscible: true, species: { H2O: 1 } },
+    acid: { SG: 1.05, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
+    honey: { SG: 1.42, mu: 10, miscible: true, species: { honey: 1 } },
+    lava: { SG: 2.6, Cd: 1.2, miscible: false, species: { basalt: 1 } },
 };
+
+/**
+ * Reacciones diseñadas, hoy ninguna. Cada fila es `{ id, from: { material: kg }, to: { material: kg } }` por kg
+ * de avance, con `Σ from = Σ to` y cada especie conservada. Ningún código cambia el material de una masa si no es
+ * ejecutando una fila de esta tabla.
+ */
+export const REACTIONS = [];
