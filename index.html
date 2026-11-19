@@ -305,6 +305,7 @@
             const instances = players.map((p) => p.rag);
             const input = new Input(players.length);
             let inputs = input.poll();
+            let controls = inputs;
             const jumpPending = players.map(() => false);
 
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
@@ -331,14 +332,23 @@
             const STEP_MIN_SPEED = 1;
             let lastMatchState = match.state;
 
-            /** Pista de música según el estado de la partida; en el cartel de fin de ronda sigue la actual (`null`). */
+            /** Pista de música según el estado de la partida; en la cuenta regresiva y el cartel de fin de ronda sigue la actual (`null`). */
             function musicaActual() {
-                if (match.state === "matchOver") return "mainMenu";
-                if (match.state === "roundOver") return null;
+                if (match.state === "title" || match.state === "matchOver") return "mainMenu";
+                if (match.state === "roundOver" || match.state === "countdown") return null;
                 return flood.active ? "suddenDeath" : "combat";
             }
 
             /** Traduce a sonido los eventos ya resueltos del frame; se llama después de todos los pasos, nunca desde un callback de Box2D. */
+            /** Estado de input sin intención de control: los robots quedan quietos fuera de `controlsActive`; solo la mira sigue. */
+            function neutro(s) {
+                return {
+                    left: false, right: false, up: false, down: false, jump: false, drop: false, roll: false,
+                    action: false, start: false, fire: false, grapple: false, block: false, punch: false, kick: false,
+                    weapon: null, weaponStep: 0, aim: s.aim, pointer: s.pointer, wheel: null, wheelPick: null,
+                };
+            }
+
             function sonarEventos(now) {
                 for (const e of melee.events) {
                     if (e.kind === "block" || e.kind === "blockBreak") {
@@ -552,6 +562,8 @@
                 if (match.update(players, inputs, frameDt) === "reset") {
                     reiniciarRonda();
                 }
+                controls = match.controlsActive ? inputs : inputs.map(neutro);
+                if (!match.controlsActive) jumpPending.fill(false);
                 if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
                 lastMatchState = match.state;
                 audio.playMusic(musicaActual());
@@ -560,7 +572,7 @@
                 const now = simTime;
 
                 players.forEach((player, k) => {
-                    const state = inputs[k];
+                    const state = controls[k];
                     player.guard(state.block);
                     actualizarMira(player, state, k, now);
 
@@ -596,10 +608,10 @@
                 while (accumulator >= STEP_SETTINGS.dt) {
                     stepsLastFrame++;
                     players.forEach((player, k) => {
-                        inputs[k].jump = jumpPending[k] === "jump";
-                        inputs[k].roll = jumpPending[k] === "roll";
+                        controls[k].jump = jumpPending[k] === "jump";
+                        controls[k].roll = jumpPending[k] === "roll";
                         jumpPending[k] = false;
-                        player.move(inputs[k], STEP_SETTINGS.dt, now);
+                        player.move(controls[k], STEP_SETTINGS.dt, now);
                         if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
@@ -652,7 +664,7 @@
                 drawHits(ctx, melee.hits, scale, now);
                 drawPickups(pickupCtx, pickups.points, WEAPONS);
                 players.forEach((player, k) => {
-                    const wheel = inputs[k].wheel;
+                    const wheel = controls[k].wheel;
                     if (!wheel || player.dead) return;
                     const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
                     const pos = player.torso.GetPosition();

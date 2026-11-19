@@ -374,9 +374,11 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
     ctx.textAlign = "center";
     ctx.fillStyle = "#cccccc";
     ctx.font = "bold 18px Segoe UI";
-    ctx.fillText(`Ronda ${match.round}`, width / 2, 36);
-    const seconds = Math.floor(match.roundTime);
-    ctx.fillText(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, width / 2, 60);
+    if (match.state !== "title") {
+        ctx.fillText(`Ronda ${match.round}`, width / 2, 36);
+        const seconds = Math.floor(match.roundTime);
+        ctx.fillText(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, width / 2, 60);
+    }
     if (match.state === "playing" && match.roundTime >= floodStart - 10) {
         const flooding = match.roundTime >= floodStart;
         ctx.fillStyle = flooding ? "#40dcff" : "#ffcc44";
