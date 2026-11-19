@@ -1,20 +1,4 @@
-
-/**
- * P1 con h₀ = 3 m es un límite declarado del motor: la columna alta excita el modo acústico vertical de LiquidFun
- * (período ≈ 0,6 s, |v|rms 0,26–0,61 m/s, presente también sin el contorno; compresibilidad débil con r = 0,06 m).
- * Se corre con cinco asentados que cubren un período del modo: se exige la pendiente y solo se informa el reposo.
- */
-for (const settle of [6.3, 6.45, 6.6, 6.75, 6.9]) {
-    test(`P1: rotura de presa con h₀ = 3 m, asentado de ${settle} s, pendiente del frente ±10 % (|v| solo se informa)`, (t) => {
-        const m = damBreak({ h0: 3, settle });
-        t.diagnostic(
-            `P1 h₀ 3 asentado ${settle} s: |v|rms ${m.vrmsSettle.toFixed(3)} m/s, |v|max ${m.vmaxSettle.toFixed(3)} m/s; pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s ` +
-                `(${((m.slope / m.expected - 1) * 100).toFixed(1)} %) con ${m.samples} muestras`,
-        );
-        assert.ok(m.samples >= 20, `solo ${m.samples} muestras`);
-        assert.ok(Math.abs(m.slope / m.expected - 1) <= 0.1, `pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s`);
-    });
-}import { test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { damBreak, jetBench, restBench, plateBench, M_P } from "./helpers/water-bench.js";
 import { shotBench } from "./helpers/fluid-bench.js";
@@ -44,6 +28,22 @@ for (const h0 of [1, 2]) {
                 `(${((m.slope / m.expected - 1) * 100).toFixed(1)} %) con ${m.samples} muestras; retardo t₀ √(g/h₀) ${m.lag.toFixed(2)}`,
         );
         assert.ok(m.vrmsSettle <= 0.2, `|v|rms al soltar ${m.vrmsSettle.toFixed(3)} m/s`);
+        assert.ok(m.samples >= 20, `solo ${m.samples} muestras`);
+        assert.ok(Math.abs(m.slope / m.expected - 1) <= 0.1, `pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s`);
+    });
+}
+/**
+ * P1 con h₀ = 3 m es un límite declarado del motor: la columna alta excita el modo acústico vertical de LiquidFun
+ * (período ≈ 0,6 s, |v|rms 0,26–0,61 m/s, presente también sin el contorno; compresibilidad débil con r = 0,06 m).
+ * Se corre con cinco asentados que cubren un período del modo: se exige la pendiente y solo se informa el reposo.
+ */
+for (const settle of [6.3, 6.45, 6.6, 6.75, 6.9]) {
+    test(`P1: rotura de presa con h₀ = 3 m, asentado de ${settle} s, pendiente del frente ±10 % (|v| solo se informa)`, (t) => {
+        const m = damBreak({ h0: 3, settle });
+        t.diagnostic(
+            `P1 h₀ 3 asentado ${settle} s: |v|rms ${m.vrmsSettle.toFixed(3)} m/s, |v|max ${m.vmaxSettle.toFixed(3)} m/s; pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s ` +
+                `(${((m.slope / m.expected - 1) * 100).toFixed(1)} %) con ${m.samples} muestras`,
+        );
         assert.ok(m.samples >= 20, `solo ${m.samples} muestras`);
         assert.ok(Math.abs(m.slope / m.expected - 1) <= 0.1, `pendiente ${m.slope.toFixed(2)} m/s contra ${m.expected.toFixed(2)} m/s`);
     });

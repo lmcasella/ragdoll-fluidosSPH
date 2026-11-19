@@ -1,4 +1,3 @@
-// El chorro no crea energía al nacer: el script de index.html con LiquidFun real, a 120 Hz y a 60 Hz con jitter
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
