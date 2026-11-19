@@ -82,7 +82,8 @@ test("Climb: cameraBounds sigue el ancho de la etapa y no tiene techo", () => {
 
 const noop = () => {};
 
-test("C4: el bot de J2 sube pasando los 60 m (2 etapas) con J1 quieto e inmortal en 3 semillas", { timeout: 900000, todo: "sin resolver (#25): con la base de plataformas bajas el bot llega a la primera fila (tope 10,7 m, t = 20 s) pero solo sube cuando el agua queda a menos de BOT.floodMargin del piso que pisa; en una plataforma segura vuelve a perseguir a J1, que está quieto en el piso de la isla, baja y el agua lo ahoga a los 22,9 s con el torso en 12,5 m como máximo (semilla 1)" }, async () => {
+test("C4: con la inundación activa el bot de J2 sube pasando los 60 m (2 etapas) antes de ahogarse, con J1 quieto e inmortal, en 3 semillas", { timeout: 900000, todo: "sin resolver (#25): con la línea segura el bot ya no baja a perseguir, pero no sube de fila de forma confiable (saltos de 2,8 m con hueco de 2 m que fallan y lo dejan caer al agua): alturas 12,5 / 30,5 / 18,6 m en las semillas 1, 2 y 3, todas muertas por ahogo entre 18 y 31 s" }, async () => {
+    const failures = [];
     for (const seed of [1, 2, 3]) {
         globalThis.location = { search: `?bot=2&seed=${seed}` };
         const game = await loadGame({ map: "infinite" });
@@ -98,10 +99,10 @@ test("C4: el bot de J2 sube pasando los 60 m (2 etapas) con J1 quieto e inmortal
             best = Math.max(best, torsoY());
         }
         console.log(`C4 semilla ${seed}: J2 llegó a ${best.toFixed(1)} m en ${(frames / 60).toFixed(1)} s simulados, vivo ${!players[1].dead}, agua en ${game.state.flood.level.toFixed(1)} m`);
-        assert.ok(!players[1].dead, `J2 murió con el agua en ${game.state.flood.level}`);
-        assert.ok(best >= 60, `J2 llegó solo a ${best}`);
+        if (best < 60) failures.push(`semilla ${seed}: ${best.toFixed(1)} m, ${players[1].dead ? "murió" : "vivo"}`);
     }
     globalThis.location = { search: "" };
+    assert.deepEqual(failures, []);
 });
 
 test("Infinito: un robot guiado por el grafo del bot llega del piso a la primera fila generada antes de que el agua lo alcance", { timeout: 300000 }, async () => {

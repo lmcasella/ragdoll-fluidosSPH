@@ -250,3 +250,17 @@ test("bot: partida bot contra bot de 60 s sin errores y con impactos de cada lad
     console.log(`impactos de J1 ${dealt[0]} y de J2 ${dealt[1]}; rondas ganadas ${game.state.match.wins.join(" - ")}; estado ${game.state.match.state}`);
     assert.ok(dealt[0] >= 1 && dealt[1] >= 1);
 });
+
+test("bot: con la inundación activa la ruta no pasa por plataformas bajo la línea segura salvo la de partida", async () => {
+    const bot = new Bot({ k: 1, world: (await start({ bot: false })).state.world });
+    const flood = { active: true, level: 3, config: { riseSpeed: 0.2 } };
+    const line = bot.safeLine({ flood }, flood.level);
+    assert.equal(line, 3 + BOT.safeMargin + 0.2 * BOT.safeLead);
+    const low = nodeIndex(bot, 9, 4);
+    bot.minTop = line;
+    const dist = bot.distances(low);
+    bot.nav.nodes.forEach((n, i) => {
+        if (i !== low && n.top < line) assert.equal(dist[i], Infinity, `nodo ${i} con tope ${n.top} bajo la línea ${line}`);
+    });
+    assert.equal(bot.safeLine({ flood: { active: false, level: -Infinity, config: { riseSpeed: 0.2 } } }, -Infinity), -Infinity);
+});

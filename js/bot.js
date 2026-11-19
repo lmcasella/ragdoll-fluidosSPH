@@ -13,8 +13,9 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `reaction`: [mín, máx] de la demora entre ver que el rival empieza un golpe y actuar; `defense`: probabilidad de que
  *   la defensa acierte; `blockRange` y `blockHold` (cuánto sigue bloqueando después de ver el último golpe);
  * - `lowHp`: vida desde la que prefiere rodar hacia atrás; `rollRoom`: espacio libre (m) que tiene que haber detrás para rodar;
- * - `floodMargin`: sube si el agua queda a menos de esto del piso que pisa; `edgeMargin`: distancia mínima al borde de
- *   una plataforma al caminar sin cruzar;
+ * - `safeMargin` y `safeLead`: con la inundación activa, la línea segura es el nivel del agua + `safeMargin` (m) + la
+ *   velocidad de subida × `safeLead` (s); el bot no elige ni cruza plataformas por debajo y, si está debajo, sube;
+ *   `edgeMargin`: distancia mínima al borde de una plataforma al caminar sin cruzar;
  * - `reach`: regla de alcance del salto: subir hasta `up.dy` con hueco hasta `up.gap`, o hasta `short.dy` con hueco
  *   hasta `short.gap`; `downGap` es el hueco máximo al bajar o cruzar a nivel;
  * - `jump`: `distance` (a cuánto del destino salta), `edge` (a cuánto del borde salta aunque esté lejos), `inset` (margen
@@ -32,7 +33,8 @@ export const BOT = {
     blockHold: 0.3,
     lowHp: 30,
     rollRoom: 3.6,
-    floodMargin: 2,
+    safeMargin: 4,
+    safeLead: 5,
     edgeMargin: 0.5,
     reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
     jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3 },
@@ -137,6 +139,7 @@ export class Bot {
     /** Reemplaza el grafo por el de `level` (el nivel cambió) y olvida lo que guardaba como índices de nodo. */
     setNav(level) {
         this.nav = buildNav(level, this.config);
+        this.minTop = -Infinity;
         this.committed = null;
         this.goal = null;
         this.foeNode = null;
@@ -145,6 +148,7 @@ export class Bot {
 
     /** Olvida lo percibido y decidido (ronda nueva). */
     reset() {
+        this.minTop = -Infinity;
         this.jumping = false;
         this.committed = null;
         this.goal = null;
@@ -223,12 +227,14 @@ export class Bot {
                 foe = p;
             }
         });
-        const cur = this.supportOf(me);
+        const cur = me.grounded && me.torso.GetLinearVelocity().get_y() < 1 ? this.supportOf(me) : null;
         if (cur !== null) this.committed = null;
         const level = this.floodLevel(game, mx);
-        const danger = cur !== null && level + this.config.floodMargin > this.nav.nodes[cur].top;
+        this.minTop = this.safeLine(game, level);
+        const below = cur !== null && this.nav.nodes[cur].top < this.minTop;
         if (!foe) {
-            this.navigate(me, cur, this.highest(cur));
+            if (below) this.escape(me, cur);
+            else this.navigate(me, cur, this.highest(cur));
             return;
         }
         const foePos = foe.torso.GetPosition();
@@ -253,12 +259,42 @@ export class Bot {
             return;
         }
         if (this.melee(me, foe, cur, adx, dx, dy, dir, now)) return;
-        if (danger) {
-            this.navigate(me, cur, this.highest(cur));
+        if (below) {
+            this.escape(me, cur);
             return;
         }
         if (this.shoot(me, foe, cur, foeNode, adx, dx, dy, now)) return;
+        const foeTop = foeNode === null ? foePos.get_y() : this.nav.nodes[foeNode].top;
+        if (foeTop < this.minTop) {
+            this.navigate(me, cur, this.highest(cur));
+            return;
+        }
         this.chase(me, foe, cur, adx, dx, dy, dir, now);
+    }
+
+    /**
+     * Línea segura (m): nivel del agua + `safeMargin` + velocidad de subida × `safeLead`; `-Infinity` sin inundación.
+     */
+    safeLine(game, level) {
+        const rise = game.flood.riseSpeed ?? game.flood.config?.riseSpeed ?? 0;
+        return level + this.config.safeMargin + rise * this.config.safeLead;
+    }
+
+    /**
+     * Sube desde una plataforma bajo la línea segura: va a la más cercana (en saltos) que esté sobre la línea, o a la más
+     * alta alcanzable si ninguna llega; en este tramo puede pasar por plataformas bajo la línea.
+     */
+    escape(me, cur) {
+        const line = this.minTop;
+        this.minTop = -Infinity;
+        const dist = this.distances(cur);
+        let best = null;
+        this.nav.nodes.forEach((n, i) => {
+            if (dist[i] === Infinity || n.top < line) return;
+            if (best === null || dist[i] < dist[best] || (dist[i] === dist[best] && n.top > this.nav.nodes[best].top)) best = i;
+        });
+        this.navigate(me, cur, best ?? this.highest(cur));
+        this.minTop = line;
     }
 
     /**
@@ -441,15 +477,18 @@ export class Bot {
         return best;
     }
 
-    /** Saltos mínimos de ruta desde `from` a cada nodo (`Infinity` si no se llega). */
+    /**
+     * Saltos mínimos de ruta desde `from` a cada nodo (`Infinity` si no se llega). No pasa por nodos con tope bajo
+     * `minTop` (la línea segura).
+     */
     distances(from) {
         const dist = this.nav.nodes.map(() => Infinity);
         const queue = [from];
         dist[from] = 0;
         for (let head = 0; head < queue.length; head++) {
             for (const to of this.nav.edges[queue[head]]) {
-                if (dist[to] !== Infinity) continue;
-                dist[to] = dist[queue[head]] + 1;
+                if (dist[to] !== Infinity || this.nav.nodes[to].top < this.minTop) continue;
+                dist[to] =dist[queue[head]] + 1;
                 queue.push(to);
             }
         }
@@ -463,7 +502,7 @@ export class Bot {
         const queue = [from];
         for (let head = 0; head < queue.length && parent[goal] === -2; head++) {
             for (const to of this.nav.edges[queue[head]]) {
-                if (parent[to] !== -2) continue;
+                if (parent[to] !== -2 || this.nav.nodes[to].top < this.minTop) continue;
                 parent[to] = queue[head];
                 queue.push(to);
             }
