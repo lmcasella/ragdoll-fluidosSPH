@@ -70,6 +70,7 @@ export const TAP_MAX = 0.25;
  * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: { x, y } o "cancel" con el stick al
  *   centro;
  * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
+ * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
  * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
  */
@@ -134,6 +135,7 @@ export class Input {
                   (p) => p && p.connected,
               )
             : [];
+        this.padButton = pads.some((p) => [...p.buttons].some((b) => b.pressed));
 
         this.layouts.forEach((layout, k) => {
             const isHeld = (codes) => codes.some((c) => this.held.has(c));

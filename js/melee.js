@@ -99,6 +99,7 @@ export class Melee {
         this.impulse = new Box2D.b2Vec2(0, 0);
         this.point = new Box2D.b2Vec2(0, 0);
         this.hits = [];
+        this.events = [];
     }
 
     /**
@@ -146,8 +147,10 @@ export class Melee {
         if (guarded) {
             victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
             victim.blocked(now);
+            this.events.push({ kind: "block", victim: owner.index });
         } else {
-            victim.hurt(owner.bodyId, row.damage, now);
+            const dealt = victim.hurt(owner.bodyId, row.damage, now);
+            if (dealt > 0) this.events.push({ kind: "hit", victim: owner.index });
             victim.stun(row.stun, now);
             victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
             victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
@@ -157,9 +160,13 @@ export class Melee {
         this.hits.push({ x: hit.x, y: hit.y, time: now, kind: guarded ? "block" : "hit" });
     }
 
-    /** Vacía los eventos de feedback (ronda nueva). */
+    /**
+     * Vacía los eventos de feedback (ronda nueva). `events` (`{ kind: "hit"|"block", victim }`, un golpe que hizo daño o
+     * uno bloqueado) los vacía quien los consume, una vez por frame.
+     */
     reset() {
         this.hits.length = 0;
+        this.events.length = 0;
     }
 
     dispose() {

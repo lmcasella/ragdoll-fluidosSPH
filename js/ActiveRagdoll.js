@@ -104,6 +104,8 @@ export class ActiveRagdoll {
         this.rollBack = false;
         this.rollDir = 1;
         this.fallLatched = false;
+        /** Verdadero desde que aterriza una caída alta (la que activa `fallHigh`) hasta que quien lo consume lo baja. */
+        this.landed = false;
         this.jumpAt = -Infinity;
         this.lastBlocked = -Infinity;
     }
@@ -667,6 +669,7 @@ export class ActiveRagdoll {
             this.attack === null;
 
         if (this.grounded) {
+            if (this.fallLatched) this.landed = true;
             this.fallLatched = false;
         } else if (velY < -AIR.fallSpeed) {
             this.fallLatched = true;
