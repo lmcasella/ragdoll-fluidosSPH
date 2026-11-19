@@ -414,10 +414,51 @@ export function rainStroke(vx, vy, draw) {
     return stroke;
 }
 
+const NO_SKIN = { radius: PARTICLE_RADIUS, snapReach: 0, snapFullReach: 0, streakSpeed: Infinity, streakScale: 0, streakLength: 0, streakWidth: 0 };
+
+/**
+ * Primitivas con que se dibuja una partícula (puro, sin `ctx`): llena `out` y lo devuelve. Con `out.capsule` falso
+ * son `out.count` (1 o 2) círculos de radio `out.radius` con centros (`x0`, `y0`) y (`x1`, `y1`); el segundo es el
+ * acercado a la superficie del cuerpo (`skinPosition`). Con `out.capsule` verdadero es el trazo de lluvia, una
+ * cápsula de ancho `out.width` entre (`x0`, `y0`) y (`x1`, `y1`). `draw` son los datos de `SHOT_DRAW`; `isRain`
+ * pide el trazo cuando la gota vuela más rápido que `draw.streakSpeed`. Unidades: metros y m/s.
+ */
+export function dropShape(x, y, vx, vy, isRain, draw, out) {
+    if (isRain) {
+        const s = rainStroke(vx, vy, draw);
+        if (s) {
+            out.capsule = true;
+            out.count = 0;
+            out.width = draw.streakWidth;
+            out.x0 = x;
+            out.y0 = y;
+            out.x1 = x + s.dx;
+            out.y1 = y + s.dy;
+            return out;
+        }
+    }
+    out.capsule = false;
+    out.count = 1;
+    out.radius = draw.radius;
+    out.x0 = x;
+    out.y0 = y;
+    if (draw.snapReach > 0) {
+        const p = skinPosition(x, y, draw.radius, draw.snapReach, draw.snapFullReach);
+        if (p.x !== x || p.y !== y) {
+            out.count = 2;
+            out.x1 = p.x;
+            out.y1 = p.y;
+        }
+    }
+    return out;
+}
+
+const shape = { capsule: false, count: 0, radius: 0, width: 0, x0: 0, y0: 0, x1: 0, y1: 0 };
+
 /**
  * Dibuja las partículas de `particleSystem` como círculos de `radius`. Con `skin` (`SHOT_DRAW`), las partículas
  * junto a un cuerpo suman un segundo círculo acercado a su superficie (ver `skinPosition`): mover la partícula en
- * vez de duplicarla abría huecos en el agua donde estaba.
+ * vez de duplicarla abría huecos en el agua donde estaba. Lo que se dibuja lo decide `dropShape`.
  * `rain` = `{ ctx, store, origin }`: las gotas de `store` con ese `origin` que vuelan rápido se dibujan como
  * trazos en `rain.ctx`, un canvas aparte sin el filtro goo (el desenfoque y el umbral borrarían una línea fina).
  */
@@ -435,50 +476,55 @@ export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, ski
         rctx.lineWidth = skin.streakWidth;
         rctx.lineCap = "round";
     }
+    const draw = skin ?? NO_SKIN;
+    NO_SKIN.radius = radius;
     for (let i = 0; i < count; i++) {
         const c = colorBase + i * 4;
         const style = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         const x = positions[posBase + i * 2];
         const y = positions[posBase + i * 2 + 1];
-        if (rctx && rain.store.origin[rain.store.slotAt(i)] === rain.origin) {
-            const s = rainStroke(positions[velBase + i * 2], positions[velBase + i * 2 + 1], skin);
-            if (s) {
-                rctx.strokeStyle = style;
-                rctx.beginPath();
-                rctx.moveTo(x, y);
-                rctx.lineTo(x + s.dx, y + s.dy);
-                rctx.stroke();
-                continue;
-            }
+        const isRain = rctx !== null && rain.store.origin[rain.store.slotAt(i)] === rain.origin;
+        dropShape(x, y, isRain ? positions[velBase + i * 2] : 0, isRain ? positions[velBase + i * 2 + 1] : 0, isRain, draw, shape);
+        if (shape.capsule) {
+            rctx.strokeStyle = style;
+            rctx.beginPath();
+            rctx.moveTo(shape.x0, shape.y0);
+            rctx.lineTo(shape.x1, shape.y1);
+            rctx.stroke();
+            continue;
         }
         ctx.fillStyle = style;
         ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        if (skin) {
-            const p = skinPosition(x, y, skin.radius, skin.snapReach, skin.snapFullReach);
-            if (p.x !== x || p.y !== y) {
-                ctx.moveTo(p.x + radius, p.y);
-                ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-            }
+        ctx.arc(x, y, shape.radius, 0, Math.PI * 2);
+        if (shape.count === 2) {
+            ctx.moveTo(shape.x1 + shape.radius, shape.y1);
+            ctx.arc(shape.x1, shape.y1, shape.radius, 0, Math.PI * 2);
         }
         ctx.fill();
     }
 }
 
 /**
- * Dibuja el campo de alturas (docs/design/14-agua.md §14.3, Render): un polígono relleno por tramo mojado, del
- * lecho a `η`, con la línea de superficie encima. Va después de los robots, con la opacidad de
- * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los datos de dibujo son
- * `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
+ * Contorno del agua del campo (puro, sin `ctx`): llena `out` y lo devuelve. Un polígono por tramo mojado (celdas
+ * consecutivas con `h > hDry`), con `out.count` tramos; el tramo `s` ocupa los vértices `out.start[s]` a
+ * `out.start[s] + out.size[s] − 1` de `out.xs` y `out.ys` (metros): lecho y superficie de la cara izquierda, los
+ * centros de celda por arriba, la cara derecha y los centros por abajo. `out.surface[s]` es la cantidad de
+ * vértices de la línea de superficie, que empieza en `out.start[s] + 1`. Los buffers se crean en la primera
+ * llamada y se reutilizan.
  */
-export function drawWater(ctx, water, scale) {
-    const { alpha, color, lineColor, lineWidth } = water.config.draw;
+export function waterOutline(water, out) {
     const { N, dx, x0, b, h } = water;
     const wet = water.config.hDry;
-    ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-    ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
-    ctx.lineWidth = lineWidth / scale;
-    ctx.lineJoin = "round";
+    if (!out.xs || out.xs.length < 4 * N + 4) {
+        out.xs = new Float64Array(4 * N + 4);
+        out.ys = new Float64Array(4 * N + 4);
+        out.start = new Int32Array(N + 2);
+        out.size = new Int32Array(N + 2);
+        out.surface = new Int32Array(N + 2);
+    }
+    const { xs, ys } = out;
+    let count = 0;
+    let v = 0;
     let i = 0;
     while (i < N) {
         if (h[i] <= wet) {
@@ -489,23 +535,64 @@ export function drawWater(ctx, water, scale) {
         while (end + 1 < N && h[end + 1] > wet) end++;
         const left = x0 + i * dx;
         const right = x0 + (end + 1) * dx;
+        const first = v;
+        xs[v] = left;
+        ys[v++] = b[i];
+        xs[v] = left;
+        ys[v++] = b[i] + h[i];
+        for (let c = i; c <= end; c++) {
+            xs[v] = x0 + (c + 0.5) * dx;
+            ys[v++] = b[c] + h[c];
+        }
+        xs[v] = right;
+        ys[v++] = b[end] + h[end];
+        xs[v] = right;
+        ys[v++] = b[end];
+        for (let c = end; c >= i; c--) {
+            xs[v] = x0 + (c + 0.5) * dx;
+            ys[v++] = b[c];
+        }
+        out.start[count] = first;
+        out.size[count] = v - first;
+        out.surface[count] = end - i + 3;
+        count++;
+        i = end + 1;
+    }
+    out.count = count;
+    return out;
+}
+
+const outline = {};
+
+/**
+ * Dibuja el campo de alturas (docs/design/14-agua.md §14.3, Render): un polígono relleno por tramo mojado, del
+ * lecho a `η`, con la línea de superficie encima. Va después de los robots, con la opacidad de
+ * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los datos de dibujo son
+ * `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
+ */
+export function drawWater(ctx, water, scale) {
+    const { alpha, color, lineColor, lineWidth } = water.config.draw;
+    waterOutline(water, outline);
+    const { xs, ys } = outline;
+    ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
+    ctx.lineWidth = lineWidth / scale;
+    ctx.lineJoin = "round";
+    for (let s = 0; s < outline.count; s++) {
+        const first = outline.start[s];
+        const last = first + outline.size[s];
         ctx.globalAlpha = alpha;
         ctx.beginPath();
-        ctx.moveTo(left, b[i]);
-        ctx.lineTo(left, b[i] + h[i]);
-        for (let c = i; c <= end; c++) ctx.lineTo(x0 + (c + 0.5) * dx, b[c] + h[c]);
-        ctx.lineTo(right, b[end] + h[end]);
-        ctx.lineTo(right, b[end]);
-        for (let c = end; c >= i; c--) ctx.lineTo(x0 + (c + 0.5) * dx, b[c]);
+        ctx.moveTo(xs[first], ys[first]);
+        for (let v = first + 1; v < last; v++) ctx.lineTo(xs[v], ys[v]);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
         ctx.beginPath();
-        ctx.moveTo(left, b[i] + h[i]);
-        for (let c = i; c <= end; c++) ctx.lineTo(x0 + (c + 0.5) * dx, b[c] + h[c]);
-        ctx.lineTo(right, b[end] + h[end]);
+        ctx.moveTo(xs[first + 1], ys[first + 1]);
+        const top = first + 1 + outline.surface[s];
+        for (let v = first + 2; v < top; v++) ctx.lineTo(xs[v], ys[v]);
         ctx.stroke();
-        i = end + 1;
     }
     ctx.globalAlpha = 1;
 }
