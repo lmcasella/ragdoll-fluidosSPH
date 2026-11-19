@@ -1,6 +1,6 @@
 import { LEVEL } from "./level.js";
 import { BOT, seededRandom } from "./bot.js";
-import { FLUID, SHOT_SYSTEM } from "./weapons.js";
+import { FLUID, SHOT_SYSTEM, refillTanks } from "./weapons.js";
 
 /**
  * Valores del ascenso infinito (docs/design/16-ascenso.md §16.2). Distancias en m, tiempos en s.
@@ -19,7 +19,10 @@ import { FLUID, SHOT_SYSTEM } from "./weapons.js";
  * - `flood`: `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del fondo efectivo y `sinkBelow` (m bajo el
  *   nivel desde donde se libera lo hundido);
  * - `ahead`: cuánto por encima de la cámara se genera; `spawnRayTop`: inicio del rayo de aparición; `seamMargin`: distancia
- *   mínima a una costura de la grilla de LiquidFun.
+ *   mínima a una costura de la grilla de LiquidFun;
+ * - `loadout`: equipo inicial del mapa (el clásico usa `LOADOUT` de `js/weapons.js`): sin arma ni tanques, solo melee;
+ * - `stagePrize`: premio del primer robot que se apoya en una plataforma de la etapa `n ≥ 1`, una vez por etapa y por
+ *   ronda: `banner` (s) que dura el cartel, `repair` (`"full"`: vida al máximo) y `refill` (todos sus tanques llenos).
  */
 export const CLIMB = {
     centerX: 28,
@@ -40,7 +43,15 @@ export const CLIMB = {
     ahead: 30,
     spawnRayTop: 9,
     seamMargin: 0.2,
+    loadout: { weapon: null, weapons: [] },
+    stagePrize: { banner: 1.5, repair: "full", refill: true },
 };
+
+/** Salud máxima de un robot (la inicial de `ActiveRagdoll`). */
+const FULL_HP = 100;
+
+/** Holgura horizontal (m) y vertical (m) con que un robot cuenta como apoyado en una plataforma. */
+const SUPPORT_SLACK = { x: 0.3, y: 0.35 };
 
 /** Celdas de la grilla de LiquidFun a cada lado de una costura: `computeTag` guarda `y / diámetro` en 12 bits con un corrimiento de 2048. */
 const SEAM_CELLS = 2048;
@@ -396,5 +407,66 @@ export class Climb {
         Box2D.destroy(this.position);
         Box2D.destroy(this.shape);
         Box2D.destroy(this.bodyDef);
+    }
+}
+/**
+ * Premio por etapa del ascenso: el primer robot que se apoya en una plataforma de la etapa `n ≥ 1` lo gana, una vez por
+ * etapa y por ronda. `detect` solo anota eventos `{ k, stage }` (se llama después de `stepWorld`, nunca en un callback) y
+ * `apply` es el único lugar que los aplica (vida y tanques según `config.stagePrize`) y arma el cartel `banner`
+ * `{ text, until }` (reloj de simulación).
+ */
+export class StagePrizes {
+    constructor(config = CLIMB) {
+        this.config = config;
+        this.claimed = new Set();
+        this.events = [];
+        this.banner = null;
+    }
+
+    /** Nueva ronda: todos los premios vuelven a estar disponibles. */
+    reset() {
+        this.claimed.clear();
+        this.events.length = 0;
+        this.banner = null;
+    }
+
+    /** Tope (m) de la plataforma más alta de `solids` sobre la que está apoyado `player`, o `null` si no hay. */
+    supportTop(player, solids) {
+        const x = player.torso.GetPosition().get_x();
+        const low = player.lowestPoint();
+        let best = null;
+        for (const s of solids) {
+            if (s.kind !== "platform") continue;
+            const top = s.y + s.h / 2;
+            if (Math.abs(x - s.x) > s.w / 2 + SUPPORT_SLACK.x || Math.abs(low - top) > SUPPORT_SLACK.y) continue;
+            if (best === null || top > best) best = top;
+        }
+        return best;
+    }
+
+    /** Anota el premio de la etapa en que se apoya cada robot vivo y en el suelo, si todavía nadie lo ganó. */
+    detect(players, solids) {
+        players.forEach((player, k) => {
+            if (player.dead || !player.grounded) return;
+            const top = this.supportTop(player, solids);
+            if (top === null) return;
+            const stage = stageOf(top, this.config);
+            if (stage < 1 || this.claimed.has(stage)) return;
+            this.claimed.add(stage);
+            this.events.push({ k, stage });
+        });
+    }
+
+    /** Aplica los eventos pendientes a `players` y devuelve los aplicados. `now` es el reloj de simulación (s). */
+    apply(players, now) {
+        const applied = this.events.splice(0);
+        const prize = this.config.stagePrize;
+        for (const { k, stage } of applied) {
+            const player = players[k];
+            if (prize.repair === "full") player.hp = FULL_HP;
+            if (prize.refill) refillTanks(player);
+            this.banner = { text: `ETAPA ${stage} · J${k + 1}`, until: now + prize.banner };
+        }
+        return applied;
     }
 }

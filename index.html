@@ -79,7 +79,7 @@
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
             import { Flood, RisingFlood } from "./js/flood.js";
-            import { CLIMB, Climb } from "./js/climb.js";
+            import { CLIMB, Climb, StagePrizes } from "./js/climb.js";
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
             import { Buoyancy } from "./js/buoyancy.js";
@@ -101,6 +101,7 @@
                 ShotEmitter,
                 cycleWeapon,
                 equipLoadout,
+                LOADOUT,
                 wheelSector,
                 wheelWeapon,
             } from "./js/weapons.js";
@@ -111,6 +112,7 @@
                 drawHud,
                 drawLevel,
                 drawMenu,
+                drawStageBanner,
                 drawParticles,
                 drawPickups,
                 drawWater,
@@ -264,7 +266,7 @@
                     spawnOnGround(robotRag.def, spawn.x),
                     spawn.flipX,
                 );
-                equipLoadout(robot);
+                equipLoadout(robot, climb ? CLIMB.loadout : LOADOUT);
                 return robot;
             }
 
@@ -326,6 +328,7 @@
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
             let pickups = new Pickups(world, damage, LEVEL.pickups);
+            const stagePrizes = new StagePrizes();
 
             /** Superficie del agua bajo la cual se ahoga un robot en Infinito: la del campo donde hay agua, ninguna donde no. */
             const drownSurface = (x) => (water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity);
@@ -430,6 +433,7 @@
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
+                stagePrizes.reset();
                 flood.reset();
                 bots.forEach((bot) => bot.reset());
                 immersion.reset();
@@ -530,7 +534,7 @@
             }
 
             function laserDe(player) {
-                if (player.dead) return null;
+                if (player.dead || player.weapon === null) return null;
                 const m = player.muzzle();
                 const x2 = m.x + m.dx * LASER_RANGE;
                 const y2 = m.y + m.dy * LASER_RANGE;
@@ -582,7 +586,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    world, platforms, players, particleSystem, water, store, wallContact, damage, emitter, match, immersion, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
+                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -595,7 +599,7 @@
                 lastTime = nowMs;
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
-                const botGame = { players, match, flood, water };
+                const botGame = { players, match, flood, water, pickups: pickups.points };
                 bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
@@ -680,6 +684,10 @@
                     accumulator -= STEP_SETTINGS.dt;
                 }
                 sonarEventos(now);
+                if (climb && match.state === "playing") {
+                    stagePrizes.detect(players, climb.level.solids);
+                    for (const { k } of stagePrizes.apply(players, now)) audio.play("pickup", k, now);
+                }
                 limpiarParticulas();
                 store.trim(frameDt * 1000, frameDt);
 
@@ -725,8 +733,8 @@
                 drawHits(pickupCtx, melee.hits, scale, now);
                 players.forEach((player, k) => {
                     const wheel = controls[k].wheel;
-                    if (!wheel || player.dead) return;
                     const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
+                    if (!wheel || player.dead || owned.length === 0) return;
                     const pos = player.torso.GetPosition();
                     drawWeaponWheel(
                         pickupCtx,
@@ -752,6 +760,10 @@
                     WEAPONS,
                     flood.config.start,
                 );
+                const stageBanner = stagePrizes.banner;
+                if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
+                    drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));
+                }
                 if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
                 requestAnimationFrame(loop);
             }

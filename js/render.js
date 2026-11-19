@@ -376,6 +376,21 @@ export function drawControlsHelp(ctx, width, height, rowCount) {
     ctx.textAlign = "left";
 }
 
+/**
+ * Cartel chico del premio por etapa (#25), arriba y centrado en píxeles de pantalla, sin fondo para no tapar el juego.
+ * `alpha` ∈ [0, 1] lo desvanece al final.
+ */
+export function drawStageBanner(ctx, width, text, alpha = 1) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.font = "bold 20px Segoe UI";
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#ffd84a";
+    ctx.fillText(text, width / 2, 124);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+}
+
 const TANK_BAR = { width: 180, height: 10 };
 
 // HUD en pantalla (sin cámara): vida, arma, tanque y rondas ganadas por jugador; cartel central entre rondas.
@@ -390,22 +405,24 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
         ctx.textAlign = left ? "left" : "right";
         ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
         const weapon = weapons.find((w) => w.id === player.weapon);
-        ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}% · ${weapon.name}`, x, height - 30);
+        ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}%${weapon ? ` · ${weapon.name}` : ""}`, x, height - 30);
 
-        const left0 = left ? x : x - TANK_BAR.width;
-        const top = height - 22;
-        const ratio = Math.max(0, Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank));
-        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-        ctx.fillRect(left0, top, TANK_BAR.width, TANK_BAR.height);
-        ctx.fillStyle = `rgb(${weapon.color.join(", ")})`;
-        ctx.fillRect(left0, top, TANK_BAR.width * ratio, TANK_BAR.height);
-        if (ratio === 0) {
-            ctx.fillStyle = "#ff5555";
-            ctx.font = "bold 12px Segoe UI";
-            ctx.textAlign = "left";
-            ctx.fillText("VACÍO", left0 + 4, top + TANK_BAR.height - 1);
-            ctx.font = "bold 24px Segoe UI";
-            ctx.textAlign = left ? "left" : "right";
+        if (weapon) {
+            const left0 = left ? x : x - TANK_BAR.width;
+            const top = height - 22;
+            const ratio = Math.max(0, Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank));
+            ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.fillRect(left0, top, TANK_BAR.width, TANK_BAR.height);
+            ctx.fillStyle = `rgb(${weapon.color.join(", ")})`;
+            ctx.fillRect(left0, top, TANK_BAR.width * ratio, TANK_BAR.height);
+            if (ratio === 0) {
+                ctx.fillStyle = "#ff5555";
+                ctx.font = "bold 12px Segoe UI";
+                ctx.textAlign = "left";
+                ctx.fillText("VACÍO", left0 + 4, top + TANK_BAR.height - 1);
+                ctx.font = "bold 24px Segoe UI";
+                ctx.textAlign = left ? "left" : "right";
+            }
         }
         for (let w = 0; w < match.winsNeeded; w++) {
             const cx = left ? x + 10 + w * 26 : x - 10 - w * 26;

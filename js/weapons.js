@@ -65,9 +65,15 @@ export function particleDamage(weapon) {
     return weapon.dps / weapon.rate;
 }
 
-export function equipLoadout(player) {
-    player.tanks = new Map(LOADOUT.weapons.map((id) => [id, byId.get(id).tank]));
-    player.weapon = LOADOUT.weapon;
+/** Equipa a `player` con `loadout` (`LOADOUT` por defecto); con `weapon: null` y sin tanques el robot arranca sin arma. */
+export function equipLoadout(player, loadout = LOADOUT) {
+    player.tanks = new Map(loadout.weapons.map((id) => [id, byId.get(id).tank]));
+    player.weapon = loadout.weapon;
+}
+
+/** Llena el tanque de cada arma que `player` tiene en el inventario. */
+export function refillTanks(player) {
+    for (const id of player.tanks.keys()) player.tanks.set(id, byId.get(id).tank);
 }
 
 /** Siguiente arma del inventario (ordenado como la tabla) en el sentido de `step`, con vuelta. */

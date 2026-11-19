@@ -60,6 +60,7 @@ export class Pickups {
             const weapon = this.weapons.get(point.weapon);
             if (!owner || owner.player.dead || !weapon) continue;
             owner.player.tanks.set(weapon.id, weapon.tank);
+            if (owner.player.weapon === null) owner.player.weapon = weapon.id;
             point.active = false;
             point.readyAt = now + PICKUP_RESPAWN;
             point.body.SetActive(false);
