@@ -131,6 +131,7 @@
             import { ParticleStore, SINK } from "./js/particleStore.js";
             import { WallContact } from "./js/wallContact.js";
             import { Pickups } from "./js/pickups.js";
+            import { GameAudio } from "./js/audio.js";
             import {
                 FLUID,
                 WEAPONS,
@@ -321,6 +322,49 @@
             const flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
             const pickups = new Pickups(world, damage, LEVEL.pickups);
+            const audio = new GameAudio();
+            audio.load();
+            window.addEventListener("keydown", () => audio.unlock());
+            window.addEventListener("pointerdown", () => audio.unlock());
+            const muertos = new WeakSet();
+            const STEP_MIN_SPEED = 1;
+            let lastMatchState = match.state;
+
+            /** Pista de música según el estado de la partida; en el cartel de fin de ronda sigue la actual (`null`). */
+            function musicaActual() {
+                if (match.state === "matchOver") return "mainMenu";
+                if (match.state === "roundOver") return null;
+                return flood.active ? "suddenDeath" : "combat";
+            }
+
+            /** Traduce a sonido los eventos ya resueltos del frame; se llama después de todos los pasos, nunca desde un callback de Box2D. */
+            function sonarEventos(now) {
+                for (const e of melee.events) {
+                    if (e.kind === "block") {
+                        audio.play("block", e.victim, now);
+                    } else {
+                        audio.play("hit", e.victim, now);
+                        audio.play("hurt", e.victim, now);
+                    }
+                }
+                melee.events.length = 0;
+                for (const e of pickups.events) audio.play("pickup", e.weapon, now);
+                pickups.events.length = 0;
+                for (const { player, index } of damage.footfalls) {
+                    const walking = player.clipState === "walk" || player.clipState === "walkBack";
+                    if (player.dead || !player.grounded || !walking) continue;
+                    if (Math.abs(player.torso.GetLinearVelocity().get_x()) > STEP_MIN_SPEED) audio.play("step", index, now);
+                }
+                damage.footfalls.length = 0;
+                players.forEach((player, k) => {
+                    if (player.landed) audio.play("land", k, now);
+                    player.landed = false;
+                    if (player.dead && !muertos.has(player)) {
+                        muertos.add(player);
+                        audio.play("death", k, now);
+                    }
+                });
+            }
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
             function reiniciarRonda() {
@@ -477,7 +521,7 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, melee, pickups };
+                globalThis.game = { world, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, melee, pickups, audio };
             }
 
             function loop(nowMs) {
@@ -489,10 +533,14 @@
                     else if ((s.jump || s.drop) && jumpPending[k] !== "roll") jumpPending[k] = "jump";
                 });
                 raycaster.count = 0;
+                if (input.padButton) audio.unlock();
 
                 if (match.update(players, inputs, frameDt) === "reset") {
                     reiniciarRonda();
                 }
+                if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
+                lastMatchState = match.state;
+                audio.playMusic(musicaActual());
                 accumulator += frameDt * match.timeScale;
                 simTime += frameDt * match.timeScale;
                 const now = simTime;
@@ -553,6 +601,7 @@
                     pickups.process(now);
                     accumulator -= STEP_SETTINGS.dt;
                 }
+                sonarEventos(now);
                 limpiarParticulas();
 
                 camera.update(
