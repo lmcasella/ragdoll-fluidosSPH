@@ -1,9 +1,12 @@
 /**
  * Valores de las plataformas atravesables: `tolerance` (m) es cuánto puede estar el punto más bajo del dueño por debajo
  * del tope para seguir apoyado (y cuánto por encima para poder bajar); `dropMaxTime` (s) corta la bajada si el dueño no
- * termina de pasar.
+ * termina de pasar. `approach` (m) es la franja sobre el tope en la que se registra el par antes de tocar, para que un
+ * dueño que cae rápido (hasta ~30 m/s por paso de 1/60 s) quede sólido antes de hundirse bajo `tope - tolerance`. Un par
+ * sólido sigue sólido mientras se solapen (histéresis): hundirse unos centímetros al caminar no lo vuelve fantasma; solo
+ * la bajada o salir del solapamiento lo liberan.
  */
-export const ONE_WAY = { tolerance: 0.05, dropMaxTime: 0.4 };
+export const ONE_WAY = { tolerance: 0.05, approach: 0.5, dropMaxTime: 0.4 };
 
 /**
  * Regla de colisión por defecto de Box2D (`b2ContactFilter::ShouldCollide`) con `groupIndex`, `categoryBits` y `maskBits`.
@@ -131,13 +134,13 @@ export class OneWayPlatforms {
         }
         for (const [ptr, p] of this.platforms) {
             const overlaps =
-                box.maxX > p.minX && box.minX < p.maxX && box.high > p.bottom - tol && box.low < p.top + tol;
+                box.maxX > p.minX && box.minX < p.maxX && box.high > p.bottom - tol && box.low < p.top + this.config.approach;
             if (!overlaps) {
                 owner.pairs.delete(ptr);
                 continue;
             }
-            const ghost = owner.drops.has(ptr) || box.low < p.top - tol;
             const before = owner.pairs.get(ptr);
+            const ghost = owner.drops.has(ptr) || (before !== false && box.low < p.top - tol);
             if (before !== undefined && before !== ghost) changed = true;
             owner.pairs.set(ptr, ghost);
         }
@@ -199,6 +202,8 @@ export class OneWayPlatforms {
         const bodyPtr = Box2D.getPointer(body);
         const owner = this.byBody.get(bodyPtr) ?? this.implicit.get(bodyPtr) ?? { bodies: [body], drops: this.noDrops };
         if (owner.drops.has(ptr)) return false;
+        const state = owner.pairs?.get(ptr);
+        if (state !== undefined) return !state;
         return this.measure(owner).low >= platform.top - this.config.tolerance;
     }
 }
