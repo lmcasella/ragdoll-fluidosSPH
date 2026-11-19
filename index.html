@@ -394,7 +394,7 @@
             /** Estado de input sin intención de control: los robots quedan quietos fuera de `controlsActive`; solo la mira sigue. */
             function neutro(s) {
                 return {
-                    left: false, right: false, up: false, down: false, jump: false, drop: false, roll: false,
+                    left: false, right: false, up: false, down: false, jump: false, jumpHeld: false, strongDown: false, drop: false, roll: false,
                     action: false, start: false, fire: false, grapple: false, block: false, punch: false, kick: false,
                     weapon: null, weaponStep: 0, aim: s.aim, pointer: s.pointer, wheel: null, wheelPick: null,
                 };
