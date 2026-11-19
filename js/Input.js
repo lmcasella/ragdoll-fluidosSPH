@@ -39,7 +39,7 @@ export const KEYBOARD_LAYOUTS = [
  * Botones del mapeo "standard" de la Gamepad API. `weapons` es la cruceta en el orden de la posición en la tabla de
  * armas: arriba 1, derecha 2, abajo 3, izquierda 4.
  */
-const PAD = {
+export const PAD = {
     jump: 0,
     punch: 1,
     grapple: 2,
@@ -88,6 +88,7 @@ export class Input {
         this.wheelSources = this.layouts.map(() => null);
         this.wheelBlocked = this.layouts.map(() => false);
         this.states = this.layouts.map(() => ({}));
+        this.virtualPads = this.layouts.map(() => null);
 
         const gameCodes = new Set(
             this.layouts.flatMap((l) => Object.values(l).flat()),
@@ -128,6 +129,20 @@ export class Input {
             this.mouseHeld = false;
             this.mouseGrapple = false;
         });
+    }
+
+    /**
+     * Gamepad virtual del jugador `k` (un bot): un objeto con la forma de un `Gamepad` ({ axes, buttons: [{ pressed }] })
+     * que `poll` lee como a un gamepad real mientras no haya uno real conectado para ese jugador. `null` lo quita.
+     */
+    setVirtualPad(k, pad) {
+        this.virtualPads[k] = pad;
+    }
+
+    /** Si hay un gamepad real conectado para el jugador `k` (los gamepads se asignan por orden de conexión). */
+    hasRealPad(k) {
+        const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter((p) => p && p.connected) : [];
+        return k < pads.length;
     }
 
     /**
@@ -176,7 +191,7 @@ export class Input {
             let stick = null;
             if (wasPressed(layout.nextWeapon)) state.weaponStep = 1;
 
-            const pad = pads[k];
+            const pad = pads[k] ?? this.virtualPads[k];
             if (pad) {
                 const read = this.readPad(pad, k, state);
                 strongDown ||= read.strongDown;

@@ -123,6 +123,7 @@
             } from "./lib/ragimporter.js";
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
+            import { Bot } from "./js/bot.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
@@ -321,6 +322,10 @@
             let inputs = input.poll();
             let controls = inputs;
             const jumpPending = players.map(() => false);
+            const bots = new Map();
+            for (const n of (new URLSearchParams(globalThis.location?.search ?? "").get("bot") ?? "").split(",").map(Number)) {
+                if (n >= 1 && n <= players.length) bots.set(n - 1, new Bot({ k: n - 1, world, seed: (Math.random() * 2 ** 32) >>> 0 }));
+            }
 
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
@@ -406,6 +411,7 @@
                 damage.register(players);
                 buoyancy.register(players);
                 flood.reset();
+                bots.forEach((bot) => bot.reset());
                 immersion.reset();
                 pickups.reset();
                 emitter.reset();
@@ -566,12 +572,14 @@
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
-                globalThis.game = { world, platforms, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio };
+                globalThis.game = { world, platforms, players, particleSystem, water, store, wallContact, flood, damage, emitter, match, immersion, buoyancy, melee, pickups, audio, bots, input };
             }
 
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
+                const botGame = { players, match, flood, water };
+                bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
                     const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
