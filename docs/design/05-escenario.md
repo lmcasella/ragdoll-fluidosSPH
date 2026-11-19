@@ -74,6 +74,6 @@ Pedido del usuario (remapeo del 18/11; issue #149, requisito del ascenso infinit
 ### Criterios (Node, gamepad simulado)
 
 - Saltar desde abajo de una plataforma de 0,4 m atraviesa y aterriza arriba en el mismo salto.
-- `drop` sobre una plataforma baja al robot por debajo en ≤ 0,5 s, y no vuelve a subir.
+- `drop` sobre una plataforma cruza los pies en ≤ 0,3 s y al robot entero en ≤ 0,6 s (caída libre de 1,6 m desde el reposo: 0,57 s), y no vuelve a subir.
 - Sobre el piso de las islas, `drop` salta (9 m/s).
 - Los robots siguen chocando entre sí y con el piso y las paredes. Las partículas siguen apoyadas en las plataformas.

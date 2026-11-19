@@ -100,10 +100,11 @@ async function dropOnStep() {
     return { game, seconds: frames / 60, feetSeconds: feetFrames / 60 };
 }
 
-test("plataformas: abajo + A baja al robot entero por debajo en 0,5 s o menos", { todo: "medido 0,533 s con el robot entero (0,267 s con los pies); cae en gravedad libre y su alto es 1,19 m: decide architect" }, async () => {
+test("plataformas: abajo + A cruza los pies en 0,3 s y al robot entero en 0,6 s o menos", async () => {
     const { seconds, feetSeconds } = await dropOnStep();
     console.log(`bajada: robot entero ${seconds.toFixed(3)} s, pies ${feetSeconds.toFixed(3)} s`);
-    assert.ok(seconds <= 0.5, `${seconds} s`);
+    assert.ok(feetSeconds <= 0.3, `pies ${feetSeconds} s`);
+    assert.ok(seconds <= 0.6, `${seconds} s`);
 });
 
 test("plataformas: tras bajar, el robot no vuelve a subir y la bajada termina", async () => {
