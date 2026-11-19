@@ -72,7 +72,8 @@ export class OneWayPlatforms {
 
     /**
      * Registra `bodies` (iterable de `b2Body`) como el dueño `key`. Con una clave que ya existe reemplaza los cuerpos y
-     * conserva la bajada en curso (el robot que gira se vuelve a crear en el mismo lugar).
+     * conserva la bajada en curso y los pares ya registrados (el robot que gira se vuelve a crear en el mismo lugar y, si
+     * los pares se perdieran, quedaría fantasma al hundirse unos centímetros bajo el tope al recrearse).
      */
     addOwner(key, bodies) {
         const list = [...bodies];
@@ -80,7 +81,6 @@ export class OneWayPlatforms {
         if (old) for (const body of old.bodies) this.byBody.delete(Box2D.getPointer(body));
         const owner = old ?? { bodies: list, drops: new Map(), pairs: new Map() };
         owner.bodies = list;
-        owner.pairs.clear();
         this.owners.set(key, owner);
         for (const body of list) this.byBody.set(Box2D.getPointer(body), owner);
     }
