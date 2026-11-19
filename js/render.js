@@ -15,21 +15,33 @@ const SPARK_SEGMENT_LENGTH = 0.3; // m; con 0,12 m quedaban dentro del cuerpo y 
 const SPARK_COLORS = ["#fff27a", "#e8ffff"];
 /** Radio dibujado de las gotas: `√(A_p / π)` con `A_p = (1,5 · 0,06 m)²` el área física de una partícula (0,0508 m), para que el área dibujada sea la física (I3). */
 export const PARTICLE_RADIUS = (1.5 * 0.06) / Math.sqrt(Math.PI);
+const PARTICLE_AREA = Math.PI * PARTICLE_RADIUS ** 2;
 
 /**
- * Dibujo de las gotas de disparo y de lluvia. Acercamiento a los cuerpos (m): la fila de contacto física queda a
- * 0,192 m y el segundo círculo cierra ese hueco. El agua más rápida que `streakSpeed` (m/s), sea de lluvia o de disparo, se dibuja como
- * trazo de largo `rapidez · streakScale` (s), con tope `streakLength` (m) y ancho `streakWidth` (m).
+ * Dibujo de las gotas de disparo y de lluvia: un solo círculo por partícula, de área física `area` = A_p en m²,
+ * igual para toda partícula de un material (sin trazos: la velocidad y el origen no cambian el dibujo).
+ * `snapReach` y `snapFullReach` (m) acercan el círculo de las partículas junto a un cuerpo a su superficie: la fila de contacto física queda a
+ * 0,192 m. `kinds` se indexa por `store.kind` (ids de `FLUID` en `js/weapons.js`: 1 ácido, 2 lava, 3 miel, 4 agua) y
+ * dice, por material, `radiusScale` (k que multiplica a `√(A_p/π)`, con tope `maxRadius` en m). Los k se midieron con el fluido en reposo (|v| < 1 m/s) en la
+ * escena estándar de `tests/helpers/invariants-run.js` (60 s, un muestreo cada 20 pasos): el k que hace que la
+ * unión de círculos (con `skinPosition`) mida N · A_p, por bisección; resultado ponderado por N: agua 1,040
+ * (109 muestras), miel 1,069 (111), lava 1,045 (12). El ácido nunca queda en reposo en esa escena (se absorbe o
+ * cae al campo) y usa el k del agua, que tiene sus mismos flags y separación SPH.
  */
 export const SHOT_DRAW = {
     radius: PARTICLE_RADIUS,
+    area: PARTICLE_AREA,
+    maxRadius: 0.14,
     snapReach: 0.15,
     snapFullReach: 0.11,
-    streakSpeed: 6,
-    streakScale: 0.05,
-    streakLength: 0.7,
-    streakWidth: 0.025,
+    kinds: {
+        1: { radiusScale: 1.04 },
+        2: { radiusScale: 1.045 },
+        3: { radiusScale: 1.069 },
+        4: { radiusScale: 1.04 },
+    },
 };
+const DEFAULT_KIND = { radiusScale: 1 };
 // m que el agua acercada se mete bajo la superficie del cuerpo para que no quede una línea de fondo entre los dos
 const SKIN_OVERLAP = 0.02;
 
@@ -425,106 +437,52 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
     return skinShift;
 }
 
-const stroke = { dx: 0, dy: 0 };
-
-// Decide si una gota de agua se dibuja como trazo: rápida (>= draw.streakSpeed, m/s). Devuelve el vector del
-// trazo en metros (de la cabeza hacia atrás, opuesto a la velocidad) o null si va como círculo. Largo proporcional
-// a la rapidez (draw.streakScale, s) con tope draw.streakLength. Devuelve un objeto compartido: no se retiene.
-export function rainStroke(vx, vy, draw) {
-    const speed = Math.hypot(vx, vy);
-    if (speed < draw.streakSpeed) return null;
-    const length = Math.min(speed * draw.streakScale, draw.streakLength);
-    stroke.dx = (-vx / speed) * length;
-    stroke.dy = (-vy / speed) * length;
-    return stroke;
-}
-
-const NO_SKIN = { radius: PARTICLE_RADIUS, snapReach: 0, snapFullReach: 0, streakSpeed: Infinity, streakScale: 0, streakLength: 0, streakWidth: 0 };
+const NO_SKIN = { radius: PARTICLE_RADIUS, area: PARTICLE_AREA, maxRadius: Infinity, snapReach: 0, snapFullReach: 0, kinds: {} };
 
 /**
- * Primitivas con que se dibuja una partícula (puro, sin `ctx`): llena `out` y lo devuelve. Con `out.capsule` falso
- * son `out.count` (1 o 2) círculos de radio `out.radius` con centros (`x0`, `y0`) y (`x1`, `y1`); el segundo es el
- * acercado a la superficie del cuerpo (`skinPosition`). Con `out.capsule` verdadero es el trazo de lluvia, una
- * cápsula de ancho `out.width` entre (`x0`, `y0`) y (`x1`, `y1`). `draw` son los datos de `SHOT_DRAW`; `isWater`
- * (el material, nunca el origen) pide el trazo cuando la gota vuela más rápido que `draw.streakSpeed`. Unidades: metros y m/s.
+ * Círculo con que se dibuja una partícula (puro, sin `ctx`): llena `out` (`radius`, `x0`, `y0`, en metros) y lo
+ * devuelve. Siempre un solo círculo de radio `min(draw.radius · k_material, draw.maxRadius)`, acercado a la
+ * superficie del cuerpo si corresponde (`skinPosition`). Depende solo del material (`kind` = `store.kind`): ni la
+ * velocidad ni el origen (lluvia o disparo) cambian el dibujo.
  */
-export function dropShape(x, y, vx, vy, isWater, draw, out) {
-    if (isWater) {
-        const s = rainStroke(vx, vy, draw);
-        if (s) {
-            out.capsule = true;
-            out.count = 0;
-            out.width = draw.streakWidth;
-            out.x0 = x;
-            out.y0 = y;
-            out.x1 = x + s.dx;
-            out.y1 = y + s.dy;
-            return out;
-        }
-    }
-    out.capsule = false;
-    out.count = 1;
-    out.radius = draw.radius;
+export function dropShape(x, y, kind, draw, out) {
+    const entry = draw.kinds[kind] ?? DEFAULT_KIND;
+    const radius = Math.min(draw.radius * entry.radiusScale, draw.maxRadius);
+    out.radius = radius;
     out.x0 = x;
     out.y0 = y;
     if (draw.snapReach > 0) {
-        const p = skinPosition(x, y, draw.radius, draw.snapReach, draw.snapFullReach);
-        if (p.x !== x || p.y !== y) {
-            out.count = 2;
-            out.x1 = p.x;
-            out.y1 = p.y;
-        }
+        const p = skinPosition(x, y, radius, draw.snapReach, draw.snapFullReach);
+        out.x0 = p.x;
+        out.y0 = p.y;
     }
     return out;
 }
 
-const shape = { capsule: false, count: 0, radius: 0, width: 0, x0: 0, y0: 0, x1: 0, y1: 0 };
+const shape = { radius: 0, x0: 0, y0: 0 };
 
 /**
- * Dibuja las partículas de `particleSystem` como círculos de `radius`. Con `skin` (`SHOT_DRAW`), las partículas
- * junto a un cuerpo suman un segundo círculo acercado a su superficie (ver `skinPosition`): mover la partícula en
- * vez de duplicarla abría huecos en el agua donde estaba. Lo que se dibuja lo decide `dropShape`.
- * `streaks` = `{ ctx, store, kind }`: las gotas de `store` de ese `kind` (agua) que vuelan rápido se dibujan como
- * trazos en `rain.ctx`, un canvas aparte sin el filtro goo (el desenfoque y el umbral borrarían una línea fina).
+ * Dibuja las partículas de `particleSystem` como un círculo cada una, de `radius` (por material con `skin`). Con
+ * `skin` (`SHOT_DRAW`), las partículas junto a un cuerpo se dibujan acercadas a su superficie (ver `skinPosition`). Lo
+ * que se dibuja lo decide `dropShape`. `store` (opcional): `store.kind` da el material de cada partícula.
  */
-export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, streaks = null) {
+export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, store = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
     const posBase = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
-    let velBase = 0;
-    let rctx = null;
-    if (streaks) {
-        rctx = streaks.ctx;
-        velBase = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
-        rctx.lineWidth = skin.streakWidth;
-        rctx.lineCap = "round";
-    }
     const draw = skin ?? NO_SKIN;
     NO_SKIN.radius = radius;
     for (let i = 0; i < count; i++) {
         const c = colorBase + i * 4;
-        const style = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         const x = positions[posBase + i * 2];
         const y = positions[posBase + i * 2 + 1];
-        const isWater = rctx !== null && streaks.store.kind[streaks.store.slotAt(i)] === streaks.kind;
-        dropShape(x, y, isWater ? positions[velBase + i * 2] : 0, isWater ? positions[velBase + i * 2 + 1] : 0, isWater, draw, shape);
-        if (shape.capsule) {
-            rctx.strokeStyle = style;
-            rctx.beginPath();
-            rctx.moveTo(shape.x0, shape.y0);
-            rctx.lineTo(shape.x1, shape.y1);
-            rctx.stroke();
-            continue;
-        }
-        ctx.fillStyle = style;
+        const kind = store !== null ? store.kind[store.slotAt(i)] : 0;
+        dropShape(x, y, kind, draw, shape);
+        ctx.fillStyle = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
         ctx.beginPath();
-        ctx.arc(x, y, shape.radius, 0, Math.PI * 2);
-        if (shape.count === 2) {
-            ctx.moveTo(shape.x1 + shape.radius, shape.y1);
-            ctx.arc(shape.x1, shape.y1, shape.radius, 0, Math.PI * 2);
-        }
+        ctx.arc(shape.x0, shape.y0, shape.radius, 0, Math.PI * 2);
         ctx.fill();
     }
 }

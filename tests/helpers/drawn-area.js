@@ -77,64 +77,6 @@ export class UnionArea {
         }
     }
 
-    /** Suma una cápsula: el segmento (`x0`, `y0`)–(`x1`, `y1`) engrosado `width` / 2 a cada lado. */
-    addCapsule(kind, x0, y0, x1, y1, width) {
-        const r = width / 2;
-        const length = Math.hypot(x1 - x0, y1 - y0);
-        if (length === 0) {
-            this.addCircle(kind, x0, y0, r);
-            return;
-        }
-        const ux = (x1 - x0) / length;
-        const uy = (y1 - y0) / length;
-        const lo = Math.ceil((Math.min(y0, y1) - r) / CELL - 0.5);
-        const hi = Math.floor((Math.max(y0, y1) + r) / CELL - 0.5);
-        const r2 = r * r;
-        for (let row = lo; row <= hi; row++) {
-            const yc = (row + 0.5) * CELL;
-            let xl = Infinity;
-            let xh = -Infinity;
-            const d0 = yc - y0;
-            const q0 = r2 - d0 * d0;
-            if (q0 >= 0) {
-                const half = Math.sqrt(q0);
-                xl = x0 - half;
-                xh = x0 + half;
-            }
-            const d1 = yc - y1;
-            const q1 = r2 - d1 * d1;
-            if (q1 >= 0) {
-                const half = Math.sqrt(q1);
-                if (x1 - half < xl) xl = x1 - half;
-                if (x1 + half > xh) xh = x1 + half;
-            }
-            let rl = -Infinity;
-            let rh = Infinity;
-            if (Math.abs(ux) < 1e-12) {
-                if (uy * d0 < 0 || uy * d0 > length) rh = -Infinity;
-            } else {
-                const p = x0 + (-uy * d0) / ux;
-                const q = x0 + (length - uy * d0) / ux;
-                rl = p < q ? p : q;
-                rh = p < q ? q : p;
-            }
-            if (Math.abs(uy) < 1e-12) {
-                if (ux * d0 < -r || ux * d0 > r) rh = -Infinity;
-            } else {
-                const p = x0 + (ux * d0 - r) / uy;
-                const q = x0 + (ux * d0 + r) / uy;
-                const lowT = p < q ? p : q;
-                const highT = p < q ? q : p;
-                if (lowT > rl) rl = lowT;
-                if (highT < rh) rh = highT;
-            }
-            if (rl <= rh) {
-                if (rl < xl) xl = rl;
-                if (rh > xh) xh = rh;
-            }
-            if (xl <= xh) this.span(kind, row, xl, xh);
-        }
-    }
     /**
      * Área de la unión por material (m²) en `out` (`Float64Array` de `kinds`): reparte los intervalos por
      * material y fila, ordena los de cada fila por columna inicial y cuenta las celdas de su unión.

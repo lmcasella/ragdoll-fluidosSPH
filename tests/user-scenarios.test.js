@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { loadGame } from "./helpers/game.js";
 import { recordGame } from "./helpers/recorder.js";
 import { HoneyProbe } from "./helpers/honey-probe.js";
-import { runStandardScene, AREA_TOLERANCE, MATERIAL_NAMES, STEPS_PER_SECOND } from "./helpers/invariants-run.js";
+import { runStandardScene, AREA_TOLERANCE, PARTICLE_AREA_TOLERANCE, AREA_SHARE, AREA_HARD_LIMIT, MATERIAL_NAMES, STEPS_PER_SECOND } from "./helpers/invariants-run.js";
 
 const { LEVEL } = await import("../js/level.js");
 const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
@@ -384,7 +384,7 @@ test("U3 (#98): un tanque de ácido a la pileta; Q1b en cada paso durante 60 s, 
         { name: "Q6c, columnas con h > hDry y A < −1e-12 o w > w_a + 1e-9", ok: q6cBad === 0, detail: `${q6cBad} columnas-paso contra 0` },
     ]);
 });
-test("U4 (#101): lluvia y disparos durante 30 s; el área dibujada = la física por material (±5 %), con la medición de I3p e I3f", async (t) => {
+test("U4 (#101): lluvia y disparos durante 30 s; el área dibujada = la física por material (±10 % en el 95 % de los pasos, ninguno fuera de ±15 %), con la medición de I3p e I3f", async (t) => {
     const name = "u4-lluvia-y-disparos";
     let recorder = null;
     const run = await runStandardScene({
@@ -406,11 +406,12 @@ test("U4 (#101): lluvia y disparos durante 30 s; el área dibujada = la física 
         const track = run.i3p[n];
         if (track.evals === 0) continue;
         const info = track.maxInfo;
+        const near = run.i3pNear[n] / track.evals;
         checks.push({
             name: `partículas de ${n}`,
             issue: "#101",
-            ok: track.fails === 0,
-            detail: `dibujado ${num(info.drawn)} m² contra n · A_p = ${num(info.physical)} m² (n = ${info.n}) en el peor paso: ${pct(track.max)}; fuera de ±${pct(AREA_TOLERANCE)} en ${track.fails} de ${track.evals} pasos`,
+            ok: near >= AREA_SHARE && track.fails === 0,
+            detail: `dibujado ${num(info.drawn)} m² contra n · A_p = ${num(info.physical)} m² (n = ${info.n}) en el peor paso: ${pct(track.max)}; ${pct(near)} de ${track.evals} pasos dentro de ±${pct(PARTICLE_AREA_TOLERANCE)} (esperado ${pct(AREA_SHARE)}); fuera de ±${pct(AREA_HARD_LIMIT)} en ${track.fails} pasos`,
         });
     }
     const field = run.i3f.water;

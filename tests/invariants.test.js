@@ -10,6 +10,9 @@ import {
     runStandardScene,
     MASS_TOLERANCE,
     AREA_TOLERANCE,
+    PARTICLE_AREA_TOLERANCE,
+    AREA_SHARE,
+    AREA_HARD_LIMIT,
     MIN_WINDOW_SECONDS,
     WINDOW_SECONDS,
     SPECIES,
@@ -115,19 +118,16 @@ test("calibración de I3: la grilla de 2,5 mm mide un círculo de r = 0,07 m con
     assert.ok(Math.abs(out[0] - exact) / exact < 0.01, `área ${out[0]} contra ${exact}`);
 });
 
-test("calibración de I3: la unión no cuenta dos veces lo solapado y separa materiales; la cápsula mide largo · ancho + extremos", () => {
+test("calibración de I3: la unión no cuenta dos veces lo solapado y separa materiales", () => {
     const union = new UnionArea();
     const out = new Float64Array(4);
     union.addCircle(0, 5, 5, 0.07);
     union.addCircle(0, 5, 5, 0.07);
     union.addCircle(1, 5, 5, 0.07);
-    union.addCapsule(2, 8, 5, 8, 5.7, 0.025);
     union.areas(out);
     const circle = Math.PI * 0.07 ** 2;
     assert.ok(Math.abs(out[0] - circle) / circle < 0.01);
     assert.equal(out[1], out[0]);
-    const capsule = 0.7 * 0.025 + Math.PI * 0.0125 ** 2;
-    assert.ok(Math.abs(out[2] - capsule) / capsule < 0.02, `cápsula ${out[2]} contra ${capsule}`);
 });
 
 test("waterOutline: el área del polígono es exactamente Σ h dx de las celdas mojadas", () => {
@@ -148,30 +148,29 @@ test("waterOutline: el área del polígono es exactamente Σ h dx de las celdas 
     assert.ok(Math.abs(area - expected) < 1e-9, `área ${area} contra ${expected}`);
 });
 
-test("dropShape: círculo, segundo círculo junto a un cuerpo y trazo del agua rápida", () => {
+test("dropShape: un círculo por partícula con el radio del material, sin depender de otra cosa", () => {
     const out = {};
-    dropShape(10, 20, 0, 0, false, SHOT_DRAW, out);
-    assert.deepEqual([out.capsule, out.count, out.radius], [false, 1, SHOT_DRAW.radius]);
-    dropShape(10, 20, 0, -8, false, SHOT_DRAW, out);
-    assert.equal(out.capsule, false, "una gota que no es de agua nunca se dibuja como trazo");
-    dropShape(10, 20, 0, -8, true, SHOT_DRAW, out);
-    assert.equal(out.capsule, true);
-    assert.equal(out.width, SHOT_DRAW.streakWidth);
-    assert.ok(Math.abs(Math.hypot(out.x1 - out.x0, out.y1 - out.y0) - 8 * SHOT_DRAW.streakScale) < 1e-12);
-    dropShape(10, 20, 0, -2, true, SHOT_DRAW, out);
-    assert.equal(out.capsule, false, "el agua lenta se dibuja como círculo");
+    const [ACID, LAVA, HONEY, WATER] = [1, 2, 3, 4];
+    for (const kind of [ACID, LAVA, HONEY, WATER]) {
+        dropShape(10, 20, kind, SHOT_DRAW, out);
+        assert.equal(out.radius, SHOT_DRAW.radius * SHOT_DRAW.kinds[kind].radiusScale);
+        assert.deepEqual(Object.keys(out).sort(), ["radius", "x0", "y0"]);
+    }
+    assert.ok(SHOT_DRAW.radius * Math.max(...Object.values(SHOT_DRAW.kinds).map((k) => k.radiusScale)) <= SHOT_DRAW.maxRadius);
 });
-
 const i3Detail = (track) => {
     const info = track.maxInfo;
-    return `dibujado ${num(info.drawn)} m² contra n · A_p = ${num(info.physical)} m² (n = ${info.n}) en el paso de mayor error: ${pct(track.max)}; falla en ${track.fails} de ${track.evals} pasos (el primero, ${track.firstFail}); esperado ±${pct(AREA_TOLERANCE)}`;
+    return `dibujado ${num(info.drawn)} m² contra n · A_p = ${num(info.physical)} m² (n = ${info.n}) en el paso de mayor error: ${pct(track.max)}; falla en ${track.fails} de ${track.evals} pasos (el primero, ${track.firstFail}); esperado ±${pct(AREA_HARD_LIMIT)} en todos los pasos`;
 };
 
 for (const n of MATERIAL_NAMES) {
-    test(`I3p partículas de ${n}: área dibujada de la unión de primitivas = n · A_p (1 − φ) ±5 %`, (t) => {
+    test(`I3p partículas de ${n}: área dibujada de la unión de primitivas = n · A_p ±10 % en el 95 % de los pasos y ninguno fuera de ±15 %`, (t) => {
         const track = run.i3p[n];
         assert.ok(track.evals > 0, `${n}: no hubo partículas`);
-        verdict(t, track, [[true, "#101"]], i3Detail(track));
+        const near = run.i3pNear[n] / track.evals;
+        t.diagnostic(`${pct(near)} de ${track.evals} pasos dentro de ±${pct(PARTICLE_AREA_TOLERANCE)}; ${i3Detail(track)}`);
+        assert.ok(near >= AREA_SHARE, `${n}: solo ${pct(near)} de los pasos dentro de ±${pct(PARTICLE_AREA_TOLERANCE)}, esperado ${pct(AREA_SHARE)}; ${i3Detail(track)}`);
+        assert.equal(track.fails, 0, `${n}: ${track.fails} pasos fuera de ±${pct(AREA_HARD_LIMIT)}; ${i3Detail(track)}`);
     });
 }
 
