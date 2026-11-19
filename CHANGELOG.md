@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-11-19
+
+### Changed
+- Agente `chemist`: informa cómo interactúan de verdad las sustancias antes de diseñar cualquier interacción entre materiales.
+- `physics-reviewer` pasa a `physics-analyst`: modela lo que decide el game designer y valida contra la física, los invariantes globales y los escenarios del usuario; las regresiones bloquean el merge.
+
 ## [0.15.1] - 2026-11-19
 
 ### Fixed
