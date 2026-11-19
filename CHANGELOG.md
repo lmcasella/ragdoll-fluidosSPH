@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-11-19
+
+### Fixed
+- Las gotas sueltas ya se ven desde que salen: el filtro que une las gotas las borraba hasta que se juntaban con otras o tocaban algo.
+
 ## [0.17.1] - 2026-11-19
 
 ### Fixed

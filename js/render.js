@@ -18,6 +18,22 @@ export const PARTICLE_RADIUS = (1.5 * 0.06) / Math.sqrt(Math.PI);
 const PARTICLE_AREA = Math.PI * PARTICLE_RADIUS ** 2;
 
 /**
+ * Desenfoque del filtro goo, en m (se pasa a píxeles con el zoom). El umbral del filtro (alfa · 20 − 10) solo deja
+ * ver lo que supera alfa 0,5, y un círculo aislado de radio r desenfocado con σ llega en el centro a
+ * `1 − exp(−r² / 2σ²)`: con σ = 0,07 m una gota de 0,05 m quedaba en 0,22 y desaparecía. Con 0,03 m llega a 0,75.
+ */
+export const GOO_BLUR = 0.03;
+
+/**
+ * Alfa en el centro de un círculo aislado de radio `radius` después del desenfoque gaussiano de `sigma` (misma unidad).
+ * @param {number} radius
+ * @param {number} sigma
+ */
+export function gooPeakAlpha(radius, sigma) {
+    return 1 - Math.exp(-(radius * radius) / (2 * sigma * sigma));
+}
+
+/**
  * Dibujo de las gotas de disparo y de lluvia: un solo círculo por partícula, de área física `area` = A_p en m²,
  * igual para toda partícula de un material (sin trazos: la velocidad y el origen no cambian el dibujo).
  * `snapReach` y `snapFullReach` (m) acercan el círculo de las partículas junto a un cuerpo a su superficie: la fila de contacto física queda a
