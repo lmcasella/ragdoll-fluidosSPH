@@ -18,7 +18,7 @@ Juego web 1v1 de robots ragdoll que pelean con fluidos SPH, para la materia Simu
 | Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los decide `planner` con la taxonomía de abajo y los opera `github-clerk`. |
 | `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Se actualiza en cada merge.** |
 | `README.md` | Cómo correr, probar y jugar. |
-| `docs/referencias.md` | Material de estudio: matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan. **Se actualiza en cada merge.** |
+| `docs/referencias.md` | Material de estudio: matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan. Durante la entrega se pone al día en una sola pasada antes de la presentación. |
 
 ### Formato de `docs/referencias.md`
 
@@ -130,32 +130,25 @@ Cada PR agrega su entrada en `CHANGELOG.md` bajo un encabezado `## [x.y.z] - AAA
 
 Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el cuerpo del PR dice `Closes #<n>`.
 
-1. **Elegir:** `/next`. Ordena los issues abiertos (bugs, milestone más cercano, lo que desbloquea, prioridad), recomienda uno y crea su rama al confirmar.
-2. **Revisar el diseño:** si la tarea cambia comportamiento o agrega o cambia un módulo, primero pasa por `architect`, que actualiza el archivo de `docs/design/` que corresponda y ubica la funcionalidad en los patrones de arriba. Si toca la simulación (fluidos, interacciones, cambios de fase, contacto con cuerpos), el orden es: `chemist` informa qué pasa en la realidad entre las sustancias involucradas; el game designer (la sesión principal, en Opus) decide cómo entra al juego; `physics-analyst` lo modela y aprueba el diseño antes de implementar. Cada fenómeno se modela con su física, no se imita con reglas de juego, y sus criterios de aceptación son físicos, con referencia y tolerancia.
-3. **Implementar** con `developer`. Cada punto de control es un commit convencional en la rama.
-4. **Verificar:**
-   - correr `node --test tests/`;
-   - agregar un test si la lógica se puede probar sin navegador;
-   - para gameplay, una prueba en Node que ejecute el script de `index.html` con LiquidFun real y un gamepad simulado, midiendo el resultado (daño, posiciones, estados); después, navegador;
-   - para cambios no triviales, `/code-review`;
-   - si toca la simulación, `physics-analyst` valida el resultado contra la física y sobre secuencias de frames, no capturas fijas. Sin su aprobación no se mergea;
-   - **invariantes globales** (tests permanentes sobre la escena real del juego, en cada PR): la masa de cada material (partículas + campo) se conserva; ningún material cambia de identidad sin una reacción diseñada; el volumen dibujado coincide con el físico; no hay películas de agua más finas que el espesor mínimo del diseño;
-   - **escenarios del usuario:** cada falla que reporta el usuario se convierte primero en un test que la reproduce, y no se cierra hasta que pasa;
-   - **regresiones:** si algo que funcionaba en `main` cambia sin que el diseño lo pida, no se mergea. No se presenta como "cambio de comportamiento".
-5. **Documentar (obligatorio en cada PR):** `doc-writer` agrega la entrada de `CHANGELOG.md`, actualiza `README.md`, actualiza `docs/referencias.md` (entradas nuevas, descartadas y las `ruta:línea` que se movieron) y revisa si el diseño cambió. Si cambió, actualiza el archivo de `docs/design/` correspondiente (estado y valores reales); si cambió una decisión de diseño, la registra `architect`.
-6. **PR y merge:** push y PR con título igual al commit convencional de la tarea, cuerpo según la plantilla y `Closes #<n>`. Se mergea con merge commit y se borra la rama.
-7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`, no rama por rama.
+**Etapa actual: prototipado y entrega (hasta el 24/11).** El objetivo es un juego completo y jugable, no un producto pulido. Cada tarea gasta lo mínimo: **un solo agente (`developer`) por tarea**; todo lo demás lo hace la sesión principal directamente.
 
-**Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: `planner` lo especifica y `github-clerk` lo registra como issue.
+1. **Elegir:** `/next` recomienda un issue y crea su rama al confirmar.
+2. **Diseño corto:** la sesión principal (game designer, en Opus) decide y escribe el diseño en el brief de `developer`: qué hace, controles, valores y criterios medibles. Si cambia el GDD, lo edita ella misma con un cambio mínimo en `docs/design/`. No se lanzan `architect`, `chemist` ni `physics-analyst`, salvo que la tarea cree un módulo nuevo o rompa un patrón, y en ese caso una sola pasada acotada.
+3. **Implementar** con `developer`, un agente nuevo con brief corto. Cada punto de control es un commit convencional. Escribe también la entrada de `CHANGELOG.md` y lo mínimo de `README.md`.
+4. **Verificar:** `node --test tests/` en verde, sin regresiones de lo que funcionaba en `main`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
+5. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama.
+6. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`.
+
+**Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: la sesión principal crea el issue con `gh`.
+
+**Queda para después de la entrega (pulido, M5):** `/code-review`, validación de `physics-analyst` sobre secuencias de frames, `chemist`, `doc-writer`, la actualización de `docs/referencias.md` en cada merge y la sincronización completa del GDD. `docs/referencias.md` y el estado del GDD se ponen al día en una sola pasada antes de la presentación.
 
 ### Definición de terminado
 
-- El comportamiento coincide con `DESIGN.md`, o `architect` lo actualizó en la rama.
-- Los tests pasan y la funcionalidad se ejercitó (en Node con gamepad simulado, y en navegador si toca el render).
+- El juego hace lo que pide el issue y lo que decidió el game designer.
+- Los tests pasan, sin regresiones, y la funcionalidad se ejercitó en Node con gamepad simulado.
 - Respeta los patrones de arquitectura y las reglas de memoria nativa.
 - `CHANGELOG.md` tiene la entrada de la versión nueva.
-- `docs/referencias.md` refleja los algoritmos y modelos del diff (nuevos, descartados y líneas de código vigentes).
-- Se revisó si el diseño cambió: `docs/design/` refleja lo que hay en `main` después del merge (estado ✅/🔨 y valores reales), y `README.md` también.
 - La rama, los commits y el título del PR siguen las convenciones, y el PR cierra su issue.
 
 ## Agentes y skills
