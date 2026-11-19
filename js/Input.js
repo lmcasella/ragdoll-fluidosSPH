@@ -62,7 +62,13 @@ export const TAP_MAX = 0.25;
  * - flancos del frame: `jump`, `drop`, `roll`, `action`, `punch`, `kick`, `weapon` (1-4 o null) y `weaponStep`
  *   (-1, 0 o +1). `roll` es el flanco de salto con `block` mantenido (de cualquier fuente) y gana sobre `jump` y
  *   `drop`; `kick` es el flanco de golpe con abajo fuerte y deja `punch` en falso;
- * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null;
+ * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null; es null con la rueda abierta y en el poll
+ *   en que se suelta;
+ * - `wheel`: { open, x, y } mientras la rueda de armas está abierta (LB o su tecla mantenidos `TAP_MAX`), o null. La
+ *   dirección es la del stick derecho o, si la rueda la abrió la tecla, la de las teclas de dirección; (0, 0) en la
+ *   zona muerta. La fuente que abrió la rueda la sostiene: la otra no la cierra ni cambia su dirección;
+ * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: { x, y } o "cancel" con el stick al
+ *   centro;
  * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
  * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
@@ -74,6 +80,8 @@ export class Input {
         this.pressed = new Set();
         this.prevButtons = [];
         this.prevHold = this.layouts.map(() => null);
+        this.wheelSources = this.layouts.map(() => null);
+        this.wheelBlocked = this.layouts.map(() => false);
         this.states = this.layouts.map(() => ({}));
 
         const gameCodes = new Set(
@@ -149,20 +157,26 @@ export class Input {
                 weaponStep: 0,
                 aim: null,
                 pointer: null,
+                wheel: null,
+                wheelPick: null,
             };
             layout.weapons.forEach((code, i) => {
                 if (this.pressed.has(code)) state.weapon = i + 1;
             });
             let strongDown = isHeld(layout.down);
-            let prevHold = isHeld(layout.prevWeapon) || wasPressed(layout.prevWeapon);
+            const keyHold = isHeld(layout.prevWeapon) || wasPressed(layout.prevWeapon);
+            let padHold = false;
+            let stick = null;
             if (wasPressed(layout.nextWeapon)) state.weaponStep = 1;
 
             const pad = pads[k];
             if (pad) {
                 const read = this.readPad(pad, k, state);
                 strongDown ||= read.strongDown;
-                prevHold ||= read.prevHold;
+                padHold = read.prevHold;
+                stick = read.stick;
             }
+            const prevHold = keyHold || padHold;
             if (k === 0) {
                 if (this.mouseClicked) state.action = true;
                 if (this.mouseHeld) state.fire = true;
@@ -184,11 +198,34 @@ export class Input {
             }
 
             const before = this.prevHold[k];
+            const held = { pad: padHold, key: keyHold };
+            const direction = (source) => {
+                if (stick) return { x: stick.x, y: stick.y };
+                if (source === "pad") return { x: 0, y: 0 };
+                return {
+                    x: (isHeld(layout.right) ? 1 : 0) - (isHeld(layout.left) ? 1 : 0),
+                    y: (isHeld(layout.up) ? 1 : 0) - (isHeld(layout.down) ? 1 : 0),
+                };
+            };
+            let source = this.wheelSources[k];
+            if (source && !held[source]) {
+                const d = direction(source);
+                state.wheelPick = d.x === 0 && d.y === 0 ? "cancel" : d;
+                source = null;
+                this.wheelBlocked[k] = true;
+            } else if (!source && prevHold && !this.wheelBlocked[k] && before !== null && now - before >= TAP_MAX) {
+                source = padHold ? "pad" : "key";
+            }
+            this.wheelSources[k] = source;
+            if (source) state.wheel = { open: true, ...direction(source) };
+            if (source || state.wheelPick) state.aim = null;
+
             if (prevHold && before === null) this.prevHold[k] = now;
             else if (!prevHold && before !== null) {
                 if (now - before < TAP_MAX) state.weaponStep = -1;
                 this.prevHold[k] = null;
             }
+            if (!prevHold) this.wheelBlocked[k] = false;
             this.states[k] = state;
         });
 
@@ -199,7 +236,7 @@ export class Input {
 
     /**
      * Combina el gamepad en `state` y devuelve lo que `poll` necesita aparte: si el stick izquierdo está
-     * fuertemente hacia abajo y si LB está apretado.
+     * fuertemente hacia abajo, si LB está apretado y la dirección del stick derecho (null en la zona muerta).
      */
     readPad(pad, k, state) {
         const prev = this.prevButtons[k] ?? [];
@@ -221,9 +258,10 @@ export class Input {
         PAD.weapons.forEach((button, i) => {
             if (edge(button)) state.weapon = i + 1;
         });
-        if (Math.hypot(rx, ry) > AIM_DEADZONE) state.aim = { x: rx, y: -ry };
+        const stick = Math.hypot(rx, ry) > AIM_DEADZONE ? { x: rx, y: -ry } : null;
+        if (stick) state.aim = stick;
 
         this.prevButtons[k] = pad.buttons.map((b) => b.pressed);
-        return { strongDown: ly > DROP_THRESHOLD, prevHold: down(PAD.prevWeapon) };
+        return { strongDown: ly > DROP_THRESHOLD, prevHold: down(PAD.prevWeapon), stick };
     }
 }

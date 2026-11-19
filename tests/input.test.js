@@ -468,3 +468,131 @@ test("los gamepads se asignan por orden de conexión y se combinan con el teclad
     assert.deepEqual([j1.punch, j1.fire, j2.punch, j2.fire], [true, false, false, true]);
     unkey("KeyF");
 });
+test("wheel: LB mantenido abre la rueda recién a TAP_MAX y la dirección es la del stick derecho con Y arriba", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    let s = input.poll(10)[0];
+    assert.equal(s.wheel, null);
+    s = input.poll(10 + TAP_MAX - 0.01)[0];
+    assert.equal(s.wheel, null);
+    pads = [padAxes([4], [0, 0, 0.8, -0.6])];
+    s = input.poll(10 + TAP_MAX)[0];
+    assert.deepEqual(s.wheel, { open: true, x: 0.8, y: 0.6 });
+    assert.equal(s.wheelPick, null);
+    assert.equal(s.aim, null);
+});
+
+test("wheel: dentro de la zona muerta (0,4) la dirección es (0, 0)", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    input.poll(10);
+    pads = [padAxes([4], [0, 0, 0.39, 0])];
+    assert.deepEqual(input.poll(11)[0].wheel, { open: true, x: 0, y: 0 });
+});
+
+test("wheelPick: al soltar LB da la dirección del stick, solo en ese poll, y la rueda se cierra", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    input.poll(10);
+    pads = [padAxes([4], [0, 0, 0, -1])];
+    input.poll(11);
+    pads = [padAxes([], [0, 0, 0, -1])];
+    let s = input.poll(11.1)[0];
+    assert.deepEqual(s.wheelPick, { x: 0, y: 1 });
+    assert.equal(s.wheel, null);
+    assert.equal(s.weaponStep, 0);
+    s = input.poll(11.2)[0];
+    assert.equal(s.wheelPick, null);
+    assert.deepEqual(s.aim, { x: 0, y: 1 });
+});
+
+test("wheelPick: soltar con el stick al centro da cancel", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    input.poll(10);
+    input.poll(11);
+    pads = [padAxes([], [0, 0, 0, 0])];
+    assert.equal(input.poll(11.1)[0].wheelPick, "cancel");
+});
+
+test("un toque corto de LB no abre la rueda ni da wheelPick", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    input.poll(10);
+    pads = [padAxes([], [0, 0, 0, 0])];
+    const s = input.poll(10.1)[0];
+    assert.deepEqual([s.wheel, s.wheelPick, s.weaponStep], [null, null, -1]);
+});
+
+test("wheel con el teclado: Q mantenido y W/A/S/D dan la dirección; J2 con Ctrl derecho y flechas", () => {
+    key("KeyQ");
+    key("ControlRight");
+    input.poll(10);
+    key("KeyD");
+    key("KeyW");
+    key("ArrowLeft");
+    let [j1, j2] = input.poll(11);
+    assert.deepEqual(j1.wheel, { open: true, x: 1, y: 1 });
+    assert.deepEqual(j2.wheel, { open: true, x: -1, y: 0 });
+    assert.equal(j1.left, false);
+    assert.equal(j1.right, true);
+    unkey("KeyQ");
+    unkey("ControlRight");
+    [j1, j2] = input.poll(11.1);
+    assert.deepEqual(j1.wheelPick, { x: 1, y: 1 });
+    assert.deepEqual(j2.wheelPick, { x: -1, y: 0 });
+    unkey("KeyD");
+    unkey("KeyW");
+    unkey("ArrowLeft");
+});
+
+test("wheel: el stick derecho gana sobre las teclas de dirección en la rueda abierta con la tecla", () => {
+    key("KeyQ");
+    input.poll(10);
+    key("KeyD");
+    pads = [padAxes([], [0, 0, 0, 1])];
+    assert.deepEqual(input.poll(11)[0].wheel, { open: true, x: 0, y: -1 });
+    unkey("KeyQ");
+    unkey("KeyD");
+});
+
+test("wheel: con LB apretado, Q no cierra la rueda ni cambia su dirección", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    input.poll(10);
+    key("KeyQ");
+    key("KeyD");
+    let s = input.poll(11)[0];
+    assert.deepEqual(s.wheel, { open: true, x: 0, y: 0 });
+    unkey("KeyQ");
+    s = input.poll(11.1)[0];
+    assert.deepEqual(s.wheel, { open: true, x: 0, y: 0 });
+    assert.equal(s.wheelPick, null);
+    unkey("KeyD");
+});
+
+test("wheel: abierta con Q, LB apretado y soltado no la cierra; soltar Q con LB apretado cierra sin reabrir", () => {
+    key("KeyQ");
+    input.poll(10);
+    let s = input.poll(11)[0];
+    assert.equal(s.wheel.open, true);
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    s = input.poll(11.1)[0];
+    assert.equal(s.wheel.open, true);
+    pads = [padAxes([], [0, 0, 0, 0])];
+    s = input.poll(11.2)[0];
+    assert.equal(s.wheel.open, true);
+    assert.equal(s.wheelPick, null);
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    unkey("KeyQ");
+    s = input.poll(11.3)[0];
+    assert.equal(s.wheelPick, "cancel");
+    assert.equal(s.wheel, null);
+    s = input.poll(12)[0];
+    assert.equal(s.wheel, null);
+});
+
+test("la cruceta, 1-4 y RB siguen funcionando con la rueda abierta", () => {
+    pads = [padAxes([4], [0, 0, 0, 0])];
+    input.poll(10);
+    pads = [padAxes([4, 12], [0, 0, 0, 0])];
+    let s = input.poll(11)[0];
+    assert.equal(s.wheel.open, true);
+    assert.equal(s.weapon, 1);
+    pads = [padAxes([4, 5], [0, 0, 0, 0])];
+    assert.equal(input.poll(11.1)[0].weaponStep, 1);
+});
