@@ -370,3 +370,121 @@ for (const step of [0.5, 1, 2, 4]) {
         assert.ok(rel(q, expected) < 0.15);
     });
 }
+
+const SG_A = MATERIALS.acid.SG;
+const W_A = MATERIALS.acid.species.H2SO4;
+
+/** Pone en la columna `i` el `A` que da la fracción másica `w` con su `h` actual y sin miel (inversa de `acidRatio`). */
+function setAcid(water, i, w) {
+    water.A[i] = (w * SIGMA_W * water.h[i]) / (1 - (w * (SG_A - 1)) / (SG_A * W_A));
+}
+
+/** Cantidad de columnas con `h > hDry` y `A` o `w` fuera del principio del máximo (A < −1e-12 o w > w_a + 1e-9). */
+function maxPrincipleViolations(water) {
+    let bad = 0;
+    for (let i = 0; i < water.N; i++) {
+        if (water.h[i] <= water.config.hDry) continue;
+        if (water.A[i] < -1e-12 || water.acidRatio(i) > W_A + 1e-9) bad++;
+    }
+    return bad;
+}
+
+test("Q1a conservación de la masa de H2SO4 en la rotura de presa con ácido del lado alto y 20 depósitos por paso, 60 s", (t) => {
+    const water = damBreakDry("Q1a");
+    for (let i = 0; i < water.N; i++) if (water.h[i] > 0) setAcid(water, i, 0.04);
+    const areaP = 0.0081;
+    const acidP = SG_A * SIGMA_W * areaP * W_A;
+    let seed = 777;
+    const random = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+    const start = water.acid();
+    let deposited = 0;
+    let worst = 0;
+    run(water, 60, () => {
+        for (let k = 0; k < 20; k++) {
+            water.deposit(1 + 41 * random(), areaP, 0, 0, 0, acidP);
+            deposited += acidP;
+        }
+        water.step(DT);
+        worst = Math.max(worst, rel(water.acid(), start + deposited));
+    });
+    report(t, "Q1a", `error relativo máx de Σ A dx ${fmt(worst)} (inicial ${fmt(start)} kg, depositado ${fmt(deposited)} kg)`, "Σ A dx = inicial + depositado", "< 1e-6");
+    assert.ok(worst < 1e-6);
+});
+
+test("Q2b la densidad de la columna es ρ_w (1 + 6,8 · (100 w) / 998,2) y coincide con tres puntos de la tabla CRC (±0,1 %)", (t) => {
+    const water = make(LEVEL, WATER_FIELD, "Q2b");
+    const points = [[0.01, 1.00671], [0.04, 1.02686], [0.08, 1.0541]];
+    points.forEach(([w, crc], k) => {
+        const i = Math.round((24 + k * 2 - water.x0) / water.dx);
+        setAcid(water, i, w);
+        const ratio = water.densityAt(water.center(i)) / 1000;
+        const formula = 1 + (6.8 * 100 * w) / 998.2;
+        report(t, `Q2b w ${100 * w} %`, `ρ_col/ρ_w = ${fmt(ratio)} (fórmula ${fmt(formula)}, CRC ${crc})`, `${crc} (CRC)`, "±0,1 % contra CRC y contra la fórmula");
+        assert.ok(rel(ratio, formula) < 1e-3);
+        assert.ok(rel(ratio, crc) < 1e-3);
+    });
+    assert.equal(water.densityAt(water.center(Math.round((30 - water.x0) / water.dx))), 1000);
+});
+
+test("Q3 pileta en reposo con ácido al 8 % en x 18 a 28: |Δw| de las columnas vecinas a x 28 < 8e-4 en 10 s", (t) => {
+    const water = make(LEVEL, WATER_FIELD, "Q3");
+    for (let i = 0; i < water.N; i++) {
+        const x = water.center(i);
+        if (x > 18 && x < 28) setAcid(water, i, W_A);
+    }
+    const left = Math.round((27.95 - water.x0 - 0.05) / water.dx);
+    const right = left + 1;
+    const before = [water.acidRatio(left), water.acidRatio(right)];
+    let worst = 0;
+    run(water, 10, () => {
+        worst = Math.max(worst, Math.abs(water.acidRatio(left) - before[0]), Math.abs(water.acidRatio(right) - before[1]));
+    });
+    report(t, "Q3", `máx |Δw| ${fmt(worst)} (columnas x = ${fmt(water.center(left))} y ${fmt(water.center(right))}; w inicial ${fmt(before[0])} y ${fmt(before[1])})`, "difusión numérica 0 con u = 0", "< 8e-4");
+    assert.ok(before[0] > 0.0799 && before[1] === 0);
+    assert.ok(worst < 8e-4);
+});
+
+test("Q4 conductividad lineal en w: 32 S/m al 8 % (±5 %), la del agua con w = 0 y residuo de la recta < 1e-9", (t) => {
+    const water = make(LEVEL, WATER_FIELD, "Q4");
+    const ws = [0, 0.003, 0.04, 0.08];
+    const xs = ws.map((w, k) => {
+        const i = Math.round((22 + 2 * k - water.x0) / water.dx);
+        setAcid(water, i, w);
+        return { w: water.acidFraction(i), sigma: water.conductivityAt(water.center(i)) };
+    });
+    const n = xs.length;
+    const mw = xs.reduce((a, p) => a + p.w, 0) / n;
+    const ms = xs.reduce((a, p) => a + p.sigma, 0) / n;
+    const slope = xs.reduce((a, p) => a + (p.w - mw) * (p.sigma - ms), 0) / xs.reduce((a, p) => a + (p.w - mw) ** 2, 0);
+    const residual = Math.max(...xs.map((p) => Math.abs(p.sigma - (ms + slope * (p.w - mw)))));
+    report(t, "Q4", `σ_e = ${xs.map((p) => fmt(p.sigma)).join(", ")} S/m para w = ${ws.join(", ")}; residuo ${fmt(residual)}`, "32 S/m al 8 %, 5e-3 S/m con w = 0, lineal", "±5 % al 8 %, residuo < 1e-9");
+    assert.ok(rel(xs[3].sigma, 32) < 0.05);
+    assert.equal(xs[0].sigma, MATERIALS.water.sigmaE);
+    assert.ok(residual < 1e-9);
+});
+
+test("Q6 principio del máximo del trazador de ácido: (a) rotura de presa con ácido al 8 % solo del lado alto y (b) w uniforme se mantiene uniforme", (t) => {
+    const dry = damBreakDry("Q6a");
+    for (let i = 0; i < dry.N; i++) if (dry.h[i] > 0) setAcid(dry, i, W_A);
+    let violations = 0;
+    let worstExcess = 0;
+    run(dry, 6, () => {
+        violations += maxPrincipleViolations(dry);
+        for (let i = 0; i < dry.N; i++) if (dry.h[i] > dry.config.hDry) worstExcess = Math.max(worstExcess, dry.acidRatio(i) - W_A, -dry.A[i]);
+    });
+    report(t, "Q6a", `${violations} columnas fuera del principio del máximo en 6 s (exceso máx ${fmt(worstExcess)})`, "0 columnas con A < −1e-12 o w > w_a + 1e-9", "margen 1e-9");
+    assert.equal(violations, 0);
+
+    const uniform = damBreakDry("Q6b");
+    for (let i = 0; i < uniform.N; i++) if (uniform.h[i] > 0) setAcid(uniform, i, 0.04);
+    for (const seconds of [1, 3]) {
+        run(uniform, seconds === 1 ? 1 : 2);
+        let worst = 0;
+        for (let i = 0; i < uniform.N; i++) if (uniform.h[i] > uniform.config.hDry) worst = Math.max(worst, Math.abs(uniform.acidRatio(i) - 0.04));
+        report(t, `Q6b t=${seconds} s`, `max|w − 0,04| = ${fmt(worst)}`, "w constante", "< 1e-12");
+        assert.ok(worst < 1e-12);
+    }
+});
