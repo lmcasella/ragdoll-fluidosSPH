@@ -2,6 +2,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { LEVEL } from "../../js/level.js";
 import { WEAPONS } from "../../js/weapons.js";
+import { fieldColor } from "../../js/render.js";
 
 const CIRCLE = 0;
 const POLYGON = 2;
@@ -49,6 +50,7 @@ function localShapes(body) {
  * en el resto, `color` y `tag` se leen de los buffers del motor.
  * `pieces` ([x, y, ángulo] en el orden de `meta.pieces`) y `eta`: el perfil `η = b + h` del campo de alturas por
  * celda (vacío si el `Recorder` no recibió `water`); `meta.field` trae `{ x0, dx, n }` para ubicar las celdas.
+ * Si el campo tiene ácido (`water.acid() > 0`), el frame suma `tint`: el RGB entero de `fieldColor` por celda (#98).
  *
  * `systems` es un objeto { nombre: particleSystem }; `stores` un objeto { nombre: ParticleStore } para los
  * sistemas que lo tienen; `pieces` un objeto { id: body }; `water` (opcional) el `ShallowWater` del que sale `eta`.
@@ -103,7 +105,21 @@ export class Recorder {
             const p = body.GetPosition();
             return [round(p.get_x()), round(p.get_y()), round(body.GetAngle())];
         });
-        this.frames.push({ t: round(this.frames.length * this.dt), particles, pieces, eta });
+        const frame = { t: round(this.frames.length * this.dt), particles, pieces, eta };
+        if (this.water && this.water.acid() > 0) frame.tint = this.tints();
+        this.frames.push(frame);
+    }
+
+    /** Color de `fieldColor` por celda del campo, RGB entero (el visor lo dibuja como relleno del agua). */
+    tints() {
+        const { N } = this.water;
+        const out = [0, 0, 0];
+        const tint = new Array(N);
+        for (let i = 0; i < N; i++) {
+            fieldColor(this.water, this.water.center(i), out);
+            tint[i] = (out[0] << 16) | (out[1] << 8) | out[2];
+        }
+        return tint;
     }
 
     /** Perfil `η` del campo de alturas por celda (m), redondeado a 0,1 mm. */

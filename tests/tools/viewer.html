@@ -91,6 +91,7 @@
             for (let i = 0; i < field.n; i++) {
                 const b = field.beds[i];
                 const top = f.eta[i];
+                if (f.tint) ctx.fillStyle = `rgba(${f.tint[i] >> 16}, ${(f.tint[i] >> 8) & 255}, ${f.tint[i] & 255}, 0.6)`;
                 if (top > b + 1e-3) ctx.fillRect(T.X(field.x0 + i * field.dx), T.Y(top), field.dx * T.s + 0.5, (top - b) * T.s);
             }
         }

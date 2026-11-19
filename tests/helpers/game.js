@@ -50,7 +50,7 @@ export async function loadGame(options = {}) {
     const elements = new Map();
     globalThis.document = {
         getElementById: (id) => {
-            if (!elements.has(id)) elements.set(id, inert({ width: 0, height: 0, getContext: () => inert() }));
+            if (!elements.has(id)) elements.set(id, inert({ width: 0, height: 0, getContext: () => inert({ createLinearGradient: () => inert() }) }));
             return elements.get(id);
         },
     };

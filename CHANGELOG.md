@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-19
+
+### Added
+- El ácido que cae al agua del nivel ya no desaparece: el agua guarda su concentración, se tiñe según cuánto ácido tiene y cambia su densidad y conductividad.
+
 ## [0.15.7] - 2026-11-19
 
 ### Fixed

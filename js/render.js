@@ -1,5 +1,6 @@
 // Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
+import { MATERIALS } from "./materials.js";
 
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];
@@ -563,24 +564,65 @@ export function waterOutline(water, out) {
 }
 
 const outline = {};
+const stopColor = [0, 0, 0];
+
+/**
+ * Color del agua del campo en `x` (puro, sin `ctx`): llena `out` y lo devuelve con el RGB entero. Falso color de
+ * la fracción másica de H2SO4 `w` (docs/design/14-agua.md §14.3, Render): `f = 1 − 10^(−α w / w_a)`, con
+ * `α = MATERIALS.acid.tintAbsorbance` (Beer–Lambert), de `water.config.draw.color` hacia `MATERIALS.acid.tint`.
+ * Con `w` = 0 es exactamente `draw.color`. El tinte es una aproximación de juego: el ácido real es incoloro.
+ */
+export function fieldColor(water, x, out = [0, 0, 0]) {
+    const { color } = water.config.draw;
+    const { tint, tintAbsorbance, species } = MATERIALS.acid;
+    const f = 1 - 10 ** ((-tintAbsorbance * water.acidFractionAt(x)) / species.H2SO4);
+    for (let k = 0; k < 3; k++) out[k] = Math.round(color[k] + f * (tint[k] - color[k]));
+    return out;
+}
+
+/**
+ * Degradado horizontal de `fieldColor` para el tramo mojado entre las caras `left` y `right` (m), con una parada
+ * en cada cara y una en el centro de cada `step`-ésima celda. Devuelve `null` si ninguna celda del tramo tiene
+ * ácido (`A` = 0), y el tramo se rellena con `draw.color`.
+ */
+function tintedFill(ctx, water, left, right, step) {
+    const { x0, dx, A } = water;
+    const first = Math.round((left - x0) / dx);
+    const end = Math.round((right - x0) / dx) - 1;
+    let acid = false;
+    for (let c = first; c <= end && !acid; c++) acid = A[c] > 0;
+    if (!acid) return null;
+    const gradient = ctx.createLinearGradient(left, 0, right, 0);
+    const width = right - left;
+    const stop = (x) => {
+        fieldColor(water, x, stopColor);
+        gradient.addColorStop(Math.min(1, Math.max(0, (x - left) / width)), `rgb(${stopColor[0]}, ${stopColor[1]}, ${stopColor[2]})`);
+    };
+    stop(left);
+    for (let c = first; c <= end; c += step) stop(x0 + (c + 0.5) * dx);
+    stop(right);
+    return gradient;
+}
 
 /**
  * Dibuja el campo de alturas (docs/design/14-agua.md §14.3, Render): un polígono relleno por tramo mojado, del
  * lecho a `η`, con la línea de superficie encima. Va después de los robots, con la opacidad de
- * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los datos de dibujo son
- * `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
+ * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los tramos con ácido se rellenan con
+ * un degradado horizontal de `fieldColor`, con una parada cada `draw.colorStep` celdas y en las dos caras; la
+ * geometría no cambia. Los datos de dibujo son `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
  */
 export function drawWater(ctx, water, scale) {
-    const { alpha, color, lineColor, lineWidth } = water.config.draw;
+    const { alpha, color, lineColor, lineWidth, colorStep } = water.config.draw;
     waterOutline(water, outline);
     const { xs, ys } = outline;
-    ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    const flat = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
     ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
     ctx.lineWidth = lineWidth / scale;
     ctx.lineJoin = "round";
     for (let s = 0; s < outline.count; s++) {
         const first = outline.start[s];
         const last = first + outline.size[s];
+        ctx.fillStyle = tintedFill(ctx, water, xs[first], xs[first + outline.surface[s]], colorStep) ?? flat;
         ctx.globalAlpha = alpha;
         ctx.beginPath();
         ctx.moveTo(xs[first], ys[first]);
