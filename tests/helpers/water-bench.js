@@ -108,7 +108,7 @@ function positionsOf(system) {
  * composición, como pseudo-instancia de `stepWorld`.
  */
 function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {
-    return new WallContact(system, store);
+    return new WallContact(system, store, SHOT_SYSTEM);
 }
 
 /**
