@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-19
+
+### Fixed
+- El agua y las partículas ya no tapan el HUD, la mira láser ni los golpes. El HUD y los carteles se dibujan en una capa propia arriba de todo; la mira y los golpes, sobre los fluidos y debajo de la rueda de armas.
+
 ## [0.22.0] - 2026-11-19
 
 ### Added
