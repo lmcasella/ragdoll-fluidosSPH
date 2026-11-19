@@ -24,7 +24,8 @@ import { WEAPONS, weaponById } from "./weapons.js";
  *   dentro del destino donde suelta el stick), `dropBelow` (desnivel desde el que ya no salta sino que se deja caer),
  *   `align` (tolerancia al alinearse bajo un destino);
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
- *   `replan`: cada cuánto reelige destino.
+ *   `replan`: cada cuánto reelige destino;
+ * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo.
  */
 export const BOT = {
     melee: { range: 1.6, stop: 1.3, vertical: 1.2, airRange: 2.2, airDrop: 0.8, kickDrop: 1.4 },
@@ -45,6 +46,7 @@ export const BOT = {
     highBonus: 4,
     hopCost: 0.3,
     replan: 0.5,
+    pickupReach: 3,
 };
 
 /**
@@ -64,6 +66,9 @@ export function botConfig(difficulty) {
 }
 
 const GRAVITY = 10;
+
+/** Altura máxima (m) de un punto de aparición sobre la plataforma que lo sostiene. */
+const PICKUP_ABOVE = 1.2;
 const WALK_DEADZONE = 0.15;
 
 /** Generador pseudoaleatorio determinista (mulberry32): mismo `seed`, misma secuencia. */
@@ -282,6 +287,7 @@ export class Bot {
             this.escape(me, cur);
             return;
         }
+        if (this.seekPickup(me, cur, game.pickups ?? [])) return;
         if (this.shoot(me, foe, cur, foeNode, adx, dx, dy, now)) return;
         const foeTop = foeNode === null ? foePos.get_y() : this.nav.nodes[foeNode].top;
         if (foeTop < this.minTop) {
@@ -400,12 +406,55 @@ export class Bot {
         return Math.max(flood.level, wet);
     }
 
+    /** Verdadero si algún tanque del inventario tiene partículas. */
+    armed(me) {
+        for (const tank of me.tanks.values()) if (tank > 0) return true;
+        return false;
+    }
+
+    /** Nodo de la plataforma que sostiene el punto de aparición `point` (la más alta bajo él, a menos de 1,2 m), o `null`. */
+    pickupNode(point) {
+        let best = null;
+        this.nav.nodes.forEach((n, i) => {
+            if (point.x < n.minX || point.x > n.maxX || n.top > point.y || point.y - n.top > PICKUP_ABOVE) return;
+            if (best === null || n.top > this.nav.nodes[best].top) best = i;
+        });
+        return best;
+    }
+
+    /**
+     * Sin arma o con los tanques vacíos, va al punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea
+     * segura y a `pickupReach` aristas o menos. Devuelve verdadero si usó el frame.
+     */
+    seekPickup(me, cur, points) {
+        if (cur === null || this.armed(me)) return false;
+        const { dist, parent } = this.search(cur);
+        let best = null;
+        for (const point of points) {
+            if (!point.active) continue;
+            const node = this.pickupNode(point);
+            if (node === null || dist[node] === Infinity) continue;
+            let hops = 0;
+            for (let n = node; parent[n] !== -1; n = parent[n]) hops++;
+            if (hops > this.config.pickupReach) continue;
+            if (best === null || dist[node] < best.cost) best = { point, node, cost: dist[node] };
+        }
+        if (best === null) return false;
+        if (best.node === cur) this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
+        else this.navigate(me, cur, best.node);
+        return true;
+    }
+
     /** Dispara con línea de vista a distancia media. Devuelve verdadero si usó el frame. */
     shoot(me, foe, cur, foeNode, adx, dx, dy, now) {
         const cfg = this.config.shoot;
         if (adx > cfg.max) return false;
         if (adx < cfg.min && cur !== null && cur === foeNode) return false;
-        if ((me.tanks.get(me.weapon) ?? 0) <= 0 || !this.lineOfSight(me, foe)) return false;
+        if ((me.tanks.get(me.weapon) ?? 0) <= 0) {
+            this.pickWeapon(me, now);
+            return false;
+        }
+        if (!this.lineOfSight(me, foe)) return false;
         this.pickWeapon(me, now);
         if (now - this.aimStamp >= cfg.aimRefresh) {
             this.aimOffset = (this.rng() * 2 - 1) * cfg.aimError;
