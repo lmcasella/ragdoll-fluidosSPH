@@ -292,50 +292,98 @@ test("U2b (#110): H6 con ola: 150 gotas de agua pasan sobre la capa de miel del 
     assert.ok(probe.maxColumnSpeed >= 0.3, `la ola no pasó sobre la capa: |u_c| máx ${probe.maxColumnSpeed} m/s`);
     assert.ok(probe.maxShift <= 0.5, `desplazamiento ${probe.maxShift} m`);
 });
-test("U3 (#98 y #110): un tanque de ácido a la pileta; concentración media = m_H2SO4 / m_total (±1 %) y ρ_col = 998 + 6,8 · w[%] (±0,1 %)", async (t) => {
+/** Cierra una prueba sin `todo`: deja constancia de cada criterio y falla si alguno no se cumplió. */
+function strict(t, checks) {
+    for (const c of checks) t.diagnostic(`${c.ok ? "ok" : "FALLA"} ${c.name}: ${c.detail}`);
+    const failed = checks.filter((c) => !c.ok);
+    assert.equal(failed.length, 0, failed.map((c) => `${c.name}: ${c.detail}`).join(" | "));
+}
+
+test("U3 (#98): un tanque de ácido a la pileta; Q1b en cada paso durante 60 s, Q2 (w medio ±1 %, ρ_col ±0,1 %) y Q5 (color) a los 10 s del último disparo, Q6c en cada paso", async (t) => {
     const game = await start();
     const { water, store, immersion } = game.state;
     const recorder = recorderFor(game, "u3-acido-en-pileta");
     const v0 = water.volume();
     const impactX = 24;
-    const pure = render.fieldColor ? render.fieldColor(water, impactX) : null;
-    const injected = fireTank(game, FLUID.ACID, 24, LEVEL.pool.surface, 10, recorder);
+    const acidMass = MATERIALS.acid.SG * SIGMA_W * immersion.area;
+    const wAcid = MATERIALS.acid.species.H2SO4;
+    const sgAcid = MATERIALS.acid.SG;
+    const pure = render.fieldColor(water, impactX);
+
+    let frame = 0;
+    let firstShot = -1;
+    let lastShot = 0;
+    let created = store.created[FLUID.ACID];
+    let worstBalance = 0;
+    let worstBalanceFrame = -1;
+    let q6cBad = 0;
+    let snapshot = null;
+    const onFrame = () => {
+        frame++;
+        if (store.created[FLUID.ACID] > created) {
+            created = store.created[FLUID.ACID];
+            lastShot = frame;
+            if (firstShot < 0) firstShot = frame;
+        }
+        let alive = 0;
+        for (let slot = 0; slot < store.capacity; slot++) if (store.alive[slot] === 1 && store.kind[slot] === FLUID.ACID) alive++;
+        let gone = 0;
+        for (const [cause, id] of Object.entries(SINK)) if (cause !== "ABSORBED") gone += store.destroyed[id][FLUID.ACID];
+        if (created > 0) {
+            const balance = Math.abs((alive + gone) * acidMass * wAcid + water.acid() - created * acidMass * wAcid) / (created * acidMass * wAcid);
+            if (balance > worstBalance) {
+                worstBalance = balance;
+                worstBalanceFrame = frame;
+            }
+        }
+        for (let i = 0; i < water.N; i++) {
+            if (water.h[i] > water.config.hDry && (water.A[i] < -1e-12 || water.acidRatio(i) > wAcid + 1e-9)) q6cBad++;
+        }
+        if (snapshot === null && lastShot > 0 && frame >= lastShot + 10 * STEPS_PER_SECOND) {
+            const absorbed = store.destroyed[SINK.ABSORBED][FLUID.ACID];
+            let mass = 0;
+            let columns = 0;
+            let worstRho = 0;
+            for (let i = 0; i < water.N; i++) {
+                const h = water.h[i];
+                if (h <= 0) continue;
+                const va = water.A[i] / (sgAcid * SIGMA_W * wAcid);
+                mass += SIGMA_W * (h + (sgAcid - 1) * va + (MATERIALS.honey.SG - 1) * water.M[i]) * water.dx;
+                if (water.b[i] === 0 && h > water.config.hDry) {
+                    const expected = 1 + (6.8 * 100 * water.acidFraction(i)) / 998.2;
+                    worstRho = Math.max(worstRho, Math.abs(water.densityAt(water.center(i)) / 1000 - expected) / expected);
+                    columns++;
+                }
+            }
+            snapshot = {
+                absorbed,
+                measuredW: water.acid() / mass,
+                expectedW: (absorbed * acidMass * wAcid) / (SIGMA_W * v0 + absorbed * acidMass),
+                worstRho,
+                columns,
+                colour: render.fieldColor(water, impactX),
+                wImpact: water.acidFractionAt(impactX),
+                seconds: (frame - lastShot) / STEPS_PER_SECOND,
+            };
+        }
+    };
+    const injected = fireTank(game, FLUID.ACID, 24, LEVEL.pool.surface, 10, recorder, onFrame);
+    while (firstShot < 0 || frame < firstShot + 60 * STEPS_PER_SECOND) tick(game, recorder, frame, onFrame);
     save(recorder, "u3-acido-en-pileta");
 
-    const absorbed = store.destroyed[SINK.ABSORBED][FLUID.ACID];
-    const acidMass = MATERIALS.acid.SG * SIGMA_W * immersion.area;
-    const acidInH2SO4 = absorbed * acidMass * MATERIALS.acid.species.H2SO4;
-    const total = SIGMA_W * v0 + absorbed * acidMass;
-    const expectedW = acidInH2SO4 / total;
-    const fieldH2SO4 = 0;
-    const measuredW = fieldH2SO4 / total;
-    let sum = 0;
-    let columns = 0;
-    for (let i = 0; i < water.N; i++) {
-        if (water.b[i] === 0 && water.h[i] > water.config.hDry) {
-            sum += water.densityAt(water.center(i));
-            columns++;
-        }
-    }
-    const rho = sum / columns;
-    const expectedRho = 998 + 6.8 * expectedW * 100;
-    const rhoError = Math.abs(rho - expectedRho) / expectedRho;
-    const wError = Math.abs(measuredW - expectedW) / expectedW;
-    const colorCheck = render.fieldColor
-        ? (() => {
-              const mixed = render.fieldColor(water, impactX);
-              return { name: "color del campo en el impacto distinto del agua pura", issue: "#98", ok: mixed.some((c, k) => c !== pure[k]), detail: `[${mixed}] contra agua pura [${pure}]` };
-          })()
-        : { name: "color del campo depende de la composición", issue: "#98", ok: false, detail: "el color del campo es constante [40,120,255], no depende de la composición" };
     assert.ok(injected > 0, "el tanque disparó ácido");
-    assert.ok(absorbed > 0, "el ácido llegó al campo");
-    verdict(t, [
-        { name: "concentración media de H2SO4 = m_H2SO4 / m_total", issue: "#98", ok: wError <= 0.01, detail: `w = ${pct(measuredW)} (el campo no tiene trazador de H2SO4: 0 kg) contra ${pct(expectedW)} (${num(acidInH2SO4)} kg de ${num(total)} kg; ${absorbed} de ${injected} partículas absorbidas), error relativo ${pct(wError)} contra ±1 %` },
-        { name: "ρ_col = 998 + 6,8 · w[%]", issue: "#98", ok: rhoError <= 0.001, detail: `${num(rho, 6)} kg/m³ contra ${num(expectedRho, 6)} kg/m³, error relativo ${pct(rhoError)} contra ±0,1 %; hoy pasa porque w ≈ 0,3 % y el campo usa densidad fija: el criterio real lo cubre la concentración (#98)` },
-        colorCheck,
+    assert.ok(snapshot !== null, "se llegó a la medición de los 10 s");
+    assert.ok(snapshot.absorbed > 0, "el ácido llegó al campo");
+    const wError = Math.abs(snapshot.measuredW - snapshot.expectedW) / snapshot.expectedW;
+    strict(t, [
+        { name: "Q1b, balance de H2SO4 (partículas + campo + destruidas ≠ ABSORBED = creadas) en cada paso", ok: worstBalance < 1e-6, detail: `error relativo máx ${worstBalance.toExponential(2)} (frame ${worstBalanceFrame}) contra < 1e-6; ${injected} partículas disparadas` },
+        { name: "Q2a, w medio = m_H2SO4 / m_total a los 10 s del último disparo", ok: wError <= 0.01, detail: `w = ${pct(snapshot.measuredW)} contra ${pct(snapshot.expectedW)} (${snapshot.absorbed} de ${injected} partículas absorbidas, medido a ${num(snapshot.seconds)} s del último disparo), error relativo ${pct(wError)} contra ±1 %` },
+        { name: "Q2b, ρ_col/ρ_w = 1 + 6,8 · (100 w) / 998,2 en cada columna mojada de la pileta", ok: snapshot.worstRho <= 0.001, detail: `error relativo máx ${pct(snapshot.worstRho)} en ${snapshot.columns} columnas contra ±0,1 %` },
+        { name: "Q5, color del campo en el impacto con agua pura = draw.color exacto", ok: pure.every((c, k) => c === WATER_FIELD.draw.color[k]), detail: `[${pure}] contra [${WATER_FIELD.draw.color}]` },
+        { name: "Q5, color del campo en el impacto tras el disparo distinto del agua pura", ok: snapshot.colour.some((c, k) => c !== pure[k]), detail: `[${snapshot.colour}] contra agua pura [${pure}], w en el impacto ${pct(snapshot.wImpact)}` },
+        { name: "Q6c, columnas con h > hDry y A < −1e-12 o w > w_a + 1e-9", ok: q6cBad === 0, detail: `${q6cBad} columnas-paso contra 0` },
     ]);
 });
-
 test("U4 (#101): lluvia y disparos durante 30 s; el área dibujada = la física por material (±5 %), con la medición de I3p e I3f", async (t) => {
     const name = "u4-lluvia-y-disparos";
     let recorder = null;
