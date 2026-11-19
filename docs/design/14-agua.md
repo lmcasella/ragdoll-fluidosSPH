@@ -28,12 +28,18 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 | Material | `SG` | `c` (J/(kg·K)) | `k` (W/(m·K)) | Cambio de fase | `μ` (Pa·s) | `C_d` | Miscible con agua |
 |---|---|---|---|---|---|---|---|
 | Agua | 1,0 | 4186 | 0,6 | Ebulle a 100 °C, `L_v` = 2,257·10⁶ J/kg | 1,0·10⁻³ | — | — |
-| Ácido (diluido) | 1,05 | 4000 | 0,6 | Como el agua | 1,1·10⁻³ | — | Sí |
+| Ácido (H₂SO₄ al 8 % m/m) | 1,05 | 3850 (#98) | 0,6 | Como el agua | 1,17·10⁻³ (#98) | — | Sí; conserva su identidad en el campo como trazador `A` (#98, [14.3](#143-campo-de-alturas-saint-venant-1d-shallowwater)) |
 | Miel | 1,42 | 2500 | 0,5 | — | 10 (a 20 °C) | 1,2 | Sí en la realidad (soluto), pero en minutos a horas; **en el juego, no** ([D11](#1418-decisiones-del-usuario), #110): con agua quieta tarda 10³–10⁴ s en disolverse *(verificar)*, más que una ronda; con agitación (chorros, olas, robots), de segundos a minutos ([15 ficha 12](15-quimica.md#12-agua-campo--miel)). El modelo mantiene la miel como fase separada; cota si se mezclara del todo: `X` = 2,8 % por tanque, `ρ` +0,8 %, `μ` +5 % |
 | Lava (basalto fundido) | 2,6 | 1200 | 1,5 | Solidifica a 1000 °C, `L_f` = 4,0·10⁵ J/kg; se emite a 1150 °C; emisividad 0,9 | — | 1,2 | No |
 | Piedra (basalto) | 2,6 | 1000 | 1,5 | — | — | 1,2 | No |
 | Vapor (100 °C, 1 atm) | ρ = 0,59 kg/m³ | 2010 | 0,025 | Condensa por debajo de `e_v` | — | 1,0 | — |
 | Aire | ρ = 1,2 kg/m³, 20 °C | — | — | — | — | — | — |
+
+**Datos del ácido en el campo** (#98, también en `MATERIALS`, patrón Datos en tablas):
+
+- **Conductividad eléctrica** `σ_e` (S/m): `MATERIALS.acid.sigmaE` = **32** (H₂SO₄ al 8 %, [15.1](15-quimica.md#ácido--ácido-sulfúrico-diluido-al-8--mm)) y `MATERIALS.water.sigmaE` = **5·10⁻³** (agua de red en el extremo bajo, que es también el extremo alto de la lluvia, [15.1](15-quimica.md#agua)) *(verificar por `physics-reviewer`: el rango real del agua va de 10⁻³ a 8·10⁻²; con cualquier valor del rango, la del ácido al 0,3 % la supera 15 veces o más)*.
+- **Tinte** (aproximación de juego declarada, decisión del game designer): el ácido real es incoloro ([15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 20). `MATERIALS.acid.tint` = **[50, 255, 50]** (RGB, el mismo verde del arma en `WEAPONS`) y `MATERIALS.acid.tintAbsorbance` = **2** (absorbancia decimal de una columna con `w` = 8 %, a través del espesor `b` de la rebanada). El uso está en [14.3, Render](#render).
+- `c` y `μ` del ácido entran en la tabla para #75 y #76; en #98 no los lee ningún código (ver [14.3](#ecuaciones): la columna usa `c_w` y `μ` no depende de `A`).
 
 **Coeficientes de transferencia** (también en `MATERIALS`): ebullición en película lava↔agua, `h_b` = 500 W/(m²·K) (rango de la literatura 200–1000); convección natural al aire, `h_a` = 10 W/(m²·K); arrastre de presión de cuerpos en el agua por forma de fixture (`MATERIALS.drag`): **caja 2,0** (placa o prisma de caras planas) y **círculo 1,2** (cilindro), en régimen inercial; término viscoso de Lamb `k_μ` = 8 (cilindro 2D, Re bajo). Las partículas inmiscibles (lava y miel) usan 1,2 (círculo). Para la miel vale el régimen inercial porque el arrastre lo pone el agua que la rodea, no la viscosidad de la miel: a 0,8 m/s, `Re = ρ_w v D / μ_agua` ≈ 7·10⁴.
 
@@ -113,8 +119,15 @@ Malla de volúmenes finitos sobre `LEVEL.bounds`: `dx` = **0,1 m**, `N` = 560 ce
 | `q[i]` | m²/s | Caudal por ancho, `h·u` |
 | `E[i]` | J/m | Energía térmica por ancho de columna, `σ_w · c_w · h · T` ([14.8](#148-térmica-y-fases)) |
 | `M[i]` | m | Volumen de miel por ancho, `h · X_v` ([14.9](#149-mezcla-por-concentración-y-viscosidad)) |
+| `A[i]` | kg/m | Masa de H₂SO₄ de la columna por metro de `x` (#98); `Σ A dx` son los kg de H₂SO₄ del campo en la rebanada |
 | `d[i]` | m | Desplazamiento por cuerpos (solo con [14.5](#reacción-de-los-cuerpos-sobre-el-agua-recortable)) |
-| derivados | — | `η = b + h`, `u = q/h` si `h > h_dry`, `T = E/(σ_w c_w h)`, `X_v = M/h` |
+| derivados | — | `η = b + h`, `u = q/h` si `h > h_dry`, `T = E/(σ_w c_w h)`, `X_v = M/h`; del ácido (#98), abajo |
+
+**Derivados del ácido** (#98). Con `w_a` = `MATERIALS.acid.species.H2SO4` (0,08) y `SG_a` = `MATERIALS.acid.SG` (1,05), sin constantes nuevas:
+
+- `V_a = A / (SG_a σ_w w_a)` (m): volumen de solución al 8 % que trajo ese H₂SO₄. Todo `A` entra con ácido del arma, así que es exacto como libro de masa.
+- `m_col = σ_w (h + (SG_a − 1) V_a + (SG_h − 1) M)` (kg/m): masa de la columna con **mezcla ideal** (los volúmenes se suman, [14.1](#141-unidades-rebanada-2d-y-materiales)): agua `σ_w (h − M − V_a)`, ácido `SG_a σ_w V_a`, miel `SG_h σ_w M`.
+- `w = A / m_col`: fracción másica de H₂SO₄ ([ficha 3](15-quimica.md#3-agua--ácido): `w = Σ m_i w_i / Σ m_i`). Vale 0 si `h ≤ h_dry` y, para las propiedades, se recorta a `[0, w_a]` (el valor sin recortar lo vigila Q6).
 
 ### Ecuaciones
 
@@ -125,12 +138,20 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 ∂q/∂t + ∂(q²/h + g h²/2)/∂x = −g h ∂(b + d)/∂x − τ_b/ρ + s_q
 ∂E/∂t + ∂(q E/h)/∂x = s_E
 ∂M/∂t + ∂(q M/h)/∂x = s_M
+∂A/∂t + ∂(q A/h)/∂x = s_A
 ```
 
 - `g` = 10 m/s², el mismo del mundo (`b2World` con gravedad (0, −10)).
 - **Fricción de fondo**, Manning más término laminar, tratada en forma semi-implícita (estable para `h` → 0): `τ_b/ρ = g n² u|u| / h^{1/3} + 3 ν(X) u / h`, con `n` = 0,012 s/m^{1/3} (hormigón liso). El segundo término es el de una película laminar: domina en columnas con miel.
 - **Aproximación de Boussinesq:** la densidad de la mezcla (`ρ_col = ρ_w (1 + (SG_miel − 1) X_v)`) entra en el empuje sobre cuerpos y partículas, pero no en la dinámica de la columna. El error es chico mientras la miel sea una fracción pequeña del agua; si una columna es casi toda miel, se nota en la velocidad de las ondas. **Consecuencia:** en el campo, `M` es un **trazador pasivo** promediado en la vertical: lo que entrara se repartiría en toda la columna, sin hundirse ni estratificarse. Por eso, **desde #110 ([D11](#1418-decisiones-del-usuario)) la miel no entra al campo**: es inmiscible y queda como partícula ([14.4](#inmersión-materiales-inmiscibles-lava-miel-piedra-vapor-recién-creado)). `M` queda **sin fuente** (`M` = 0 en todo paso) y se conserva en `ShallowWater` (estado, transporte, `densityAt`, `viscosityAt`, `honey()`) como punto de entrada de una futura disolución por cizalla con tasa física ([14.9](#149-mezcla-por-concentración-y-viscosidad)). Con `M` = 0, `ρ_col` = `ρ_w` y `ν` = `ν_agua`.
-- **Fuentes del paso** `s_h`, `s_q`, `s_E`, `s_M`: absorción ([14.4](#144-absorción-e-inmersión)), reacción del arrastre sobre cuerpos ([14.5](#145-flotación-de-arquímedes-por-pieza)) y evaporación ([14.8](#148-térmica-y-fases)). Se acumulan en arreglos durante el paso y se aplican al principio de `step` (separación de operadores de Lie).
+- **Ácido disuelto** (#98, [fichas 3 y 11](15-quimica.md#11-agua-campo--ácido)). El ácido es miscible y se diluye de verdad, así que, a diferencia de la miel, sí entra al campo, pero conserva su identidad: `A` es un **trazador conservativo** de la masa de H₂SO₄, con la misma ecuación de transporte que `M`. La columna toma sus propiedades de `w`:
+  - **Densidad** (ficha 3, lineal en `w` hasta el 8 %): `ρ_col = 998 + 6,8 · (100 w) + ρ_w (SG_h − 1) X_v` kg/m³. Entra en el empuje (`densityAt`), igual que la miel, por Boussinesq: no en la dinámica de la columna. Con 0,3 % (un tanque en la pileta) la diferencia es +0,2 %.
+  - **Agua pura a 998 kg/m³, aproximación declarada:** la fórmula da `ρ_col` = 998 con `w` = 0 (agua real a 20 °C), mientras que `σ_w` y los `SG` usan 1000. Desde #98 todo empuje del campo es 0,2 % menor que antes: la miel (`SG` 1,42) se hunde con `v_t` +0,24 %, la lava +0,06 %, y un cuerpo de `SG` 1,002 (el robot, D1) pasa de un exceso de peso de 0,002 `g` a 0,004 `g`. Es menor que cualquier tolerancia de H, I y F. La alternativa (escalar la fórmula a 1000) no cumple Q2 (±0,1 %) contra la ficha 3 *(lo revisa `physics-reviewer`)*.
+  - **Conductividad eléctrica** (ficha 3: proporcional a la concentración en el rango diluido): `σ_e(w) = σ_e,agua + (σ_e,ácido − σ_e,agua) · w / w_a`. Da 32 S/m al 8 % y **1,2 S/m** con un tanque en la pileta (`w` = 0,30 %), dentro del 1–2 S/m de la ficha 11. Hoy no la consume ningún sistema: se expone para el debug y para un futuro cortocircuito ([15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 18).
+  - **Sin cambios por `A`:** `μ` (de 1,17·10⁻³ a 1,0·10⁻³ Pa·s, ficha 3; en la fricción, el término laminar es despreciable frente a Manning con `h` > 1 cm), `c` (la columna usa `c_w`: la energía del ácido absorbido se deposita como hoy, con `c_w`; la diferencia de 3,4 % en `c` la resuelve la entalpía de #75) y el calor de dilución (ΔT < 1 K, ficha 3).
+  - **No daña:** la columna ácida no aplica daño. La corrosión real en una ronda es despreciable ([ficha 24](15-quimica.md#24-ácido--robot)); el daño del ácido sigue siendo el de las partículas.
+  - **Limitación declarada: sin estratificación** ([15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 6). El campo promediado en la vertical reparte el ácido absorbido en toda la columna en el acto: no forma la capa de fondo del ácido quieto (5 % más denso, ficha 11) y sobreestima la mezcla vertical en la zona del impacto, que en la realidad tarda segundos. En la horizontal, la mezcla sale solo de la advección (y de la difusión numérica, abajo).
+- **Fuentes del paso** `s_h`, `s_q`, `s_E`, `s_M`, `s_A`: absorción ([14.4](#144-absorción-e-inmersión)), reacción del arrastre sobre cuerpos ([14.5](#145-flotación-de-arquímedes-por-pieza)) y evaporación ([14.8](#148-térmica-y-fases)). Se acumulan en arreglos durante el paso y se aplican al principio de `step` (separación de operadores de Lie).
 
 ### Esquema numérico
 
@@ -167,7 +188,9 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
   - **Contra `h_dry`:** `h_min` = 1,85 `h_dry`. Entre los dos hay una banda (`h_dry` < `h` < `h_min`) de láminas que el campo dibuja y mueve pero que no existen en la realidad: es la que vigila el invariante I4 ([14.16](#g-invariantes-globales-108)). Por debajo de `h_dry` el agua es invisible y no se mueve (`q` = 0), y la cuenta I3.
   - **Contra `dx`:** `h_min` = 0,0185 `dx`, y la línea de contacto (ancho ~`κ⁻¹`) es 37 veces más chica que una celda: el campo no la resuelve. `h_min` es una regla de submalla: el volumen de una columna que quedaría más fina que `h_min` tiene que juntarse en menos celdas (un charco de volumen `V` ocupa `V / h_min`; una gota sola, `A_p / h_min` = 4,4 m). Cómo se impone sin romper la conservación lo diseña #111.
   - **Columnas con miel:** no existen desde #110 (`M` = 0). Si una disolución futura vuelve a darle fuente a `M`, se usa el mismo `h_min` (aproximación declarada: la miel real tiene `γ` ≈ 0,05–0,06 N/m y `ρ` = 1420 kg/m³, y su charco es algo más fino).
-- **Escalares** `E` y `M`: flujo upwind según el signo del flujo de masa HLL de la cara. Es conservativo: lo que sale de una celda entra en la vecina.
+- **Escalares** `E`, `M` y `A` (#98): flujo upwind según el signo del flujo de masa HLL de la cara, `F_A = g_M · A_up / h_up` (`h_up` el de la celda aguas arriba; 0 si `h_up` = 0), con reconstrucción constante (orden 1 en el espacio) y la misma integración SSP-RK2, las mismas repeticiones con `dt/2` (`saved`) y las mismas paredes con flujo 0. Es conservativo: lo que sale de una celda entra en la vecina, así que `Σ A dx` solo cambia por `deposit`. La fricción, `settle` y el tope de `u_max` no tocan `A`.
+  - **Principio del máximo:** como `A` usa el mismo flujo de masa que `h`, cada etapa de Euler deja `A/h` como combinación convexa de los valores aguas arriba mientras `h_i − (Δt/Δx) Σ salidas ≥ 0`, que la positividad de `h` garantiza con el CFL 0,45. Por eso `w` no sale de `[0, w_a]` sin una fuente (Q6 lo mide).
+  - **Difusión numérica** (lo que mide Q3). El upwind de orden 1 equivale a advección más una difusión `D_num = ½ |u| dx (1 − ν)`, con `ν = |u| Δt_sub / dx` el Courant de la advección (≤ 0,45 · |u| / (|u| + √(g h)), casi 0 en la pileta). Valores: **0** con `u` = 0 (en reposo el flujo de masa HLL es 0 salvo redondeo, del orden de 10⁻¹⁵ m²/s, por ser *well-balanced*, W2; el ácido quieto no se mueve); 5·10⁻³ m²/s con 0,1 m/s; 5·10⁻² m²/s con 1 m/s. La difusión molecular (1,7·10⁻⁹ m²/s, [15.2](15-quimica.md#152-escala-qué-domina-y-qué-es-despreciable)) es despreciable, pero la referencia física de un modelo promediado en la vertical es la **dispersión longitudinal de Elder** (*J. Fluid Mech.* 5, 1959), `K = 5,93 h u*`, con `u* = √g n |u| / h^{1/6}` la velocidad de fricción de Manning. El cociente `K / D_num ≈ 4,5 h^{5/6}` (con `h` en m) no depende de `u`: **11** en la pileta de 3 m, así que ahí el esquema mezcla menos que la realidad y no hace falta orden 2 en `A`. En láminas de menos de **0,16 m** (películas sobre las islas) el esquema difunde más que Elder; se acepta *(lo revisa `physics-reviewer`; Elder vale para flujo turbulento desarrollado, y la mezcla real de la pluma del impacto es mayor que las dos)*.
 - **Dispersión (limitación declarada):** Saint-Venant es no dispersivo y vale para ondas largas (`kh ≪ 1`). Contra la teoría lineal de Airy, `c = √(g tanh(kh)/k)`, la velocidad de fase queda sobreestimada en `1 − √(tanh(kh)/kh)`: 1,6 % con `kh` = 0,31 (λ = 20 h), **4 %** con `kh` = 0,5 y **13 %** con `kh` = 1. Las ondas cortas (salpicaduras, ondas de menos de ~6 h) viajan más rápido que en la realidad. W3 se mide con λ ≥ 20 h, y W9 informa la desviación contra Airy.
 
 ### Paso, estabilidad y bordes
@@ -180,17 +203,18 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 - **Costo:** `n = ceil(dt(|u| + √(g h))/(CFL · dx))`; con h = 15 m, `√(g h)` = 12,2 m/s. Cada subpaso evalúa 560 celdas dos veces (~70 ns por celda). Medido con CFL 0,25: 0,9 ms por paso; presupuesto con CFL 0,45: **≤ 0,6 ms de media** en el peor caso (W8).
 - **Bordes:** paredes reflectivas en x = 0 y x = 56 (celdas fantasma con `h` espejado y `q` negado). Sin fuentes ni sumideros en los bordes.
 - **Plataformas** (sólidos `platform`, 0,4 m): **no son lecho**. El agua las atraviesa como placas delgadas sumergidas. A 15 m desplazarían 18,4 m² de ~700 m²: el **2,6 %** del volumen, que el modelo ignora. No hay "agua arriba de una plataforma y seco abajo": lo que cae sobre una plataforma seca sigue siendo partícula hasta que escurre por el borde ([14.4](#144-absorción-e-inmersión)).
-- **Estado inicial (arranque asentado):** pileta con `η` = `pool.surface` (3 m) entre x 18 y 38, `q` = 0, `T` = 20 °C y `M` = 0; islas secas. Por ser *well-balanced*, el lago en reposo es una solución exacta: **no hay transitorio de arranque** (con partículas, el pico era de 33 m/s).
+- **Estado inicial (arranque asentado):** pileta con `η` = `pool.surface` (3 m) entre x 18 y 38, `q` = 0, `T` = 20 °C, `M` = 0 y `A` = 0; islas secas. Por ser *well-balanced*, el lago en reposo es una solución exacta: **no hay transitorio de arranque** (con partículas, el pico era de 33 m/s).
 
 ### Interfaz
 
 `js/water.js`, clase `ShallowWater(level = LEVEL, config = WATER_FIELD)`. `WATER_FIELD` es un dato del mismo módulo: `dx`, `cfl`, `maxSubsteps`, `hDry`, `hMin` (#108, lo lee I4), `manning`, `ambientT` y `draw`.
 
 - `step(dt)`;
-- `deposit(x, area, momentum, energy, honey)`: reparte la fuente entre las dos celdas vecinas con pesos lineales (*cloud-in-cell*);
+- `deposit(x, area, momentum, energy, honey, acid = 0)`: reparte la fuente entre las dos celdas vecinas con pesos lineales (*cloud-in-cell*); `acid` son kg de H₂SO₄ (#98; el valor por defecto deja igual a los llamadores de los tests de #70);
 - `addMomentum(i, dq)`;
 - `surfaceAt(x)`, `velocityAt(x)`, `densityAt(x)`, `viscosityAt(x)` y `temperatureAt(x)` (interpolación lineal);
-- totales `volume()`, `momentum()`, `energy()` y `honey()` (para tests y debug);
+- #98: `acidFraction(i)` (`w` de la celda, recortado, 0 si seca), `acidFractionAt(x)` y `conductivityAt(x)` (S/m), con la misma interpolación; `densityAt` pasa a la fórmula de [Ecuaciones](#ecuaciones);
+- totales `volume()`, `momentum()`, `energy()`, `honey()` y `acid()` (`Σ A dx`, kg; #98) (para tests y debug);
 - `boiled[i]` (J pendientes de vaporización, [14.8](#148-térmica-y-fases));
 - `reset()`.
 
@@ -199,6 +223,16 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 ### Render
 
 ✅ #71. `drawWater(ctx, water, scale)` en `js/render.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Desde #108, el polígono lo arma la función pura `waterOutline` de `js/render.js` ([14.16 G](#g-invariantes-globales-108)), y `drawWater` solo lo traza. Se dibuja en el canvas principal **después de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw` (`alpha`, `color`, `lineColor`, `lineWidth`).
+
+**Color por composición (#98).** El ácido real es incoloro ([ficha 3](15-quimica.md#3-agua--ácido)); el tinte es una aproximación de juego declarada, decidida por el game designer, para que se vea dónde quedó el ácido.
+
+- **Función pura nueva `fieldColor(water, x, out = [0, 0, 0])`** en `js/render.js` (sin `ctx` ni `Box2D`; el test U3 ya la busca). Devuelve `out` con el RGB entero de la columna en `x`:
+  - `f = 1 − 10^(−α · w / w_a)`, con `α` = `MATERIALS.acid.tintAbsorbance` y `w` = `water.acidFractionAt(x)`: fracción de la luz que cambia el soluto según **Beer–Lambert**, con la absorbancia lineal en `w`. El camino óptico es el espesor `b` de la rebanada, constante (la escena se mira de frente), así que no depende de `h`;
+  - `color_k = round(base_k + f · (tint_k − base_k))`, con `base` = `water.config.draw.color` y `tint` = `MATERIALS.acid.tint`.
+  - Con `w` = 0, `f` = 0 y el resultado es exactamente `draw.color` (Q5). Con `α` = 2: `f` = 0,16 con un tanque en la pileta (0,30 %) y 0,99 con ácido sin diluir (8 %).
+  - `out` por defecto es un arreglo nuevo en cada llamada: el test guarda el color del agua pura y lo compara con una llamada posterior, así que no puede devolver un buffer compartido. `drawWater` le pasa un buffer suyo reutilizado.
+- **`drawWater`:** si el tramo no tiene ácido (`A` = 0 en todas sus celdas), el relleno es `draw.color` como hoy. Si tiene, el relleno es un **degradado lineal horizontal** (`createLinearGradient` del lecho del tramo, de la cara izquierda a la derecha) con una parada de color por cada `draw.colorStep` celdas (dato nuevo de `WATER_FIELD.draw`, **4** = 0,4 m: ≤ 140 paradas en el tramo más ancho) y en las dos caras, con el color de `fieldColor`. La geometría no cambia (`waterOutline`): I3f sigue igual. El degradado es un objeto de Canvas por tramo y por frame, no memoria nativa de `Box2D`. Costo esperado < 0,1 ms más; se mide en el navegador.
+- `js/render.js` pasa a importar `MATERIALS` de `js/materials.js` (módulo hoja, sin `Box2D`).
 
 ### Qué reemplaza y qué se borra
 
@@ -226,12 +260,13 @@ Acople partícula ↔ campo, una vez por paso, después de `stepWorld` y `store.
   | Cantidad de movimiento horizontal | `SG · A_p · v_x` (Boussinesq: momento por `ρ_w`) | m³/s |
   | Energía térmica | `m · e` más solo la **pérdida inelástica** del choque: `½ m v² − ΔK_col`, con `ΔK_col` el cambio de energía cinética de las dos columnas al recibir la cantidad de movimiento horizontal (choque plástico). A 25 m/s son ≤ 0,07 K, pero cierra el balance de T1 | J |
   | Miel | `A_p · X_v` (fracción en volumen de la partícula). Desde #110 ninguna partícula absorbida trae miel: la fila queda para una partícula de agua con soluto (mezcla de #76) | m² |
+  | H₂SO₄ (#98) | `SG · σ_w · A_p · species.H2SO4` del material de la partícula (`material.species.H2SO4`, 0 si no está): 8,16·10⁻³ kg por partícula de ácido (de 0,102 kg), 0 en el agua y la lluvia. Sale de `MATERIALS`, sin columna nueva en `KIND_MATERIAL` | kg |
 
 - **Volumen por partícula:** `A_p / dx` = **0,081 m** (0,32 m con `r` = 0,12) de altura de agua si cae entera en una celda (repartida entre dos celdas, menos en cada una). Una gota es un montículo de ese tamaño, que el campo reparte como dos ondas.
 - **Cantidad de movimiento vertical:** el modelo hidrostático no la resuelve, y **no genera ola**. Se transfiere al lecho como impulso de presión y se registra en el debug. La **salpicadura es la ola** que genera el volumen agregado: dos frentes a ±√(g h).
 - **Evaporación previa** ([14.7b](#147b-evaporación-de-agua-detenida-d7)): si la partícula ya se evaporó en parte (fracción `φ`), deposita `A_p (1 − φ)` de volumen y la masa, la cantidad de movimiento y la energía en la misma proporción.
 - Después de depositar, `store.destroy(i)`.
-- **Ácido:** se absorbe como volumen y pierde su identidad (deja de dañar). Un trazador de ácido por columna queda para M5 (💬).
+- **Ácido** (#98): se absorbe como cualquier miscible (volumen `A_p`, cantidad de movimiento con su `SG`, energía como hoy) y **conserva su identidad**: su H₂SO₄ entra en `A` con la fila de arriba. Deja de dañar como partícula; la columna no daña ([14.3](#ecuaciones)). Con la evaporación de #73, deposita `A_p (1 − φ)` y su H₂SO₄ también por `(1 − φ)`, porque D7 evapora la partícula entera (limitación de [15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 15: en la realidad queda el H₂SO₄).
 - **Charcos y gotas sobre plataformas:** no se absorben hasta que caen al campo. Escurren por física, se juntan con otros y se evaporan según su superficie expuesta (D7, [14.7b](#147b-evaporación-de-agua-detenida-d7)). D7 reemplaza al vencimiento de 6 s de D5 para el agua y el ácido; D5 queda solo para la lava hasta #75 ([14.18](#1418-decisiones-del-usuario)).
 
 ### Inmersión (materiales inmiscibles: lava, miel, piedra, vapor recién creado)
@@ -812,6 +847,22 @@ Con LiquidFun real. H1 y H3 en una escena aislada (como I5 e I6, `tests/immersio
 
 **Tests que dejan de ser `todo`** (#110): U2 (los tres criterios), I3f de miel, el motivo de miel de I3f de agua y `PERSIST_CAP` en [G](#g-invariantes-globales-108). I3f de miel deja de medir área (el campo no tiene miel que dibujar) y pasa a ser H2 sobre la escena estándar: `Σ M dx` = 0 en todo paso.
 
+### Q. Ácido disuelto en el campo (#98)
+
+Son los criterios A1–A5 del issue, con otra letra porque A es la adherencia (#77); Q6 se agrega por el esquema. Q1a, Q3, Q4 y Q6 en Node puro con `ShallowWater` (`tests/shallow-water.test.js`); Q1b, Q2 y Q5 en U3 (`tests/user-scenarios.test.js`, tanque de ácido a la pileta con gamepad simulado y LiquidFun real). Notación de [14.3](#estado): `w_a` = 0,08, `m_a = SG_a σ_w A_p` = 0,102 kg.
+
+| Id | Criterio | Referencia | Esperado | Tolerancia |
+|---|---|---|---|---|
+| Q1a (A1) | Rotura de presa W4 con `A` uniforme (`w` = 4 %) del lado alto, más 20 depósitos por paso de una partícula de ácido (`A_p` de volumen y `m_a w_a` de H₂SO₄) en `x` al azar (como el test de `deposit` de #70), 60 s | Conservación de la masa de H₂SO₄ | `Σ A dx` = `Σ A dx (0)` + depositado, en cada paso | < 10⁻⁶ relativo |
+| Q1b (A1) | U3 durante 60 s desde el primer disparo | Ídem, partículas más campo | `n_acid m_a w_a + Σ A dx + Σ_{c ≠ ABSORBED} destroyed[c][ácido] m_a w_a = created[ácido] m_a w_a`, en cada paso | < 10⁻⁶ relativo |
+| Q2 (A2) | U3, 10 s después del último disparo | Dilución ([fichas 3 y 11](15-quimica.md#11-agua-campo--ácido)) | (a) `Σ A dx / Σ m_col dx` = `m_H2SO4 / m_total`, con `m_H2SO4` = absorbidas · `m_a w_a` y `m_total` = `σ_w V₀` + absorbidas · `m_a` (≈ 0,30 %); con `Σ (ρ_col/ρ_w) σ_w h dx` en el denominador, como lo escribe el issue, la diferencia es ≤ 0,2 %. (b) En cada columna mojada de la pileta, `densityAt` en su centro = `998 + 6,8 · (100 w)` con su `w` | (a) ±1 %; (b) ±0,1 % |
+| Q3 (A3) | Pileta en reposo (`u` = 0, `η` plano), `A` con `w` = 8 % en las celdas de x 18 a 28 y 0 desde x 28; 10 s | Difusión molecular despreciable: `√(2 D t)` = 0,18 mm con `D` = 1,7·10⁻⁹ m²/s, contra `dx` = 100 mm ([15.2](15-quimica.md#152-escala-qué-domina-y-qué-es-despreciable)); difusión numérica 0 con `u` = 0 ([14.3](#esquema-numérico)) | `\|Δw\|` de la primera columna a cada lado de x 28 | < 1 % de `w_a` (8·10⁻⁴); esperado ~10⁻¹⁴ |
+| Q4 (A4) | `conductivityAt` en columnas con `w` = 0; 0,3 %; 4 % y 8 % | Proporcional a la concentración ([ficha 3](15-quimica.md#3-agua--ácido)) | 32 S/m al 8 %; `σ_e,agua` con `w` = 0; lineal (residuo de la recta por los cuatro puntos) | ±5 % al 8 %; residuo < 10⁻⁹ |
+| Q5 (A5) | U3: `fieldColor` en el impacto antes y 10 s después de disparar; video `u3-acido-en-pileta` | Tinte declarado ([14.3, Render](#render)) | Antes = `draw.color` exacto; después, distinto. Unidad: `fieldColor` con `w` = 0 da `draw.color` y es monótono en `w`. Video: el tinte se ve donde cayó el ácido, avanza con la corriente y el agua pura (lluvia, islas) no cambia | Igualdad exacta; video revisado por `physics-reviewer` |
+| Q6 | (a) Rotura de presa W4 con `A` solo del lado alto y (b) con `w` uniforme (como W7b) | (a) Principio del máximo del upwind ([14.3](#esquema-numérico)); (b) consistencia del transporte | (a) 0 columnas con `h > h_dry` y `A / m_col` fuera de `[0, w_a]`; (b) `w` constante en las columnas mojadas | (a) margen 10⁻⁹; (b) < 10⁻¹² |
+
+**Sin regresiones:** W1–W10, H1–H6 (el empuje baja 0,2 % por el agua a 998 kg/m³, [14.3](#ecuaciones)), I1–I8 y los invariantes de [G](#g-invariantes-globales-108). **Tests que dejan de ser `todo`:** U3 (los tres criterios) y el motivo `#98` de I1 H₂O, I1 H₂SO₄, I2b agua e I2b ácido.
+
 ### M. Mezcla (#76)
 
 | Id | Criterio | Referencia | Esperado | Tolerancia |
@@ -862,9 +913,9 @@ Tests permanentes en `tests/invariants.test.js`, que corren en cada PR ([CLAUDE.
 | Término | Qué es | Fuente en el código |
 |---|---|---|
 | `P_k` | Masa en partículas del material `k`: `Σ_vivas m_k (1 − φ)` | `js/particleStore.js` (`alive`, `kind`, `evaporated` desde #73) |
-| `F_w` | Agua del campo: `σ_w Σ (h − M − A_c) dx` | `js/water.js`: `volume()` − `honey()` (− trazador de ácido `A_c`, no existe) |
+| `F_w` | Agua del campo: `σ_w Σ (h − M − V_a) dx`, con `V_a = A / (SG_a σ_w w_a)` el volumen de ácido al 8 % ([14.3](#estado)) | `js/water.js`: `σ_w (volume() − honey()) − acid() / (SG_a w_a)` (#98) |
 | `F_honey` | Miel del campo: `SG_miel σ_w Σ M dx`. Desde #110 vale 0 en todo paso (la miel no entra al campo); se mantiene en la fórmula para la disolución de #76 | `js/water.js`: `honey()` |
-| `F_acid` | Ácido del campo: `SG_ácido σ_w Σ A_c dx` | **No medible hoy:** el campo no tiene trazador de ácido ([14.4](#144-absorción-e-inmersión): el ácido absorbido pierde su identidad) |
+| `F_acid` | Ácido del campo: `SG_a σ_w Σ V_a dx = Σ A dx / w_a` | `js/water.js`: `acid() / w_a` (#98) |
 | `F_k(0)` | Campo al arranque de la ronda (la pileta, solo agua) | `water.volume()` después de `water.reset()` |
 | `I_k` | Inyectado: `created[k] · m_k` (disparos y lluvia) | Libro de `ParticleStore` ([14.2](#142-identidad-estable-de-partículas-particlestore)); la lluvia crea con `kind` agua (`js/flood.js`) |
 | `S_k^c` | Sumidero por causa `c`: `destroyed[c][k] · m_k` | Libro de `ParticleStore`; quién llama a `destroy` con cada causa, abajo |
@@ -902,11 +953,13 @@ Dos partes, con `REACTIONS` vacía:
 
 I2 es más estricta que I1: el ácido absorbido conserva H₂O y H₂SO₄ en un modelo con trazador, pero sin trazador su masa pasa a "agua" y falla I2b de ácido y de agua.
 
+**Cambio de #98 en I1 e I2b.** Sin trazador, cada partícula de ácido absorbida sumaba `σ_w A_p` a `F_w`: H₂O por 1,000 `σ_w A_p` cuando traía 0,92 · 1,05 = 0,966 `σ_w A_p` (**+3,5 %** del H₂O del ácido), y su H₂SO₄ (0,084 `σ_w A_p`) desaparecía. Con `A`, el campo se parte en dos materiales por libro de masa: `F_w` y `F_acid` de la tabla de términos. Por especie: H₂O = `F_w + 0,92 F_acid` = `σ_w Σ (h − M) dx − 0,405 Σ A dx` y H₂SO₄ = `0,08 F_acid` = `Σ A dx`. Cada absorción pasa exactamente `m_acid` de `P_acid` a `F_acid` (`(SG_a σ_w A_p w_a) / w_a`), así que I1 de H₂O y de H₂SO₄ e I2b de agua y de ácido cierran con la absorción, salvo redondeo (10⁻¹⁶ por operación). En `tests/helpers/invariants-run.js`, `field.acid` deja de ser 0 y `field.water` resta `acid() / (SG_a w_a)`; los motivos `#98` (`acidAbsorbed > 0`) salen de `ACID_CAUSES` y de I2b de agua. Los otros motivos (`#73`, `EXPIRED`; `#19`, `HIT`) siguen: si aparecen en el libro, la prueba sigue `todo` por ellos.
+
 #### I3. Volumen dibujado igual al físico
 
 Por material, en geometría, sin el canvas:
 
-- **Físico:** partículas `n_k A_p (1 − φ)`; campo: agua `Σ (h − M) dx`, miel `Σ M dx`, incluida el agua con `0 < h ≤ h_dry` (como mucho `N h_dry dx` = 0,056 m²), que el campo no dibuja y por eso suma a la diferencia.
+- **Físico:** partículas `n_k A_p (1 − φ)`; campo: agua `Σ (h − M) dx` (desde #98 incluye el volumen `V_a` del ácido disuelto: el campo dibuja una sola solución, con el color de [14.3, Render](#render)), miel `Σ M dx`, incluida el agua con `0 < h ≤ h_dry` (como mucho `N h_dry dx` = 0,056 m²), que el campo no dibuja y por eso suma a la diferencia.
 - **Dibujado:**
   - Campo: área del polígono de `waterOutline` por fórmula del área de Gauss (*shoelace*), atribuida al material de su color (hoy todo agua). *Verificado leyendo* `drawWater` (`js/render.js`): el borde de arriba y el de abajo pasan por los mismos centros de celda y los extremos son medias celdas planas, así que el área es exactamente `Σ_{h > h_dry} h dx`.
   - Partículas: área de la **unión** de las primitivas que traza `drawParticles` para cada partícula, por material (`store.kind`, no por color): círculo de `PARTICLE_RADIUS`, segundo círculo acercado por `skinPosition`, y trazo de lluvia como cápsula de ancho `streakWidth`. La unión se mide muestreando una grilla de 2,5 mm solo cerca de las primitivas; calibración con un círculo de r = 0,07 m (error < 1 %).
@@ -931,9 +984,9 @@ Valores medidos con la escena estándar. El rótulo de un `todo` es dinámico: n
 
 | Invariante | Medido | Issue |
 |---|---|---|
-| I1 H₂O, I1 H₂SO₄ | Todo el H₂SO₄ absorbido se pierde: −4,44 kg | #98 |
+| I1 H₂O, I1 H₂SO₄ | Todo el H₂SO₄ absorbido se pierde: −4,44 kg | #98 (se quita el motivo; quedan `EXPIRED` #73 y `HIT` #19 si aparecen) |
 | I1 basalto | `EXPIRED` de lava: −91 kg | #75 |
-| I2b agua, I2b ácido | Ácido absorbido sin trazador | #98 |
+| I2b agua, I2b ácido | Ácido absorbido sin trazador | #98 (ídem) |
 | I2b lava | `EXPIRED` de lava | #75 |
 | I3p de los cuatro materiales | Agua +120 %, ácido +95 %, miel +157 %, lava +136 % | #101 |
 | I3f miel | El campo dibuja la miel como agua | #110: la miel ya no entra al campo; el test pasa a ser `Σ M dx` = 0 (H2) |
@@ -992,6 +1045,15 @@ Las letras del primer borrador (A, B, C, D1, D2, F, K1, E, G, H, I, J, K2) queda
 - `M` del campo se conserva sin fuente ([14.9](#149-mezcla-por-concentración-y-viscosidad)); `PERSIST_MAX` sigue como límite de recursos ([14.16 G](#g-invariantes-globales-108)).
 - Sin cambios en `js/render.js` ni en `js/water.js`.
 - Criterios H1–H6 ([14.16](#h-miel-inmiscible-en-el-campo-110)); se quitan los `todo` de U2, I3f miel y `PERSIST_CAP`, y el motivo `#110` de I1, I2b e I3f agua.
+
+**Alcance de #98** (ácido disuelto en el campo; sin módulos nuevos ni patrón nuevo: Campo + partículas, Datos en tablas y Sistemas por módulo):
+- `js/materials.js`: `MATERIALS.acid` suma `c` 3850, `mu` 1,17·10⁻³, `sigmaE` 32, `tint` [50, 255, 50] y `tintAbsorbance` 2; `MATERIALS.water` suma `sigmaE` 5·10⁻³ ([14.1](#141-unidades-rebanada-2d-y-materiales)).
+- `js/water.js`: estado `A` (con `saved`, `stage`, `rate` y el flujo de cara `fA`), transporte upwind igual al de `M`, `deposit(…, acid = 0)`, `acidFraction`, `acidFractionAt`, `conductivityAt`, `acid()` y `densityAt` con la fórmula de la ficha 3; `reset` pone `A` = 0 ([14.3](#143-campo-de-alturas-saint-venant-1d-shallowwater)).
+- `js/immersion.js`: `absorb` deposita el H₂SO₄ del material ([14.4](#absorción-materiales-miscibles-agua-lluvia-ácido-vapor-condensado)).
+- `js/render.js`: `fieldColor` y el degradado de `drawWater`; `WATER_FIELD.draw.colorStep` = 4 ([14.3, Render](#render)).
+- Tests: Q1–Q6 ([14.16](#q-ácido-disuelto-en-el-campo-98)); `invariants-run.js` con `F_w` y `F_acid` de [G](#g-invariantes-globales-108); U3 lee `water.acid()` en lugar de 0.
+- Fuera de alcance: estratificación del ácido, pH, viscosidad y `c` de la columna por `w`, daño de la columna ácida.
+- *Verificado leyendo el código* (19/11): `deposit` lo llaman `Immersion.absorb` y dos tests de #70 con cinco argumentos; `densityAt` lo leen `Immersion.immerse` y U3; `js/render.js` no importa nada hoy; el transporte de `M` (`evaluate`, flujo `fM` por el signo de `g_M` con `M/h` de la celda aguas arriba, 0 en las paredes) es el que copia `A`; U3 llama `fieldColor(water, x)` dos veces y compara los resultados, de ahí el `out` nuevo por defecto.
 
 **Orden de trabajo y recorte:** ver [11-cronograma](11-cronograma.md). **Mínimo de #62 para la entrega:** #67, #68, #69, #70, #71 y #72.
 
