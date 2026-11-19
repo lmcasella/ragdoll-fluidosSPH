@@ -353,6 +353,27 @@ export function drawMenu(ctx, width, height, rows) {
             ctx.fillText(text, x + MENU_LAYOUT.valueX + j * MENU_LAYOUT.valueWidth, y);
         });
     });
+    drawControlsHelp(ctx, width, height, rows.length);
+}
+
+/** Líneas de ayuda de controles del menú principal (#163): ya no se muestran durante la partida. */
+export const CONTROLS_HELP = [
+    "Armas: 1 Agua · 2 Ácido · 3 Lava · 4 Miel · se recogen en el mapa",
+    "Gamepad: stick izq. mover · arriba saltar · stick der. apuntar · A/RT disparar (mantener) · X golpe · LB/RB arma",
+    "Teclado J1: A/D · W · Espacio · F golpe · 1-4 · mouse apunta, clic mantenido dispara",
+    "Teclado J2: ←/→ · ↑ · Enter · Num 5 golpe · Num − bloqueo · Num 1-4",
+    "Caer a la pileta = robot destruido · Al mejor de 3 rondas",
+];
+
+/** Dibuja `CONTROLS_HELP` centrado, debajo de las `rowCount` filas del menú. */
+export function drawControlsHelp(ctx, width, height, rowCount) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.font = "14px Segoe UI";
+    ctx.fillStyle = "#aaaaaa";
+    const y0 = height / 2 + MENU_LAYOUT.top + rowCount * MENU_LAYOUT.rowHeight + 6;
+    CONTROLS_HELP.forEach((line, i) => ctx.fillText(line, width / 2, y0 + i * 20));
+    ctx.textAlign = "left";
 }
 
 const TANK_BAR = { width: 180, height: 10 };
