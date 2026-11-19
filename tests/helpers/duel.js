@@ -18,13 +18,14 @@ export const AIM_LEFT = [0, 0, -1, 0];
  * reales del nivel. Con `gap` mayor que 2,4 m el rival aparece sobre la plataforma alta. J1 mira a +x y J2 a -x; los
  * dos esperan 60 frames quietos.
  * @param {number} gap Distancia horizontal entre los dos robots, m.
+ * @param {object} [options] Opciones de `loadGame`.
  */
-export async function startDuel(gap) {
+export async function startDuel(gap, options = {}) {
     const real = LEVEL.spawns;
     LEVEL.spawns = [{ x: LEFT_X, flipX: false }, { x: LEFT_X + gap, flipX: true }];
     let game;
     try {
-        game = await loadGame();
+        game = await loadGame(options);
     } finally {
         LEVEL.spawns = real;
     }

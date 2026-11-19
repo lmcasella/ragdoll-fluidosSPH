@@ -35,6 +35,8 @@ export function giveAllWeapons(game) {
 /**
  * Carga el juego en Node. `options.assets` mapea una URL del juego (por ejemplo "./assets/robot.rag.json") a una
  * función que recibe el JSON leído y devuelve el JSON a usar: sirve para probar cambios al rig solo en memoria.
+ * `options.audioContext` es el constructor de un `AudioContext` falso (ver `tests/helpers/fake-audio.js`); sin él el
+ * juego corre sin `AudioContext`, como en Node.
  */
 export async function loadGame(options = {}) {
     globalThis.__TEST_HOOKS__ = true;
@@ -73,7 +75,12 @@ export async function loadGame(options = {}) {
     globalThis.requestAnimationFrame = (fn) => {
         pending = fn;
     };
+    if (options.audioContext) globalThis.AudioContext = options.audioContext;
+    else delete globalThis.AudioContext;
     globalThis.fetch = async (url) => {
+        if (String(url).endsWith(".ogg")) {
+            return { ok: true, arrayBuffer: async () => ({ url: String(url) }) };
+        }
         const text = readFileSync(new URL(String(url), root), "utf8");
         const patch = options.assets?.[String(url)];
         return { json: async () => (patch ? patch(JSON.parse(text)) : JSON.parse(text)) };

@@ -31,6 +31,8 @@ export class DamageSystem {
         this.fluidHits = [];
         this.honeyBoxes = [];
         this.drowned = [];
+        /** Dueños (`{ player, index, bodyId }`) de un pie que empezó contacto con algo que no es un robot; los vacía quien los consume. */
+        this.footfalls = [];
         this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
         /** Puntero de fixture sensor → función que recibe el puntero del cuerpo que lo tocó; solo debe encolar (ver `js/pickups.js`). */
         this.sensorHooks = new Map();
@@ -117,6 +119,10 @@ export class DamageSystem {
         const ownerA = this.owners.get(Box2D.getPointer(bodyA));
         const ownerB = this.owners.get(Box2D.getPointer(bodyB));
         if (!ownerA && !ownerB) return;
+        if (!ownerA !== !ownerB) {
+            const owner = ownerA ?? ownerB;
+            if (owner.player.rig.feet?.includes(owner.bodyId)) this.footfalls.push(owner);
+        }
 
         contact.GetWorldManifold(this.manifold);
         const normal = this.manifold.get_normal();

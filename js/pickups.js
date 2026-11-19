@@ -18,6 +18,8 @@ export class Pickups {
         this.damage = damage;
         this.weapons = new Map(weapons.map((w) => [w.id, w]));
         this.queue = [];
+        /** Recogidas `{ weapon }` desde la última vez que quien las consume vació la lista. */
+        this.events = [];
         this.points = [];
         const bodyDef = new Box2D.b2BodyDef();
         const shape = new Box2D.b2CircleShape();
@@ -50,6 +52,7 @@ export class Pickups {
             point.active = false;
             point.readyAt = now + PICKUP_RESPAWN;
             point.body.SetActive(false);
+            this.events.push({ weapon: weapon.id });
         }
         this.queue.length = 0;
         for (const point of this.points) {
@@ -63,6 +66,7 @@ export class Pickups {
     /** Nueva ronda: todos los puntos vuelven a estar disponibles y se descarta lo encolado. */
     reset() {
         this.queue.length = 0;
+        this.events.length = 0;
         for (const point of this.points) {
             if (point.active) continue;
             point.active = true;
