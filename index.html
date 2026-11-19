@@ -233,10 +233,11 @@
                 return lowest;
             }
 
-            // Altura de aparición: un rayo vertical desde el techo encuentra la superficie en x
-            function spawnOnGround(def, x) {
-                const hit = raycaster.cast(x, climb ? CLIMB.spawnRayTop : LEVEL.bounds.maxY, x, LEVEL.bounds.minY);
-                const surface = hit ? hit.y : LEVEL.bounds.minY;
+            // Altura de aparición: en Clásico un rayo vertical desde el techo encuentra la superficie en x; en Infinito el
+            // tope de la plataforma sorteada ya es el dato
+            function spawnOnGround(def, x, top) {
+                const hit = top === undefined ? raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY) : null;
+                const surface = top ?? (hit ? hit.y : LEVEL.bounds.minY);
                 const probe = def.spawn(world, { x, y: 0 });
                 const lift = surface + 0.02 - lowestPoint(probe);
                 probe.destroy();
@@ -263,7 +264,7 @@
             function spawnRobot(spawn) {
                 const robot = spawnRobotRaw(
                     spawn.x,
-                    spawnOnGround(robotRag.def, spawn.x),
+                    spawnOnGround(robotRag.def, spawn.x, spawn.y),
                     spawn.flipX,
                 );
                 equipLoadout(robot, climb ? CLIMB.loadout : LOADOUT);
@@ -346,7 +347,8 @@
                     damage.killSensors.clear();
                     pickups.dispose();
                     pickups = new Pickups(world, damage, []);
-                    flood = new RisingFlood(water);
+                    water.setStart({ surface: CLIMB.flood.surface });
+                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY);
                     climb = new Climb({ world, platforms, pickups });
                     damage.drownSurface = drownSurface;
                 } else {
@@ -357,6 +359,7 @@
                     classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
                     damage.killSensors = classic.killSensors;
                     pickups = new Pickups(world, damage, LEVEL.pickups);
+                    water.setStart(null);
                     flood = new Flood(store, water);
                     damage.drownSurface = null;
                     camera.setBounds(LEVEL.bounds);
@@ -425,7 +428,7 @@
                 }
                 players.forEach((player, k) => {
                     player.destroy();
-                    players[k] = spawnRobot(LEVEL.spawns[k]);
+                    players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);
                     instances[k] = players[k].rag;
                     platforms.removeOwner(k);
                     platforms.addOwner(k, players[k].rag.bodies.values());
@@ -599,7 +602,7 @@
                 lastTime = nowMs;
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
-                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null };
+                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
                 bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
@@ -685,7 +688,7 @@
                 }
                 sonarEventos(now);
                 if (climb && match.state === "playing") {
-                    stagePrizes.detect(players, climb.level.solids);
+                    stagePrizes.detect(players, climb.level.solids, climb.offsetY);
                     for (const { k } of stagePrizes.apply(players, now)) audio.play("pickup", k, now);
                 }
                 limpiarParticulas();
@@ -699,7 +702,11 @@
                 camera.update(points, frameDt, firstFrame);
                 firstFrame = false;
                 if (climb) {
-                    const { created, destroyed } = climb.update({ top: camera.top, level: flood.level });
+                    const { created, destroyed } = climb.update({
+                        top: camera.top,
+                        level: flood.level,
+                        reached: Math.max(...points.map((p) => p.y)),
+                    });
                     if (destroyed > 0) wallContact.invalidate();
                     if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
                 }
@@ -719,14 +726,21 @@
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
                 camera.apply(pickupCtx);
+                const offsetY = climb ? climb.offsetY : 0;
+                ctx.save();
+                ctx.translate(0, offsetY);
                 drawLevel(ctx, climb ? climb.level : LEVEL, scale);
-                collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, climb ? bottom : 0);
+                ctx.restore();
+                collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
                 drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                 });
                 drawWater(ctx, water, scale, climb ? { floor: flood.floor, bottom } : null);
+                pickupCtx.save();
+                pickupCtx.translate(0, pickups.offsetY);
                 drawPickups(pickupCtx, pickups.points, WEAPONS);
+                pickupCtx.restore();
                 players.forEach((player, k) => {
                     drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
                 });

@@ -8,6 +8,7 @@ const START = 9;
 
 async function intro() {
     const game = await loadGame({ intro: true });
+    game.state.menu.values.map = "classic";
     game.setPad(0);
     game.setPad(1);
     game.frames(30);

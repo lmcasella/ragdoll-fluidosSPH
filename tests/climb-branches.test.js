@@ -4,14 +4,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BranchGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
+import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
 import { FLUID } from "../js/weapons.js";
 
 const TOP = 300;
 const B = CLIMB.branches;
 
 function run(seed, top = TOP) {
-    const generator = new BranchGenerator(seed);
+    const generator = new ClimbGenerator(seed);
     const list = [];
     do list.push(generator.next());
     while (list[list.length - 1].y < top);
@@ -22,7 +22,7 @@ const rect = (p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: p.y });
 
 test("la base de la etapa 0 son de 3 a 5 plataformas anchas entre 4 y 7 m, repartidas por el ancho", () => {
     for (let seed = 1; seed <= 50; seed++) {
-        const { base } = new BranchGenerator(seed);
+        const { base } = new ClimbGenerator(seed);
         assert.ok(base.length >= 3 && base.length <= 5, `semilla ${seed}: ${base.length}`);
         for (const p of base) {
             assert.ok(p.y >= 4 && p.y <= 7, `tope ${p.y}`);

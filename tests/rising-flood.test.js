@@ -27,6 +27,7 @@ function timeSteps(water, count) {
 
 test("RisingFlood: el nivel y el fondo efectivo siguen la curva y el span sigue el ancho de la etapa", () => {
     const water = new ShallowWater();
+    water.setStart({ surface: CLIMB.flood.surface });
     const flood = new RisingFlood(water);
     assert.equal(flood.level, -Infinity);
     let time = 0;
@@ -36,7 +37,7 @@ test("RisingFlood: el nivel y el fondo efectivo siguen la curva y el span sigue 
         water.step(DT);
     }
     assert.ok(flood.active);
-    const expected = 3 + 0.4 * 7;
+    const expected = CLIMB.flood.surface + CLIMB.flood.speed * (12 - CLIMB.flood.start);
     assert.ok(Math.abs(flood.level - expected) < 0.01, `nivel ${flood.level}, esperado ${expected}`);
     assert.equal(flood.floor, 0);
     const half = halfWidth(stageOf(flood.level));
@@ -51,6 +52,7 @@ test("RisingFlood: el nivel y el fondo efectivo siguen la curva y el span sigue 
 
 test("C3 y C7: con el nivel sin techo hasta 150 m el campo cuesta lo mismo y el libro de masa cierra", () => {
     const water = new ShallowWater();
+    water.setStart({ surface: CLIMB.flood.surface });
     const flood = new RisingFlood(water, undefined, FAST);
     const initial = water.volume();
     let time = 0;

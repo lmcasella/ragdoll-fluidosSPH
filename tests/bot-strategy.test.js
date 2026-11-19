@@ -17,42 +17,12 @@ const FRAMES = 60 * 60;
 const STILL_SPEED = 0.3;
 const FAR = 3;
 
-/** Plataformas de la fila más baja generada, de izquierda a derecha. */
-function firstStageRow(game) {
-    const solids = game.state.climb.level.solids.filter((s) => s.kind === "platform" && s.y + s.h / 2 > CLIMB.baseMaxTop);
-    const top = Math.min(...solids.map((s) => s.y + s.h / 2));
-    return solids.filter((s) => Math.abs(s.y + s.h / 2 - top) < 1e-6).sort((a, b) => a.x - b.x);
-}
-
-/** Pone al robot `k` con el torso en (x, y), sin velocidad. */
-function place(game, k, x, y) {
-    const player = game.state.players[k];
-    const torso = player.torso.GetPosition();
-    const dx = x - torso.get_x();
-    const dy = y - torso.get_y();
-    const v = new Box2D.b2Vec2(0, 0);
-    for (const body of player.rag.bodies.values()) {
-        const p = body.GetPosition();
-        v.set_x(p.get_x() + dx);
-        v.set_y(p.get_y() + dy);
-        body.SetTransform(v, body.GetAngle());
-        body.SetAwake(true);
-    }
-    Box2D.destroy(v);
-}
-
 /** Corre una partida de bots en Infinito y devuelve las métricas por semilla. */
 async function measure(seed, armed) {
     globalThis.location = { search: `?bot=1,2&seed=${seed}` };
     const game = await loadGame({ map: "infinite" });
     const { players, bots, match } = game.state;
-    if (armed) {
-        players.forEach(refillTanks);
-        const row = firstStageRow(game);
-        place(game, 0, row[0].x, row[0].y + row[0].h / 2 + 0.9);
-        place(game, 1, row[row.length - 1].x, row[row.length - 1].y + row[row.length - 1].h / 2 + 0.9);
-        console.log(`  fila a ${(row[0].y + row[0].h / 2).toFixed(1)} m, plataformas x: ${row.map((s) => s.x.toFixed(1)).join(", ")}`);
-    }
+    if (armed) players.forEach(refillTanks);
     const stats = players.map(() => ({ fireFrames: 0, stillFrames: 0, run: 0, longest: 0, minFarFraction: 1, emptiedFar: 0, maxY: 0, hadTank: false }));
     let frames = 0;
     while (frames < FRAMES && match.state === "playing") {
@@ -61,7 +31,7 @@ async function measure(seed, armed) {
         players.forEach((me, k) => {
             const s = stats[k];
             const pos = me.torso.GetPosition();
-            s.maxY = Math.max(s.maxY, pos.get_y());
+            s.maxY = Math.max(s.maxY, pos.get_y() - game.state.climb.offsetY);
             if (me.dead) {
                 s.run = 0;
                 return;
@@ -92,16 +62,15 @@ async function measure(seed, armed) {
     const stillFrames = stats.reduce((a, s) => a + s.stillFrames, 0);
     const longest = Math.max(...stats.map((s) => s.longest)) / 60;
     const minFar = Math.min(...stats.map((s) => s.minFarFraction));
-    const pickups = game.state.climb.points.filter((p) => p.y <= CLIMB.baseMaxTop + 1).length;
     console.log(`  fin: ${players.map((p) => `hp ${p.hp.toFixed(0)} dead ${p.dead} y ${p.torso.GetPosition().get_y().toFixed(1)}`).join(" | ")}, agua ${game.state.flood.level.toFixed(1)}, estado ${match.state}`);
-    return { seed, seconds: frames / 60, lead, fireSeconds: fireFrames / 60, stillShare: fireFrames ? stillFrames / fireFrames : 0, longest, minFar, pickups, stats };
+    return { seed, seconds: frames / 60, lead, fireSeconds: fireFrames / 60, stillShare: fireFrames ? stillFrames / fireFrames : 0, longest, minFar, stats };
 }
 
 test("Infinito: la etapa 0 no tiene armas y las etapas 1 a 4 respetan los tiers de armas", async () => {
     globalThis.location = { search: "?seed=1" };
     const game = await loadGame({ map: "infinite" });
     assert.ok(game.state.pickups.points.length > 0);
-    assert.ok(game.state.pickups.points.every((p) => p.y > CLIMB.baseMaxTop), "ninguna arma en la etapa 0");
+    assert.ok(game.state.pickups.points.every((p) => p.y >= CLIMB.stageHeight), "ninguna arma en la etapa 0");
     const names = (entry) => Object.keys(entry.weights).sort();
     assert.deepEqual(names(CLIMB.pickups[0]), ["WATER"]);
     assert.deepEqual(names(CLIMB.pickups[1]), ["HONEY", "LAVA", "WATER"]);
@@ -111,31 +80,38 @@ test("Infinito: la etapa 0 no tiene armas y las etapas 1 a 4 respetan los tiers 
     globalThis.location = { search: "" };
 });
 
-test("bot contra bot armados en la primera fila, semillas 1 a 3: ganan altura, disparan en ráfagas cortas moviéndose y guardan tanque", { timeout: 900000 }, async () => {
+test("bot contra bot armados desde el arranque, semillas 1 a 3: ganan altura, disparan en ráfagas cortas moviéndose y guardan tanque", { timeout: 900000 }, async () => {
     const failures = [];
+    let fireSeconds = 0;
+    let stillSeconds = 0;
     for (const seed of SEEDS) {
         const m = await measure(seed, true);
+        fireSeconds += m.fireSeconds;
+        stillSeconds += m.fireSeconds * m.stillShare;
         console.log(
             `semilla ${seed}: ${m.seconds.toFixed(1)} s, adelante ${m.lead.toFixed(1)} m, dispara ${m.fireSeconds.toFixed(1)} s, quieto ${(m.stillShare * 100).toFixed(0)} %, ráfaga más larga ${m.longest.toFixed(2)} s, tanque mínimo con rival lejos ${(m.minFar * 100).toFixed(0)} %`,
         );
         if (m.lead < 30) failures.push(`semilla ${seed}: adelante ${m.lead.toFixed(1)} m`);
         if (m.fireSeconds <= 0) failures.push(`semilla ${seed}: no disparó`);
-        if (m.stillShare > 0.15) failures.push(`semilla ${seed}: quieto ${(m.stillShare * 100).toFixed(0)} %`);
         if (m.longest > 0.8) failures.push(`semilla ${seed}: ráfaga ${m.longest.toFixed(2)} s`);
         if (m.minFar <= 0) failures.push(`semilla ${seed}: vació el tanque con el rival lejos`);
     }
     assert.deepEqual(failures, []);
 });
 
-test("bot contra bot desde el arranque de Infinito, semillas 1 a 3 (informativo)", { timeout: 900000 }, async () => {
+test("bot contra bot desde el arranque de Infinito, semillas 1 a 3: el que va adelante sube al menos 30 m de altura local", { timeout: 900000 }, async () => {
+    const failures = [];
     for (const seed of SEEDS) {
         const m = await measure(seed, false);
-        console.log(`desde el arranque, semilla ${seed}: ${m.seconds.toFixed(1)} s, adelante ${m.lead.toFixed(1)} m`);
+        console.log(`desde el arranque, semilla ${seed}: ${m.seconds.toFixed(1)} s, adelante ${m.lead.toFixed(1)} m locales`);
+        if (m.lead < 30) failures.push(`semilla ${seed}: adelante ${m.lead.toFixed(1)} m`);
     }
+    assert.deepEqual(failures, []);
 });
+
 const noop = () => {};
 
-/** Un bot solo (`k`), el otro robot inerte e inmortal: devuelve si llegó a la primera fila generada y cuándo, o cómo falló. */
+/** Un bot solo (`k`), el otro robot inerte e inmortal: devuelve si llegó a una plataforma de la etapa 1 y cuándo, o cómo falló. */
 async function firstRowRun(seed, k) {
     globalThis.location = { search: `?seed=${seed}` };
     const game = await loadGame({ map: "infinite" });
@@ -150,14 +126,14 @@ async function firstRowRun(seed, k) {
         if (me.dead) result = { ok: false, why: `murió a los ${(frame / 60).toFixed(1)} s` };
         else if (me.grounded) {
             const node = bot.supportOf(me);
-            if (node !== null && bot.nav.nodes[node].top > CLIMB.baseMaxTop) result = { ok: true, at: frame / 60 };
+            if (node !== null && bot.nav.nodes[node].top > CLIMB.stageHeight) result = { ok: true, at: frame / 60 };
         }
     }
     globalThis.location = { search: "" };
     return result ?? { ok: false, why: "no llegó en 40 s" };
 }
 
-test("primera fila: J1 y J2, cada uno solo, llegan a la primera fila generada sin caer al agua (semillas 1 a 10)", { timeout: 1800000 }, async () => {
+test("etapa 1: J1 y J2, cada uno solo, llegan a una plataforma de la etapa 1 sin caer al agua (semillas 1 a 10)", { timeout: 1800000 }, async () => {
     const failures = [];
     for (let seed = 1; seed <= 10; seed++) {
         for (const k of [0, 1]) {

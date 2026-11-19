@@ -21,6 +21,8 @@ export class Pickups {
         /** Recogidas `{ weapon }` desde la última vez que quien las consume vació la lista. */
         this.events = [];
         this.points = [];
+        /** Desplazamiento vertical (m) que se suma a la y de cada punto para ubicar su cuerpo (el mapa del ascenso baja). */
+        this.offsetY = 0;
         this.bodyDef = new Box2D.b2BodyDef();
         this.shape = new Box2D.b2CircleShape();
         this.shape.set_m_radius(PICKUP_RADIUS);
@@ -40,6 +42,17 @@ export class Pickups {
         this.points.push(point);
         this.damage.sensorHooks.set(Box2D.getPointer(fixture), (bodyPtr) => this.queue.push({ point, bodyPtr }));
         return point;
+    }
+
+    /** Pone el desplazamiento offsetY y mueve los cuerpos de los puntos con él. No llamar dentro de un callback de Box2D. */
+    shift(offsetY) {
+        if (offsetY === this.offsetY) return;
+        this.offsetY = offsetY;
+        for (const point of this.points) {
+            this.center.set_x(point.x);
+            this.center.set_y(point.y + offsetY);
+            point.body.SetTransform(this.center, 0);
+        }
     }
 
     /** Quita el punto: su gancho, lo encolado de ese punto y su cuerpo. No llamar dentro de un callback de Box2D. */
