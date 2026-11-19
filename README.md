@@ -23,6 +23,8 @@ npx http-server -c-1 .     # http://localhost:8080
 node --test tests/          # tests (Node 24, sin dependencias)
 ```
 
+La suite incluye los invariantes de fluidos (`tests/invariants.test.js`): miden una ronda completa y suman unos 42 s por corrida. Algunos salen como `todo` esperados: son lo que hoy falla y tiene issue (ver `docs/design/14-agua.md`, §14.16 G); no hacen fallar la suite, y cuando un arreglo los resuelve hay que quitarles el `todo`.
+
 ## Grabar un escenario
 
 Para revisar la física sobre secuencias de frames, en un script de Node se carga el juego con `loadGame()` (`tests/helpers/game.js`), se crea `recordGame(game, "nombre")` (`tests/helpers/recorder.js`), se llama a `recorder.capture()` después de cada `game.frame()` y se guarda con `recorder.save("ruta/nombre.json")`. Para verlo, abrir `tests/tools/viewer.html` en el navegador (doble clic o por el servidor de arriba) y elegir el JSON: tiene play/pausa, cuadro a cuadro y velocidad. Cada frame guarda también el perfil `η` del agua (el visor lo dibuja). Ejemplo de uso en `tests/recorder.test.js`. Los escenarios de agua de los videos (`I3`, `I7`) se graban con `node tests/tools/record-water.js <carpeta>`.

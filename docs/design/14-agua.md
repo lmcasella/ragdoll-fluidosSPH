@@ -37,6 +37,12 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 
 **Coeficientes de transferencia** (también en `MATERIALS`): ebullición en película lava↔agua, `h_b` = 500 W/(m²·K) (rango de la literatura 200–1000); convección natural al aire, `h_a` = 10 W/(m²·K); arrastre de presión de cuerpos en el agua por forma de fixture (`MATERIALS.drag`): **caja 2,0** (placa o prisma de caras planas) y **círculo 1,2** (cilindro), en régimen inercial; término viscoso de Lamb `k_μ` = 8 (cilindro 2D, Re bajo). Las partículas inmiscibles usan 1,2 (círculo).
 
+**Especies y reacciones** (#108, datos en `js/materials.js`, patrón Datos en tablas). Los invariantes de masa ([14.16 G](#g-invariantes-globales-108)) cuentan **especies químicas**, no materiales:
+
+- `MATERIALS[m].species`: fracción másica de cada especie en el material. Agua `{ H2O: 1 }`; ácido `{ H2O: 0,92, H2SO4: 0,08 }` (8 % m/m, [15.1](15-quimica.md#ácido--ácido-sulfúrico-diluido-al-8--mm); `SG` 1,05 es la densidad de esa solución); miel `{ honey: 1 }` (la miel se cuenta como una especie, sin separar su agua); lava `{ basalt: 1 }`. Cuando existan, piedra `{ basalt: 1 }` y vapor `{ H2O: 1 }`. Cada fila suma 1.
+- `REACTIONS`: tabla de las reacciones diseñadas, **hoy vacía** (`[]`). Cada fila es `{ id, from: { material: kg }, to: { material: kg } }` por kg de avance, con `Σ from = Σ to` (la reacción conserva la masa) y la conservación de cada especie entre `from` y `to`. Ningún código cambia el material de una masa (partícula o campo) si no es ejecutando una fila de esta tabla, y quien la ejecuta acumula el avance `ξ_r` (kg) para el invariante I2. El primer candidato es lava → piedra (#75, solidificación: cambio de fase con la misma especie, `basalt`).
+- **Mezcla ideal (aproximación declarada):** en el campo los volúmenes se suman (`h` incluye la miel, `M`). La contracción real al mezclar (hasta ~2 % en la miel diluida) no se modela.
+
 **Límite del motor:** en LiquidFun la masa de partícula es una sola por sistema (`density · A_p`). La lava y la miel empujan a los cuerpos por contacto como si fueran agua (la lava, 2,6 veces menos). Sus masas reales se usan en todo lo que calcula el juego (flotación, inmersión, térmica, mezcla, adherencia). Queda documentado y no se compensa.
 
 **Alcance del contacto partícula–cuerpo** (#100, medido por `physics-reviewer` con LiquidFun real, 18/11). LiquidFun no resuelve el contacto con un cuerpo como un sólido rígido, sino con una presión de penalización:
@@ -78,6 +84,8 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
   - `destroy(i)` es idempotente: si el slot está vivo, `DestroyParticle(i)`, `alive[slot] = 0` y el slot pasa a `pending`.
   - `afterStep()` pasa `pending` a la lista libre. Se llama **inmediatamente después de cada `stepWorld`**.
   - `reset()` destruye todo (reinicio de ronda).
+  - **Libro de masa** (#108, para los invariantes de [14.16 G](#g-invariantes-globales-108)): como `ParticleStore` es el único que crea y destruye, lleva la cuenta. `created[kind]` cuenta las creaciones que devolvieron índice (las que dan −1 no inyectan nada). `destroy(i, cause)` exige una causa del dato exportado `SINK` y suma `destroyed[cause][kind]`. Causas: `ABSORBED` (pasa al campo, `js/immersion.js`), `OUT` (salió de `LEVEL.bounds`), `EXPIRED` (vencimiento D5), `PERSIST_CAP` (tope `PERSIST_MAX` de la miel), `HIT` (ácido consumido al dañar, `js/damage.js`), `EVAPORATED` (`φ` ≥ 1, #73) y `RESET` (ronda nueva). `reset()` pone el libro en cero después de destruir. El libro es de conteos; las masas salen de `SG · σ_w · A_p` por material.
+  - `kind[slot]` no cambia entre `create` y `destroy`, salvo por una reacción de `REACTIONS` ([14.1](#141-unidades-rebanada-2d-y-materiales)).
 - **Por qué la liberación diferida:** la zombi sigue en el buffer, con su `userData`, hasta el próximo `Step`. Si su slot se reusara antes, dos partículas apuntarían al mismo estado. Todo recorrido salta los slots con `alive` = 0, así que las zombis del paso no se procesan dos veces.
 - **Por qué funciona** (según el fuente de LiquidFun 1.1, `b2ParticleSystem::Solve` y `SolveZombie`): la compactación ocurre **al principio** de `Solve`, antes de armar contactos y de llamar a los callbacks, es **estable** (conserva el orden) y mueve todos los buffers de la partícula, incluidos `userData` y color. Como el juego no destruye partículas dentro de `stepWorld`, solo compacta el primero de los 8 subpasos, y los índices que informan los callbacks valen hasta el próximo `stepWorld`. El build compilado no deja leer el C++: **se verifica en ejecución** (criterio S1). `CreateParticle` agrega al final del buffer. No se usan grupos en este sistema: `CreateParticleGroup` y `JoinParticleGroups` pueden rotar buffers.
 - **Consumidores:**
@@ -151,7 +159,14 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
   - **Aproximación acotada:** queda una pérdida de ~9–13 % del caudal en la cara del escalón (HLL más presión de pared) que no converge con `dx`. La expansión aguas abajo de un escalón sumergido no modela la pérdida de Borda–Carnot; se mide cuando haya un caso de juego.
 - **Segundo orden:** reconstrucción MUSCL con limitador minmod sobre `η` y sobre `u`, más integración temporal SSP-RK2 (Heun). La pendiente de `h` es la misma que la de `η` (recortada a ±2 `h_i` por celda), así que el lecho reconstruido en cada cara es el de su celda: limitar `h` y `η` por separado inclinaba el lecho en el borde de la cresta y creaba un escalón falso de ~0,27 m.
 - **Positividad:** el recorte de la pendiente a ±2 `h_i` deja `h` ≥ 0 en las caras. En las celdas secas y en las que tienen una vecina seca se usa **orden 1** (reconstrucción constante).
-- **Seco/mojado:** `h_dry` = 10⁻³ m. Por debajo, `q` = 0. La velocidad se desingulariza como en Kurganov y Petrova (2007): `u = 2 h q / (h² + max(h², h_dry²))`.
+- **Seco/mojado:** `h_dry` = 10⁻³ m. Por debajo, `q` = 0. La velocidad se desingulariza como en Kurganov y Petrova (2007): `u = 2 h q / (h² + max(h², h_dry²))`. `h_dry` es un umbral **numérico** (desingularización y dibujo), no un espesor físico: el espesor físico mínimo es `h_min`, abajo.
+- **Espesor mínimo de una lámina de agua, `h_min`** (#108; el comportamiento que lo respeta es #111). Un charco en reposo sobre un sólido no se adelgaza indefinidamente: se extiende hasta el espesor de equilibrio entre la gravedad y la tensión superficial, el **espesor de charco** de de Gennes, `h_c = 2 κ⁻¹ sin(θ_E/2)`, con `κ⁻¹ = √(γ / (ρ g))` la longitud capilar (de Gennes, Brochard-Wyart y Quéré, *Capillarity and Wetting Phenomena*, Springer 2004, §2.1 "Puddles"). Viene del balance por unidad de largo de la línea de contacto, `½ ρ g h_c² = γ (1 − cos θ_E)`, así que vale tal cual en la rebanada 2D. Vale para charcos más anchos que `κ⁻¹`, que es el caso de todo charco del campo (una celda mide 37 `κ⁻¹`).
+  - **Datos:** `γ` = 0,0728 N/m (agua a 20 °C, [15.1](15-quimica.md#agua)), `ρ_w` = 1000 kg/m³, `g` = 10 m/s² (la del mundo): `κ⁻¹` = **2,70 mm**.
+  - **Material del nivel, declarado:** hormigón liso, el mismo que fija el `n` de Manning de arriba ([15](15-quimica.md) no definía de qué son el piso y las plataformas). Ángulo de contacto de equilibrio del agua sobre hormigón: **`θ_E` = 40°** *(verificar por `physics-analyst`: la literatura da de 20° a 60° según la terminación y la humedad de la superficie)*. Se usa como ángulo de **avance** (charco que se extiende), con histéresis grande en el hormigón. La absorción del hormigón poroso no se modela (limitación declarada).
+  - **Valor:** `h_min = 2 · 2,70 · sin 20°` = **1,85 mm** (`WATER_FIELD.hMin` = 1,85·10⁻³ m). Sensibilidad: 1,40 mm con `θ_E` = 30°, 2,70 mm con 60°; con `θ_E` < 21,3° quedaría por debajo de `h_dry`.
+  - **Contra `h_dry`:** `h_min` = 1,85 `h_dry`. Entre los dos hay una banda (`h_dry` < `h` < `h_min`) de láminas que el campo dibuja y mueve pero que no existen en la realidad: es la que vigila el invariante I4 ([14.16](#g-invariantes-globales-108)). Por debajo de `h_dry` el agua es invisible y no se mueve (`q` = 0), y la cuenta I3.
+  - **Contra `dx`:** `h_min` = 0,0185 `dx`, y la línea de contacto (ancho ~`κ⁻¹`) es 37 veces más chica que una celda: el campo no la resuelve. `h_min` es una regla de submalla: el volumen de una columna que quedaría más fina que `h_min` tiene que juntarse en menos celdas (un charco de volumen `V` ocupa `V / h_min`; una gota sola, `A_p / h_min` = 4,4 m). Cómo se impone sin romper la conservación lo diseña #111.
+  - **Columnas con miel:** se usa el mismo `h_min` (aproximación declarada). La miel real tiene `γ` ≈ 0,05–0,06 N/m y `ρ` = 1420 kg/m³, y su charco es algo más fino.
 - **Escalares** `E` y `M`: flujo upwind según el signo del flujo de masa HLL de la cara. Es conservativo: lo que sale de una celda entra en la vecina.
 - **Dispersión (limitación declarada):** Saint-Venant es no dispersivo y vale para ondas largas (`kh ≪ 1`). Contra la teoría lineal de Airy, `c = √(g tanh(kh)/k)`, la velocidad de fase queda sobreestimada en `1 − √(tanh(kh)/kh)`: 1,6 % con `kh` = 0,31 (λ = 20 h), **4 %** con `kh` = 0,5 y **13 %** con `kh` = 1. Las ondas cortas (salpicaduras, ondas de menos de ~6 h) viajan más rápido que en la realidad. W3 se mide con λ ≥ 20 h, y W9 informa la desviación contra Airy.
 
@@ -169,7 +184,7 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 
 ### Interfaz
 
-`js/water.js`, clase `ShallowWater(level = LEVEL, config = WATER_FIELD)`. `WATER_FIELD` es un dato del mismo módulo: `dx`, `cfl`, `maxSubsteps`, `hDry`, `manning`, `ambientT` y `draw`.
+`js/water.js`, clase `ShallowWater(level = LEVEL, config = WATER_FIELD)`. `WATER_FIELD` es un dato del mismo módulo: `dx`, `cfl`, `maxSubsteps`, `hDry`, `hMin` (#108, lo lee I4), `manning`, `ambientT` y `draw`.
 
 - `step(dt)`;
 - `deposit(x, area, momentum, energy, honey)`: reparte la fuente entre las dos celdas vecinas con pesos lineales (*cloud-in-cell*);
@@ -183,7 +198,7 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 
 ### Render
 
-✅ #71. `drawWater(ctx, water, scale)` en `js/render.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Se dibuja en el canvas principal **después de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw` (`alpha`, `color`, `lineColor`, `lineWidth`).
+✅ #71. `drawWater(ctx, water, scale)` en `js/render.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Desde #108, el polígono lo arma la función pura `waterOutline` de `js/render.js` ([14.16 G](#g-invariantes-globales-108)), y `drawWater` solo lo traza. Se dibuja en el canvas principal **después de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw` (`alpha`, `color`, `lineColor`, `lineWidth`).
 
 ### Qué reemplaza y qué se borra
 
@@ -611,6 +626,9 @@ Los sistemas reciben `water` y `store` por constructor desde la raíz de composi
 | Con frames sin paso (120/144 Hz, *jitter*), emitir con el `dt` del frame hace nacer partículas superpuestas que ganan hasta ×3,1 de energía; con el tiempo físico de los pasos y la fracción del crédito, máximo ×1,001 y distancia al nacer ≥ 90,3 mm | `tests/stream-energy.test.js` con LiquidFun real (#100) | *Verificado en ejecución* |
 | Dos carriles por arma derivan de costado y fallan P2; un carril cumple P2 con los caudales de la tabla | `tests/pure-water.test.js` (#100) | *Verificado en ejecución* |
 | Heap de 16 MiB con el sistema de disparos lleno hasta `maxCount` = 12.000 | `tests/heap.test.js` (#100) | *Verificado en ejecución* |
+| El área del polígono de `drawWater` es exactamente `Σ_{h > h_dry} h dx` (bordes por los mismos centros de celda, medias celdas planas en los extremos) | Lectura de `js/render.js`, `drawWater` (#108) | *Verificado* en el código |
+| Sumideros de partículas fuera de la absorción: bordes del mundo, vencimiento D5 y tope `PERSIST_MAX` en `limpiarParticulas` (`index.html`), ácido que daña en `DamageSystem.process`; `ParticleStore` no cuenta creaciones ni destrucciones | Lectura de `index.html`, `js/damage.js` y `js/particleStore.js` (#108) | *Verificado* en el código |
+| El campo no tiene sumideros ni fuentes fuera de `deposit` (paredes reflectivas; `settle` lleva a 0 solo `h` > −10⁻¹²), y el flujo de `M` es el de masa por `M/h` de la celda aguas arriba | Lectura de `js/water.js` (#108) | *Verificado* en el código |
 | Modo acústico vertical de LiquidFun en columnas de 3 m con `r` = 0,06: período ≈ 0,6 s, \|v\|rms 0,26–0,61 m/s después del asentado, presente también sin el contorno (compresibilidad débil) | `tests/pure-water.test.js`, P1 con h₀ = 3 m (#100) | Medido; límite declarado del motor ([14.16](#1416-criterios-de-aceptación), P1) |
 
 ## 14.16 Criterios de aceptación
@@ -781,6 +799,102 @@ Propuestos por `physics-reviewer` (18/11) y cerrados en su segunda revisión. Co
 | D1 | Conmutables por teclado y gamepad | Panel y cada capa encienden y apagan sin recargar |
 | D2 | Costo apagado / encendido | < 0,05 ms / ≤ 1 ms |
 | D3 | Los monitores de conservación muestran la misma deriva que los tests W1, T1 y M1 | Coinciden |
+
+### G. Invariantes globales (#108)
+
+Tests permanentes en `tests/invariants.test.js`, que corren en cada PR ([CLAUDE.md](../../CLAUDE.md), Verificar). A diferencia de los criterios de arriba, no aíslan un fenómeno: miden la escena real del juego, con el script de `index.html`, LiquidFun real y gamepad simulado (`tests/helpers/game.js`, estado en `game.state`: `water`, `store`, `immersion`, `flood`, `damage`, `particleSystem`, `match`).
+
+**Escena estándar.** Ronda normal desde el arranque. Como la inundación empieza a `LEVEL.flood.start` = 60 s de ronda, los robots quedan quietos hasta `start − 10 s` y la **ventana medida dura 60 s**, de `start − 10` a `start + 50`: 10 s de disparos en seco (charcos en las islas y plataformas) y 50 s con lluvia sobre las islas y el campo subiendo. En la ventana, cada robot cambia de arma cada 3 s siguiendo el orden de la tabla de `js/weapons.js` (agua, ácido, lava, miel; botón de cambio de arma del mapeo standard) y dispara con el gatillo apretado, con la mira en un barrido triangular de 6 s de la otra punta de la isla rival al piso entre los dos. El libro de masa se mide desde el arranque de la ronda (la ventana no lo reinicia). Si la ronda termina antes, la ventana termina en el último paso anterior a `reiniciarRonda`; el test informa la duración y exige ≥ 30 s. Ventana real medida: 47 s (la ronda terminó por ahogo; cumple el mínimo).
+
+**Muestreo.** Los invariantes se evalúan **al final de cada paso fijo** (después de `water.step`, [14.13](#1413-orden-en-el-paso-fijo-y-patrones)); el test envuelve `water.step` para no depender de cuántos pasos entran en un frame. La limpieza de `index.html` (`limpiarParticulas`) corre una vez por frame, después de los pasos: sus destrucciones entran en el libro del frame.
+
+**Notación.** `A_p = immersion.area` (`(1,5 r)²` con el radio float32 del sistema, el mismo que usa la absorción); `m_k = SG_k σ_w A_p` la masa de una partícula del material `k`, con el material de cada id de fluido de `KIND_MATERIAL` (`js/immersion.js`, se exporta en #108); `w_{k,s} = MATERIALS[k].species[s]`; `n_k` las partículas vivas de material `k` (`store.alive` y `store.kind`, saltando los slots no vivos); `φ` la fracción evaporada (0 hasta #73).
+
+#### Términos y de dónde salen
+
+| Término | Qué es | Fuente en el código |
+|---|---|---|
+| `P_k` | Masa en partículas del material `k`: `Σ_vivas m_k (1 − φ)` | `js/particleStore.js` (`alive`, `kind`, `evaporated` desde #73) |
+| `F_w` | Agua del campo: `σ_w Σ (h − M − A_c) dx` | `js/water.js`: `volume()` − `honey()` (− trazador de ácido `A_c`, no existe) |
+| `F_honey` | Miel del campo: `SG_miel σ_w Σ M dx` | `js/water.js`: `honey()` |
+| `F_acid` | Ácido del campo: `SG_ácido σ_w Σ A_c dx` | **No medible hoy:** el campo no tiene trazador de ácido ([14.4](#144-absorción-e-inmersión): el ácido absorbido pierde su identidad) |
+| `F_k(0)` | Campo al arranque de la ronda (la pileta, solo agua) | `water.volume()` después de `water.reset()` |
+| `I_k` | Inyectado: `created[k] · m_k` (disparos y lluvia) | Libro de `ParticleStore` ([14.2](#142-identidad-estable-de-partículas-particlestore)); la lluvia crea con `kind` agua (`js/flood.js`) |
+| `S_k^c` | Sumidero por causa `c`: `destroyed[c][k] · m_k` | Libro de `ParticleStore`; quién llama a `destroy` con cada causa, abajo |
+| `S_k^evap` | Evaporado: `Σ_vivas m_k φ` más lo destruido con `EVAPORATED` | `js/evaporation.js` (#73) |
+| `ξ_r` | Avance de la reacción `r` (kg) | Quien ejecute la fila de `REACTIONS`; hoy ninguna |
+
+La absorción (`ABSORBED`) **no es sumidero**: es transferencia al campo y aparece en `F`. `RESET` cae fuera de la ventana.
+
+**Sumideros.** Solo cuentan como declarados los que son física del dominio:
+
+| Causa | Dónde | Declarado | Por qué |
+|---|---|---|---|
+| `OUT` | `index.html`, `limpiarParticulas` (`y < minY − 1`, `x` fuera de `minX − 1 … maxX + 1`) | Sí | Borde abierto del dominio: la masa sale del mundo |
+| `EVAPORATED` y `φ` | `js/evaporation.js` (#73) | Sí | Pasa al aire, que no se simula ([14.7b](#147b-evaporación-de-agua-detenida-d7)) |
+| `EXPIRED` | `index.html`, `limpiarParticulas` (`shot < liveShotFloor`, 6 s de `SHOT_LIFETIME` en `js/damage.js`) | **No** | Vencimiento D5: regla de juego. Agua y ácido → #73 (lo reemplaza D7); lava → #75 |
+| `PERSIST_CAP` | `index.html`, `limpiarParticulas` (`PERSIST_MAX` = 1200, `js/weapons.js`) | **No** | Tope de miel: regla de juego. En la escena estándar no debería activarse; si se activa, I1 y I2 de miel fallan |
+| `HIT` | `js/damage.js`, `process` (ácido que daña se destruye) | **No** | La reacción real del ácido con el acero es despreciable en una ronda ([15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 17): el ácido no desaparece al tocar al robot |
+
+#### I1. Masa por especie
+
+Para cada especie `s` ∈ {H₂O, H₂SO₄, miel, basalto}:
+
+```
+R_s = Σ_k w_{k,s} (P_k + F_k + S_k^OUT + S_k^evap) − Σ_k w_{k,s} (F_k(0) + I_k)
+```
+
+con `F_water = F_w` y `F_lava = 0` (la lava no entra al campo). El vapor (#75) se suma a H₂O como un material más con `species { H2O: 1 }`; la piedra, a basalto. **Tolerancia:** `|R_s| / Σ_k w_{k,s} (F_k(0) + I_k)` < 10⁻⁶ en cada paso, para las especies con denominador > 0. **Condición de resolución**, verificada en cada evaluación: `10⁻⁶ · denominador < 0,1 · m_k` para la partícula más liviana `m_k` de la especie; si no se cumple, la tolerancia no distingue una partícula perdida y el test falla por configuración.
+
+#### I2. Identidad
+
+Dos partes, con `REACTIONS` vacía:
+
+- **I2a, partículas:** `store.kind[slot]` no cambia entre `create` y `destroy` (el test lo guarda al crear, envolviendo `store.create`). **0 cambios.**
+- **I2b, por material** (agua, ácido, miel, lava): `R_k = P_k + F_k + S_k^OUT + S_k^evap − F_k(0) − I_k − Σ_r ξ_r (to_r[k] − from_r[k])`. Con la tabla vacía el último término es 0, así que es el balance de I1 por material en vez de por especie. **0 kg**, con la misma tolerancia numérica que I1 (10⁻⁶ relativo; el campo es `Float64`) y la misma condición de resolución (`10⁻⁶ · denominador < 0,1 · m_k` para la partícula más liviana del material, verificada en cada evaluación).
+
+I2 es más estricta que I1: el ácido absorbido conserva H₂O y H₂SO₄ en un modelo con trazador, pero sin trazador su masa pasa a "agua" y falla I2b de ácido y de agua.
+
+#### I3. Volumen dibujado igual al físico
+
+Por material, en geometría, sin el canvas:
+
+- **Físico:** partículas `n_k A_p (1 − φ)`; campo: agua `Σ (h − M) dx`, miel `Σ M dx`, incluida el agua con `0 < h ≤ h_dry` (como mucho `N h_dry dx` = 0,056 m²), que el campo no dibuja y por eso suma a la diferencia.
+- **Dibujado:**
+  - Campo: área del polígono de `waterOutline` por fórmula del área de Gauss (*shoelace*), atribuida al material de su color (hoy todo agua). *Verificado leyendo* `drawWater` (`js/render.js`): el borde de arriba y el de abajo pasan por los mismos centros de celda y los extremos son medias celdas planas, así que el área es exactamente `Σ_{h > h_dry} h dx`.
+  - Partículas: área de la **unión** de las primitivas que traza `drawParticles` para cada partícula, por material (`store.kind`, no por color): círculo de `PARTICLE_RADIUS`, segundo círculo acercado por `skinPosition`, y trazo de lluvia como cápsula de ancho `streakWidth`. La unión se mide muestreando una grilla de 2,5 mm solo cerca de las primitivas; calibración con un círculo de r = 0,07 m (error < 1 %).
+  - El filtro *goo* (desenfoque y umbral) no entra en I3: cambia el borde, no la geometría de las primitivas. Lo revisa `physics-analyst` en video.
+- **Tolerancia:** se parte por material y por separado, sin tolerancia sobre la suma, en cada paso de la ventana:
+  - **I3p, partículas:** área de la unión de `dropShape` contra `n_k A_p (1 − φ)`, ±5 %, por material.
+  - **I3f, campo:** área de `waterOutline` contra el volumen del campo (incluida el agua con `0 < h ≤ h_dry`), ±5 %.
+- **Valor esperado hoy, verificado por cálculo:** una gota aislada se dibuja con `π · 0,07²` = 0,0154 m² contra `A_p` = 0,0081 m² (×1,90); en un charco compacto la unión de círculos cubre exactamente la celda de cada partícula (separación 0,09 m < `2 · 0,07 / √2`), así que el exceso queda en el borde. Falla mientras haya gotas sueltas o chorros.
+
+**Funciones puras nuevas en `js/render.js`** (Sistemas por módulo: el dibujo sigue siendo de `render`; sin `ctx`, sin `Box2D`, sin estado de `index.html`):
+
+- `waterOutline(water, out)`: llena `out` (buffers reutilizados, sin crear objetos por frame) con los tramos mojados y los vértices `(x, y)` de cada polígono, en metros. `drawWater` lo usa para trazar; el test calcula el área.
+- `dropShape(x, y, vx, vy, isRain, draw, out)`: escribe en `out` las primitivas de una partícula (uno o dos círculos con centro y radio, o una cápsula con extremos y ancho). `drawParticles` lee posiciones y velocidades del buffer como hoy y dibuja lo que devuelve `dropShape`; el test lo llama con las mismas entradas. Usa `rainStroke` y `skinPosition`, que ya son JS puro.
+
+#### I4. Espesor mínimo
+
+Al final de cada paso, **0 columnas interiores** con `h_dry < h[i] < h_min` (`WATER_FIELD.hDry` y `WATER_FIELD.hMin`, [14.3](#esquema-numérico)). Se excluye la celda de cada punta de cada tramo mojado (están cubiertas solo en parte); las puntas se informan aparte. El test informa cuántas columnas interiores hubo y el `h` mínimo mojado.
+
+#### Lo que hoy falla (`todo` de node:test, con el issue que lo arregla)
+
+Valores medidos con la escena estándar. El rótulo de un `todo` es dinámico: nombra su issue solo si su causa aparece en el libro de masa.
+
+| Invariante | Medido | Issue |
+|---|---|---|
+| I1 H₂O, I1 H₂SO₄ | Todo el H₂SO₄ absorbido se pierde: −4,44 kg | #98 |
+| I1 basalto | `EXPIRED` de lava: −91 kg | #75 |
+| I2b agua, I2b ácido | Ácido absorbido sin trazador | #98 |
+| I2b lava | `EXPIRED` de lava | #75 |
+| I3p de los cuatro materiales | Agua +120 %, ácido +95 %, miel +157 %, lava +136 % | #101 |
+| I3f miel | El campo dibuja la miel como agua | #110 |
+| I4 | Hasta 17 columnas interiores con `h_dry < h < h_min` | #111 |
+
+Pasan: I1 y I2b de miel (la masa de miel se conserva en `M`), I2a, I3f agua (3,35 %) y `PERSIST_CAP`. Costo: ~42 s de medición por corrida (I3p, 41,6 s).
+
+**Prerrequisitos que entrega #108** (sin cambio de comportamiento): el libro de masa y `SINK` en `ParticleStore` con la causa en cada `destroy` (`js/immersion.js`, `js/damage.js`, `index.html`); `species` y `REACTIONS` en `js/materials.js`; `WATER_FIELD.hMin`; `KIND_MATERIAL` exportado; `waterOutline` y `dropShape` en `js/render.js`, usados por `drawWater` y `drawParticles`.
 
 ### Global
 
