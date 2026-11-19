@@ -5,6 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-19
+
+### Fixed
+- Las partículas de agua y demás fluidos son más chicas (la mitad del radio) y livianas: una gota suelta ya no empuja ni levanta al robot ni le traba las piernas; hay la misma cantidad de agua en tanques y lluvia.
+- El chorro sale en un solo carril con caudal algo menor (Agua y Ácido 155/s, Lava 111/s): el tanque dura más, el daño por segundo es el mismo y el chorro de agua empuja un 22 % menos.
+- El chorro ya no gana energía al salir en monitores de 120/144 Hz o con frames irregulares.
+- Las gotas apretadas entre el robot y el piso escurren hacia los costados en vez de sostenerlo.
+- La miel disparada sobre las islas se integra al agua del campo y sigue pegando.
+
 ## [0.15.0] - 2026-11-18
 
 ### Changed
