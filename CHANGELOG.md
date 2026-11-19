@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-19
+
+### Added
+- Las plataformas se atraviesan desde abajo: saltá desde abajo y quedás parado arriba, sin trabarte a medio cruzar. Para bajar de una plataforma, apretá abajo + A parado sobre ella (en el piso, abajo + A sigue siendo un salto). Los robots siguen chocando entre sí, con el piso y con las paredes, y los fluidos siguen apoyándose en las plataformas.
+
 ## [0.23.0] - 2026-11-19
 
 ### Added
