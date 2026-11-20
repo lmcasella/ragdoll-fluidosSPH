@@ -45,7 +45,7 @@ const BUTTON_NEXT_WEAPON = 5;
 
 export const SPECIES = ["H2O", "H2SO4", "honey", "basalt"];
 export const MATERIAL_NAMES = ["water", "acid", "honey", "lava"];
-const KIND_OF = { water: FLUID.WATER, acid: FLUID.ACID, honey: FLUID.HONEY, lava: FLUID.LAVA };
+const KIND_OF = { water: FLUID.WATER, acid: FLUID.ACID, honey: FLUID.HONEY, lava: FLUID.LAVA, stone: FLUID.STONE };
 
 /** Serie de una medida: cuántas evaluaciones, cuántas fallaron, el peor valor y en qué paso. */
 export class Track {
@@ -83,7 +83,6 @@ const hr = () => Number(process.hrtime.bigint()) / 1e6;
  * medición. Un juego por llamada.
  */
 export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSeconds = 10, onStart = null, onFrame = null } = {}) {
-    if (REACTIONS.length !== 0) throw new Error("los invariantes I1 e I2b suponen REACTIONS vacía");
     const wall0 = hr();
     const game = await loadGame();
     giveAllWeapons(game);
@@ -91,15 +90,17 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     const { water, store, immersion, flood, match, particleSystem, players } = g;
     const startSeconds = LEVEL.flood.start - leadSeconds;
     const area = immersion.area;
-    const mass = Object.fromEntries(MATERIAL_NAMES.map((n) => [n, MATERIALS[n].SG * SIGMA_W * area]));
+    const mass = Object.fromEntries([...MATERIAL_NAMES, "stone"].map((n) => [n, MATERIALS[n].SG * SIGMA_W * area]));
+    const reacted = (n) => REACTIONS.reduce((a, r) => a + g.thermal.stats.advance[r.id] * ((r.to[n] ?? 0) - (r.from[n] ?? 0)), 0);
+    const allowed = new Set(REACTIONS.map((r) => `${KIND_OF[Object.keys(r.from)[0]]}>${KIND_OF[Object.keys(r.to)[0]]}`));
     const kindIndex = new Map(MATERIAL_NAMES.map((n, k) => [KIND_OF[n], k]));
     for (const [id, entry] of Object.entries(KIND_MATERIAL)) {
-        const name = MATERIAL_NAMES.find((n) => MATERIALS[n] === entry.material);
+        const name = [...MATERIAL_NAMES, "stone"].find((n) => MATERIALS[n] === entry.material);
         if (KIND_OF[name] !== Number(id)) throw new Error("KIND_MATERIAL no coincide con los materiales de la prueba");
     }
-    const field0 = { water: SIGMA_W * water.volume(), acid: 0, honey: 0, lava: 0 };
+    const field0 = { water: SIGMA_W * water.volume(), acid: 0, honey: 0, lava: 0, stone: 0 };
     const lightest = Object.fromEntries(
-        SPECIES.map((s) => [s, Math.min(...MATERIAL_NAMES.filter((n) => MATERIALS[n].species[s] > 0).map((n) => MATERIALS[n].species[s] * mass[n]))]),
+        SPECIES.map((s) => [s, Math.min(...[...MATERIAL_NAMES, "stone"].filter((n) => MATERIALS[n].species[s] > 0).map((n) => MATERIALS[n].species[s] * mass[n]))]),
     );
 
     const result = {
@@ -109,7 +110,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         i1: tracks(SPECIES),
         i2b: tracks(MATERIAL_NAMES),
         guard: tracks([...SPECIES, ...MATERIAL_NAMES]),
-        i2a: { creations: 0, changes: 0 },
+        i2a: { creations: 0, changes: 0, transitions: 0 },
         i3p: tracks(MATERIAL_NAMES),
         i3pNear: Object.fromEntries(MATERIAL_NAMES.map((n) => [n, 0])),
         i3f: tracks(["water"]),
@@ -142,7 +143,10 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     const destroy = store.destroy.bind(store);
     store.destroy = (i, cause) => {
         const slot = store.slotAt(i);
-        if (slot >= 0 && store.alive[slot] === 1 && store.kind[slot] !== expectedKind[slot]) result.i2a.changes++;
+        if (slot >= 0 && store.alive[slot] === 1 && store.kind[slot] !== expectedKind[slot]) {
+            if (allowed.has(`${expectedKind[slot]}>${store.kind[slot]}`)) result.i2a.transitions++;
+            else result.i2a.changes++;
+        }
         destroy(i, cause);
     };
 
@@ -153,6 +157,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     const outline = {};
     const drawn = new Float64Array(MATERIAL_NAMES.length);
     const alive = new Float64Array(MATERIAL_NAMES.length);
+    let stoneAlive = 0;
     const evaporatedLive = new Float64Array(MATERIAL_NAMES.length);
     const round0 = match.round;
     let measuring = false;
@@ -169,9 +174,16 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         alive.fill(0);
         evaporatedLive.fill(0);
         let slotChanges = 0;
+        stoneAlive = 0;
         for (let slot = 0; slot < store.capacity; slot++) {
             if (store.alive[slot] === 0) continue;
-            if (store.kind[slot] !== expectedKind[slot]) slotChanges++;
+            if (store.kind[slot] !== expectedKind[slot]) {
+                if (allowed.has(`${expectedKind[slot]}>${store.kind[slot]}`)) {
+                    expectedKind[slot] = store.kind[slot];
+                    result.i2a.transitions++;
+                } else slotChanges++;
+            }
+            if (store.kind[slot] === FLUID.STONE) stoneAlive++;
             const k = kindIndex.get(store.kind[slot]);
             if (k !== undefined) {
                 alive[k]++;
@@ -188,6 +200,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
             acid: acidField / MATERIALS.acid.species.H2SO4,
             honey: MATERIALS.honey.SG * SIGMA_W * honeyField,
             lava: 0,
+            stone: 0,
         };
         const P = {};
         const out = {};
@@ -198,10 +211,13 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
             out[n] = (store.destroyed[SINK.OUT][kind] + store.destroyed[SINK.EVAPORATED][kind] + evaporatedLive[k]) * mass[n];
             inj[n] = store.created[kind] * mass[n];
         });
+        P.stone = stoneAlive * mass.stone;
+        out.stone = store.destroyed[SINK.OUT][FLUID.STONE] * mass.stone;
+        inj.stone = store.created[FLUID.STONE] * mass.stone;
         for (const s of SPECIES) {
             let den = 0;
             let sum = 0;
-            for (const n of MATERIAL_NAMES) {
+            for (const n of [...MATERIAL_NAMES, "stone"]) {
                 const w = MATERIALS[n].species[s] ?? 0;
                 den += w * (field0[n] + inj[n]);
                 sum += w * (P[n] + field[n] + out[n] - field0[n] - inj[n]);
@@ -213,7 +229,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         for (const n of MATERIAL_NAMES) {
             const den = field0[n] + inj[n];
             if (den <= 0) continue;
-            const r = P[n] + field[n] + out[n] - field0[n] - inj[n];
+            const r = P[n] + field[n] + out[n] - field0[n] - inj[n] - reacted(n);
             result.i2b[n].add(r / den, Math.abs(r) / den < MASS_TOLERANCE, step, { kg: r, den });
             result.guard[n].add((MASS_TOLERANCE * den) / (0.1 * mass[n]), MASS_TOLERANCE * den < 0.1 * mass[n], step);
         }

@@ -84,7 +84,7 @@ for (const s of SPECIES) {
     });
 }
 
-test("I2a identidad: store.kind no cambia entre create y destroy (0 cambios)", () => {
+test("I2a identidad: store.kind no cambia entre create y destroy salvo por una fila de REACTIONS (0 cambios)", () => {
     assert.ok(run.i2a.creations > 0);
     assert.equal(run.i2a.changes, 0, `${run.i2a.changes} cambios de kind en ${run.i2a.creations} partículas`);
 });
@@ -97,7 +97,7 @@ const I2_CAUSES = {
 };
 
 for (const n of MATERIAL_NAMES) {
-    test(`I2b balance de ${n}: |P + F + OUT − F(0) − I| / (F(0) + I) < 1e-6 en cada paso`, (t) => {
+    test(`I2b balance de ${n}: |P + F + OUT − F(0) − I − Σ ξ (to − from)| / (F(0) + I) < 1e-6 en cada paso`, (t) => {
         const track = run.i2b[n];
         assert.ok(track.evals > 0, `${n}: el material nunca entró en la escena`);
         const [causes, why] = I2_CAUSES[n];
