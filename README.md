@@ -33,7 +33,13 @@ node --test tests/          # tests (Node 24, sin dependencias)
 
 La suite incluye los invariantes de fluidos (`tests/invariants.test.js`): miden una ronda completa y suman unos 42 s por corrida. Algunos salen como `todo` esperados: son lo que hoy falla y tiene issue (ver `docs/design/14-agua.md`, §14.16 G); no hacen fallar la suite, y cuando un arreglo los resuelve hay que quitarles el `todo`.
 
-La térmica (`tests/thermal.test.js`) simula la conducción real entre dos partículas de basalto (L2, unas 220 h simuladas con pasos de 5 s, solo la térmica) y suma unos 5 s por corrida; L3 sale como `todo` con lo medido.
+La térmica (`tests/thermal.test.js`) simula la conducción real entre dos partículas de basalto (L2, unas 220 h simuladas con pasos de 5 s, solo la térmica) y suma unos 5 s por corrida.
+
+## Deploy
+
+- Cada push a `main` (merge de PR) corre `.github/workflows/pages.yml`: tests → build → deploy a GitHub Pages (https://lmcasella.github.io/ragdoll-fluidosSPH/). Los PRs a `main` corren solo los tests.
+- La versión sale del primer `## [x.y.z]` de `CHANGELOG.md`. Si es nueva, se crea el tag `vX.Y.Z` con su release; si ya existe, se publica igual, sin release nueva.
+- `version.json` en el sitio publicado indica versión y commit.
 
 ## Grabar un escenario
 

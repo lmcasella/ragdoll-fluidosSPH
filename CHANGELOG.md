@@ -20,6 +20,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - Los invariantes I1 e I2b cuentan la piedra y el avance de las filas de `REACTIONS`; I2a admite el cambio de material por una fila de esa tabla.
 - El radio de dibujo de la lava y la piedra sube de 1,045 a 1,06: con la viscosidad la pila de lava ya no se comprime y I3p daba 6 pasos fuera de ±15 %.
 
+## [0.31.1] - 2026-11-20
+
+### Added
+- Deploy automático a GitHub Pages en cada merge a `main`, con tests previos, tag y release por versión, y `version.json` publicado. El sitio publicado incluye el audio.
+
 ## [0.31.0] - 2026-11-19
 
 ### Added
