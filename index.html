@@ -2,7 +2,7 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
-        <title>Prototipo - Stick Fight con Fluidos</title>
+        <title>Waterbots</title>
         <style>
             body {
                 margin: 0;
@@ -23,33 +23,16 @@
                 display: block;
             }
             #fluidCanvas {
-                filter: url("#goo");
                 pointer-events: none;
+                filter: url("#goo");
             }
-            #panel {
-                position: absolute;
-                top: 15px;
-                left: 15px;
-                background: rgba(15, 15, 20, 0.85);
-                padding: 15px 20px;
-                border-radius: 8px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+            #pickupCanvas {
                 pointer-events: none;
                 z-index: 10;
             }
-            h3 {
-                margin: 0 0 8px 0;
-                color: #44aaff;
-                font-size: 18px;
-            }
-            p {
-                margin: 4px 0;
-                font-size: 14px;
-                color: #ccc;
-            }
-            .highlight {
-                color: #ff9933;
-                font-weight: bold;
+            #hudCanvas {
+                pointer-events: none;
+                z-index: 20;
             }
         </style>
         <script src="./vendor/pixi.min.js"></script>
@@ -75,32 +58,11 @@
             </defs>
         </svg>
 
-        <div id="panel">
-            <h3>Armas de Fluidos</h3>
-            <p>
-                <span class="highlight">1</span> Ácido (verde) ·
-                <span class="highlight">2</span> Lava (naranja) ·
-                <span class="highlight">3</span> Miel (amarillo)
-            </p>
-            <p>
-                <span class="highlight">Gamepad</span> stick izq. mover ·
-                arriba saltar · stick der. apuntar · A/RT disparar · X golpe ·
-                LB/RB arma
-            </p>
-            <p>
-                <span class="highlight">Teclado J1</span> A/D · W · Espacio ·
-                F golpe · 1/2/3 · mouse apunta y dispara
-            </p>
-            <p>
-                <span class="highlight">Teclado J2</span> ←/→ · ↑ · Enter ·
-                Shift der. golpe · Num 1/2/3
-            </p>
-            <p>Caer a la pileta = robot destruido · Al mejor de 3 rondas</p>
-        </div>
-
         <div id="gameContainer">
             <canvas id="canvas"></canvas>
             <canvas id="fluidCanvas"></canvas>
+            <canvas id="pickupCanvas"></canvas>
+            <canvas id="hudCanvas"></canvas>
         </div>
 
         <script type="module">
@@ -111,31 +73,58 @@
             } from "./lib/ragimporter.js";
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
+            import { Bot, botConfig } from "./js/bot.js";
+            import { Menu } from "./js/menu.js";
             import { Camera } from "./js/camera.js";
-            import { LEVEL, buildLevel, fillPool } from "./js/level.js";
+            import { LEVEL, buildLevel } from "./js/level.js";
+            import { OneWayPlatforms } from "./js/platforms.js";
+            import { Flood, RisingFlood } from "./js/flood.js";
+            import { CLIMB, Climb, StagePrizes } from "./js/climb.js";
+            import { ShallowWater } from "./js/water.js";
+            import { Immersion } from "./js/immersion.js";
+            import { Buoyancy } from "./js/buoyancy.js";
+            import { MATERIALS } from "./js/materials.js";
             import { Match } from "./js/round.js";
+            import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
-            import { withReversedClip } from "./js/clips.js";
+            import { withReversedClip, withoutJointTracks } from "./js/clips.js";
+            import { DamageSystem } from "./js/damage.js";
+            import { createParticleSystem } from "./js/particles.js";
+            import { ParticleStore, SINK } from "./js/particleStore.js";
+            import { WallContact } from "./js/wallContact.js";
+            import { Pickups } from "./js/pickups.js";
+            import { GameAudio } from "./js/audio.js";
             import {
-                DamageSystem,
                 FLUID,
-                CONTACT_LISTENER_PARTICLE,
-            } from "./js/damage.js";
+                WEAPONS,
+                SHOT_SYSTEM,
+                ShotEmitter,
+                cycleWeapon,
+                equipLoadout,
+                LOADOUT,
+                wheelSector,
+                wheelWeapon,
+            } from "./js/weapons.js";
             import {
                 buildRenderItems,
                 drawAimLaser,
                 drawHits,
                 drawHud,
                 drawLevel,
+                drawMenu,
+                drawStageBanner,
                 drawParticles,
+                drawPickups,
+                drawWater,
+                drawWeaponWheel,
+                WHEEL_RADII,
+                SHOT_DRAW,
+                GOO_BLUR,
+                collectSurfaces,
                 drawRobot,
             } from "./js/render.js";
 
             RagImporter.configure({ Box2D, PIXI });
-
-            const WATER_PARTICLE = 0;
-            const VISCOUS_PARTICLE = 1 << 5;
-            const TENSILE_PARTICLE = 1 << 7;
 
             const PIXELS_PER_METER = 40;
             const LASER_RANGE = 25;
@@ -147,21 +136,49 @@
                 return { json, def: RagImporter.parse(json) };
             }
 
+            const AIM_JOINTS = ["back_shoulder", "front_shoulder"];
+            const AIM_HOLD = ["back_elbow", "front_elbow"];
+            const AIM_FREE_CLIPS = ["jump_start", "air", "air_forward", "air_backward", "fall_high", "idle", "aim"];
             const robotRag = await loadRag("./assets/robot.rag.json", (json) =>
-                withReversedClip(json, "walk", "walk_back"),
+                withReversedClip(
+                    withReversedClip(
+                        withoutJointTracks(json, AIM_FREE_CLIPS, [...AIM_JOINTS, ...AIM_HOLD]),
+                        "walk",
+                        "walk_back",
+                    ),
+                    "roll",
+                    "roll_back",
+                ),
             );
             const ROBOT_RIG = {
                 rootBody: robotRag.json.ragdoll.rootBody,
-                aimJoints: ["joint_11", "joint_11_copy"],
-                aimHold: ["joint_10", "joint_10_copy"],
+                aimJoints: AIM_JOINTS,
+                aimHold: AIM_HOLD,
                 aimOffset: 0,
                 clips: {
+                    idle: "idle",
+                    aim: "aim",
                     walk: "walk",
                     walkBack: "walk_back",
-                    jump: "jump",
+                    jumpStart: "jump_start",
+                    air: "air",
+                    airForward: "air_forward",
+                    airBackward: "air_backward",
+                    fallHigh: "fall_high",
+                    block: "block",
+                    roll: "roll",
+                    rollBack: "roll_back",
+                    combo1: "punch_combo1",
+                    combo2: "punch_combo2",
+                    combo3: "punch_combo3",
+                    airPunch: "air_punch",
+                    airKick: "air_kick",
+                    reactSimple: "melee_react_simple",
+                    reactStumble: "melee_react_stumble",
                     dead: "dead",
-                    punch: "punch",
                 },
+                arms: ["b_3", "b_13", "b_14", "b_15"],
+                melee: MELEE,
                 feet: ["b_4", "b_16"],
                 gun: { body: "b_3", muzzle: [0.33, 0.035] },
                 damage: { b_1: 1.5, b_2: 1, b_6: 1 },
@@ -172,11 +189,15 @@
             const ctx = canvas.getContext("2d");
             const fluidCanvas = document.getElementById("fluidCanvas");
             const fluidCtx = fluidCanvas.getContext("2d");
+            const pickupCanvas = document.getElementById("pickupCanvas");
+            const pickupCtx = pickupCanvas.getContext("2d");
+            const hudCanvas = document.getElementById("hudCanvas");
+            const hudCtx = hudCanvas.getContext("2d");
 
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [canvas, fluidCanvas]) {
+                for (const c of [canvas, fluidCanvas, pickupCanvas, hudCanvas]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }
@@ -188,8 +209,11 @@
             const gravity = new Box2D.b2Vec2(0, -10);
             const world = new Box2D.b2World(gravity);
             Box2D.destroy(gravity);
-            const { killSensors } = buildLevel(world);
-            const poolSystem = fillPool(world);
+            let classic = buildLevel(world);
+            let climb = null;
+            let currentMap = "classic";
+            const platforms = new OneWayPlatforms(world);
+            classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
             const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
@@ -209,10 +233,13 @@
                 return lowest;
             }
 
-            // Altura de aparición: un rayo vertical desde el techo encuentra la superficie en x
-            function spawnOnGround(def, x) {
-                const hit = raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY);
-                const surface = hit ? hit.y : LEVEL.bounds.minY;
+            /**
+             * Altura de aparición: en Clásico un rayo vertical desde el techo encuentra la superficie en x; en Infinito
+             * el tope (`top`) de la plataforma sorteada ya es el dato.
+             */
+            function spawnOnGround(def, x, top) {
+                const hit = top === undefined ? raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY) : null;
+                const surface = top ?? (hit ? hit.y : LEVEL.bounds.minY);
                 const probe = def.spawn(world, { x, y: 0 });
                 const lift = surface + 0.02 - lowestPoint(probe);
                 probe.destroy();
@@ -237,124 +264,228 @@
             }
 
             function spawnRobot(spawn) {
-                return spawnRobotRaw(
+                const robot = spawnRobotRaw(
                     spawn.x,
-                    spawnOnGround(robotRag.def, spawn.x),
+                    spawnOnGround(robotRag.def, spawn.x, spawn.y),
                     spawn.flipX,
                 );
+                equipLoadout(robot, climb ? CLIMB.loadout : LOADOUT);
+                return robot;
             }
 
             const players = LEVEL.spawns.map(spawnRobot);
             const instances = players.map((p) => p.rag);
+            players.forEach((p, k) => platforms.addOwner(k, p.rag.bodies.values()));
             const input = new Input(players.length);
             let inputs = input.poll();
+            let controls = inputs;
+            const jumpPending = players.map(() => false);
+            const bots = new Map();
+            const botParam = new URLSearchParams(globalThis.location?.search ?? "").get("bot");
+            const urlBots = botParam === null ? null : botParam.split(",").map((n) => Number(n) - 1).filter((k) => k >= 0 && k < players.length);
+            const menu = new Menu({ storage: menuStorage(), bots: urlBots });
 
-            const psDef = new Box2D.b2ParticleSystemDef();
-            psDef.set_radius(0.1);
-            psDef.set_dampingStrength(0.2);
-            const particleSystem = world.CreateParticleSystem(psDef);
-            Box2D.destroy(psDef);
+            /** `localStorage`, o `null` si el navegador lo bloquea (acceder a la propiedad puede lanzar). */
+            function menuStorage() {
+                try {
+                    return globalThis.localStorage ?? null;
+                } catch {
+                    return null;
+                }
+            }
 
-            const damage = new DamageSystem(world, particleSystem);
-            damage.killSensors = killSensors;
+            /** Quita todos los bots y devuelve sus jugadores al gamepad o teclado. */
+            function quitarBots() {
+                bots.clear();
+                players.forEach((_, k) => input.setVirtualPad(k, null));
+            }
+
+            /** Semilla de los bots: `?seed=N` en la URL la fija para reproducir una partida; si no, es aleatoria. */
+            const botSeed = Number.parseInt(new URLSearchParams(globalThis.location?.search ?? "").get("seed") ?? "", 10);
+
+            /** Deja los bots que pide la elección del menú, con el preset de su dificultad. */
+            function ponerBots({ bots: ks, difficulty }) {
+                quitarBots();
+                const config = botConfig(difficulty);
+                for (const k of ks) {
+                    const seed = Number.isFinite(botSeed) ? botSeed + k : (Math.random() * 2 ** 32) >>> 0;
+                    bots.set(k, new Bot({ k, world, config, seed, level: climb ? climb.level : LEVEL }));
+                }
+            }
+
+            const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
+
+            const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
+            const wallContact = new WallContact(particleSystem, store, SHOT_SYSTEM);
+            instances.push(wallContact);
+
+            const damage = new DamageSystem(world, store);
+            damage.killSensors = classic.killSensors;
             damage.register(players);
+            const emitter = new ShotEmitter(store, damage, WEAPONS, raycaster);
+            const melee = new Melee(raycaster, damage);
             const match = new Match(players.length);
+            const water = new ShallowWater();
+            let flood = new Flood(store, water);
+            const immersion = new Immersion(particleSystem, store, water);
+            const buoyancy = new Buoyancy(water, MATERIALS);
+            buoyancy.register(players);
+            let pickups = new Pickups(world, damage, LEVEL.pickups);
+            const stagePrizes = new StagePrizes();
+
+            /** Superficie del agua bajo la cual se ahoga un robot en Infinito: la del campo donde hay agua, ninguna donde no. */
+            const drownSurface = (x) => (water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity);
+
+            /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
+            const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
+
+            /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
+            function aplicarMapa(map) {
+                if (map === currentMap) return;
+                flood.dispose();
+                if (map === "infinite") {
+                    classic.oneWayFixtures.forEach((fixture) => platforms.removePlatform(fixture));
+                    world.DestroyBody(classic.ground);
+                    damage.killSensors.clear();
+                    pickups.dispose();
+                    pickups = new Pickups(world, damage, []);
+                    water.setStart({ surface: CLIMB.flood.surface });
+                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY);
+                    climb = new Climb({ world, platforms, pickups });
+                    damage.drownSurface = drownSurface;
+                } else {
+                    climb.dispose();
+                    climb = null;
+                    pickups.dispose();
+                    classic = buildLevel(world);
+                    classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+                    damage.killSensors = classic.killSensors;
+                    pickups = new Pickups(world, damage, LEVEL.pickups);
+                    water.setStart(null);
+                    flood = new Flood(store, water);
+                    damage.drownSurface = null;
+                    camera.setBounds(LEVEL.bounds);
+                }
+                currentMap = map;
+                wallContact.invalidate();
+            }
+            const audio = new GameAudio();
+            audio.load();
+            window.addEventListener("keydown", () => audio.unlock());
+            window.addEventListener("pointerdown", () => audio.unlock());
+            const muertos = new WeakSet();
+            const STEP_MIN_SPEED = 1;
+            let lastMatchState = match.state;
+
+            /** Pista de música según el estado de la partida; en la cuenta regresiva y el cartel de fin de ronda sigue la actual (`null`). */
+            function musicaActual() {
+                if (match.state === "title" || match.state === "matchOver") return "mainMenu";
+                if (match.state === "roundOver" || match.state === "countdown") return null;
+                return flood.active ? "suddenDeath" : "combat";
+            }
+
+            /** Traduce a sonido los eventos ya resueltos del frame; se llama después de todos los pasos, nunca desde un callback de Box2D. */
+            /** Estado de input sin intención de control: los robots quedan quietos fuera de `controlsActive`; solo la mira sigue. */
+            function neutro(s) {
+                return {
+                    left: false, right: false, up: false, down: false, jump: false, jumpHeld: false, strongDown: false, drop: false, roll: false,
+                    action: false, start: false, fire: false, grapple: false, block: false, punch: false, kick: false,
+                    weapon: null, weaponStep: 0, aim: s.aim, pointer: s.pointer, wheel: null, wheelPick: null,
+                };
+            }
+
+            function sonarEventos(now) {
+                for (const e of melee.events) {
+                    if (e.kind === "block" || e.kind === "blockBreak") {
+                        audio.play(e.kind, e.victim, now);
+                    } else {
+                        audio.play("hit", e.victim, now);
+                        audio.play("hurt", e.victim, now);
+                    }
+                }
+                melee.events.length = 0;
+                for (const e of pickups.events) audio.play("pickup", e.weapon, now);
+                pickups.events.length = 0;
+                for (const { player, index } of damage.footfalls) {
+                    const walking = player.clipState === "walk" || player.clipState === "walkBack";
+                    if (player.dead || !player.grounded || !walking) continue;
+                    if (Math.abs(player.torso.GetLinearVelocity().get_x()) > STEP_MIN_SPEED) audio.play("step", index, now);
+                }
+                damage.footfalls.length = 0;
+                players.forEach((player, k) => {
+                    if (player.landed) audio.play("land", k, now);
+                    player.landed = false;
+                    if (player.dead && !muertos.has(player)) {
+                        muertos.add(player);
+                        audio.play("death", k, now);
+                    }
+                });
+            }
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
             function reiniciarRonda() {
+                if (climb) {
+                    climb.reset(mapSeed());
+                    bots.forEach((bot) => bot.setNav(climb.level));
+                }
                 players.forEach((player, k) => {
                     player.destroy();
-                    players[k] = spawnRobot(LEVEL.spawns[k]);
+                    players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);
                     instances[k] = players[k].rag;
+                    platforms.removeOwner(k);
+                    platforms.addOwner(k, players[k].rag.bodies.values());
                 });
+                wallContact.invalidate();
                 damage.register(players);
-                for (let i = particleSystem.GetParticleCount() - 1; i >= 0; i--) {
-                    particleSystem.DestroyParticle(i);
-                }
+                buoyancy.register(players);
+                stagePrizes.reset();
+                flood.reset();
+                bots.forEach((bot) => bot.reset());
+                immersion.reset();
+                pickups.reset();
+                emitter.reset();
+                melee.reset();
+                damage.resetShots();
+                store.reset();
                 accumulator = 0;
                 firstFrame = true;
             }
 
-            // Golpe melee: 3 rayos en abanico desde el hombro en la dirección de la mira, durante la
-            // ventana activa del clip. El primer cuerpo rival que tocan recibe daño e impulso en ese punto.
-            const PUNCH_REACH = 1.1;
-            const PUNCH_SPREAD = 0.3;
-            const PUNCH_DAMAGE = 8;
-            const PUNCH_IMPULSE = 5; // a la parte golpeada (N·s)
-            const PUNCH_PUSH_SPEED = 4.5; // m/s sumados a todo el robot golpeado
-            const PUNCH_LIFT_SPEED = 3; // m/s hacia arriba: lo despega del piso
-            const PUNCH_STUN = 0.4; // s sin control para el golpeado
-            const punchImpulse = new Box2D.b2Vec2(0, 0);
-            const punchPoint = new Box2D.b2Vec2(0, 0);
-            const golpes = [];
-
-            function golpear(k, now) {
-                const player = players[k];
-                if (player.dead || !player.punchActive(now)) return;
-                const anchor = player.rag.joint(ROBOT_RIG.aimJoints[0]).GetAnchorA();
-                const ax = anchor.get_x();
-                const ay = anchor.get_y();
-                const base = Math.atan2(player.aimDir.y, player.aimDir.x);
-                for (const spread of [0, -PUNCH_SPREAD, PUNCH_SPREAD]) {
-                    const dx = Math.cos(base + spread);
-                    const dy = Math.sin(base + spread);
-                    const hit = raycaster.cast(
-                        ax,
-                        ay,
-                        ax + dx * PUNCH_REACH,
-                        ay + dy * PUNCH_REACH,
-                        player.ownBodies,
-                    );
-                    if (!hit) continue;
-                    const owner = damage.ownerOf(hit.bodyPtr);
-                    if (!owner || owner.index === k) continue;
-                    const victim = owner.player;
-                    victim.hurt(owner.bodyId, PUNCH_DAMAGE, now);
-                    victim.stun(PUNCH_STUN, now);
-                    punchImpulse.set_x(dx * PUNCH_IMPULSE);
-                    punchImpulse.set_y(dy * PUNCH_IMPULSE);
-                    punchPoint.set_x(hit.x);
-                    punchPoint.set_y(hit.y);
-                    victim.rag.bodies
-                        .get(owner.bodyId)
-                        .ApplyLinearImpulse(punchImpulse, punchPoint, true);
-                    victim.knockback(
-                        (Math.sign(dx) || 1) * PUNCH_PUSH_SPEED,
-                        PUNCH_LIFT_SPEED,
-                    );
-                    player.punchHit = true;
-                    golpes.push({ x: hit.x, y: hit.y, time: now });
-                    return;
-                }
+            /** Arranca la partida con la elección actual del menú: bots con su preset, marcador en cero y ronda nueva. */
+            function arrancarPartida() {
+                aplicarMapa(menu.choice.map);
+                ponerBots(menu.choice);
+                match.begin();
+                reiniciarRonda();
             }
 
-            const NOMBRES_ARMAS = ["Ácido", "Lava", "Miel"];
-            const ARMAS = {
-                [FLUID.ACID]: { flags: WATER_PARTICLE, color: [50, 255, 50] },
-                [FLUID.LAVA]: { flags: TENSILE_PARTICLE, color: [255, 80, 20] },
-                [FLUID.HONEY]: { flags: VISCOUS_PARTICLE, color: [255, 200, 50] },
-            };
+            // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1,
+            // solo si se movió después del último uso del stick), si no teclado (hacia donde se camina;
+            // abajo inclina 45°)
+            /**
+             * Dirección de la rueda (`wheel` o `wheelPick`) en metros, Y arriba. Con `pointer` (mouse de J1) es el
+             * mouse respecto del torso, y (0, 0) dentro del radio interno de la rueda.
+             */
+            function direccionRueda(dir, player) {
+                if (!dir.pointer) return dir;
+                const pos = player.torso.GetPosition();
+                const m = camera.toWorld(dir.pointer.x, dir.pointer.y);
+                const dx = m.x - pos.get_x();
+                const dy = m.y - pos.get_y();
+                return Math.hypot(dx, dy) < WHEEL_RADII.inner ? { x: 0, y: 0 } : { x: dx, y: dy };
+            }
 
-            // Mouse: respaldo de teclado para el J1 (el control principal es el gamepad)
-            let mouseScreen = null;
-            window.addEventListener("mousemove", (e) => {
-                mouseScreen = { x: e.clientX, y: e.clientY };
-            });
-            window.addEventListener("mousedown", () => {
-                if (mouseScreen) disparar(0);
-            });
-
-            // Dirección de mira por jugador: stick derecho (se conserva al soltarlo), si no mouse (J1),
-            // si no teclado (hacia donde se camina; abajo inclina 45°)
-            function actualizarMira(player, state, k) {
+            function actualizarMira(player, state, k, now) {
                 const pos = player.torso.GetPosition();
                 const x = pos.get_x();
                 const y = pos.get_y();
-                if (state.aim) {
+                if (state.wheel) {
+                    player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
+                } else if (state.aim) {
                     const len = Math.hypot(state.aim.x, state.aim.y);
                     player.aimDir = { x: state.aim.x / len, y: state.aim.y / len };
-                } else if (k === 0 && mouseScreen) {
-                    const m = camera.toWorld(mouseScreen.x, mouseScreen.y);
+                } else if (state.pointer) {
+                    const m = camera.toWorld(state.pointer.x, state.pointer.y);
                     const len = Math.hypot(m.x - x, m.y - y) || 1;
                     player.aimDir = { x: (m.x - x) / len, y: (m.y - y) / len };
                 } else if (state.left || state.right || state.down) {
@@ -364,7 +495,7 @@
                         : { x: dx, y: 0 };
                 }
                 player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
-                player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5);
+                player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5, now);
             }
 
             // Gira al robot volviendo a generarlo espejado; conserva posición, velocidades y estado
@@ -401,47 +532,14 @@
                 nuevo.copyStateFrom(player);
                 players[k] = nuevo;
                 instances[k] = nuevo.rag;
+                platforms.addOwner(k, nuevo.rag.bodies.values());
+                wallContact.invalidate();
                 damage.register(players);
-            }
-
-            function disparar(k) {
-                const player = players[k];
-                if (player.dead) return;
-                const muzzle = player.muzzle();
-                const arma = ARMAS[player.weapon];
-                const fuerzaDisparo = 20;
-                const radio = 0.25;
-                const offset = radio + 0.15;
-
-                const pgDef = new Box2D.b2ParticleGroupDef();
-                const shape = new Box2D.b2CircleShape();
-                const center = new Box2D.b2Vec2(
-                    muzzle.x + muzzle.dx * offset,
-                    muzzle.y + muzzle.dy * offset,
-                );
-                shape.set_m_p(center);
-                shape.set_m_radius(radio);
-                pgDef.set_shape(shape);
-                const velocity = new Box2D.b2Vec2(
-                    muzzle.dx * fuerzaDisparo,
-                    muzzle.dy * fuerzaDisparo,
-                );
-                pgDef.set_linearVelocity(velocity);
-                pgDef.set_flags(arma.flags | CONTACT_LISTENER_PARTICLE);
-                const color = new Box2D.b2ParticleColor(...arma.color, 255);
-                pgDef.set_color(color);
-
-                const group = particleSystem.CreateParticleGroup(pgDef);
-                damage.tagShot(group, k, player.weapon, performance.now() / 1000);
-                Box2D.destroy(color);
-                Box2D.destroy(velocity);
-                Box2D.destroy(center);
-                Box2D.destroy(shape);
-                Box2D.destroy(pgDef);
+                buoyancy.register(players);
             }
 
             function laserDe(player) {
-                if (player.dead) return null;
+                if (player.dead || player.weapon === null) return null;
                 const m = player.muzzle();
                 const x2 = m.x + m.dx * LASER_RANGE;
                 const y2 = m.y + m.dy * LASER_RANGE;
@@ -451,26 +549,28 @@
                     : { x1: m.x, y1: m.y, x2, y2, hit: false };
             }
 
-            // Partículas de disparos que salieron del mundo o cayeron a la pileta. Los dos sistemas de
-            // partículas no interactúan entre sí: un disparo dentro de la pileta atravesaría el agua.
+            /**
+             * Destruye las partículas que salieron del mundo. Las que caen al agua del nivel no se borran acá:
+             * Immersion absorbe las miscibles y frena las demás. Ninguna otra desaparece por edad ni por tope.
+             */
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
                 const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
-                const { minX, maxX, minY } = LEVEL.bounds;
-                const pool = LEVEL.pool;
+                const { minX, maxX } = LEVEL.bounds;
+                const minY = climb ? flood.floor : LEVEL.bounds.minY;
                 for (let i = 0; i < count; i++) {
+                    const slot = store.slotAt(i);
+                    if (slot < 0 || store.alive[slot] === 0) continue;
                     const x = Box2D.HEAPF32[pos + i * 2];
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
-                    const inPool = x > pool.x1 && x < pool.x2 && y < pool.surface;
-                    if (inPool || y < minY - 1 || x < minX - 1 || x > maxX + 1) {
-                        particleSystem.DestroyParticle(i);
-                    }
+                    if (y < minY - 1 || x < minX - 1 || x > maxX + 1) store.destroy(i, SINK.OUT);
                 }
             }
 
             // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
             // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
-            const GOO_BLUR = 0.07;
+            const wetSurface = (x) =>
+                flood.active && water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity;
             const gooBlur = document.getElementById("gooBlur");
             let gooSigma = 0;
             function ajustarGoo(scale) {
@@ -480,92 +580,207 @@
                 gooBlur.setAttribute("stdDeviation", String(sigma));
             }
 
+            // Reloj de simulación (s): avanza con el dt del frame por la escala de tiempo. Lo usan los disparos, el daño
+            // y los efectos, así una pestaña oculta no vence los charcos y la cámara lenta los alarga igual que a la física.
+            let simTime = 0;
             let accumulator = 0;
+            let stepsLastFrame = 0;
             let lastTime = performance.now();
             let firstFrame = true;
+
+            // Solo para las pruebas en Node (tests/helpers/game.js)
+            if (globalThis.__TEST_HOOKS__) {
+                globalThis.game = {
+                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
+                    get flood() { return flood; },
+                    get pickups() { return pickups; },
+                    get climb() { return climb; },
+                    get map() { return currentMap; },
+                };
+            }
 
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
-                const now = nowMs / 1000;
+                const enTitulo = match.state === "title";
+                if (enTitulo && bots.size) quitarBots();
+                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
+                bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
                 inputs = input.poll();
+                inputs.forEach((s, k) => {
+                    const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
+                    if (s.roll) jumpPending[k] = "roll";
+                    else if (!bajando && (s.jump || s.drop) && jumpPending[k] !== "roll") jumpPending[k] = "jump";
+                });
                 raycaster.count = 0;
+                if (input.padButton) audio.unlock();
 
+                if (enTitulo && menu.update(input.menu) === "play") arrancarPartida();
                 if (match.update(players, inputs, frameDt) === "reset") {
                     reiniciarRonda();
                 }
+                if (!enTitulo && match.state === "title") menu.reset();
+                controls = match.controlsActive ? inputs : inputs.map(neutro);
+                if (!match.controlsActive) jumpPending.fill(false);
+                if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
+                lastMatchState = match.state;
+                audio.playMusic(musicaActual());
                 accumulator += frameDt * match.timeScale;
+                simTime += frameDt * match.timeScale;
+                const now = simTime;
 
                 players.forEach((player, k) => {
-                    const state = inputs[k];
-                    actualizarMira(player, state, k);
+                    const state = controls[k];
+                    player.guard(state.block);
+                    actualizarMira(player, state, k, now);
 
                     const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
-                    if (!player.dead && player.flipX !== wantsFlipX) {
+                    if (!player.dead && !player.rolling(now) && player.flipX !== wantsFlipX) {
                         girar(k, wantsFlipX);
-                        actualizarMira(players[k], state, k);
+                        actualizarMira(players[k], state, k, now);
                     }
                     player = players[k];
 
-                    if (state.weapon) player.weapon = state.weapon;
-                    if (state.weaponStep) {
-                        player.weapon =
-                            ((player.weapon - 1 + state.weaponStep + 3) % 3) +
-                            1;
+                    if (state.wheelPick && state.wheelPick !== "cancel") {
+                        const pick = direccionRueda(state.wheelPick, player);
+                        const id = wheelWeapon(pick.x, pick.y, player.tanks);
+                        if (id) player.weapon = id;
                     }
+                    if (state.weapon && WEAPONS[state.weapon - 1]) {
+                        const id = WEAPONS[state.weapon - 1].id;
+                        if (player.tanks.has(id)) player.weapon = id;
+                    }
+                    if (state.weaponStep) cycleWeapon(player, state.weaponStep);
                     if (state.punch) player.punch(now);
-                    else if (state.action && !player.isPunching(now)) disparar(k);
+                    if (state.kick) player.kick(now);
+                    emitter.fire(
+                        k,
+                        player,
+                        state.fire && match.state === "playing" && !player.armsBusy,
+                        stepsLastFrame * STEP_SETTINGS.dt,
+                        now,
+                    );
                 });
 
+                stepsLastFrame = 0;
                 while (accumulator >= STEP_SETTINGS.dt) {
+                    stepsLastFrame++;
                     players.forEach((player, k) => {
-                        player.move(inputs[k]);
+                        controls[k].jump = jumpPending[k] === "jump";
+                        controls[k].roll = jumpPending[k] === "roll";
+                        jumpPending[k] = false;
+                        player.move(controls[k], STEP_SETTINGS.dt, now);
+                        if (!match.hazardsActive) player.dry();
                         player.updateStatus(STEP_SETTINGS.dt);
                     });
+                    flood.step(match.roundTime, STEP_SETTINGS.dt);
+                    buoyancy.apply(STEP_SETTINGS.dt);
                     stepWorld(world, instances);
-                    damage.process(performance.now() / 1000);
-                    players.forEach((player, k) => golpear(k, now));
+                    platforms.update(now);
+                    store.afterStep();
+                    immersion.step(STEP_SETTINGS.dt);
+                    water.step(STEP_SETTINGS.dt);
+                    damage.process(
+                        now,
+                        match.hazardsActive ? wetSurface : -Infinity,
+                    );
+                    melee.resolve(players, now);
+                    pickups.process(now);
                     accumulator -= STEP_SETTINGS.dt;
                 }
+                sonarEventos(now);
+                if (climb && match.state === "playing") {
+                    stagePrizes.detect(players, climb.level.solids, climb.offsetY);
+                    for (const { k } of stagePrizes.apply(players, now)) audio.play("pickup", k, now);
+                }
                 limpiarParticulas();
+                store.trim(frameDt * 1000, frameDt);
 
-                camera.update(
-                    players.map((p) => {
-                        const pos = p.torso.GetPosition();
-                        return { x: pos.get_x(), y: pos.get_y() };
-                    }),
-                    frameDt,
-                    firstFrame,
-                );
+                const points = players.map((p) => {
+                    const pos = p.torso.GetPosition();
+                    return { x: pos.get_x(), y: pos.get_y() };
+                });
+                if (climb) camera.setBounds(climb.cameraBounds(Math.min(...points.map((p) => p.y))));
+                camera.update(points, frameDt, firstFrame);
                 firstFrame = false;
+                if (climb) {
+                    const { created, destroyed } = climb.update({
+                        top: camera.top,
+                        level: flood.level,
+                        reached: Math.max(...points.map((p) => p.y)),
+                    });
+                    if (destroyed > 0) wallContact.invalidate();
+                    if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
+                }
                 const scale = camera.scale;
+                const bottom = camera.y - camera.viewH / (2 * scale);
                 ajustarGoo(scale);
 
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 fluidCtx.setTransform(1, 0, 0, 1, 0, 0);
                 fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
+                pickupCtx.setTransform(1, 0, 0, 1, 0, 0);
+                pickupCtx.clearRect(0, 0, pickupCanvas.width, pickupCanvas.height);
+                hudCtx.setTransform(1, 0, 0, 1, 0, 0);
+                hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
 
                 camera.apply(ctx);
                 camera.apply(fluidCtx);
-                drawLevel(ctx, LEVEL, scale);
-                drawParticles(fluidCtx, poolSystem, 0.28);
-                drawParticles(fluidCtx, particleSystem);
+                camera.apply(pickupCtx);
+                const offsetY = climb ? climb.offsetY : 0;
+                ctx.save();
+                ctx.translate(0, offsetY);
+                drawLevel(ctx, climb ? climb.level : LEVEL, scale);
+                ctx.restore();
+                collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
+                drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
-                    drawAimLaser(ctx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
-                drawHits(ctx, golpes, scale, now);
+                drawWater(ctx, water, scale, climb ? { floor: flood.floor, bottom } : null);
+                pickupCtx.save();
+                pickupCtx.translate(0, pickups.offsetY);
+                drawPickups(pickupCtx, pickups.points, WEAPONS);
+                pickupCtx.restore();
+                players.forEach((player, k) => {
+                    drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
+                });
+                drawHits(pickupCtx, melee.hits, scale, now);
+                players.forEach((player, k) => {
+                    const wheel = controls[k].wheel;
+                    const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
+                    if (!wheel || player.dead || owned.length === 0) return;
+                    const pos = player.torso.GetPosition();
+                    drawWeaponWheel(
+                        pickupCtx,
+                        pos.get_x(),
+                        pos.get_y(),
+                        owned.map((w) => ({
+                            name: w.name,
+                            color: w.color,
+                            fill: player.tanks.get(w.id) / w.tank,
+                            equipped: w.id === player.weapon,
+                        })),
+                        ((d) => wheelSector(d.x, d.y, owned.length))(direccionRueda(wheel, player)),
+                    );
+                });
 
                 drawHud(
-                    ctx,
-                    canvas.width,
-                    canvas.height,
+                    hudCtx,
+                    hudCanvas.width,
+                    hudCanvas.height,
                     players,
                     match,
                     PLAYER_COLORS,
-                    NOMBRES_ARMAS,
+                    WEAPONS,
+                    flood.config.start,
                 );
+                const stageBanner = stagePrizes.banner;
+                if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
+                    drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));
+                }
+                if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);

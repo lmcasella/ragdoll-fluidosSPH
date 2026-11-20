@@ -1,0 +1,373 @@
+import { MATERIALS, SIGMA_W, K_MU } from "./materials.js";
+import { bodyShapes } from "./bodyShapes.js";
+
+/** Densidad del agua (kg/m³). */
+const RHO_W = 1000;
+
+/** Espesor `b` de la rebanada 2D (m): `σ_w / ρ_w`. Pasa las fuerzas por unidad de ancho a newtons. */
+const THICKNESS = SIGMA_W / RHO_W;
+
+/** Área (m²) por debajo de la cual un corte de franja se descarta por ser una esquirla numérica. */
+const MIN_AREA = 1e-12;
+
+/** Tolerancia (m) para asignar una arista vertical a la franja que la contiene cuando cae justo en una cara. */
+const FACE_EPS = 1e-9;
+
+/**
+ * Recorta el polígono `src` (`n` vértices `[x, y, …]`) con el semiplano `a x + b y ≤ c` (Sutherland–Hodgman) y deja el
+ * resultado en `dst`. Devuelve la cantidad de vértices.
+ */
+function clip(src, n, dst, a, b, c) {
+    let m = 0;
+    let px = src[2 * n - 2];
+    let py = src[2 * n - 1];
+    let pd = a * px + b * py - c;
+    for (let i = 0; i < n; i++) {
+        const x = src[2 * i];
+        const y = src[2 * i + 1];
+        const d = a * x + b * y - c;
+        if (d <= 0) {
+            if (pd > 0) {
+                const t = pd / (pd - d);
+                dst[2 * m] = px + (x - px) * t;
+                dst[2 * m + 1] = py + (y - py) * t;
+                m++;
+            }
+            dst[2 * m] = x;
+            dst[2 * m + 1] = y;
+            m++;
+        } else if (pd <= 0) {
+            const t = pd / (pd - d);
+            dst[2 * m] = px + (x - px) * t;
+            dst[2 * m + 1] = py + (y - py) * t;
+            m++;
+        }
+        px = x;
+        py = y;
+        pd = d;
+    }
+    return m;
+}
+
+/**
+ * Flotación de Arquímedes por pieza sobre el campo de alturas `ShallowWater` (docs/design/14-agua.md §14.5). Una vez por
+ * paso fijo y antes de `stepWorld`, `apply(dt)` recorta cada pieza de los robots registrados contra cada columna del
+ * campo y le da, como impulsos (Box2D borra las fuerzas en cada subpaso), una vez por pieza:
+ *
+ * - el empuje de Froude–Krylov por franja, `ρ_col g b A_i (−∂η/∂x, 1)`, aplicado en el centroide sumergido (el
+ *   gradiente usa solo las columnas vecinas mojadas);
+ * - el arrastre de presión por arista original sumergida, `−½ ρ_col C_d (n·v̂_r)₊ ℓ |v_r| v_r b`, con `C_d` de
+ *   `materials.drag` por forma, más un término viscoso `−k_μ μ_col b v_r` repartido entre las franjas según su área
+ *   y aplicado en su centroide;
+ * - el tope por masa reducida de cada franja, `|J_arrastre,i| ≤ m_red |v_r,i|` con `m_red = m m_col/(m + m_col)` y
+ *   `m_col = σ_w h_i dx`, y la reacción horizontal sobre el agua, `addMomentum(i, −J_x/(σ_w dx))`.
+ *
+ * No modela la reacción vertical sobre el campo ni la masa agregada. `config.dragScale` y `config.viscousK` en 0 apagan el
+ * arrastre de presión y el viscoso. Cada pieza expone `area` (suma de las áreas de sus fixtures) y `submerged` (área
+ * sumergida del último `apply`), en m². Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
+ */
+export class Buoyancy {
+    constructor(water, materials = MATERIALS, { gravity = 10, dragScale = 1, viscousK = K_MU } = {}) {
+        this.water = water;
+        this.drag = materials.drag;
+        this.gravity = gravity;
+        this.dragScale = dragScale;
+        this.viscousK = viscousK;
+        this.pieces = [];
+        this.stats = { capped: 0 };
+        const N = water.N;
+        this.polyA = new Float64Array(128);
+        this.polyB = new Float64Array(128);
+        this.world = new Float64Array(32);
+        this.area = new Float64Array(N);
+        this.cx = new Float64Array(N);
+        this.cy = new Float64Array(N);
+        this.jx = new Float64Array(N);
+        this.jy = new Float64Array(N);
+        this.jl = new Float64Array(N);
+        this.rho = new Float64Array(N);
+        this.mu = new Float64Array(N);
+        this.stamp = new Int32Array(N);
+        this.clock = 0;
+        this.impulse = new Box2D.b2Vec2(0, 0);
+        this.point = new Box2D.b2Vec2(0, 0);
+    }
+
+    /** Libera los vectores nativos. */
+    dispose() {
+        Box2D.destroy(this.impulse);
+        Box2D.destroy(this.point);
+    }
+
+    /**
+     * Lee las formas de todos los cuerpos de `players` (cada uno con `rag.bodies`); se vuelve a llamar cada vez que
+     * cambian los robots (aparición, giro, ronda nueva), igual que `DamageSystem.register`.
+     */
+    register(players) {
+        this.pieces = [];
+        for (const player of players) {
+            for (const body of player.rag.bodies.values()) {
+                const shapes = bodyShapes(body);
+                if (shapes.length === 0) continue;
+                const center = body.GetLocalCenter();
+                let area = 0;
+                for (const s of shapes) area += s.area;
+                this.pieces.push({ body, shapes, lx: center.get_x(), ly: center.get_y(), area, submerged: 0 });
+            }
+        }
+    }
+
+    /** Aplica el empuje y el arrastre de este paso a todas las piezas. `dt` es el paso fijo (s). */
+    apply(dt) {
+        this.clock++;
+        this.stats.capped = 0;
+        for (const piece of this.pieces) this.applyPiece(piece, dt);
+    }
+
+    /** Densidad y viscosidad de la columna `c`, calculadas una vez por `apply`. */
+    column(c) {
+        if (this.stamp[c] === this.clock) return;
+        this.stamp[c] = this.clock;
+        const x = this.water.center(c);
+        this.rho[c] = this.water.densityAt(x);
+        this.mu[c] = this.viscousK > 0 ? this.water.viscosityAt(x) : 0;
+    }
+
+    /** Pendiente de la superficie `∂η/∂x` en la columna `c` con sus vecinas mojadas (0 si no tiene). */
+    slope(c) {
+        const { b, h, i0, i1, dx, config } = this.water;
+        const hd = config.hDry;
+        const left = c > i0 && h[c - 1] > hd;
+        const right = c < i1 - 1 && h[c + 1] > hd;
+        const eta = b[c] + h[c];
+        if (left && right) return (b[c + 1] + h[c + 1] - b[c - 1] - h[c - 1]) / (2 * dx);
+        if (right) return (b[c + 1] + h[c + 1] - eta) / dx;
+        if (left) return (eta - b[c - 1] - h[c - 1]) / dx;
+        return 0;
+    }
+
+    applyPiece(piece, dt) {
+        const { water, world, polyA, polyB } = this;
+        const body = piece.body;
+        const mass = body.GetMass();
+        piece.submerged = 0;
+        if (mass <= 0) return;
+        const { x0, dx, N, h, b, config } = water;
+        const hd = config.hDry;
+        const pos = body.GetPosition();
+        const px = pos.get_x();
+        const py = pos.get_y();
+        const angle = body.GetAngle();
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const cxm = px + cos * piece.lx - sin * piece.ly;
+        const cym = py + sin * piece.lx + cos * piece.ly;
+        const vel = body.GetLinearVelocity();
+        const vcx = vel.get_x();
+        const vcy = vel.get_y();
+        const omega = body.GetAngularVelocity();
+        const gb = this.gravity * THICKNESS;
+        const cdScale = this.dragScale;
+        let jx = 0;
+        let jy = 0;
+        let jl = 0;
+        this.lo = N;
+        this.hi = -1;
+
+        for (const shape of piece.shapes) {
+            const { n, verts } = shape;
+            let minX = Infinity;
+            let maxX = -Infinity;
+            let minY = Infinity;
+            for (let i = 0; i < n; i++) {
+                const lxv = verts[2 * i];
+                const lyv = verts[2 * i + 1];
+                const wx = px + cos * lxv - sin * lyv;
+                const wy = py + sin * lxv + cos * lyv;
+                world[2 * i] = wx;
+                world[2 * i + 1] = wy;
+                if (wx < minX) minX = wx;
+                if (wx > maxX) maxX = wx;
+                if (wy < minY) minY = wy;
+            }
+            if (maxX <= x0 + water.i0 * dx || minX >= x0 + water.i1 * dx) continue;
+            const c0 = Math.max(water.i0, Math.floor((minX - x0) / dx));
+            const c1 = Math.min(water.i1 - 1, Math.floor((maxX - x0) / dx));
+
+            for (let c = c0; c <= c1; c++) {
+                if (h[c] <= hd) continue;
+                const zeta = b[c] + h[c];
+                if (minY >= zeta) continue;
+                const xl = x0 + c * dx;
+                let m = clip(world, n, polyA, -1, 0, -xl);
+                if (m < 3) continue;
+                m = clip(polyA, m, polyB, 1, 0, xl + dx);
+                if (m < 3) continue;
+                m = clip(polyB, m, polyA, 0, 1, zeta);
+                if (m < 3) continue;
+                let a2 = 0;
+                let sx = 0;
+                let sy = 0;
+                for (let i = 0, j = m - 1; i < m; j = i++) {
+                    const cross = polyA[2 * j] * polyA[2 * i + 1] - polyA[2 * i] * polyA[2 * j + 1];
+                    a2 += cross;
+                    sx += (polyA[2 * j] + polyA[2 * i]) * cross;
+                    sy += (polyA[2 * j + 1] + polyA[2 * i + 1]) * cross;
+                }
+                const area = a2 / 2;
+                if (area <= MIN_AREA) continue;
+                const ccx = sx / (6 * area);
+                const ccy = sy / (6 * area);
+                this.column(c);
+                const f = this.rho[c] * gb * area;
+                const fx = -this.slope(c) * f;
+                jx += fx * dt;
+                jy += f * dt;
+                jl += ((ccx - cxm) * f - (ccy - cym) * fx) * dt;
+                this.area[c] += area;
+                this.cx[c] += area * ccx;
+                this.cy[c] += area * ccy;
+                piece.submerged += area;
+                if (c < this.lo) this.lo = c;
+                if (c > this.hi) this.hi = c;
+            }
+
+            if (cdScale > 0) {
+                const cd = this.drag[shape.kind] * cdScale;
+                for (let k = 0, j = n - 1; k < n; j = k++) {
+                    this.edgeDrag(world[2 * j], world[2 * j + 1], world[2 * k], world[2 * k + 1], cd, cxm, cym, vcx, vcy, omega, dt);
+                }
+            }
+        }
+
+        const { lo, hi } = this;
+        let sub = 0;
+        for (let c = lo; c <= hi; c++) sub += this.area[c];
+        for (let c = lo; c <= hi; c++) {
+            const area = this.area[c];
+            if (area <= MIN_AREA) {
+                this.clearColumn(c);
+                continue;
+            }
+            const ccx = this.cx[c] / area;
+            const ccy = this.cy[c] / area;
+            const rx = ccx - cxm;
+            const ry = ccy - cym;
+            const rvx = vcx - omega * ry - water.uOf(c);
+            const rvy = vcy + omega * rx;
+            let dX = this.jx[c];
+            let dY = this.jy[c];
+            let dL = this.jl[c];
+            if (this.viscousK > 0) {
+                const k = (-this.viscousK * this.mu[c] * THICKNESS * (area / sub)) * dt;
+                const vx = k * rvx;
+                const vy = k * rvy;
+                dX += vx;
+                dY += vy;
+                dL += rx * vy - ry * vx;
+            }
+            const massCol = SIGMA_W * h[c] * dx;
+            const reduced = (mass * massCol) / (mass + massCol);
+            const limit = reduced * Math.hypot(rvx, rvy);
+            const mag = Math.hypot(dX, dY);
+            if (mag > limit && mag > 0) {
+                const s = limit / mag;
+                dX *= s;
+                dY *= s;
+                dL *= s;
+                this.stats.capped++;
+            }
+            jx += dX;
+            jy += dY;
+            jl += dL;
+            water.addMomentum(c, -dX / (SIGMA_W * dx));
+            this.clearColumn(c);
+        }
+
+        if (jx !== 0 || jy !== 0) {
+            this.impulse.set_x(jx);
+            this.impulse.set_y(jy);
+            this.point.set_x(cxm);
+            this.point.set_y(cym);
+            body.ApplyLinearImpulse(this.impulse, this.point, true);
+        }
+        if (jl !== 0) body.ApplyAngularImpulse(jl, true);
+    }
+
+    /** Pone en cero los acumuladores de la franja `c`. */
+    clearColumn(c) {
+        this.area[c] = 0;
+        this.cx[c] = 0;
+        this.cy[c] = 0;
+        this.jx[c] = 0;
+        this.jy[c] = 0;
+        this.jl[c] = 0;
+    }
+
+    /**
+     * Arrastre de presión de la arista `(ax, ay)`→`(bx, by)` de un polígono antihorario, ya en el mundo, por franja:
+     * suma el impulso y su momento respecto del centro de masa `(cxm, cym)` en los acumuladores de la franja.
+     */
+    edgeDrag(ax, ay, bx, by, cd, cxm, cym, vcx, vcy, omega, dt) {
+        const { water } = this;
+        const { x0, dx, h, b, config } = water;
+        const ex = bx - ax;
+        const ey = by - ay;
+        const len = Math.hypot(ex, ey);
+        if (len < 1e-12) return;
+        const nx = ey / len;
+        const ny = -ex / len;
+        const vertical = Math.abs(ex) < 1e-12;
+        let c0;
+        let c1;
+        if (vertical) {
+            c0 = Math.floor((ax - x0) / dx - FACE_EPS * Math.sign(nx));
+            c1 = c0;
+        } else {
+            c0 = Math.floor((Math.min(ax, bx) - x0) / dx);
+            c1 = Math.floor((Math.max(ax, bx) - x0) / dx);
+        }
+        c0 = Math.max(c0, water.i0);
+        c1 = Math.min(c1, water.i1 - 1);
+        for (let c = c0; c <= c1; c++) {
+            if (h[c] <= config.hDry) continue;
+            let t0 = 0;
+            let t1 = 1;
+            if (!vertical) {
+                const xl = x0 + c * dx;
+                let ta = (xl - ax) / ex;
+                let tb = (xl + dx - ax) / ex;
+                if (ta > tb) [ta, tb] = [tb, ta];
+                t0 = Math.max(t0, ta);
+                t1 = Math.min(t1, tb);
+            }
+            const zeta = b[c] + h[c];
+            if (Math.abs(ey) < 1e-12) {
+                if (ay > zeta) continue;
+            } else {
+                const ts = (zeta - ay) / ey;
+                if (ey > 0) t1 = Math.min(t1, ts);
+                else t0 = Math.max(t0, ts);
+            }
+            if (t1 - t0 <= 1e-12) continue;
+            const tm = (t0 + t1) / 2;
+            const mx = ax + tm * ex;
+            const my = ay + tm * ey;
+            this.column(c);
+            const rvx = vcx - omega * (my - cym) - water.uOf(c);
+            const rvy = vcy + omega * (mx - cxm);
+            const speed = Math.hypot(rvx, rvy);
+            if (speed < 1e-9) continue;
+            const facing = (nx * rvx + ny * rvy) / speed;
+            if (facing <= 0) continue;
+            const coef = 0.5 * this.rho[c] * cd * facing * (t1 - t0) * len * speed * THICKNESS * dt;
+            const dX = -coef * rvx;
+            const dY = -coef * rvy;
+            this.jx[c] += dX;
+            this.jy[c] += dY;
+            this.jl[c] += (mx - cxm) * dY - (my - cym) * dX;
+            if (c < this.lo) this.lo = c;
+            if (c > this.hi) this.hi = c;
+        }
+    }
+}

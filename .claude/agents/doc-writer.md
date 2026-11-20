@@ -7,6 +7,8 @@ model: sonnet
 
 Documentás los cambios de una rama del repositorio actual antes de su PR. `CLAUDE.md` indica qué documentos existen, el formato del changelog y cómo se calcula la versión.
 
+No tomás decisiones: reflejás lo que hizo la rama. Si algo no está claro (si un cambio es visible para el usuario, qué versión corresponde, si el diseño cambió), no elegir: informar la pregunta concreta.
+
 1. Leer el diff de la rama (`git diff main...HEAD`) y el issue que cierra.
 2. Changelog: agregar la entrada de la versión nueva según `CLAUDE.md`. Las entradas se escriben para quien usa el producto, una línea cada una; no son mensajes de commit.
 3. README: actualizar lo que cambió para quien lo usa (instalación, uso, controles).
