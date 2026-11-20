@@ -16,6 +16,7 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `safeMargin` y `safeLead`: con la inundación activa, la línea segura es el nivel del agua + `safeMargin` (m) + la
  *   velocidad de subida × `safeLead` (s); el bot no elige ni cruza plataformas por debajo y, si está debajo, sube;
  *   `edgeMargin`: distancia mínima al borde de una plataforma al caminar sin cruzar;
+ * - `engage`: en Infinito persigue al rival si está a `dy` m de altura y `dx` m en horizontal o menos (con su plataforma sobre la línea segura);
  * - `reach`: regla de alcance del salto: subir hasta `up.dy` con hueco hasta `up.gap`, o hasta `short.dy` con hueco
  *   hasta `short.gap`; `downGap` es el hueco máximo al bajar o cruzar a nivel;
  * - `through`: subida vertical a través de una plataforma que solapa por encima: `overlap` (m) horizontal mínimo;
@@ -43,6 +44,7 @@ export const BOT = {
     safeMargin: 4,
     safeLead: 5,
     edgeMargin: 0.5,
+    engage: { dy: 8, dx: 14 },
     reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
     through: { overlap: 1.5 },
     cost: { through: 0.6, jump: 1 },
@@ -335,8 +337,8 @@ export class Bot {
 
     /**
      * Capa de movimiento (stick izquierdo): salir de bajo la línea segura, evadir, buscar un arma y, si no, ir a la meta.
-     * En Infinito (`game.climbing`) la meta es la plataforma más alta alcanzable y solo persigue al rival si está en la
-     * misma plataforma o en una vecina que no queda más abajo; en el clásico persigue siempre.
+     * En Infinito (`game.climbing`) la meta es la plataforma más alta alcanzable y solo persigue al rival si su plataforma
+     * está sobre la línea segura y está dentro de `engage` (aunque haya que bajar); en el clásico persigue siempre.
      */
     move(game, me, foe, cur, foeNode, foeTop, below, adx, dx, dy, dir, now) {
         if (below) {
@@ -349,18 +351,17 @@ export class Bot {
             this.navigate(me, cur, this.highest(cur));
             return;
         }
-        if (game.climbing && !this.engages(cur, foeNode, foeTop)) {
+        if (game.climbing && !this.engages(adx, dy)) {
             this.navigate(me, cur, this.highest(cur));
             return;
         }
         this.chase(me, foe, cur, adx, dx, dy, dir, now);
     }
 
-    /** Verdadero si el rival está en la plataforma `cur` o en una vecina del grafo que no queda más abajo. */
-    engages(cur, foeNode, foeTop) {
-        if (cur === null || foeNode === null) return false;
-        if (foeNode === cur) return true;
-        return this.nav.edges[cur].includes(foeNode) && foeTop >= this.nav.nodes[cur].top - 1e-9;
+    /** Verdadero si el rival está a `engage.dx` m o menos en horizontal y a `engage.dy` m o menos en vertical (módulos). */
+    engages(adx, dy) {
+        const { dx, dy: maxDy } = this.config.engage;
+        return adx <= dx && Math.abs(dy) <= maxDy;
     }
 
     /**
