@@ -45,9 +45,9 @@ test("los puntos de aparición están 0,6 m sobre la cara superior de una plataf
     for (const p of LEVEL.pickups) {
         const platform = LEVEL.solids.find((s) => s.kind === "platform" && Math.abs(p.x - s.x) <= s.w / 2 && Math.abs(p.y - 0.6 - (s.y + s.h / 2)) < 1e-9);
         assert.ok(platform, `punto (${p.x}, ${p.y}) sin plataforma debajo`);
-        assert.ok(weaponById(p.weapon));
+        assert.ok(p.kind === "repair" || weaponById(p.weapon));
     }
-    assert.deepEqual(LEVEL.pickups.map((p) => p.weapon).sort(), [1, 2, 2, 3, 3, 4]);
+    assert.deepEqual(LEVEL.pickups.filter((p) => p.kind !== "repair").map((p) => p.weapon).sort(), [1, 2, 2, 3, 3, 4]);
     const game = await start();
     for (const player of game.state.players) {
         assert.deepEqual([...player.tanks], [[FLUID.WATER, weaponById(FLUID.WATER).tank]]);

@@ -93,7 +93,7 @@ test("Infinito: el bot de J2 sin arma, en la etapa 1, va a buscar el punto de ap
     const game = await infinite("?bot=2&seed=1");
     assert.equal(game.state.players[1].weapon, null);
     assert.ok(game.state.pickups.points.every((p) => p.y >= CLIMB.stageHeight), "la etapa 0 no tiene armas");
-    const [first] = game.state.pickups.points;
+    const first = game.state.pickups.points.find((p) => p.kind !== "repair");
     const near = platformsOfStage(game, 1).find((s) => Math.abs(s.x - first.x) < s.w / 2 + 3 && Math.abs(s.y + s.h / 2 - first.y + CLIMB.pickupLift) < 1e-6);
     place(game, 1, near.x + near.w / 2 - 0.4, near.y + near.h / 2 + 0.9 + game.state.climb.offsetY);
     let at = null;

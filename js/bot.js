@@ -27,6 +27,7 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
  *   `replan`: cada cuánto reelige destino;
  * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
+ * - `repairHp`: con menos salud que esto busca también el ítem de reparación (con `pickupReach` aristas o menos);
  * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
  * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
  * - `evade`: ventana (s) tras recibir daño o líquido en la que salta a la plataforma de arriba o rueda alejándose;
@@ -53,6 +54,7 @@ export const BOT = {
     hopCost: 0.3,
     replan: 0.5,
     pickupReach: 3,
+    repairHp: 40,
     burst: 0.5,
     burstCooldown: 0.7,
     reserve: 0.25,
@@ -513,16 +515,18 @@ export class Bot {
     }
 
     /**
-     * Sin arma o con los tanques vacíos, va al punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea
-     * segura y a `pickupReach` aristas o menos. Devuelve verdadero si usó el frame.
+     * Sin arma o con los tanques vacíos (puntos de arma), o con salud menor que `repairHp` (puntos de reparación), va al
+     * punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach` aristas o menos. Devuelve verdadero si usó el frame.
      */
     seekPickup(me, cur, points) {
-        if (cur === null || this.armed(me)) return false;
+        const wantsWeapon = !this.armed(me);
+        const wantsRepair = me.hp < this.config.repairHp;
+        if (cur === null || !(wantsWeapon || wantsRepair)) return false;
         const { dist, parent } = this.search(cur);
         let best = null;
         let lower = null;
         for (const point of points) {
-            if (!point.active) continue;
+            if (!point.active || !(point.kind === "repair" ? wantsRepair : wantsWeapon)) continue;
             const node = this.pickupNode(point);
             if (node === null || dist[node] === Infinity) continue;
             let hops = 0;

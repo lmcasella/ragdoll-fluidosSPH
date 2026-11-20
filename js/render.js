@@ -94,13 +94,46 @@ export function drawLevel(ctx, level, scale) {
     }
 }
 
+/** Tuerca del ítem de reparación (#156): lados del hexágono, radio del agujero relativo al del ícono y colores `[r, g, b]`. */
+export const NUT = { sides: 6, hole: 0.4, fill: [190, 200, 210], edge: [80, 220, 120] };
+
 /**
- * Ícono placeholder de cada punto de aparición de armas: círculo del color del arma con su inicial. Los puntos
- * inactivos (esperando reaparecer) no se dibujan. Va en un canvas propio, por encima de los fluidos.
+ * Dibuja la tuerca hexagonal centrada en (x, y), del mismo tamaño que el ícono de las armas. El agujero circular se
+ * recorta del canvas con `destination-out`; el hexágono usa solo `lineTo` porque las pruebas cuentan los `moveTo` de
+ * este canvas como trazos de la mira láser.
+ */
+function drawNut(ctx, x, y) {
+    ctx.beginPath();
+    for (let i = 0; i < NUT.sides; i++) {
+        const a = (Math.PI * 2 * i) / NUT.sides;
+        ctx.lineTo(x + Math.cos(a) * PICKUP_ICON_RADIUS, y + Math.sin(a) * PICKUP_ICON_RADIUS);
+    }
+    ctx.closePath();
+    ctx.fillStyle = `rgb(${NUT.fill.join(", ")})`;
+    ctx.fill();
+    ctx.lineWidth = 0.06;
+    ctx.strokeStyle = `rgb(${NUT.edge.join(", ")})`;
+    ctx.stroke();
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(x, y, PICKUP_ICON_RADIUS * NUT.hole, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+/**
+ * Ícono placeholder de cada punto de aparición: círculo del color del arma con su inicial, o tuerca hexagonal para
+ * el ítem de reparación. Los puntos inactivos (esperando reaparecer) no se dibujan. Va en un canvas propio, por
+ * encima de los fluidos.
  */
 export function drawPickups(ctx, points, weapons) {
     for (const point of points) {
         if (!point.active) continue;
+        if (point.kind === "repair") {
+            drawNut(ctx, point.x, point.y);
+            continue;
+        }
         const weapon = weapons.find((w) => w.id === point.weapon);
         if (!weapon) continue;
         const [r, g, b] = weapon.color;

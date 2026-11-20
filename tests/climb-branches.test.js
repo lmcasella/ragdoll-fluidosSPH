@@ -129,6 +129,10 @@ test("armas: ninguna en la etapa 0 y una por plataforma cada period de la etapa,
         }
         const n = seen.get(p.stage) ?? 0;
         seen.set(p.stage, n + 1);
+        if (p.pickups.some((q) => q.kind === "repair")) {
+            assert.equal(p.pickups.length, 1, "la plataforma de la reparación no lleva arma");
+            continue;
+        }
         const entry = CLIMB.pickups[Math.min(p.stage - 1, CLIMB.pickups.length - 1)];
         assert.equal(p.pickups.length, n % entry.period === 0 ? 1 : 0);
         for (const w of p.pickups) {

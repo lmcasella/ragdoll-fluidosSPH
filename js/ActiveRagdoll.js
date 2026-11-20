@@ -1,5 +1,7 @@
 import { getRaycaster } from "./raycast.js";
 
+/** Salud máxima de un robot. */
+export const MAX_HP = 100;
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
@@ -83,7 +85,7 @@ export class ActiveRagdoll {
         );
 
         // Estados del jugador
-        this.hp = 100;
+        this.hp = MAX_HP;
         this.stickyTimer = 0; // s restantes de pegado
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;

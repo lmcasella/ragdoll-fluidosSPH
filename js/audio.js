@@ -17,7 +17,8 @@ export const SOUNDS = {
     land: { files: ["land_hurt_1", "land_hurt_2", "land_hurt_3"], volume: 1 },
     step: { files: ["feet_04", "feet_05", "feet_08", "feet_10", "feet_12", "feet_14", "feet_17"], volume: 0.4, cooldown: 0.22 },
     death: { files: ["death_1"], volume: 1 },
-    pickup: { files: ["pickup_1", "pickup_2", "pickup_3", "pickup_4", "pickup_5"], volume: 1 },
+    pickup: { files: ["pickup_1", "pickup_2", "pickup_3", "pickup_4"], volume: 1 },
+    repair: { files: ["pickup_5"], volume: 1 },
     roundEnd: { files: ["round_end"], volume: 1 },
 };
 

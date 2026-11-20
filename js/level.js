@@ -49,7 +49,8 @@ export const LEVEL = {
         { x: 43, y: 10.9, weapon: FLUID.LAVA },
         { x: 4.5, y: 7.6, weapon: FLUID.HONEY },
         { x: 51.5, y: 7.6, weapon: FLUID.HONEY },
-        { x: 28, y: 8.4, weapon: FLUID.WATER },
+        { x: 26, y: 8.4, weapon: FLUID.WATER },
+        { x: 30, y: 8.4, kind: "repair" },
     ],
 };
 
