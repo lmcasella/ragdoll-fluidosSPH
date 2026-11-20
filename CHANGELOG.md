@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.38.2] - 2026-11-20
+
+### Fixed
+- Infinito ya no se cuelga al arrancar una partida cuando la base deja una sola plataforma válida para aparecer: los dos robots aparecen sobre ella, separados y mirándose.
+
 ## [0.38.1] - 2026-11-20
 
 ### Fixed
