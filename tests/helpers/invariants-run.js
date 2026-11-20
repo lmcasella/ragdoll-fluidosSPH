@@ -184,6 +184,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         let slotChanges = 0;
         stoneAlive = 0;
         steamAlive = 0;
+        let steamEvaporated = 0;
         for (let slot = 0; slot < store.capacity; slot++) {
             if (store.alive[slot] === 0) continue;
             if (store.kind[slot] !== expectedKind[slot]) {
@@ -193,7 +194,10 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
                 } else slotChanges++;
             }
             if (store.kind[slot] === FLUID.STONE) stoneAlive++;
-            if (store.kind[slot] === FLUID.STEAM) steamAlive++;
+            if (store.kind[slot] === FLUID.STEAM) {
+                steamAlive++;
+                steamEvaporated += store.evaporated[slot];
+            }
             const k = kindIndex.get(store.kind[slot]);
             if (k !== undefined) {
                 alive[k]++;
@@ -225,8 +229,8 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         P.stone = stoneAlive * mass.stone;
         out.stone = store.destroyed[SINK.OUT][FLUID.STONE] * mass.stone;
         inj.stone = store.created[FLUID.STONE] * mass.stone;
-        P.steam = steamAlive * mass.steam;
-        out.steam = (store.destroyed[SINK.OUT][FLUID.STEAM] + store.destroyed[SINK.HUMIDITY][FLUID.STEAM]) * mass.steam;
+        P.steam = (steamAlive - steamEvaporated) * mass.steam;
+        out.steam = (store.destroyed[SINK.OUT][FLUID.STEAM] + store.destroyed[SINK.HUMIDITY][FLUID.STEAM] + store.destroyed[SINK.EVAPORATED][FLUID.STEAM] + steamEvaporated) * mass.steam;
         inj.steam = (store.created[FLUID.STEAM] - g.thermal.stats.emitted) * mass.steam;
         for (const s of SPECIES) {
             let den = 0;
