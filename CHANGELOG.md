@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.9] - 2026-11-20
+
+### Fixed
+- El bloqueo es inmediato: protege todo el frente desde el primer frame en que se aprieta (antes el golpe tenía que pegar en un brazo, y los brazos tardaban en subir), y la animación de guardia corre 4 veces más rápido. Con el bloqueo mantenido, la mira sigue eligiendo hacia qué lado se bloquea.
+
 ## [0.42.8] - 2026-11-20
 
 ### Fixed
