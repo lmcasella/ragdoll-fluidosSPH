@@ -38,7 +38,7 @@ export const MATERIALS = {
         solidus: 1000,
         latentFusion: 4.0e5,
         emissivity: 0.9,
-        viscosity: { mu0: 300, T0: 1150, deltaT: 80, min: 10, max: 1e6 },
+        viscosity: { mu0: 300, T0: 1150, deltaT: 80 / 3, min: 10, max: 1e6 },
         Cd: 1.2,
         miscible: false,
         species: { basalt: 1 },

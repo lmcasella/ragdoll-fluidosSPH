@@ -13,6 +13,7 @@ const { PARTICLE } = await import("../js/particles.js");
 const { SINK } = await import("../js/particleStore.js");
 const { MATERIALS, REACTIONS, SIGMA_W } = await import("../js/materials.js");
 const { THERMAL } = await import("../js/thermal.js");
+const { PAIR_REST_WEIGHT } = await import("../js/viscosity.js");
 const { stepWorld } = await import("../lib/ragimporter.js");
 
 const fmt = (n, digits = 3) => Number(n).toFixed(digits);
@@ -172,21 +173,17 @@ test("L3: charco de lava isotérmico a 1150 °C (μ = 300 Pa·s) contra el flujo
     const window = samples.filter((q) => q.t >= 1 && q.t <= 3);
     const ratio = window.reduce((a, q) => a + q.front / q.analytic, 0) / window.length;
     t.diagnostic(
-        `L3: velocidad del frente medida / analítica en t de 1 a 3 s: ${window.map((q) => `${fmt(q.front, 3)}/${fmt(q.analytic, 4)}`).join(" ")} m/s; razón media ${fmt(ratio, 1)} (esperado 1 ± 0,3). La razón es la de la formulación F = μ b w Δv con los pesos de contacto de LiquidFun (≈ 0,25 entre partículas y ≈ 0,06 contra el piso)`,
+        `L3: velocidad del frente medida / analítica en t de 1 a 3 s: ${window.map((q) => `${fmt(q.front, 3)}/${fmt(q.analytic, 4)}`).join(" ")} m/s; razón media ${fmt(ratio, 1)} (esperado 1 ± 0,3). Formulación con los pesos de contacto normalizados por su valor de reposo`,
     );
     s.dispose();
-    if (Math.abs(ratio - 1) > 0.3) {
-        t.todo(`L3 no se cumple con la formulación del diseño: el frente avanza ${fmt(ratio, 1)} veces lo que predice el flujo viscoso de película delgada (tolerancia ±30 %)`);
-        return;
-    }
-    assert.ok(Math.abs(ratio - 1) <= 0.3);
+    assert.ok(Math.abs(ratio - 1) <= 0.3, `razón ${ratio}`);
 });
 
 test("viscosidad: μ(T) del diseño y su acotado", () => {
     const s = thermalScene({ points: [{ x: 5, y: 0.2, kind: FLUID.LAVA }] });
     const v = s.viscosity;
     assert.equal(v.mu(1150), 300);
-    assert.ok(Math.abs(v.mu(1070) / v.mu(1150) - 10) < 1e-9);
+    assert.ok(Math.abs(v.mu(1070) / v.mu(1150) - 1000) < 1e-6);
     assert.equal(v.mu(5000), LAVA.viscosity.min);
     assert.equal(v.mu(-5000), LAVA.viscosity.max);
     s.dispose();
@@ -204,7 +201,7 @@ test("viscosidad: el par de lava en contacto relaja su velocidad relativa de for
     const w = s.thermal.contacts.pairW[0];
     const mu = s.viscosity.mu(1150);
     const m = s.thermal.mass[FLUID.LAVA];
-    const decay = Math.exp(-mu * (SIGMA_W / THERMAL.waterDensity) * w * DT * (2 / m));
+    const decay = Math.exp(-mu * (SIGMA_W / THERMAL.waterDensity) * (w / PAIR_REST_WEIGHT) * DT * (2 / m));
     s.viscosity.step(DT);
     const dvx = Box2D.HEAPF32[vel + 2] - Box2D.HEAPF32[vel];
     const dvy = Box2D.HEAPF32[vel + 3] - Box2D.HEAPF32[vel + 1];

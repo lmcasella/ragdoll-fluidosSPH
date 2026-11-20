@@ -5,13 +5,23 @@ const STATIC = 0;
 const DYNAMIC = 2;
 
 /**
+ * Pesos de contacto de reposo de LiquidFun (medidos una vez en banco con la lava de `SHOT_SYSTEM`, radio 0,06 m, en
+ * `STEP`): `PAIR_REST_WEIGHT` es la mediana del peso entre vecinas interiores de un charco en reposo en una artesa
+ * (0,2397) y `BODY_REST_WEIGHT` la de una partícula apoyada en reposo sobre un cuerpo (0,0601). Normalizan el peso
+ * del núcleo para que valga 1 en reposo y el esfuerzo sea `μ b (w / w⁰) Δv`.
+ */
+export const PAIR_REST_WEIGHT = 0.2397;
+export const BODY_REST_WEIGHT = 0.0601;
+
+/**
  * Viscosidad de la lava por contactos (docs/design/14-agua.md §14.8, #75). LiquidFun no tiene viscosidad por
  * partícula, así que el esfuerzo viscoso se aplica por contactos: para cada par con al menos una partícula de
- * lava y la otra lava o piedra, y peso `w`, `F_ab = μ(T̄) b w (v_b − v_a)` con `T̄` la temperatura media del par y
- * `μ(T)` de `MATERIALS.lava.viscosity`. Contra los cuerpos, lo mismo con la velocidad del cuerpo en el punto de
- * contacto (no deslizamiento), y el impulso opuesto va al cuerpo dinámico.
+ * lava y la otra lava o piedra, y peso `w`, `F_ab = μ(T̄) b (w / w_pp⁰) (v_b − v_a)` con `T̄` la temperatura media del
+ * par y `μ(T)` de `MATERIALS.lava.viscosity`. Contra los cuerpos, `F = 2 μ b (w / w_pb⁰) (v_cuerpo − v_p)` con la
+ * velocidad del cuerpo en el punto de contacto (no deslizamiento; el 2 es la mitad de espesor de la capa límite), y
+ * el impulso opuesto va al cuerpo dinámico.
  *
- * Se integra en forma exacta por par, `Δv ← Δv exp(−k dt (1/m_a + 1/m_b))` con `k = μ b w`, así que no invierte la
+ * Se integra en forma exacta por par, `Δv ← Δv exp(−k dt (1/m_a + 1/m_b))` con `k = μ b w / w⁰`, así que no invierte la
  * velocidad relativa con ninguna `dt` y conserva la cantidad de movimiento. Las masas son las reales
  * (`SG · σ_w · A_p`); la piedra inmóvil (`WALL`) y el cuerpo estático valen masa infinita.
  *
@@ -88,7 +98,7 @@ export class Viscosity {
             const wallB = thermal.walled[sb] === 1;
             if (wallA && wallB) continue;
             const inverse = (wallA ? 0 : 1 / m) + (wallB ? 0 : 1 / m);
-            const k = mu * this.thickness * pairW[c];
+            const k = (mu * this.thickness * pairW[c]) / PAIR_REST_WEIGHT;
             const factor = 1 - Math.exp(-k * dt * inverse);
             const dvx = heap[vel + 2 * b] - heap[vel + 2 * a];
             const dvy = heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1];
@@ -135,7 +145,7 @@ export class Viscosity {
             }
             const mu = this.mu(thermal.temp[i]);
             const inverse = 1 / m + 1 / massBody;
-            const k = mu * this.thickness * contacts.bodyW[c];
+            const k = (2 * mu * this.thickness * contacts.bodyW[c]) / BODY_REST_WEIGHT;
             const factor = 1 - Math.exp(-k * dt * inverse);
             const jx = (factor * (heap[vel + 2 * i] - bx)) / inverse;
             const jy = (factor * (heap[vel + 2 * i + 1] - by)) / inverse;

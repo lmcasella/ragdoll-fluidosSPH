@@ -10,10 +10,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ### Added
 - Térmica de las partículas y de las columnas. Cada partícula lleva su entalpía (`store.enthalpy`) y se calienta o enfría por contacto con sus vecinas, con el agua del campo (la lava sumergida le cede calor a su columna) y con el aire (radiación y convección de la lava y la piedra). Una partícula de lava aislada tarda unos 4 min en solidificar, con los tiempos reales.
 - La lava se vuelve piedra al perder su calor de fusión y la piedra vuelve a lava si lo recupera, decidido por la entalpía y no por un temporizador. La piedra cae y se apila (`POWDER`) y, en reposo 0,5 s, queda inmóvil (`WALL`). Hay un material y un tipo de partícula nuevos (piedra) y dos filas en `REACTIONS`.
-- Viscosidad de la lava (300 Pa·s a 1.150 °C, sube con el enfriamiento): se aplica por contactos entre partículas y contra los cuerpos, con reacción sobre ellos.
+- Viscosidad de la lava (300 Pa·s a 1.150 °C, ×1.000 a 1.070 °C): se aplica por contactos entre partículas y contra los cuerpos, con reacción sobre ellos.
 - El color de la lava, la piedra y el agua caliente sigue su temperatura (incandescencia para el basalto).
 - `js/thermal.js`, `js/viscosity.js`, `Contacts.pairs` y `Contacts.bodies`, `PARTICLE.WALL` y `PARTICLE.POWDER`. El monitor de energía (`thermal.energy()` más `thermal.energyLost()`) cierra el balance con el latente de la evaporación y el calor de la pérdida inelástica de la absorción.
-- Tests: criterios T1, T2, T6, T7, T8, L1 y L2 de térmica y fases, más la viscosidad. L3 queda como `todo` con lo medido.
+- Tests: criterios T1, T2, T6, T7, T8, L1 y L2 de térmica y fases, más la viscosidad. L3 (charco de lava contra el flujo viscoso de película delgada) pasa en ±30 %.
 
 ### Changed
 - La absorción en el campo deposita la entalpía propia de la partícula en lugar de la del agua ambiente.
