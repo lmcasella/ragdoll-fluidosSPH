@@ -83,7 +83,7 @@
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
             import { Evaporation } from "./js/evaporation.js";
-            import { Thermal } from "./js/thermal.js";
+            import { Thermal, THERMAL } from "./js/thermal.js";
             import { Viscosity } from "./js/viscosity.js";
             import { Buoyancy } from "./js/buoyancy.js";
             import { MATERIALS } from "./js/materials.js";
@@ -332,7 +332,7 @@
             let flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
             const evaporation = new Evaporation(particleSystem, store);
-            const thermal = new Thermal(particleSystem, store, water, immersion, { evaporation });
+            const thermal = new Thermal(particleSystem, store, water, immersion, { evaporation, ...THERMAL.game });
             const viscosity = new Viscosity(particleSystem, store, thermal);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);

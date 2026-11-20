@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-20
+
+### Changed
+- La química se ve dentro de una ronda (tiempo de juego, con factores de aceleración nombrados en `THERMAL.game`; la masa y la energía se siguen conservando). El agua que toca la lava hierve al instante y la lava que toca se vuelve piedra: el agua es el contraataque de la lava. La lava que cae en la pileta larga vapor desde el primer contacto y se endurece. La lava sola en el aire es piedra en unos 10 s.
+- El vapor sube, se vuelve niebla y se disipa en unos 5 s. Si toca un techo, una plataforma, una pared o un robot, condensa y gotea.
+
+### Fixed
+- El intercambio de calor de una gota parcialmente evaporada usa su masa restante, así el balance de energía cierra cuando hierve.
 ## [0.34.0] - 2026-11-20
 
 ### Agregado

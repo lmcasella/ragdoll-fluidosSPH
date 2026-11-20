@@ -15,6 +15,15 @@ import { ORIGIN, SINK } from "./particleStore.js";
  * primera, desde el color propio del material desde `glowFrom` (°C).
  */
 export const THERMAL = {
+    /**
+     * Tiempo de juego (#186, docs/design/14-agua.md §14.8): factores de aceleración nombrados que el juego pasa al
+     * constructor; los tests físicos usan 1 (tiempo real). `timeScale` multiplica todo intercambio de calor y las
+     * pérdidas al aire; `quenchScale` solo el contacto de basalto caliente con agua o ácido (el agua hierve al tocar
+     * la lava); `plumeScale` el arrastre de aire del vapor (desaparece en 3–6 s; con el factor, la velocidad de la
+     * pluma no baja de la terminal, así el vapor trabado bajo un techo también se disipa). `filmEmission`: el calor del basalto
+     * sumergido en una columna sin hervir sale como vapor (ebullición en película) en vez de calentar el agua.
+     */
+    game: { timeScale: 25, quenchScale: 8000, plumeScale: 30, filmEmission: true },
     restSpeed: 0.05,
     restTime: 0.5,
     waterDensity: 1000,
@@ -105,7 +114,11 @@ function seriesCapacity(a, b) {
  * paso, `walled[slot]` (piedra inmóvil) y los contactos (`contacts.pairA/B/W`, `stats.pairs`).
  */
 export class Thermal {
-    constructor(system, store, water, immersion = null, { evaporation = null, airLosses = true, gravity = 10 } = {}) {
+    constructor(system, store, water, immersion = null, { evaporation = null, airLosses = true, gravity = 10, timeScale = 1, quenchScale = 1, plumeScale = 1, filmEmission = false } = {}) {
+        this.timeScale = timeScale;
+        this.quenchScale = quenchScale;
+        this.plumeScale = plumeScale;
+        this.filmEmission = filmEmission;
         this.system = system;
         this.store = store;
         this.water = water;
@@ -146,6 +159,7 @@ export class Thermal {
         this.steamForce = (this.gravity * MATERIALS.air.rho) / steam.rho;
         this.steamDrag = (0.5 * MATERIALS.air.rho * steam.Cd * diameter) / (steam.rho * area);
         this.area = area;
+        this.steamTerminal = Math.sqrt(Math.max(0, this.steamForce - this.gravity) / this.steamDrag);
         this.entrainment = steam.entrainment;
         this.plumeRadius = Math.sqrt((THERMAL.waterDensity * area) / (Math.PI * steam.rho));
         this.wetting = new Uint8Array(KIND_SLOTS);
@@ -178,12 +192,13 @@ export class Thermal {
                 if (Number(a) === this.kindSteam || Number(b) === this.kindSteam) continue;
                 const basalt = (this.family[a] > 0) + (this.family[b] > 0);
                 const kMean = 0.5 * (ma.material.k + mb.material.k);
-                if (basalt === 1) this.exchange[i] = heat.filmBoiling * diameter * this.thickness;
-                else this.exchange[i] = this.thickness * kMean;
+                const watery = [this.kindWater, this.kindAcid].includes(Number(a)) || [this.kindWater, this.kindAcid].includes(Number(b));
+                if (basalt === 1) this.exchange[i] = heat.filmBoiling * diameter * this.thickness * (watery ? quenchScale : timeScale);
+                else this.exchange[i] = this.thickness * kMean * timeScale;
                 const fluids = this.family[a] !== 2 && this.family[b] !== 2 && (basalt === 0 || basalt === 2);
                 if (fluids && heat.shearCoefficient > 0) {
                     const rhoC = 0.5 * (ma.material.SG * THERMAL.waterDensity * ma.material.c + mb.material.SG * THERMAL.waterDensity * mb.material.c);
-                    this.shear[i] = this.thickness * rhoC * heat.shearCoefficient * diameter;
+                    this.shear[i] = this.thickness * rhoC * heat.shearCoefficient * diameter * timeScale;
                 }
             }
         }
@@ -208,6 +223,7 @@ export class Thermal {
         this.kindOf = new Uint8Array(capacity);
         this.temp = new Float64Array(capacity);
         this.heatCap = new Float64Array(capacity);
+        this.effMass = new Float64Array(capacity);
         this.neighbors = new Int16Array(capacity);
         this.submergedMark = new Uint8Array(capacity);
         this.wet = new Uint8Array(capacity);
@@ -341,6 +357,7 @@ export class Thermal {
         stats.pairs = count;
         this.gather(total);
         this.exchangePairs(count, dt);
+        this.condenseOnBodies(total, dt);
         this.exchangeColumns(total, dt);
         if (this.airLosses) {
             this.loseToAir(total, dt);
@@ -401,13 +418,16 @@ export class Thermal {
                 E[i] = full;
                 boiled[i] += excess * dx;
             }
-            if (boiled[i] < batch || this.steamCount >= THERMAL.maxSteam || hh - dh < hMin || E[i] < full * (1 - 1e-9)) continue;
+            const saturated = E[i] >= full * (1 - 1e-9);
+            const eColumn = saturated ? this.eBoil : E[i] / (SIGMA_W * hh);
+            const cost = saturated ? batch : mass * (this.eVapor - eColumn);
+            if (boiled[i] < cost || this.steamCount >= THERMAL.maxSteam || hh - dh < hMin || (!saturated && !this.filmEmission)) continue;
             const u = q[i] / hh;
             if (this.emit(water.center(i), water.b[i] + hh - dh + 1.5 * this.system.GetRadius(), u) < 0) continue;
             h[i] = hh - dh;
             q[i] = u * h[i];
-            E[i] -= (mass * this.eBoil) / dx;
-            boiled[i] -= batch;
+            E[i] -= (mass * eColumn) / dx;
+            boiled[i] -= cost;
             this.steamCount++;
             stats.emitted++;
         }
@@ -441,7 +461,8 @@ export class Thermal {
             this.slotOf[i] = slot;
             this.kindOf[i] = kind;
             this.temp[i] = this.temperature(kind, e);
-            this.heatCap[i] = this.specificHeat(kind, e) * this.mass[kind];
+            this.effMass[i] = this.mass[kind] * Math.max(1e-3, 1 - store.evaporated[slot]);
+            this.heatCap[i] = this.specificHeat(kind, e) * this.effMass[i];
         }
     }
 
@@ -479,8 +500,35 @@ export class Thermal {
             let dE = K * pairW[c] * dT * dt;
             const limit = (Math.abs(dT) * seriesCapacity(this.heatCap[a], this.heatCap[b])) / Math.max(this.neighbors[a], this.neighbors[b]);
             if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
-            store.enthalpy[sa] += dE / this.mass[this.kindOf[a]];
-            store.enthalpy[sb] -= dE / this.mass[this.kindOf[b]];
+            store.enthalpy[sa] += dE / this.effMass[a];
+            store.enthalpy[sb] -= dE / this.effMass[b];
+        }
+    }
+
+    /**
+     * Condensación del vapor sobre cuerpos fríos (techo, paredes, plataformas, robots), que se toman como reservorio a
+     * temperatura ambiente: `K = h_c D b w (T − T_a)` con `h_c` de la piedra fría, multiplicado por `quenchScale`
+     * (tiempo de juego, #186), sin bajar de `e_l`; el calor va a `lost`. El vapor queda mojado, así que al llegar a
+     * `e_l` vuelve a agua (fila `condense`) y gotea, en vez de disolverse como humedad.
+     */
+    condenseOnBodies(total, dt) {
+        const { store, contacts } = this;
+        if (this.quenchScale <= 1) return;
+        const n = contacts.bodies(total);
+        if (n <= 0) return;
+        const K = MATERIALS.heat.condensation.stone * this.diameter * this.thickness * this.quenchScale;
+        const Ta = this.ambient;
+        for (let c = 0; c < n; c++) {
+            const i = contacts.bodyIndex[c];
+            const slot = this.slotOf[i];
+            if (slot < 0 || this.kindOf[i] !== this.kindSteam) continue;
+            this.wet[i] = 1;
+            const e = store.enthalpy[slot];
+            const limit = this.effMass[i] * (e - this.eBoil);
+            if (limit <= 0) continue;
+            const dE = Math.min(limit, K * contacts.bodyW[c] * (this.temperature(this.kindSteam, e) - Ta) * dt);
+            store.enthalpy[slot] = e - dE / this.effMass[i];
+            this.stats.lost += dE;
         }
     }
 
@@ -490,7 +538,7 @@ export class Thermal {
         if (!immersion) return;
         const hDry = water.config.hDry;
         const cWater = MATERIALS.water.c;
-        const coefficient = this.filmBoiling * this.perimeter * this.thickness;
+        const coefficient = this.filmBoiling * this.perimeter * this.thickness * this.quenchScale;
         for (let j = 0; j < immersion.count; j++) {
             const i = immersion.submerged[j];
             if (i >= total) continue;
@@ -510,7 +558,8 @@ export class Thermal {
             const limit = Math.abs(dT) * seriesCapacity(this.specificHeat(kind, e) * this.mass[kind], capColumn * water.dx);
             if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
             store.enthalpy[slot] -= dE / this.mass[kind];
-            water.E[column] += dE / water.dx;
+            if (this.filmEmission && dE > 0 && Tc < this.boilingPoint) water.boiled[column] += dE;
+            else water.E[column] += dE / water.dx;
         }
     }
 
@@ -527,7 +576,7 @@ export class Thermal {
             if (this.family[kind] === 0) continue;
             const e = store.enthalpy[slot];
             const T = this.temperature(kind, e);
-            const power = area * (this.emissivity[kind] * this.stefan * ((T + KELVIN) ** 4 - Tak) + this.convection * (T - Ta));
+            const power = this.timeScale * area * (this.emissivity[kind] * this.stefan * ((T + KELVIN) ** 4 - Tak) + this.convection * (T - Ta));
             let dE = power * dt;
             const limit = this.mass[kind] * Math.abs(e - this.ambientEnthalpy[kind]);
             if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
@@ -547,21 +596,23 @@ export class Thermal {
         const heap = Box2D.HEAPF32;
         const Ta = this.ambient;
         const cm = this.cVapor * this.mass[this.kindSteam];
-        const k = (2 * this.entrainment) / this.plumeRadius;
+        const k = (2 * this.entrainment * this.plumeScale) / this.plumeRadius;
         for (let i = 0; i < total; i++) {
             const slot = this.slotOf[i];
             if (slot < 0 || this.kindOf[i] !== this.kindSteam) continue;
             const y = heap[pos + 2 * i + 1];
             const fresh = this.altitudeGeneration[slot] !== store.generation[slot];
-            const w = fresh ? 0 : Math.max(0, (y - this.altitude[slot]) / dt);
+            const rise = fresh ? 0 : Math.max(0, (y - this.altitude[slot]) / dt);
+            const w = this.plumeScale > 1 ? Math.max(rise, this.steamTerminal) : rise;
             this.altitude[slot] = y;
             this.altitudeGeneration[slot] = store.generation[slot];
             const e = store.enthalpy[slot];
             const T = this.temperature(this.kindSteam, e);
-            let dE = k * w * cm * (T - Ta) * dt;
-            const limit = this.mass[this.kindSteam] * (e - this.eBoil);
+            const share = this.effMass[i] / this.mass[this.kindSteam];
+            let dE = k * w * cm * share * (T - Ta) * dt;
+            const limit = this.effMass[i] * (e - this.eBoil);
             if (dE <= 0) continue;
-            store.enthalpy[slot] = dE >= limit ? this.eBoil : e - dE / this.mass[this.kindSteam];
+            store.enthalpy[slot] = dE >= limit ? this.eBoil : e - dE / this.effMass[i];
             this.stats.lost += Math.min(dE, limit);
         }
     }
@@ -572,7 +623,7 @@ export class Thermal {
         const hDry = water.config.hDry;
         const cWater = MATERIALS.water.c;
         const Ta = this.ambient;
-        const coefficient = this.convection * water.dx * this.thickness;
+        const coefficient = this.convection * water.dx * this.thickness * this.timeScale;
         for (let i = water.i0; i < water.i1; i++) {
             const h = water.h[i];
             if (h <= hDry) continue;
@@ -618,7 +669,7 @@ export class Thermal {
                     kind = this.kindSteam;
                 } else if (kind === this.kindSteam && e <= this.eBoil) {
                     if (this.wet[i] === 0) {
-                        stats.lost += this.mass[kind] * e;
+                        stats.lost += this.effMass[i] * e;
                         stats.humidity++;
                         store.destroy(i, SINK.HUMIDITY);
                         continue;
