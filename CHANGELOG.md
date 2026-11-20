@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-11-20
+
+### Fixed
+- Un golpe bloqueado ya no corta el combo: el combo sigue como antes y el tercer golpe rompe la guardia, ahora sin lanzar ni hacer tropezar al que bloqueaba.
+
 ## [0.37.1] - 2026-11-20
 
 ### Fixed
