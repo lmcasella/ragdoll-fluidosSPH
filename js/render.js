@@ -622,8 +622,7 @@ const MENU_LAYOUT = { rowHeight: 38, labelX: -300, valueX: -110, valueWidth: 200
 
 /**
  * Dibuja las filas del menú principal debajo del cartel del título, en píxeles de pantalla. `rows` es `Menu.view`:
- * la fila elegida va resaltada, el valor elegido entre corchetes, los deshabilitados atenuados con su nota y las filas
- * sin efecto (dificultad sin bots) apagadas.
+ * la fila elegida va resaltada, el valor elegido entre corchetes y los deshabilitados atenuados con su nota.
  */
 export function drawMenu(ctx, width, height, rows) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -632,10 +631,10 @@ export function drawMenu(ctx, width, height, rows) {
     rows.forEach((row, i) => {
         const y = height / 2 + MENU_LAYOUT.top + i * MENU_LAYOUT.rowHeight;
         const x = width / 2;
-        ctx.fillStyle = !row.enabled ? "#555555" : row.selected ? "#ffd84a" : "#dddddd";
+        ctx.fillStyle = row.selected ? "#ffd84a" : "#dddddd";
         ctx.fillText(`${row.selected ? "▶ " : ""}${row.label}`, x + MENU_LAYOUT.labelX, y);
         row.values.forEach((v, j) => {
-            ctx.fillStyle = !row.enabled || v.disabled ? "#555555" : v.chosen ? (row.selected ? "#ffd84a" : "#ffffff") : "#aaaaaa";
+            ctx.fillStyle = v.disabled ? "#555555" : v.chosen ? (row.selected ? "#ffd84a" : "#ffffff") : "#aaaaaa";
             const text = `${v.chosen ? "[" : ""}${v.label}${v.chosen ? "]" : ""}${v.note ? ` (${v.note})` : ""}`;
             ctx.fillText(text, x + MENU_LAYOUT.valueX + j * MENU_LAYOUT.valueWidth, y);
         });
@@ -643,12 +642,49 @@ export function drawMenu(ctx, width, height, rows) {
     drawControlsHelp(ctx, width, height, rows.length);
 }
 
+const ASSIGN_LAYOUT = { columnWidth: 220, rowHeight: 40, top: 60 };
+
+/**
+ * Dibuja la pantalla de asignación de controles en píxeles de pantalla. `view` es `ControlsScreen.view`: tres
+ * columnas (J1, sin jugar, J2) con cada dispositivo en la suya; los gamepads sin sumar se atenúan; debajo, qué jugador
+ * maneja el bot.
+ */
+export function drawControlsScreen(ctx, width, height, view) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const cx = width / 2;
+    const y0 = height / 2 + ASSIGN_LAYOUT.top;
+    ctx.textAlign = "center";
+    ctx.font = "bold 24px Segoe UI";
+    view.columns.forEach((name, c) => {
+        ctx.fillStyle = "#ffd84a";
+        ctx.fillText(name, cx + (c - 1) * ASSIGN_LAYOUT.columnWidth, y0);
+    });
+    ctx.font = "22px Segoe UI";
+    const used = [0, 0, 0];
+    view.devices.forEach((d) => {
+        ctx.fillStyle = d.joined ? "#ffffff" : "#777777";
+        const row = used[d.column]++;
+        ctx.fillText(d.label, cx + (d.column - 1) * ASSIGN_LAYOUT.columnWidth, y0 + ASSIGN_LAYOUT.rowHeight * (row + 1));
+    });
+    const lines = [
+        view.bots.length ? `Maneja el bot: ${view.bots.map((k) => `J${k + 1}`).join(" y ")}` : "Sin bots",
+        "Cada dispositivo se mueve con su stick, cruceta o A/D · Select o A suma el gamepad",
+        "Start / Enter / A empezar · B / Esc volver",
+    ];
+    ctx.font = "16px Segoe UI";
+    lines.forEach((line, i) => {
+        ctx.fillStyle = i === 0 ? "#dddddd" : "#aaaaaa";
+        ctx.fillText(line, cx, y0 + ASSIGN_LAYOUT.rowHeight * 4 + i * 24);
+    });
+    ctx.textAlign = "left";
+}
+
 /** Líneas de ayuda de controles del menú principal (#163): ya no se muestran durante la partida. */
 export const CONTROLS_HELP = [
     "Armas: 1 Agua · 2 Ácido · 3 Lava · 4 Miel · se recogen en el mapa",
-    "Gamepad: stick izq. mover · arriba saltar · stick der. apuntar · A/RT disparar (mantener) · X golpe · LB/RB arma",
-    "Teclado J1: A/D · W · Espacio · F golpe · 1-4 · mouse apunta, clic mantenido dispara",
-    "Teclado J2: ←/→ · ↑ · Enter · Num 5 golpe · Num − bloqueo · Num 1-4",
+    "Gamepad: stick izq. mover · A saltar · stick der. apuntar · RT disparar (mantener) · B golpe · X gancho · LB/RB arma",
+    "Teclado y mouse: A/D mover · Espacio saltar · Shift bloquear · F golpe · E o clic der. gancho · mouse apunta, clic izq. dispara",
+    "Teclado: Q arma anterior (mantenida: rueda con el mouse) · R siguiente · 1-4 directa · Esc Start",
     "Caer a la pileta = robot destruido · Al mejor de 3 rondas",
 ];
 

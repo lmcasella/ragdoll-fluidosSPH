@@ -67,7 +67,7 @@
             import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
             import { Bot, botConfig } from "./js/bot.js";
-            import { Menu } from "./js/menu.js";
+            import { Menu, ControlsScreen } from "./js/menu.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
@@ -109,6 +109,7 @@
                 drawHud,
                 drawLevel,
                 drawMenu,
+                drawControlsScreen,
                 drawStageBanner,
                 drawParticles,
                 drawPickups,
@@ -285,7 +286,9 @@
             const bots = new Map();
             const botParam = new URLSearchParams(globalThis.location?.search ?? "").get("bot");
             const urlBots = botParam === null ? null : botParam.split(",").map((n) => Number(n) - 1).filter((k) => k >= 0 && k < players.length);
-            const menu = new Menu({ storage: menuStorage(), bots: urlBots });
+            const menu = new Menu({ storage: menuStorage() });
+            const asignacion = new ControlsScreen({ storage: menuStorage() });
+            let pantalla = "menu";
 
             /** `localStorage`, o `null` si el navegador lo bloquea (acceder a la propiedad puede lanzar). */
             function menuStorage() {
@@ -296,7 +299,7 @@
                 }
             }
 
-            /** Quita todos los bots y devuelve sus jugadores al gamepad o teclado. */
+            /** Quita todos los bots y devuelve sus jugadores a sus dispositivos. */
             function quitarBots() {
                 bots.clear();
                 players.forEach((_, k) => input.setVirtualPad(k, null));
@@ -305,8 +308,8 @@
             /** Semilla de los bots: `?seed=N` en la URL la fija para reproducir una partida; si no, es aleatoria. */
             const botSeed = Number.parseInt(new URLSearchParams(globalThis.location?.search ?? "").get("seed") ?? "", 10);
 
-            /** Deja los bots que pide la elección del menú, con el preset de su dificultad. */
-            function ponerBots({ bots: ks, difficulty }) {
+            /** Deja un bot en cada jugador de `ks`, con el preset de su dificultad. */
+            function ponerBots(ks, difficulty) {
                 quitarBots();
                 const config = botConfig(difficulty);
                 for (const k of ks) {
@@ -462,10 +465,14 @@
                 firstFrame = true;
             }
 
-            /** Arranca la partida con la elección actual del menú: bots con su preset, marcador en cero y ronda nueva. */
+            /**
+             * Arranca la partida con la elección actual del menú y la asignación de controles: los jugadores sin
+             * dispositivo (o los de `?bot=`) los maneja el bot con la dificultad elegida; marcador en cero y ronda nueva.
+             */
             function arrancarPartida() {
                 aplicarMapa(menu.choice.map);
-                ponerBots(menu.choice);
+                input.setAssignment(asignacion.assignment);
+                ponerBots(urlBots ?? asignacion.bots, menu.choice.difficulty);
                 match.begin();
                 reiniciarRonda();
             }
@@ -593,7 +600,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, arrancarPartida,
+                    asignacion, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -617,11 +624,28 @@
                 raycaster.count = 0;
                 if (input.padButton) audio.unlock();
 
-                if (enTitulo && menu.update(input.menu) === "play") arrancarPartida();
+                if (enTitulo) {
+                    const dispositivos = input.devices.map((d) => d.id);
+                    if (pantalla === "asignacion") {
+                        asignacion.sync(dispositivos);
+                        const salida = asignacion.update(input.devices);
+                        if (salida === "start") {
+                            asignacion.save();
+                            arrancarPartida();
+                        } else if (salida === "back") pantalla = "menu";
+                    } else if (menu.update(input.menu) === "play") {
+                        asignacion.open(dispositivos);
+                        if (urlBots) arrancarPartida();
+                        else pantalla = "asignacion";
+                    }
+                }
                 if (match.update(players, inputs, frameDt) === "reset") {
                     reiniciarRonda();
                 }
-                if (!enTitulo && match.state === "title") menu.reset();
+                if (!enTitulo && match.state === "title") {
+                    menu.reset();
+                    pantalla = "menu";
+                }
                 controls = match.controlsActive ? inputs : inputs.map(neutro);
                 if (!match.controlsActive) jumpPending.fill(false);
                 if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
@@ -783,7 +807,8 @@
                 if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
                     drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));
                 }
-                if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
+                if (match.state === "title" && pantalla === "asignacion") drawControlsScreen(hudCtx, hudCanvas.width, hudCanvas.height, asignacion.view);
+                else if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);
