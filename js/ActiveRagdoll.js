@@ -6,9 +6,24 @@ export const MAX_HP = 100;
 
 /**
  * Empuje por daño acumulado (#162, solo Infinito): todo impulso de golpe o chorro que recibe un robot se multiplica por
- * `1 + scale · daño% / 100`; con `scale` = 1, 100 % de daño duplica el empuje.
+ * `1 + scale · daño% / 100`; con `scale` = 1, 100 % de daño duplica el empuje. `maxPct` (%) es el tope del daño
+ * acumulado (#228); `maxSpeed` (m/s) es la velocidad que ninguna pieza supera por causa del impulso extra del empuje.
  */
-export const KNOCKBACK = { scale: 1 };
+export const KNOCKBACK = { scale: 1, maxPct: 500, maxSpeed: 25 };
+
+/**
+ * Mayor fracción `t` de [0, 1] con la que se puede sumar el cambio de velocidad `(dx, dy)` a la velocidad `(vx, vy)` sin
+ * que la rapidez pase de `max(limit, |v|)`: una pieza ya más rápida que `limit` no gana rapidez por el extra.
+ */
+export function extraScale(vx, vy, dx, dy, limit) {
+    const a = dx * dx + dy * dy;
+    if (a === 0) return 1;
+    const b = 2 * (vx * dx + vy * dy);
+    const speed2 = vx * vx + vy * vy;
+    const c = speed2 - Math.max(limit * limit, speed2);
+    const t = (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a);
+    return Math.min(1, Math.max(0, t));
+}
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
@@ -116,7 +131,7 @@ export class ActiveRagdoll {
 
         // Estados del jugador
         this.hp = MAX_HP;
-        /** Verdadero en Infinito: la vida es el daño acumulado `damagePct` (%, sin tope) y solo el agua mata. */
+        /** Verdadero en Infinito: la vida es el daño acumulado `damagePct` (%, con tope `KNOCKBACK.maxPct`) y solo el agua mata. */
         this.accumulates = false;
         this.damagePct = 0;
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
@@ -379,11 +394,23 @@ export class ActiveRagdoll {
 
     // Empuje del robot entero: suma la misma velocidad a todas sus piezas (como el salto). Un impulso
     // sobre una sola pieza de 1 kg apenas mueve a un robot de 13 piezas.
-    knockback(vx, vy) {
+    /**
+     * Suma `(vx, vy)` m/s a todas las piezas y, con `factor` > 1, además `(factor − 1)` veces ese cambio, recortado por
+     * pieza para que ninguna supere `KNOCKBACK.maxSpeed` por causa del extra.
+     */
+    knockback(vx, vy, factor = 1) {
+        const extra = factor - 1;
         for (const body of this.rag.bodies.values()) {
             const v = body.GetLinearVelocity();
-            this.scratch.set_x(v.get_x() + vx);
-            this.scratch.set_y(v.get_y() + vy);
+            let x = v.get_x() + vx;
+            let y = v.get_y() + vy;
+            if (extra > 0) {
+                const t = extraScale(x, y, vx * extra, vy * extra, KNOCKBACK.maxSpeed);
+                x += vx * extra * t;
+                y += vy * extra * t;
+            }
+            this.scratch.set_x(x);
+            this.scratch.set_y(y);
             body.SetLinearVelocity(this.scratch);
         }
     }
@@ -506,7 +533,7 @@ export class ActiveRagdoll {
 
     takeDamage(amount) {
         if (this.accumulates) {
-            this.damagePct += amount;
+            this.damagePct = Math.min(KNOCKBACK.maxPct, this.damagePct + amount);
             return;
         }
         this.hp -= amount;

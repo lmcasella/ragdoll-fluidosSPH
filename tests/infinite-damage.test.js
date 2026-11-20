@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { BUTTON, AIM_RIGHT, startDuel, run } from "./helpers/duel.js";
 
-const { KNOCKBACK, MAX_HP } = await import("../js/ActiveRagdoll.js");
+const { KNOCKBACK, MAX_HP, extraScale } = await import("../js/ActiveRagdoll.js");
 const { REPAIR } = await import("../js/pickups.js");
 const { MELEE } = await import("../js/melee.js");
 
@@ -161,3 +161,70 @@ test("Infinito: una ronda de dos bots termina por agua y no por daño", { timeou
     assert.ok(loser, "alguien murió");
     assert.equal(loser.drowned, true, "murió ahogado");
 });
+
+test("Daño acumulado: se satura en KNOCKBACK.maxPct con daño forzado de 10.000", async () => {
+    const game = await infinite();
+    const [p1] = game.state.players;
+    assert.equal(KNOCKBACK.maxPct, 500);
+    p1.takeDamage(10000);
+    assert.equal(p1.damagePct, 500);
+    p1.hurt("b_1", 10000);
+    assert.equal(p1.damagePct, 500);
+    p1.repair(100);
+    assert.equal(p1.damagePct, 400);
+    p1.takeDamage(10000);
+    assert.equal(p1.damagePct, 500);
+    assert.equal(p1.knockbackFactor, 6);
+});
+
+test("extraScale: recorta el extra para no pasar del límite y no suma rapidez a una pieza ya más rápida", () => {
+    assert.equal(extraScale(0, 0, 10, 0, 25), 1);
+    assert.equal(extraScale(0, 0, 0, 0, 25), 1);
+    const t = extraScale(20, 0, 10, 0, 25);
+    assert.ok(Math.abs(t - 0.5) < 1e-9, `t ${t}`);
+    assert.equal(extraScale(30, 0, 10, 0, 25), 0);
+    assert.equal(extraScale(30, 0, -10, 0, 25), 1);
+    assert.ok(Math.hypot(20 + 10 * extraScale(20, 0, 10, 5, 25), 5 * extraScale(20, 0, 10, 5, 25)) <= 25 + 1e-9);
+});
+
+/** Rapidez máxima (m/s) de las piezas de `player` en este instante. */
+function peakSpeed(player) {
+    let peak = 0;
+    for (const body of player.rag.bodies.values()) {
+        const v = body.GetLinearVelocity();
+        peak = Math.max(peak, Math.hypot(v.get_x(), v.get_y()));
+    }
+    return peak;
+}
+
+test("Con 500 % de daño, un golpe y un chorro de 2 s no pasan de 25 m/s, sin NaN y con el robot entero", { timeout: 120000 }, async (t) => {
+    const game = await startDuel(0.8);
+    const [p1, p2] = game.state.players;
+    accumulate(p2, KNOCKBACK.maxPct);
+    const bodies = p2.rag.bodies.size;
+    const fixtures = p2.countFixtures();
+    let peak = 0;
+    let finite = true;
+    const watch = () => {
+        peak = Math.max(peak, peakSpeed(p2));
+        for (const body of p2.rag.bodies.values()) {
+            const pos = body.GetPosition();
+            if (!Number.isFinite(pos.get_x()) || !Number.isFinite(pos.get_y())) finite = false;
+        }
+    };
+    const hits = run(game, 40, (f) => game.setPad(0, { buttons: f === 0 ? [BUTTON.B] : [], axes: AIM_RIGHT }), watch);
+    assert.ok(hits.length >= 1, "el golpe conecta");
+    const afterHit = peak;
+    game.setPad(0);
+    game.frames(30);
+    run(game, 120, () => game.setPad(0, { buttons: [BUTTON.RT], axes: AIM_RIGHT }), watch);
+    t.diagnostic(`500 %: pico tras el golpe ${afterHit.toFixed(2)} m/s, pico con el chorro ${peak.toFixed(2)} m/s`);
+    assert.ok(p1.tanks.size > 0);
+    assert.equal(finite, true, "sin NaN");
+    assert.ok(peak <= KNOCKBACK.maxSpeed + 1e-3, `pico ${peak}`);
+    assert.equal(p2.rag.bodies.size, bodies);
+    assert.equal(p2.countFixtures(), fixtures);
+    assert.equal(p2.damagePct, 500);
+});
+
+

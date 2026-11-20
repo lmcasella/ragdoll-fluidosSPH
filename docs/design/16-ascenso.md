@@ -7,7 +7,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 ## 16.1 Qué es
 
 - Mapa **Infinito** en la fila Mapa del menú: habilitado y default. **Clásico** no cambia y queda como mapa de testing. Rondas y partida sin cambios ([02](02-partida.md)).
-- **Daño acumulado (#162):** en Infinito la vida es un % que arranca en 0 y no tiene tope; todo daño suma %. El empuje de golpes y chorros se multiplica por `1 + KNOCKBACK.scale · %/100` (`scale` 1). El daño no mata: se muere ahogado. La reparación y el premio por etapa restan %. El HUD muestra el %.
+- **Daño acumulado (#162):** en Infinito la vida es un % que arranca en 0 y satura en `KNOCKBACK.maxPct` = 500 (#228); todo daño suma %. El empuje de golpes y chorros se multiplica por `1 + KNOCKBACK.scale · %/100` (`scale` 1), y el extra se recorta para que ninguna pieza pase de `KNOCKBACK.maxSpeed` = 25 m/s. El daño no mata: se muere ahogado. La reparación y el premio por etapa restan %. El HUD muestra el %.
 - **Sin mapa sólido abajo:** no hay islas, pileta, piso ni plataformas del clásico. Solo hay paredes a los costados y plataformas atravesables en el medio. El agua del campo arranca en y = 2 m sobre todo el ancho, con lecho plano en 0.
 - **Etapas** de 15 m (etapa `n` = altura local `y` ∈ [15n, 15n + 15)) con paredes propias y plataformas atravesables generadas con semilla, **por ramas**: altura, ancho e irregularidad variables y sin justicia entre lados.
 - **Aparición cercana:** cada jugador arranca sobre una plataforma al azar de la etapa 0, a 4–10 m del otro.
