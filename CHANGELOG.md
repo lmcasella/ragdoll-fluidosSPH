@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-11-20
+
+### Fixed
+- En Infinito aparecen de 8 a 13 plataformas en cada 10 m de alto (antes de 3 a 7), repartidas por todo el ancho. Cada plataforma tiene una vecina alcanzable arriba y otra a su altura o abajo, y ninguna queda a más de 6 m en horizontal de las de abajo: el alcance ya no depende de la semilla.
+
 ## [0.36.0] - 2026-11-20
 
 ### Added

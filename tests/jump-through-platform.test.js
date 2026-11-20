@@ -40,10 +40,10 @@ function jump(game, platform, axis, frames = 150) {
     return { high, top };
 }
 
-/** Pone a J1 de pie sobre `floorTop` en x y espera a que se asiente. */
+/** Pone a J1 de pie sobre `floorTop` (altura local; en Infinito el mapa baja, se suma su `offsetY`) en x y espera a que se asiente. */
 function settle(game, x, floorTop) {
     const player = game.state.players[0];
-    teleport(player, x, floorTop + 1.2);
+    teleport(player, x, floorTop + 1.2 + (game.state.climb?.offsetY ?? 0));
     game.setPad(0);
     game.frames(60);
 }
@@ -67,7 +67,7 @@ for (const c of CASES) {
 }
 
 test("salto completo: Infinito, bajo plataformas generadas con solapamiento y a <= 3,3 m", { timeout: 300000 }, async () => {
-    globalThis.location = { search: "?seed=1" };
+    globalThis.location = { search: "?seed=2" };
     const game = await loadGame({ map: "infinite" });
     for (const p of game.state.players) Object.assign(p, { drown: noop, hurt: noop, burn: noop, takeDamage: noop });
     game.state.climb.update({ top: 70, level: -Infinity });

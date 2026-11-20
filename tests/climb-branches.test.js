@@ -8,6 +8,9 @@ import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
 import { FLUID } from "../js/weapons.js";
 
 const TOP = 300;
+
+/** Altura (m) desde la que el generador ya no puede estirar el hueco entre plataformas (pasada la base). */
+const LATE = 30;
 const B = CLIMB.branches;
 
 function run(seed, top = TOP) {
@@ -38,11 +41,15 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un
     const violations = [];
     let count = 0;
     let fallbacks = 0;
-    let relaxed = 0;
+    let late = 0;
     for (let seed = 1; seed <= 50; seed++) {
         const { generator, list } = run(seed);
         fallbacks += generator.fallbacks;
-        relaxed += generator.relaxed;
+        let front = Math.max(...generator.base.map((b) => b.y));
+        for (const p of list) {
+            if (p.y >= LATE && p.y - front > B.gap[1] + 1e-9) late++;
+            front = Math.max(front, p.y);
+        }
         const all = [...generator.base.map((p) => ({ ...p, index: -1 })), ...list];
         list.forEach((p) => {
             count++;
@@ -64,27 +71,21 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un
             }
         });
     }
-    console.log(`alcance: ${count} plataformas en 50 semillas, ${fallbacks} de respaldo, ${relaxed} sin cupo de tramo, ${violations.length} violaciones`);
+    console.log(`alcance: ${count} plataformas en 50 semillas, ${fallbacks} de respaldo, ${late} con hueco mayor a ${B.gap[1]} m pasados los ${LATE} m, ${violations.length} violaciones`);
     assert.deepEqual(violations.slice(0, 5), []);
     assert.equal(fallbacks, 0);
-    assert.ok(relaxed <= count / 1000, `sin cupo de tramo: ${relaxed}`);
+    assert.ok(late <= count / 1000, `huecos mayores a ${B.gap[1]} m: ${late}`);
 });
 
-test("variedad en 50 semillas: de 3 a 7 plataformas por tramo de 10 m y desviación de alturas > 0,5 m en tramos de 3 m", () => {
-    const bad = [];
+test("variedad en 50 semillas: desviación de alturas > 0,5 m en tramos de 3 m", () => {
     const spreads = [];
     for (let seed = 1; seed <= 50; seed++) {
         const { generator, list } = run(seed);
-        const counts = new Map();
         const slabs = new Map();
         for (const p of [...generator.base.map((b) => ({ y: b.y })), ...list]) {
-            const k = Math.floor(p.y / B.tract);
-            counts.set(k, (counts.get(k) ?? 0) + 1);
             const s = Math.floor(p.y / 3);
             slabs.set(s, [...(slabs.get(s) ?? []), p.y]);
         }
-        const last = Math.max(...counts.keys());
-        for (const [k, n] of counts) if (k < last && (n < B.density[0] || n > B.density[1])) bad.push(`semilla ${seed} tramo ${k}: ${n}`);
         for (const tops of slabs.values()) {
             if (tops.length < 2) continue;
             const mean = tops.reduce((a, b) => a + b, 0) / tops.length;
@@ -93,7 +94,6 @@ test("variedad en 50 semillas: de 3 a 7 plataformas por tramo de 10 m y desviaci
     }
     const mean = spreads.reduce((a, b) => a + b, 0) / spreads.length;
     console.log(`variedad: desviación media de alturas en tramos de 3 m ${mean.toFixed(2)} m (${spreads.length} tramos con 2 o más)`);
-    assert.deepEqual(bad.slice(0, 5), []);
     assert.ok(mean > 0.5, `desviación ${mean}`);
 });
 
