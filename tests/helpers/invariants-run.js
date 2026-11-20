@@ -45,7 +45,10 @@ const BUTTON_NEXT_WEAPON = 5;
 
 export const SPECIES = ["H2O", "H2SO4", "honey", "basalt"];
 export const MATERIAL_NAMES = ["water", "acid", "honey", "lava"];
-const KIND_OF = { water: FLUID.WATER, acid: FLUID.ACID, honey: FLUID.HONEY, lava: FLUID.LAVA, stone: FLUID.STONE };
+const KIND_OF = { water: FLUID.WATER, acid: FLUID.ACID, honey: FLUID.HONEY, lava: FLUID.LAVA, stone: FLUID.STONE, steam: FLUID.STEAM };
+
+/** Materiales fuera de `MATERIAL_NAMES` que también llevan especies: la piedra (basalto) y el vapor (H2O). */
+const EXTRA_NAMES = ["stone", "steam"];
 
 /** Serie de una medida: cuántas evaluaciones, cuántas fallaron, el peor valor y en qué paso. */
 export class Track {
@@ -90,17 +93,21 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     const { water, store, immersion, flood, match, particleSystem, players } = g;
     const startSeconds = LEVEL.flood.start - leadSeconds;
     const area = immersion.area;
-    const mass = Object.fromEntries([...MATERIAL_NAMES, "stone"].map((n) => [n, MATERIALS[n].SG * SIGMA_W * area]));
-    const reacted = (n) => REACTIONS.reduce((a, r) => a + g.thermal.stats.advance[r.id] * ((r.to[n] ?? 0) - (r.from[n] ?? 0)), 0);
+    const ALL_NAMES = [...MATERIAL_NAMES, ...EXTRA_NAMES];
+    const mass = Object.fromEntries(ALL_NAMES.map((n) => [n, MATERIALS[n].SG * SIGMA_W * area]));
+    const fieldToSteam = () => g.thermal.stats.emitted * mass.steam - store.destroyed[SINK.ABSORBED][FLUID.STEAM] * mass.steam;
+    const reacted = (n) =>
+        REACTIONS.reduce((a, r) => a + g.thermal.stats.advance[r.id] * ((r.to[n] ?? 0) - (r.from[n] ?? 0)), 0) +
+        (n === "steam" ? fieldToSteam() : n === "water" ? -fieldToSteam() : 0);
     const allowed = new Set(REACTIONS.map((r) => `${KIND_OF[Object.keys(r.from)[0]]}>${KIND_OF[Object.keys(r.to)[0]]}`));
     const kindIndex = new Map(MATERIAL_NAMES.map((n, k) => [KIND_OF[n], k]));
     for (const [id, entry] of Object.entries(KIND_MATERIAL)) {
-        const name = [...MATERIAL_NAMES, "stone"].find((n) => MATERIALS[n] === entry.material);
+        const name = ALL_NAMES.find((n) => MATERIALS[n] === entry.material);
         if (KIND_OF[name] !== Number(id)) throw new Error("KIND_MATERIAL no coincide con los materiales de la prueba");
     }
-    const field0 = { water: SIGMA_W * water.volume(), acid: 0, honey: 0, lava: 0, stone: 0 };
+    const field0 = { water: SIGMA_W * water.volume(), acid: 0, honey: 0, lava: 0, stone: 0, steam: 0 };
     const lightest = Object.fromEntries(
-        SPECIES.map((s) => [s, Math.min(...[...MATERIAL_NAMES, "stone"].filter((n) => MATERIALS[n].species[s] > 0).map((n) => MATERIALS[n].species[s] * mass[n]))]),
+        SPECIES.map((s) => [s, Math.min(...ALL_NAMES.filter((n) => MATERIALS[n].species[s] > 0).map((n) => MATERIALS[n].species[s] * mass[n]))]),
     );
 
     const result = {
@@ -158,6 +165,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     const drawn = new Float64Array(MATERIAL_NAMES.length);
     const alive = new Float64Array(MATERIAL_NAMES.length);
     let stoneAlive = 0;
+    let steamAlive = 0;
     const evaporatedLive = new Float64Array(MATERIAL_NAMES.length);
     const round0 = match.round;
     let measuring = false;
@@ -175,6 +183,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         evaporatedLive.fill(0);
         let slotChanges = 0;
         stoneAlive = 0;
+        steamAlive = 0;
         for (let slot = 0; slot < store.capacity; slot++) {
             if (store.alive[slot] === 0) continue;
             if (store.kind[slot] !== expectedKind[slot]) {
@@ -184,6 +193,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
                 } else slotChanges++;
             }
             if (store.kind[slot] === FLUID.STONE) stoneAlive++;
+            if (store.kind[slot] === FLUID.STEAM) steamAlive++;
             const k = kindIndex.get(store.kind[slot]);
             if (k !== undefined) {
                 alive[k]++;
@@ -201,6 +211,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
             honey: MATERIALS.honey.SG * SIGMA_W * honeyField,
             lava: 0,
             stone: 0,
+            steam: 0,
         };
         const P = {};
         const out = {};
@@ -214,10 +225,13 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         P.stone = stoneAlive * mass.stone;
         out.stone = store.destroyed[SINK.OUT][FLUID.STONE] * mass.stone;
         inj.stone = store.created[FLUID.STONE] * mass.stone;
+        P.steam = steamAlive * mass.steam;
+        out.steam = store.destroyed[SINK.OUT][FLUID.STEAM] * mass.steam;
+        inj.steam = (store.created[FLUID.STEAM] - g.thermal.stats.emitted) * mass.steam;
         for (const s of SPECIES) {
             let den = 0;
             let sum = 0;
-            for (const n of [...MATERIAL_NAMES, "stone"]) {
+            for (const n of ALL_NAMES) {
                 const w = MATERIALS[n].species[s] ?? 0;
                 den += w * (field0[n] + inj[n]);
                 sum += w * (P[n] + field[n] + out[n] - field0[n] - inj[n]);
