@@ -1,0 +1,159 @@
+import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { LEVEL } from "../../js/level.js";
+import { WEAPONS } from "../../js/weapons.js";
+import { fieldColor } from "../../js/render.js";
+
+const CIRCLE = 0;
+const POLYGON = 2;
+
+const round = (v) => Math.round(v * 1000) / 1000;
+
+/** Color RGB entero de cada material, de la tabla de armas: el visor dibuja con él. */
+const KIND_COLOR = new Map(WEAPONS.map((w) => [w.id, (w.color[0] << 16) | (w.color[1] << 8) | w.color[2]]));
+
+/**
+ * Formas de una pieza en su marco local (metros). Corre una sola vez por pieza, al empezar a grabar: los
+ * wrappers de Box2D que usa son referencias a objetos del mundo y no se destruyen.
+ */
+function localShapes(body) {
+    const shapes = [];
+    for (let f = body.GetFixtureList(); Box2D.getPointer(f) !== 0; f = f.GetNext()) {
+        const shape = f.GetShape();
+        const type = shape.GetType();
+        if (type === POLYGON) {
+            const poly = Box2D.castObject(shape, Box2D.b2PolygonShape);
+            const verts = [];
+            for (let i = 0; i < poly.GetVertexCount(); i++) {
+                const v = poly.GetVertex(i);
+                verts.push([round(v.get_x()), round(v.get_y())]);
+            }
+            shapes.push({ poly: verts });
+        } else if (type === CIRCLE) {
+            const circle = Box2D.castObject(shape, Box2D.b2CircleShape);
+            const c = circle.get_m_p();
+            shapes.push({ circle: [round(c.get_x()), round(c.get_y()), round(circle.get_m_radius())] });
+        }
+    }
+    return shapes;
+}
+
+/**
+ * Graba un escenario del juego, un registro por frame, para reproducirlo en `tests/tools/viewer.html`.
+ * Las partículas se leen de los buffers `HEAPF32`/`HEAP32` y de las piezas solo se piden posición y ángulo:
+ * grabar no crea objetos `Box2D.*` por frame.
+ *
+ * Formato: `{ meta, frames }`. `meta` trae `view` [x0, y0, x1, y1], `dt`, los `solids` del nivel como
+ * { x, y, w, h }, las `systems` con su radio y las `pieces` con su forma local. Cada frame trae `t`,
+ * `particles` (por sistema: `x`, `y`, `color` RGB entero que identifica el material y `tag`). En los sistemas con
+ * `ParticleStore` el material sale de `store.kind` (el color se deriva de la tabla de armas) y `tag` es `store.shot`;
+ * en el resto, `color` y `tag` se leen de los buffers del motor.
+ * `pieces` ([x, y, ángulo] en el orden de `meta.pieces`) y `eta`: el perfil `η = b + h` del campo de alturas por
+ * celda (vacío si el `Recorder` no recibió `water`); `meta.field` trae `{ x0, dx, n }` para ubicar las celdas.
+ * Si el campo tiene ácido (`water.acid() > 0`), el frame suma `tint`: el RGB entero de `fieldColor` por celda (#98).
+ *
+ * `systems` es un objeto { nombre: particleSystem }; `stores` un objeto { nombre: ParticleStore } para los
+ * sistemas que lo tienen; `pieces` un objeto { id: body }; `water` (opcional) el `ShallowWater` del que sale `eta`.
+ */
+export class Recorder {
+    constructor({ name, systems, stores = {}, pieces, water = null, dt = 1 / 60, view = [-1, -1, 57, 18], solids = LEVEL.solids }) {
+        this.name = name;
+        this.water = water;
+        this.systems = Object.entries(systems);
+        this.stores = new Map(Object.entries(stores));
+        this.pieces = Object.entries(pieces);
+        this.dt = dt;
+        this.frames = [];
+        this.meta = {
+            name,
+            view,
+            dt,
+            solids: solids.map(({ x, y, w, h }) => ({ x, y, w, h })),
+            systems: this.systems.map(([id, system]) => ({ id, radius: round(system.GetRadius()) })),
+            pieces: this.pieces.map(([id, body]) => ({ id, shapes: localShapes(body) })),
+        };
+        if (water) this.meta.field = { x0: water.x0, dx: water.dx, n: water.N, beds: Array.from(water.b) };
+    }
+
+    /** Agrega el estado actual del mundo como un frame nuevo. `eta` reemplaza al perfil que se lee de `water`. */
+    capture(eta = this.water ? this.profile() : []) {
+        const particles = this.systems.map(([id, system]) => {
+            const count = system.GetParticleCount();
+            const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+            const col = Box2D.getPointer(system.GetColorBuffer());
+            const tags = system.GetUserDataBuffer() >> 2;
+            const store = this.stores.get(id);
+            const x = new Array(count);
+            const y = new Array(count);
+            const color = new Array(count);
+            const tag = new Array(count);
+            for (let i = 0; i < count; i++) {
+                x[i] = round(Box2D.HEAPF32[pos + 2 * i]);
+                y[i] = round(Box2D.HEAPF32[pos + 2 * i + 1]);
+                if (store) {
+                    const slot = store.slotAt(i);
+                    color[i] = slot >= 0 ? (KIND_COLOR.get(store.kind[slot]) ?? 0) : 0;
+                    tag[i] = slot >= 0 ? store.shot[slot] : 0;
+                } else {
+                    color[i] = (Box2D.HEAPU8[col + 4 * i] << 16) | (Box2D.HEAPU8[col + 4 * i + 1] << 8) | Box2D.HEAPU8[col + 4 * i + 2];
+                    tag[i] = Box2D.HEAP32[tags + i];
+                }
+            }
+            return { id, x, y, color, tag };
+        });
+        const pieces = this.pieces.map(([, body]) => {
+            const p = body.GetPosition();
+            return [round(p.get_x()), round(p.get_y()), round(body.GetAngle())];
+        });
+        const frame = { t: round(this.frames.length * this.dt), particles, pieces, eta };
+        if (this.water && this.water.acid() > 0) frame.tint = this.tints();
+        this.frames.push(frame);
+    }
+
+    /** Color de `fieldColor` por celda del campo, RGB entero (el visor lo dibuja como relleno del agua). */
+    tints() {
+        const { N } = this.water;
+        const out = [0, 0, 0];
+        const tint = new Array(N);
+        for (let i = 0; i < N; i++) {
+            fieldColor(this.water, this.water.center(i), out);
+            tint[i] = (out[0] << 16) | (out[1] << 8) | out[2];
+        }
+        return tint;
+    }
+
+    /** Perfil `η` del campo de alturas por celda (m), redondeado a 0,1 mm. */
+    profile() {
+        const { N, b, h } = this.water;
+        const eta = new Array(N);
+        for (let i = 0; i < N; i++) eta[i] = Math.round((b[i] + h[i]) * 1e4) / 1e4;
+        return eta;
+    }
+
+    /** Escribe la grabación en `file` como JSON y devuelve su ruta. */
+    save(file) {
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, JSON.stringify({ meta: this.meta, frames: this.frames }));
+        return file;
+    }
+}
+
+/**
+ * Arma un `Recorder` sobre el estado de `loadGame()`: el sistema de partículas, el campo de alturas y las piezas de ambos robots.
+ * Hay que crearlo después de los frames iniciales; si la ronda reinicia, las piezas ya no son las mismas.
+ */
+export function recordGame(game, name, options = {}) {
+    const { particleSystem, water, store, players } = game.state;
+    const pieces = {};
+    players.forEach((player, k) => {
+        for (const [id, body] of player.rag.bodies.entries()) pieces[`j${k + 1}:${id}`] = body;
+    });
+    return new Recorder({
+        name,
+        systems: { disparos: particleSystem },
+        stores: { disparos: store },
+        pieces,
+        water,
+        ...options,
+    });
+}
