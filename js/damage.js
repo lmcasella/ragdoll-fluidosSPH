@@ -7,6 +7,7 @@
 import { FLUID, WEAPONS, SHOT_SYSTEM, particleDamage } from "./weapons.js";
 import { SINK } from "./particleStore.js";
 import { MATERIALS } from "./materials.js";
+import { KNOCKBACK, extraScale } from "./ActiveRagdoll.js";
 
 /**
  * Masa (kg) de una partícula de disparo, `σ · (2r)²`: con ella se estima el impulso de contacto que LiquidFun ya le dio
@@ -229,8 +230,11 @@ export class DamageSystem {
             this.stats.fluidContacts++;
             if ((jx || jy) && !owner.player.dead) {
                 const body = owner.player.rag.bodies.get(owner.bodyId);
-                this.pushImpulse.set_x(jx);
-                this.pushImpulse.set_y(jy);
+                const mass = body.GetMass();
+                const v = body.GetLinearVelocity();
+                const t = extraScale(v.get_x(), v.get_y(), jx / mass, jy / mass, KNOCKBACK.maxSpeed);
+                this.pushImpulse.set_x(jx * t);
+                this.pushImpulse.set_y(jy * t);
                 body.ApplyLinearImpulse(this.pushImpulse, body.GetWorldCenter(), true);
             }
             if (consumed.has(index)) continue;

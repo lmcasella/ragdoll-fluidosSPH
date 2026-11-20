@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.41.3] - 2026-11-20
+
+### Fixed
+- Infinito: el daño acumulado se satura en 500 % (factor de empuje máximo 6) en lugar de crecer sin límite.
+- Infinito: el impulso extra que suma el daño acumulado a golpes y chorros se recorta para que ninguna pieza del robot golpeado supere 25 m/s por su causa; la física del contacto no cambia.
+
 ## [0.41.2] - 2026-11-20
 
 ### Fixed
