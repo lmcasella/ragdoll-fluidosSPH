@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-11-20
+
+### Fixed
+- Al romperse la guardia vuelve la animación de tropiezo (`stumble`) del que bloqueaba; sigue sin el empuje artificial.
+
 ## [0.39.0] - 2026-11-20
 
 ### Added
