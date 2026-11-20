@@ -11,9 +11,6 @@ const BURN_DPS = 4;
 // Cortocircuito (agua): falla de todo el robot, por eso no usa el multiplicador por parte
 const WET_TIME = 3;
 const SHORT_CIRCUIT_DPS = 3;
-// Pegado (miel, docs/design/04-fluidos.md): factores sobre la velocidad de caminar, el frenado sin input y el
-// salto; `down` es gravedad extra (m/s²) y `grace` los s que dura tras la última cercanía a la miel
-export const STICKY = { speed: 0.1, brake: 0.5, jump: 0.3, down: 10, grace: 0.3 };
 const WALK_SPEED = 6;
 const JUMP_SPEED = 9;
 /**
@@ -86,7 +83,6 @@ export class ActiveRagdoll {
 
         // Estados del jugador
         this.hp = MAX_HP;
-        this.stickyTimer = 0; // s restantes de pegado
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
@@ -340,7 +336,6 @@ export class ActiveRagdoll {
         this.hp = old.hp;
         this.weapon = old.weapon;
         this.tanks = old.tanks;
-        this.stickyTimer = old.stickyTimer;
         this.framesGrounded = old.framesGrounded;
         this.jumping = old.jumping;
         this.flashes = old.flashes;
@@ -424,15 +419,6 @@ export class ActiveRagdoll {
         return this.wetTimer > 0;
     }
 
-    // Lo pega al piso por miel (renueva el tiempo); lo dispara DamageSystem.process
-    stick() {
-        this.stickyTimer = STICKY.grace;
-    }
-
-    get sticky() {
-        return this.stickyTimer > 0;
-    }
-
     countFixtures() {
         let n = 0;
         for (const body of this.rag.bodies.values()) {
@@ -478,7 +464,6 @@ export class ActiveRagdoll {
 
     // Estados con duración (quemaduras); una vez por paso fijo
     updateStatus(dt) {
-        if (this.stickyTimer > 0) this.stickyTimer = Math.max(0, this.stickyTimer - dt);
         for (const [bodyId, left] of this.burns) {
             this.hurt(bodyId, BURN_DPS * dt);
             if (left - dt <= 0) this.burns.delete(bodyId);
@@ -654,10 +639,6 @@ export class ActiveRagdoll {
         }
         this.blockHeld = input.block ?? this.blockHeld;
 
-        const sticky = this.sticky;
-        if (sticky) this.pull(STICKY.down * dt);
-        const currentSpeed = sticky ? WALK_SPEED * STICKY.speed : WALK_SPEED;
-
         const vel = this.torso.GetLinearVelocity();
         const velX = vel.get_x();
         const velY = vel.get_y();
@@ -689,29 +670,27 @@ export class ActiveRagdoll {
         let isMoving = false;
         const lunge = this.lungeSpeed(now);
         if (rolling) {
-            this.setVelocity(ROLL.speed * this.rollDir * (sticky ? STICKY.speed : 1), velY);
+            this.setVelocity(ROLL.speed * this.rollDir, velY);
         } else if (lunge !== 0 && this.grounded) {
-            this.setVelocity(lunge * (sticky ? STICKY.speed : 1), velY);
+            this.setVelocity(lunge, velY);
         } else if (!this.isStunned(now)) {
             if (!blocking && input.left && !input.right) {
-                this.setVelocity(-currentSpeed, velY);
+                this.setVelocity(-WALK_SPEED, velY);
                 this.facing = -1;
                 isMoving = true;
             } else if (!blocking && input.right && !input.left) {
-                this.setVelocity(currentSpeed, velY);
+                this.setVelocity(WALK_SPEED, velY);
                 this.facing = 1;
                 isMoving = true;
             } else {
-                const friction = sticky ? STICKY.brake : WALK_FRICTION;
-                this.setVelocity(velX * friction, velY);
+                this.setVelocity(velX * WALK_FRICTION, velY);
             }
         }
 
         if (input.jump && this.framesGrounded > 5 && !this.isStunned()) {
-            const jumpPower = sticky ? JUMP_SPEED * STICKY.jump : JUMP_SPEED;
             for (const body of this.rag.bodies.values()) {
                 this.scratch.set_x(body.GetLinearVelocity().get_x());
-                this.scratch.set_y(jumpPower);
+                this.scratch.set_y(JUMP_SPEED);
                 body.SetLinearVelocity(this.scratch);
             }
             this.framesGrounded = 0;

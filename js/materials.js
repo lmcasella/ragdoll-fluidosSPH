@@ -31,6 +31,8 @@ export const SIGMA_W = 12.0;
  * Morton–Taylor–Turner (#113, rango 0,07–0,13). `heat.condensation` son los `h` (W/(m²·K)) de la condensación por
  * contacto directo del vapor sobre líquidos (agua y ácido) y sobre piedra: el extremo superior de los rangos de las
  * fichas 7 (10⁴–10⁶) y 37 (5·10³–2·10⁴).
+ * Adherencia (#77): `honey.filmFactor` es el factor geométrico de la película viscosa entre una partícula y un cuerpo
+ * (`js/adhesion.js`), medido con una placa que se desliza sobre una capa de miel (Couette), no elegido a ojo.
  * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
@@ -50,7 +52,7 @@ export const MATERIALS = {
     steam: { SG: 1.0, c: 2010, k: 0.025, temperature: 100, rho: 0.598, Cd: 1.0, entrainment: 0.1, miscible: true, species: { H2O: 1 } },
     air: { rho: 1.2 },
     acid: { SG: 1.05, c: 3850, k: 0.6, temperature: 20, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
-    honey: { SG: 1.42, c: 2400, k: 0.5, temperature: 20, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
+    honey: { SG: 1.42, c: 2400, k: 0.5, temperature: 20, mu: 10, filmFactor: 0.998, Cd: 1.2, miscible: false, species: { honey: 1 } },
     lava: {
         SG: 2.6,
         c: 1200,

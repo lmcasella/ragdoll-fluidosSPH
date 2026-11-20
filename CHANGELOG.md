@@ -5,6 +5,14 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-20
+
+### Changed
+- La miel ahora frena al robot por adherencia física y no por una regla de juego: las partículas cerca de cualquier pieza del robot forman una película viscosa que lo arrastra (y que él arrastra a ella), así que cruzar un charco de miel de 9 capas lleva casi el doble que en seco (2,7 m/s contra 5,2 m/s medios en 4 m) y más que con agua (3,9 m/s), y al salir del charco camina normal. El agua casi no se pega. El robot ya no queda "pegado" al piso ni parpadea en ámbar.
+
+### Removed
+- El estado pegado de la miel: salto bajo, velocidad al 10 %, gravedad extra y parpadeo ámbar.
+
 ## [0.36.1] - 2026-11-20
 
 ### Fixed

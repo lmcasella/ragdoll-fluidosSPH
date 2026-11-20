@@ -330,9 +330,9 @@ export class Bot {
         this.fight(me, foe, cur, foeNode, adx, dx, dy, now);
     }
 
-    /** Anota cuándo el robot perdió vida o quedó mojado, pegado o quemado (para la evasión). */
+    /** Anota cuándo el robot perdió vida o quedó mojado o quemado (para la evasión). */
     watchHurt(me, now) {
-        const status = me.wet || me.sticky || me.burns.size > 0;
+        const status = me.wet || me.burns.size > 0;
         if (status || (this.lastHp !== null && me.hp < this.lastHp)) this.hurtAt = now;
         this.lastHp = me.hp;
     }
