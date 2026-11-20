@@ -31,7 +31,7 @@ const extent = (game, k = 0) => game.state.platforms.measure(game.state.platform
 
 /** Camina con el stick izquierdo hasta que el torso pasa `x` en esa dirección y frena un medio segundo. */
 function walkTo(game, x, dir) {
-    game.setPad(0, { axes: [dir, 0, 0, 0] });
+    game.setPad(0, { axes: [dir, 0, dir, 0] });
     for (let i = 0; i < 400 && (dir < 0 ? torsoX(game) > x : torsoX(game) < x); i++) game.frame();
     game.setPad(0);
     game.frames(30);
@@ -183,9 +183,10 @@ test("plataformas: los robots siguen chocando entre sí y con el piso", async ()
 
 test("plataformas: el robot sigue chocando con la pared", async () => {
     const game = await start();
-    game.setPad(0, { axes: [-1, 0, 0, 0] });
+    game.setPad(0, { axes: [-1, 0, -1, 0] });
     game.frames(300);
     game.setPad(0);
+    game.frames(30);
     console.log(`robot en x ${torsoX(game).toFixed(2)} m, borde izquierdo ${extent(game).minX.toFixed(3)} m`);
     assert.ok(extent(game).minX > -0.05, `borde izquierdo: ${extent(game).minX}`);
     assert.ok(Math.abs(extent(game).low - 4) < 0.1, "apoyado en el piso");
