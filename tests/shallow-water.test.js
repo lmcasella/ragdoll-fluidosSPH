@@ -5,6 +5,7 @@ import { ShallowWater, WATER_FIELD } from "../js/water.js";
 import { LEVEL } from "../js/level.js";
 import { SIGMA_W, MATERIALS } from "../js/materials.js";
 import { fieldColor, drawWater } from "../js/render.js";
+import { relativeError as rel } from "../js/debug.js";
 
 const G = 10;
 const DT = 1 / 60;
@@ -37,7 +38,6 @@ function run(water, seconds, onStep) {
     }
 }
 
-const rel = (a, b) => Math.abs(a - b) / Math.abs(b);
 const fmt = (v) => (Math.abs(v) < 1e-3 && v !== 0 ? v.toExponential(3) : Number(v.toPrecision(5)).toString());
 const report = (t, id, measured, expected, tolerance) =>
     t.diagnostic(`${id}: medido ${measured} | esperado ${expected} | tolerancia ${tolerance}`);
