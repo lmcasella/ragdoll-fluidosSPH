@@ -181,7 +181,7 @@ test("U1 (#111): 10 gotas sobre una isla seca; en t = 10, 30 y 60 s el ancho moj
         while (frame < seconds * STEPS_PER_SECOND) tick(game, recorder, frame++);
         const absorbed = store.destroyed[SINK.ABSORBED][FLUID.WATER];
         const injected = absorbed * immersion.area;
-        const gained = water.volume() - v0;
+        const gained = water.volume() - v0 - water.stats.sourced;
         const { wet, thin, minInterior } = wetSurvey(water);
         const limit = injected / WATER_FIELD.hMin + 2 * water.dx;
         const conserved = Math.abs(gained - injected) / injected;
