@@ -479,7 +479,7 @@ export class Bot {
             if (adx >= cfg.airRange || dy >= -cfg.airDrop) return false;
             this.aim(dx, dy);
             if (-dy >= cfg.kickDrop) this.pad.axes[1] = 1;
-            this.pulse(PAD.punch);
+            if (Math.sign(dx) === me.side) this.pulse(PAD.punch);
             return true;
         }
         if (me.attack !== null) {
@@ -497,7 +497,7 @@ export class Bot {
             this.pulse(PAD.jump);
             return true;
         }
-        if (now >= me.meleeReadyAt) this.pulse(PAD.punch);
+        if (now >= me.meleeReadyAt && Math.sign(dx) === me.side) this.pulse(PAD.punch);
         return true;
     }
 
