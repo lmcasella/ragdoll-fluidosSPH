@@ -1,9 +1,15 @@
-// Cámara compartida: encuadra a todos los puntos dados (los jugadores) con margen, hace zoom según la
-// distancia entre ellos y no muestra nada fuera de los límites del mundo. Coordenadas del mundo en metros, Y hacia arriba.
+/**
+ * Cámara compartida: encuadra a todos los puntos dados (los jugadores) con margen y hace zoom según la distancia entre
+ * ellos. Con mundo acotado no muestra nada fuera de sus límites; con alto infinito (Infinito) puede alejarse hasta
+ * `MAX_VIEW_HEIGHT` m de alto y mostrar el fondo fuera de las paredes. Coordenadas del mundo en metros, Y hacia arriba.
+ */
 const MARGIN_X = 6;
 const MARGIN_Y = 4;
 const MAX_ZOOM = 1.6;
 const SMOOTHING = 4;
+
+/** Alto máximo (m) que muestra la cámara cuando el mundo no tiene techo. */
+export const MAX_VIEW_HEIGHT = 40;
 
 export class Camera {
     constructor(bounds, pixelsPerMeter) {
@@ -53,11 +59,11 @@ export class Camera {
         const needW = right - left + MARGIN_X * 2;
         const needH = top - bottom + MARGIN_Y * 2;
 
-        // El zoom mínimo muestra el mundo entero; nunca más lejos que eso
-        const fitWorld = Math.max(
+        const fitEntire = Math.max(
             this.viewW / (worldW * this.ppm),
             this.viewH / (worldH * this.ppm),
         );
+        const fitWorld = Number.isFinite(worldH) ? fitEntire : Math.min(fitEntire, this.viewH / (MAX_VIEW_HEIGHT * this.ppm));
         const fitPlayers = Math.min(
             this.viewW / (needW * this.ppm),
             this.viewH / (needH * this.ppm),

@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-19
+
+### Fixed
+- En Infinito los bots pelean: persiguen al rival si está a 8 m o menos en vertical y 14 m o menos en horizontal y sobre la línea segura, aunque tengan que bajar plataformas. Antes el que iba adelante se escapaba subiendo.
+- La cámara de Infinito se aleja hasta mostrar 40 m de alto para no dejar a un jugador fuera de cuadro.
+
 ## [0.30.0] - 2026-11-19
 
 ### Added
