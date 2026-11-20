@@ -52,7 +52,7 @@ const run = await runStandardScene({
         const destroy = store.destroy.bind(store);
         store.destroy = (i, cause) => {
             const slot = store.slotAt(i);
-            if (slot >= 0 && store.alive[slot] === 1 && cause !== SINK.ABSORBED && cause !== SINK.EVAPORATED) {
+            if (slot >= 0 && store.alive[slot] === 1 && cause !== SINK.ABSORBED && cause !== SINK.EVAPORATED && cause !== SINK.HUMIDITY) {
                 removed += thermal.mass[store.kind[slot]] * (1 - store.evaporated[slot]) * store.enthalpy[slot];
             }
             destroy(i, cause);

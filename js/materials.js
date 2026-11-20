@@ -27,7 +27,10 @@ export const SIGMA_W = 12.0;
  * Ebullición (#112): `boilingPoint` (°C) y `latentVaporization` `L_v` (J/kg a esa temperatura) del agua. El vapor
  * (`steam`) es una parcela con la masa de la partícula de agua de la que vino (`SG` 1), y `rho` (kg/m³) es la
  * densidad del vapor real a 100 °C que fija su empuje y su arrastre en el aire (`air.rho`), con `Cd` de arrastre. Es
- * miscible: al tocar el campo se absorbe con su entalpía.
+ * miscible: al tocar el campo se absorbe con su entalpía. `entrainment` es el coeficiente de arrastre de aire `α` de
+ * Morton–Taylor–Turner (#113, rango 0,07–0,13). `heat.condensation` son los `h` (W/(m²·K)) de la condensación por
+ * contacto directo del vapor sobre líquidos (agua y ácido) y sobre piedra: el extremo superior de los rangos de las
+ * fichas 7 (10⁴–10⁶) y 37 (5·10³–2·10⁴).
  * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
@@ -44,7 +47,7 @@ export const MATERIALS = {
         boilingPoint: 100,
         latentVaporization: 2.257e6,
     },
-    steam: { SG: 1.0, c: 2010, k: 0.025, temperature: 100, rho: 0.598, Cd: 1.0, miscible: true, species: { H2O: 1 } },
+    steam: { SG: 1.0, c: 2010, k: 0.025, temperature: 100, rho: 0.598, Cd: 1.0, entrainment: 0.1, miscible: true, species: { H2O: 1 } },
     air: { rho: 1.2 },
     acid: { SG: 1.05, c: 3850, k: 0.6, temperature: 20, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
     honey: { SG: 1.42, c: 2400, k: 0.5, temperature: 20, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
@@ -63,7 +66,13 @@ export const MATERIALS = {
     },
     stone: { SG: 2.6, c: 1000, k: 1.5, temperature: 20, emissivity: 0.9, Cd: 1.2, miscible: false, species: { basalt: 1 } },
     drag: { box: 2.0, circle: 1.2 },
-    heat: { filmBoiling: 500, convection: 10, stefanBoltzmann: 5.670374e-8, shearCoefficient: 0 },
+    heat: {
+        filmBoiling: 500,
+        convection: 10,
+        stefanBoltzmann: 5.670374e-8,
+        shearCoefficient: 0,
+        condensation: { liquid: 1e6, stone: 2e4 },
+    },
 };
 
 /**

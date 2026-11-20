@@ -24,9 +24,10 @@ export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4 };
 /**
  * Causa de cada destrucción, obligatoria en `destroy` (libro de masa, docs/design/14-agua.md §14.2): `ABSORBED`
  * pasa al campo, `OUT` salió del mundo, `HIT` ácido consumido al dañar, `EVAPORATED` pasó al aire,
- * `RESET` ronda nueva y `PERF` recorte de las más viejas por rendimiento.
+ * `RESET` ronda nueva, `PERF` recorte de las más viejas por rendimiento y `HUMIDITY` niebla que se disolvió en el
+ * aire (sumidero de H₂O, #113).
  */
-export const SINK = { ABSORBED: 1, OUT: 2, HIT: 3, EVAPORATED: 4, RESET: 5, PERF: 6 };
+export const SINK = { ABSORBED: 1, OUT: 2, HIT: 3, EVAPORATED: 4, RESET: 5, PERF: 6, HUMIDITY: 7 };
 
 const SINK_SLOTS = Math.max(...Object.values(SINK)) + 1;
 const KIND_SLOTS = 256;
