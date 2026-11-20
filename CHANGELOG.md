@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.5] - 2026-11-20
+
+### Fixed
+- El robot ya no se da vuelta durante un golpe ni durante el combo cuando la mira apunta al lado contrario: gira recién al terminar el ataque. El bot solo empieza un golpe con el rival del lado al que mira.
+
 ## [0.42.4] - 2026-11-20
 
 ### Changed
