@@ -17,6 +17,7 @@ const { createParticleSystem } = await import("../../js/particles.js");
 const { ShotEmitter, SHOT_SYSTEM, FLUID } = await import("../../js/weapons.js");
 const { ParticleStore, ORIGIN } = await import("../../js/particleStore.js");
 const { WallContact } = await import("../../js/wallContact.js");
+const { Contacts } = await import("../../js/contacts.js");
 const { SIGMA_W } = await import("../../js/materials.js");
 
 /**
@@ -36,7 +37,7 @@ export const M_P = SIGMA_W * A_P;
 
 const WATER_COLOR = [90, 170, 255];
 
-function newWorld() {
+export function newWorld() {
     const gravity = new Box2D.b2Vec2(0, -G);
     const world = new Box2D.b2World(gravity);
     Box2D.destroy(gravity);
@@ -44,7 +45,7 @@ function newWorld() {
 }
 
 /** Cajas estáticas { x, y, w, h } (centro y tamaño, en metros) sobre un solo cuerpo. */
-function addSolids(world, solids) {
+export function addSolids(world, solids) {
     const bodyDef = new Box2D.b2BodyDef();
     const ground = world.CreateBody(bodyDef);
     Box2D.destroy(bodyDef);
@@ -107,7 +108,7 @@ function positionsOf(system) {
  * Contorno inelástico del juego (`js/wallContact.js`) para `system`: todos los bancos lo usan igual que la raíz de
  * composición, como pseudo-instancia de `stepWorld`.
  */
-function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {
+export function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {
     return new WallContact(system, store, SHOT_SYSTEM);
 }
 
@@ -288,25 +289,6 @@ export function jetBench(weapon, { emit = 0.5, makeRecorder = null } = {}) {
 }
 
 /**
- * Pares (índice, índice, peso) del buffer de contactos del sistema: el binding no exporta `GetContacts`; el
- * offset (+54 palabras) sale del relevamiento de docs/design/14-agua.md §14.8 y se valida contra
- * `GetContactCount`. Devuelve `null` si no coincide.
- */
-function contactsOf(system) {
-    const base = Box2D.getPointer(system) >> 2;
-    const count = system.GetContactCount();
-    const data = Box2D.HEAP32[base + 54];
-    if (Box2D.HEAP32[base + 55] !== count || data === 0) return null;
-    const words = data >> 2;
-    const out = [];
-    for (let c = 0; c < count; c++) {
-        const w = words + c * 6;
-        out.push([Box2D.HEAP32[w], Box2D.HEAP32[w + 1], Box2D.HEAPF32[w + 2]]);
-    }
-    return out;
-}
-
-/**
  * P3: compresión en reposo. Tanque de `width` m con `depth` m de agua, relleno por `ParticleStore` separado `r` de
  * los sólidos (con la altura corregida para conservar `depth` de agua); ventana interior de 4 × 1 m (x centrada,
  * y de 1 a 2 m). Devuelve la densidad (partículas · A_p / área) promedio entre t = 6 y 8 s, `escaped` (partículas
@@ -328,8 +310,10 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
     const window = { x0: width / 2 - 2, x1: width / 2 + 2, y0: 1, y1: 2 };
     let densitySum = 0;
     let samples = 0;
-    let weightSum = 0;
-    let weightSamples = 0;
+    const weightValues = [];
+    const reader = new Contacts(system);
+    const pp = new Float32Array(system.GetMaxParticleCount());
+    const pb = new Float32Array(system.GetMaxParticleCount());
     const steps = Math.round(8 / DT);
     for (let step = 1; step <= steps; step++) {
         stepWorld(world, [wall]);
@@ -342,17 +326,9 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
         }
         densitySum += (inside.size * A_P) / ((window.x1 - window.x0) * (window.y1 - window.y0));
         samples++;
-        const contacts = contactsOf(system);
-        if (contacts) {
-            const perParticle = new Map();
-            for (const [a, b, w] of contacts) {
-                perParticle.set(a, (perParticle.get(a) ?? 0) + w);
-                perParticle.set(b, (perParticle.get(b) ?? 0) + w);
-            }
-            for (const i of inside) {
-                weightSum += perParticle.get(i) ?? 0;
-                weightSamples++;
-            }
+        const n = system.GetParticleCount();
+        if (reader.weights(pp, pb, n)) {
+            for (const i of inside) weightValues.push(pp[i] + pb[i]);
         }
     }
     const final = positionsOf(system);
@@ -363,7 +339,8 @@ export function restBench({ width = 12, depth = 3, makeRecorder = null } = {}) {
         density: densitySum / samples,
         particles: system.GetParticleCount(),
         escaped,
-        wFull: weightSamples ? weightSum / weightSamples : null,
+        wFull: weightValues.length ? weightValues.sort((a, b) => a - b)[weightValues.length >> 1] : null,
+        contactOffsets: { particle: reader.stats.particleOffset, body: reader.stats.bodyOffset },
     };
 }
 

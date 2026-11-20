@@ -82,6 +82,7 @@
             import { CLIMB, Climb, StagePrizes } from "./js/climb.js";
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
+            import { Evaporation } from "./js/evaporation.js";
             import { Buoyancy } from "./js/buoyancy.js";
             import { MATERIALS } from "./js/materials.js";
             import { Match } from "./js/round.js";
@@ -328,6 +329,7 @@
             const water = new ShallowWater();
             let flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
+            const evaporation = new Evaporation(particleSystem, store);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
             let pickups = new Pickups(world, damage, LEVEL.pickups);
@@ -442,6 +444,7 @@
                 flood.reset();
                 bots.forEach((bot) => bot.reset());
                 immersion.reset();
+                evaporation.reset();
                 pickups.reset();
                 emitter.reset();
                 melee.reset();
@@ -591,7 +594,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
+                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -679,6 +682,7 @@
                     platforms.update(now);
                     store.afterStep();
                     immersion.step(STEP_SETTINGS.dt);
+                    evaporation.step(STEP_SETTINGS.dt);
                     water.step(STEP_SETTINGS.dt);
                     damage.process(
                         now,
