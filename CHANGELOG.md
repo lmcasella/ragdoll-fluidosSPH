@@ -5,10 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
-## [0.42.9] - 2026-11-20
+## [0.42.10] - 2026-11-20
 
 ### Fixed
 - La miel cuelga del techo unos 2 segundos antes de soltarse, escurre despacio por las paredes y las plataformas (unos 6 cm/s) y se estira en hilos entre las gotas, en lugar de caer como agua. Pega contra cualquier cosa del mapa, no solo contra los robots. La miel sale con más partículas por segundo y el mismo tiempo de fuego, para que el chorro vaya unido.
+
+## [0.42.9] - 2026-11-20
+
+### Fixed
+- El bloqueo es inmediato: protege todo el frente desde el primer frame en que se aprieta (antes el golpe tenía que pegar en un brazo, y los brazos tardaban en subir), y la animación de guardia corre 4 veces más rápido. Con el bloqueo mantenido, la mira sigue eligiendo hacia qué lado se bloquea.
 
 ## [0.42.8] - 2026-11-20
 

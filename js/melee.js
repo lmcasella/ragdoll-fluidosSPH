@@ -9,11 +9,13 @@ import { KNOCKBACK, extraScale } from "./ActiveRagdoll.js";
  * punto de impacto. `combo`: secuencia, `grace` (s de tolerancia tras terminar un golpe para encadenar) y `cooldown`
  * (s tras cortarse o terminar un ataque). `breaksGuard` (opcional): si el golpe llega a un bloqueo lo rompe en vez de
  * ser bloqueado: sin daño ni empuje (#192), el receptor sale de `block` con la reacción del golpe y queda aturdido
- * `guardBreakStun` s.
+ * `guardBreakStun` s. `blockClipSpeed`: velocidad del clip `block`, para que los brazos suban casi al instante; la guardia
+ * protege todo el frente (cualquier pieza, golpe desde el lado de la mira) desde el primer frame del bloqueo (#238).
  */
 export const MELEE = {
     impulse: 5,
     guardBreakStun: 0.7,
+    blockClipSpeed: 4,
     combo: { sequence: ["combo1", "combo2", "combo3"], grace: 0.2, cooldown: 0.25 },
     attacks: {
         combo1: {
@@ -142,8 +144,7 @@ export class Melee {
 
     connect(attacker, owner, row, dx, dy, hit, now) {
         const victim = owner.player;
-        const guarded =
-            victim.blocking && dx * victim.side < 0 && (victim.rig.arms ?? []).includes(owner.bodyId);
+        const guarded = victim.blocking && dx * victim.side < 0;
         const factor = victim.knockbackFactor ?? 1;
         const body = victim.rag.bodies.get(owner.bodyId);
         this.point.set_x(hit.x);
