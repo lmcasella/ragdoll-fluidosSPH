@@ -203,9 +203,10 @@ async function blockDuel(frames, { p2Aim = AIM_LEFT, pressFrames = COMBO_FRAMES,
     return { game, hits, probes, samples };
 }
 
-test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no dañan, no aturden y emiten block", async (t) => {
+test("R8 y R8b: contra un rival que bloquea de frente, el golpe no daña, no aturde, emite block y corta el combo (#192)", async (t) => {
     const { game, hits, probes, samples } = await blockDuel(60, { pressFrames: [0, 15] });
-    const p2 = game.state.players[1];
+    const [p1, p2] = game.state.players;
+    assert.equal(p1.attack, null, "el combo quedó cortado");
     const arms = new Set(p2.rig.arms);
     const report = probes.map((probe, i) => {
         const armRays = probe.touched.filter((id) => id && arms.has(id)).length;
@@ -213,7 +214,7 @@ test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no daña
     });
     t.diagnostic(`R8b: ${report.join("; ")}`);
     t.diagnostic(`R8: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}; estados ${[...new Set(samples.map((s) => s.state))]}`);
-    assert.equal(hits.length, 2);
+    assert.equal(hits.length, 1, "el segundo toque cae en el enfriamiento del combo cortado");
     for (const hit of hits) assert.equal(hit.kind, "block");
     assert.equal(p2.hp, 100);
     assert.ok(samples.every((s) => s.state === "block"), "el rival sigue en block, sin aturdimiento ni reacción");
@@ -232,17 +233,43 @@ test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no daña
     }
 });
 
-test("el tercer golpe del combo rompe la guardia: sin daño, el rival sale de block y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
-    const { game, hits, samples } = await blockDuel(170);
-    const p2 = game.state.players[1];
+test("con el rival bloqueando, el combo con el pad no llega a combo3 (#192)", async (t) => {
+    const { hits } = await blockDuel(170);
+    t.diagnostic(`eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}`);
+    assert.ok(hits.length >= 1);
+    assert.ok(hits.every((h) => h.kind === "block"));
+});
+
+test("el tercer golpe del combo rompe la guardia: sin daño ni empuje, el rival sale de block y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
+    const game = await startDuel(GAP);
+    game.setPad(1, { buttons: [BUTTON.LT], axes: AIM_LEFT });
+    game.frames(10);
+    const [p1, p2] = game.state.players;
+    p1.beginAttack("combo3", p1.now);
+    const samples = [];
+    const hits = run(
+        game,
+        170,
+        () => game.setPad(0, { buttons: [], axes: AIM_RIGHT }),
+        () => {
+            const v = p2.torso.GetLinearVelocity();
+            samples.push({ vx: v.get_x(), vy: v.get_y(), state: p2.clipState });
+        },
+    );
     t.diagnostic(`rotura: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}`);
-    assert.deepEqual(hits.map((h) => h.kind), ["block", "block", "blockBreak"]);
+    assert.deepEqual(hits.map((h) => h.kind), ["blockBreak"]);
     assert.equal(p2.hp, 100);
-    const f = hits[2].frame;
+    const f = hits[0].frame;
     assert.equal(samples[f - 1].state, "block");
-    assert.equal(samples[f].state, "reactStumble");
+    assert.notEqual(samples[f].state, "reactStumble");
+    const dv = Math.hypot(samples[f].vx - samples[f - 1].vx, samples[f].vy - samples[f - 1].vy);
+    t.diagnostic(`Δv del torso rival al romper la guardia ${dv.toFixed(3)} m/s`);
+    assert.ok(dv < 1.5);
     const stunned = Math.round(0.7 / DT);
-    for (let i = f; i < f + stunned - 1; i++) assert.notEqual(samples[i].state, "block", `frame ${i - f}`);
+    for (let i = f + 1; i < f + stunned; i++) {
+        assert.notEqual(samples[i].state, "block", `frame ${i - f}`);
+        assert.notEqual(samples[i].state, "reactStumble", `frame ${i - f}`);
+    }
     const back = samples.findIndex((s, i) => i > f && s.state === "block");
     t.diagnostic(`vuelve a block ${back - f} pasos después (${((back - f) * DT).toFixed(3)} s)`);
     assert.ok(back >= 0, "vuelve a bloquear después");

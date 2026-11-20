@@ -128,12 +128,13 @@ test("el tercer golpe del combo contra un bloqueo suena blockBreak y no hit ni h
     await unlock(game);
     game.setPad(1, { buttons: [BUTTON.LT], axes: [-1, 0, -1, 0] });
     game.frames(10);
+    const p1 = game.state.players[0];
+    p1.beginAttack("combo3", p1.now);
     for (let f = 0; f < 170; f++) {
-        game.setPad(0, { buttons: [0, 15, 39].includes(f) ? [BUTTON.B] : [], axes: AIM_RIGHT });
+        game.setPad(0, { buttons: [], axes: AIM_RIGHT });
         game.frame();
     }
     const events = fake.plays.map((p) => eventOf(p.buffer.url));
-    assert.equal(events.filter((e) => e === "block").length, 2, `eventos: ${events}`);
     assert.equal(events.filter((e) => e === "blockBreak").length, 1, `eventos: ${events}`);
     assert.ok(!events.includes("hit") && !events.includes("hurt"), `eventos: ${events}`);
 });
