@@ -85,6 +85,7 @@
             import { Evaporation } from "./js/evaporation.js";
             import { Thermal, THERMAL } from "./js/thermal.js";
             import { Viscosity } from "./js/viscosity.js";
+            import { Adhesion } from "./js/adhesion.js";
             import { Buoyancy } from "./js/buoyancy.js";
             import { MATERIALS } from "./js/materials.js";
             import { Match } from "./js/round.js";
@@ -336,6 +337,8 @@
             const viscosity = new Viscosity(particleSystem, store, thermal);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
+            const adhesion = new Adhesion(particleSystem, store);
+            adhesion.register(players);
             let pickups = new Pickups(world, damage, LEVEL.pickups);
             const stagePrizes = new StagePrizes();
 
@@ -444,6 +447,7 @@
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
+                adhesion.register(players);
                 stagePrizes.reset();
                 flood.reset();
                 bots.forEach((bot) => bot.reset());
@@ -545,6 +549,7 @@
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
+                adhesion.register(players);
             }
 
             function laserDe(player) {
@@ -600,7 +605,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
+                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -691,6 +696,7 @@
                     evaporation.step(STEP_SETTINGS.dt);
                     thermal.step(STEP_SETTINGS.dt);
                     viscosity.step(STEP_SETTINGS.dt);
+                    adhesion.step(STEP_SETTINGS.dt);
                     water.step(STEP_SETTINGS.dt);
                     damage.process(
                         now,
