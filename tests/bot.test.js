@@ -209,24 +209,6 @@ test("bot: sube cuando la inundación se acerca", async () => {
     assert.ok(!game.state.players[1].dead);
 });
 
-test("bot: con un gamepad real para ese jugador no escribe", async () => {
-    globalThis.location = { search: "" };
-    const game = await loadGame();
-    game.setPad(0);
-    const bot = new Bot({ k: 1, world: game.state.world, rng: NO_RNG });
-    game.state.bots.set(1, bot);
-    game.setPad(1);
-    const x = pos(game, 1).get_x();
-    let wrote = false;
-    run(game, 180, () => {
-        wrote ||= bot.pad.buttons.some((b) => b.pressed) || bot.pad.axes.some((a) => a !== 0);
-    });
-    console.log(`el bot escribió ${wrote}; J2 se movió ${Math.abs(pos(game, 1).get_x() - x).toFixed(3)} m`);
-    assert.ok(game.state.input.hasRealPad(1));
-    assert.ok(!wrote);
-    assert.ok(Math.abs(pos(game, 1).get_x() - x) < 0.05);
-});
-
 test("bot: ?bot=2 activa al bot de J2 y ?bot=1,2 a los dos", async () => {
     globalThis.location = { search: "?bot=2" };
     assert.deepEqual([...(await loadGame()).state.bots.keys()], [1]);
@@ -263,4 +245,20 @@ test("bot: con la inundación activa la ruta no pasa por plataformas bajo la lí
         if (i !== low && n.top < line) assert.equal(dist[i], Infinity, `nodo ${i} con tope ${n.top} bajo la línea ${line}`);
     });
     assert.equal(bot.safeLine({ flood: { active: false, level: -Infinity, config: { riseSpeed: 0.2 } } }, -Infinity), -Infinity);
+});
+
+test("con dos gamepads reales conectados, los jugadores elegidos como bot los maneja el bot", async () => {
+    globalThis.location = { search: "?bot=1,2&seed=1" };
+    const game = await loadGame();
+    delete globalThis.location;
+    game.setPad(0);
+    game.setPad(1);
+    const x0 = [0, 1].map((k) => game.state.players[k].torso.GetPosition().get_x());
+    let moved = [0, 0];
+    for (let f = 0; f < 600; f++) {
+        game.frame();
+        moved = moved.map((m, k) => Math.max(m, Math.abs(game.state.players[k].torso.GetPosition().get_x() - x0[k])));
+    }
+    assert.deepEqual([...game.state.bots.keys()].sort(), [0, 1]);
+    assert.ok(moved.every((m) => m > 2), `desplazamiento máximo ${moved.map((m) => m.toFixed(2))}`);
 });
