@@ -925,6 +925,8 @@ Tests permanentes en `tests/invariants.test.js`, que corren en cada PR ([CLAUDE.
 
 La absorción (`ABSORBED`) **no es sumidero**: es transferencia al campo y aparece en `F`. `RESET` cae fuera de la ventana.
 
+**Evaporación parcial en el libro (#73):** al absorber una partícula con `φ` > 0, `ParticleStore` anota `1 − φ` en `ABSORBED` y `φ` en `EVAPORATED`. Con cualquier otra causa la partícula sale entera en su causa, porque su parte evaporada viaja con ella. Mientras vive, los monitores cuentan `m (1 − φ)` como agua y `m φ` como evaporada.
+
 **Sumideros.** Solo cuentan como declarados los que son física del dominio:
 
 | Causa | Dónde | Declarado | Por qué |
