@@ -91,10 +91,12 @@ function dropper(game) {
 /**
  * Dispara el tanque entero de `kind` del jugador 0 hacia `(targetX, targetY)` con el tiro balístico de ángulo
  * bajo, equipando el arma con RB, y sigue hasta `seconds` desde que empezó a apretar el gatillo. Devuelve las
- * partículas emitidas.
+ * partículas emitidas. Con `tank` el tanque arranca con esa cantidad (la miel de #214 sale a 200/s con 304: las pruebas
+ * de #110 miden los 152 de antes).
  */
-function fireTank(game, kind, targetX, targetY, seconds, recorder, onFrame = null) {
+function fireTank(game, kind, targetX, targetY, seconds, recorder, onFrame = null, tank = null) {
     const player = game.state.players[0];
+    if (tank !== null) player.tanks.set(kind, tank);
     const weapon = weaponById(kind);
     let guard = 0;
     while (player.weapon !== kind && guard++ < WEAPON_ORDER.length) {
@@ -232,7 +234,7 @@ test("U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 
         }
         probe.sample();
     };
-    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, recorder, onFrame);
+    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, recorder, onFrame, 152);
     assert.ok(injected > 0, "el tanque disparó miel");
     const checks = honeyConservation(game, "t = 10 s");
 
@@ -274,7 +276,7 @@ test("U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 
 test("U2b (#110): H6 con ola: 150 gotas de agua pasan sobre la capa de miel del fondo; desplazamiento del centroide apoyado ≤ 0,5 m", async (t) => {
     const game = await start();
     const { store } = game.state;
-    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, null);
+    const injected = fireTank(game, FLUID.HONEY, 24, LEVEL.pool.surface, 10, null, null, 152);
     for (let f = 0; f < 20 * STEPS_PER_SECOND; f++) game.frame();
     const recorder = recorderFor(game, "u2b-ola-sobre-miel");
     const probe = new HoneyProbe(game);

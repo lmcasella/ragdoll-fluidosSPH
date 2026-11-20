@@ -34,9 +34,9 @@ test("miel: con el viscousStrength final el charco es más angosto que con 0,25 
     assert.ok(final.restSpeedP95 < 0.1, `restSpeedP95 ${final.restSpeedP95.toFixed(3)}`);
 });
 
-test("lava: sin flags de viscosidad ni tensión, como el agua (agua pura)", () => {
+test("lava y miel: sin flags de viscosidad ni tensión, como el agua (la viscosidad de la miel es de js/adhesion.js y js/viscosity.js)", () => {
     assert.equal(LAVA.flags, PARTICLE.WATER);
-    assert.equal(HONEY.flags, PARTICLE.VISCOUS);
+    assert.equal(HONEY.flags, PARTICLE.WATER);
 });
 
 function emptyWorld() {

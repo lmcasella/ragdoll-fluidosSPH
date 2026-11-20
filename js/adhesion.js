@@ -1,7 +1,7 @@
 import { FLUID } from "./weapons.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
 import { KIND_MATERIAL } from "./immersion.js";
-import { bodyShapes } from "./bodyShapes.js";
+import { Contacts } from "./contacts.js";
 
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
@@ -9,77 +9,115 @@ const RHO_W = 1000;
 /** Espesor `b` de la rebanada 2D (m): `σ_w / ρ_w`. Pasa los esfuerzos de película a newtons. */
 const THICKNESS = SIGMA_W / RHO_W;
 
-/** Tipos de cuerpo de Box2D (2BodyType). */
+/** Tipos de cuerpo de Box2D (2BodyType). */
 const STATIC = 0;
 const DYNAMIC = 2;
 
-/** Distancia máxima de la película, en radios de partícula (docs/design/14-agua.md §14.10). */
-const FILM_RADII = 2;
+/** Coeficiente de la película tangencial: Couette sobre media capa, `k_t = 2 μ_ef b`. */
+const TANGENTIAL = 2;
 
-/** Cota inferior de `δ`, en radios de partícula: evita que `μ / δ` diverja con una partícula sobre la superficie. */
-const MIN_DELTA_RADII = 0.25;
+/** Coeficiente de la película normal al separarse: Trouton cohesivo, `k_n = 3 μ_ef b`. */
+const NORMAL = 3;
 
 /**
- * Fluidos que forman película sobre un cuerpo: agua, ácido y miel. La lava y la piedra tienen su propia viscosidad de
- * contacto (`js/viscosity.js`) y el vapor no moja.
+ * Separación máxima del puente de miel, en radios de partícula: `2 r + d` con `d = 1,5 r`. El hilo que une la partícula a la
+ * superficie se estira un diámetro más allá del rango de contacto de LiquidFun (`2 r`) y se corta.
  */
-const FILM_KINDS = new Set([FLUID.WATER, FLUID.ACID, FLUID.HONEY]);
+const BRIDGE_CUT_RADII = 3.5;
 
 /**
- * Viscosidad dinámica (Pa·s) de la mezcla de miel y agua de fracción de miel `X`, a temperatura fija, por la regla
- * logarítmica de Arrhenius: `ln μ = X ln μ_miel + (1 − X) ln μ_agua`. Es el único lugar donde adhesión conoce `μ(X)`: la
- * viscosidad por concentración y temperatura de #76 reemplaza esta función.
+ * Fluidos que forman película sobre un cuerpo: los que tienen miel (`X > 0`). Con la `μ` del agua o del ácido el efecto es
+ * despreciable (`k ~ 1e-5`). La lava y la piedra tienen su propia viscosidad de contacto (`js/viscosity.js`).
+ */
+const FILM_KINDS = new Set([FLUID.HONEY]);
+
+/**
+ * Viscosidad dinámica efectiva (Pa·s) de la mezcla de miel y agua de fracción de miel `X`, a temperatura fija, por la regla
+ * logarítmica de Arrhenius: `ln μ = X ln μ_ef,miel + (1 − X) ln μ_agua`, con `μ_ef,miel = viscosityScale · μ_miel`
+ * (similitud viscosa-gravitatoria de `MATERIALS.honey`). Es el único lugar donde adhesión conoce `μ(X)`: la viscosidad por
+ * concentración y temperatura de #76 reemplaza esta función.
  * @param {number} X Fracción de miel, de 0 (agua) a 1 (miel pura).
  * @returns {number}
  */
 export function mixtureViscosity(X) {
-    return Math.exp(X * Math.log(MATERIALS.honey.mu) + (1 - X) * Math.log(MATERIALS.water.mu));
+    const honey = MATERIALS.honey;
+    return Math.exp(X * Math.log(honey.mu * honey.viscosityScale) + (1 - X) * Math.log(MATERIALS.water.mu));
 }
 
 /**
- * Adherencia de la miel a los cuerpos (docs/design/14-agua.md §14.10, #77). Una vez por paso fijo, después de
- * `stepWorld` y `store.afterStep()`, `step(dt)` busca las partículas de agua, ácido y miel a menos de `2 r` de la
- * superficie de alguna pieza de los robots registrados (distancia punto–polígono sobre las formas de `bodyShapes`,
- * filtradas por la caja de cada robot y de cada pieza) y les aplica la fuerza viscosa de una película sobre la
- * velocidad relativa `v_r = v_p − v_cuerpo(q)` en el punto más cercano `q`, solo con la pieza más cercana:
+ * Adherencia de la miel a los cuerpos (docs/design/14-agua.md §14.10, #77, #214). Corre por subpaso como pseudo-instancia
+ * de `stepWorld` (`update(substep)`), registrada después de `WallContact`. Lee los contactos partícula–cuerpo que calcula
+ * LiquidFun (`js/contacts.js`) y, para cada partícula de miel con contacto, usa el de mayor peso: la película
+ * actúa contra cualquier cuerpo (estático, cinemático o dinámico) sobre la velocidad relativa `v_r = v_p − v_cuerpo(q)` en el
+ * punto de anclaje `q` (la proyección de la partícula sobre la superficie), con la `μ_ef(X)` de `mixtureViscosity` y
+ * `b = σ_w / ρ_w`:
  *
- * - tangencial, `F = k v_t` con `k = filmFactor μ(X) b d / δ` (`τ = μ v_t / δ` sobre el área `d · b` de la partícula,
- *   `d = 1,5 r`, `b` el espesor de la rebanada), con `δ` la distancia a la superficie, acotada a `0,25 r`;
- * - normal, solo si la partícula se separa (`v_r · n > 0`, adhesión de Stefan): el mismo `k`.
+ * - tangencial, `F = k_t v_t` con `k_t = 2 μ_ef b` (Couette sobre media capa);
+ * - normal, solo si la partícula se separa (`v_r · n > 0`): `k_n = 3 μ_ef b` (Trouton cohesivo).
+ *
+ * Puente de miel: una partícula con `X > 0` que llega a un cuerpo (`v_r · n ≤ 0`; la que sale disparada no se engancha) guarda, por slot, el cuerpo, `q` y la normal `n` en
+ * coordenadas locales del cuerpo. Mientras dure el puente la película sigue actuando aunque LiquidFun ya no reporte contacto
+ * (el motor expulsa a la partícula hasta `2 r`): cada subpaso `q` y `n` se pasan a mundo con la transformada actual del
+ * cuerpo. Con contacto, `q` se actualiza a la proyección actual (desliza por la pared); con dos cuerpos se conserva el de
+ * mayor peso. El puente se corta cuando `(p − q) · n` supera `2 r + d`, cuando la partícula muere o su slot se reutiliza
+ * (generación de `ParticleStore`), cuando el material deja de tener miel, o cuando `WallContact` descarta los contactos
+ * (se destruyeron cuerpos: todos los puentes se sueltan).
  *
  * Cada componente se integra en forma exacta, `v_r ← v_r exp(−k dt (1/m_p + 1/m_c + (q × e)²/I))` con `m_p`, `m_c` e `I`
- * las masas y la inercia reales (la pieza estática vale masa infinita), así que no invierte la velocidad relativa con
- * ninguna `dt`. El impulso opuesto va al cuerpo con `ApplyLinearImpulse` en `q`. `filmFactor` de `MATERIALS.honey` es el
- * factor geométrico de la película, medido con Couette (`tests/tools/film-calibration.js`).
+ * las masas y la inercia reales (el cuerpo estático vale masa infinita), así que no invierte la velocidad relativa con
+ * ninguna `dt`. El cuerpo dinámico recibe el impulso opuesto con `ApplyLinearImpulse` en `q`; el cinemático no lo recibe. Se
+ * saltea toda la partícula a la que `WallContact` le impuso la salida lateral en ese subpaso.
  *
- * `stats`: `contacts` (partículas con película en el último paso), `particleX/Y` e `bodyX/Y` (cantidad de movimiento,
- * kg·m/s de la rebanada, entregada a las partículas y a los cuerpos; con piezas dinámicas suman cero, y una pieza
- * estática absorbe el suyo como si fuera un cuerpo) y `magnitude` (suma de los módulos de cada impulso, kg·m/s). Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
+ * `stats` (acumulan hasta `resetStats`): `contacts` (partículas con película), `bridges` (de ellas, con puente sin contacto),
+ * `particleX/Y` y `bodyX/Y` (cantidad de movimiento, kg·m/s de la rebanada, entregada a las partículas y a los cuerpos
+ * dinámicos), `staticX/Y` (la que absorben los cuerpos estáticos y cinemáticos; los tres suman cero) y `magnitude` (suma
+ * de los módulos de cada impulso, kg·m/s). Reusa buffers y `b2Vec2` propios: `dispose` los libera.
  */
 export class Adhesion {
-    constructor(system, store, { filmFactor = MATERIALS.honey.filmFactor } = {}) {
+    /**
+     * @param {*} system `b2ParticleSystem` de las partículas.
+     * @param {*} store `ParticleStore` del sistema.
+     * @param {*} wallContact `WallContact` del mismo sistema: corre antes en cada subpaso.
+     */
+    constructor(system, store, wallContact) {
         this.system = system;
         this.store = store;
-        this.filmFactor = filmFactor;
+        this.wallContact = wallContact;
+        this.contacts = new Contacts(system);
         this.radius = system.GetRadius();
         this.diameter = 1.5 * this.radius;
-        this.reach = FILM_RADII * this.radius;
-        this.minDelta = MIN_DELTA_RADII * this.radius;
         this.area = this.diameter * this.diameter;
+        this.cut = BRIDGE_CUT_RADII * this.radius;
         this.kinds = new Uint8Array(256);
         this.mass = new Float64Array(256);
+        this.mu = new Float64Array(256);
         this.honey = new Float64Array(256);
         for (const kind of FILM_KINDS) {
             this.kinds[kind] = 1;
             this.mass[kind] = KIND_MATERIAL[kind].material.SG * SIGMA_W * this.area;
             this.honey[kind] = KIND_MATERIAL[kind].honey;
+            this.mu[kind] = mixtureViscosity(this.honey[kind]);
         }
-        this.robots = [];
-        this.pieces = [];
-        this.stats = { contacts: 0, particleX: 0, particleY: 0, bodyX: 0, bodyY: 0, magnitude: 0 };
+        const capacity = Math.max(system.GetMaxParticleCount(), 1);
+        this.best = new Int32Array(capacity);
+        this.stamp = new Uint32Array(capacity);
+        this.tick = 0;
+        const slots = store.capacity;
+        this.bridgeGen = new Uint32Array(slots);
+        this.bridgeBody = new Int32Array(slots);
+        this.bridgeWeight = new Float32Array(slots);
+        this.bridgeX = new Float32Array(slots);
+        this.bridgeY = new Float32Array(slots);
+        this.bridgeNx = new Float32Array(slots);
+        this.bridgeNy = new Float32Array(slots);
         this.impulse = new Box2D.b2Vec2(0, 0);
         this.point = new Box2D.b2Vec2(0, 0);
-        this.near = { dist: 0, nx: 0, ny: 0, qx: 0, qy: 0 };
+        this.resetStats();
+    }
+
+    /** Pone en cero las estadísticas. */
+    resetStats() {
+        this.stats = { contacts: 0, bridges: 0, particleX: 0, particleY: 0, bodyX: 0, bodyY: 0, staticX: 0, staticY: 0, magnitude: 0 };
     }
 
     /** Libera los vectores nativos. */
@@ -89,209 +127,138 @@ export class Adhesion {
     }
 
     /**
-     * Lee las formas de todos los cuerpos de `players` (cada uno con `rag.bodies`); se vuelve a llamar cada vez que
-     * cambian los robots (aparición, giro, ronda nueva), igual que `Buoyancy.register`.
+     * Un subpaso, antes de `world.Step`.
+     * @param {number} substep Duración del subpaso en segundos.
      */
-    register(players) {
-        this.robots = [];
-        this.pieces = [];
-        for (const player of players) {
-            const robot = { pieces: [], box: new Float64Array(4) };
-            for (const body of player.rag.bodies.values()) {
-                const shapes = bodyShapes(body);
-                if (shapes.length === 0) continue;
-                const world = shapes.map((s) => new Float64Array(2 * s.n));
-                const piece = { body, shapes, world, box: new Float64Array(4), dynamic: body.GetType() === DYNAMIC, moving: body.GetType() !== STATIC, impulseX: 0, impulseY: 0 };
-                robot.pieces.push(piece);
-                this.pieces.push(piece);
-            }
-            this.robots.push(robot);
+    update(substep) {
+        if (this.wallContact.skipped) {
+            this.bridgeGen.fill(0);
+            return;
         }
-    }
-
-    /** Pone la transformación y la caja (con el alcance de la película) de cada pieza en el mundo, y la de cada robot. */
-    prepare() {
-        const reach = this.reach;
-        for (const robot of this.robots) {
-            let rx0 = Infinity;
-            let ry0 = Infinity;
-            let rx1 = -Infinity;
-            let ry1 = -Infinity;
-            for (const piece of robot.pieces) {
-                const body = piece.body;
-                piece.impulseX = 0;
-                piece.impulseY = 0;
-                const pos = body.GetPosition();
-                const angle = body.GetAngle();
-                const cos = Math.cos(angle);
-                const sin = Math.sin(angle);
-                const px = pos.get_x();
-                const py = pos.get_y();
-                let x0 = Infinity;
-                let y0 = Infinity;
-                let x1 = -Infinity;
-                let y1 = -Infinity;
-                for (let s = 0; s < piece.shapes.length; s++) {
-                    const { n, verts } = piece.shapes[s];
-                    const world = piece.world[s];
-                    for (let i = 0; i < n; i++) {
-                        const lx = verts[2 * i];
-                        const ly = verts[2 * i + 1];
-                        const wx = px + cos * lx - sin * ly;
-                        const wy = py + sin * lx + cos * ly;
-                        world[2 * i] = wx;
-                        world[2 * i + 1] = wy;
-                        if (wx < x0) x0 = wx;
-                        if (wx > x1) x1 = wx;
-                        if (wy < y0) y0 = wy;
-                        if (wy > y1) y1 = wy;
-                    }
-                }
-                piece.box[0] = x0 - reach;
-                piece.box[1] = y0 - reach;
-                piece.box[2] = x1 + reach;
-                piece.box[3] = y1 + reach;
-                if (x0 < rx0) rx0 = x0;
-                if (y0 < ry0) ry0 = y0;
-                if (x1 > rx1) rx1 = x1;
-                if (y1 > ry1) ry1 = y1;
+        const { system, store, contacts } = this;
+        const total = system.GetParticleCount();
+        if (total === 0) return;
+        const count = contacts.bodies(total);
+        const escaped = this.wallContact.escaped;
+        const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
+        const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
+        const heap = Box2D.HEAPF32;
+        const tick = ++this.tick;
+        const { best, stamp } = this;
+        const index = contacts.bodyIndex;
+        const weight = contacts.bodyW;
+        for (let c = 0; c < count; c++) {
+            const i = index[c];
+            if (escaped[i] === 1) continue;
+            const slot = store.slotAt(i);
+            if (slot < 0 || store.alive[slot] === 0 || this.kinds[store.kind[slot]] === 0) continue;
+            if (stamp[i] !== tick) {
+                stamp[i] = tick;
+                best[i] = c;
+            } else if (weight[c] > weight[best[i]]) {
+                best[i] = c;
             }
-            robot.box[0] = rx0 - reach;
-            robot.box[1] = ry0 - reach;
-            robot.box[2] = rx1 + reach;
-            robot.box[3] = ry1 + reach;
+        }
+        const point = this.point;
+        for (let c = 0; c < count; c++) {
+            const i = index[c];
+            if (stamp[i] !== tick || best[i] !== c) continue;
+            const slot = store.slotAt(i);
+            const nx = contacts.bodyNx[c];
+            const ny = contacts.bodyNy[c];
+            const gap = Math.max(0, 1 - weight[c]) * 2 * this.radius;
+            const qx = heap[pos + 2 * i] - gap * nx;
+            const qy = heap[pos + 2 * i + 1] - gap * ny;
+            const body = Box2D.wrapPointer(contacts.bodyPtr[c], Box2D.b2Body);
+            const held = this.bridgeGen[slot] === store.generation[slot];
+            const same = held && this.bridgeBody[slot] === contacts.bodyPtr[c];
+            if (same || !held || weight[c] > this.bridgeWeight[slot]) {
+                point.set_x(qx);
+                point.set_y(qy);
+                if (!same && !this.arriving(i, body, vel, nx, ny)) continue;
+                const local = body.GetLocalPoint(point);
+                this.bridgeX[slot] = local.get_x();
+                this.bridgeY[slot] = local.get_y();
+                point.set_x(nx);
+                point.set_y(ny);
+                const normal = body.GetLocalVector(point);
+                this.bridgeNx[slot] = normal.get_x();
+                this.bridgeNy[slot] = normal.get_y();
+                this.bridgeBody[slot] = contacts.bodyPtr[c];
+                this.bridgeWeight[slot] = weight[c];
+                this.bridgeGen[slot] = store.generation[slot];
+            }
+        }
+        for (let i = 0; i < total; i++) {
+            const slot = store.slotAt(i);
+            if (slot < 0 || this.bridgeGen[slot] !== store.generation[slot]) continue;
+            const kind = store.kind[slot];
+            if (store.alive[slot] === 0 || this.honey[kind] === 0) {
+                this.bridgeGen[slot] = 0;
+                continue;
+            }
+            if (escaped[i] === 1) continue;
+            const body = Box2D.wrapPointer(this.bridgeBody[slot], Box2D.b2Body);
+            point.set_x(this.bridgeX[slot]);
+            point.set_y(this.bridgeY[slot]);
+            const q = body.GetWorldPoint(point);
+            const qx = q.get_x();
+            const qy = q.get_y();
+            point.set_x(this.bridgeNx[slot]);
+            point.set_y(this.bridgeNy[slot]);
+            const n = body.GetWorldVector(point);
+            const nx = n.get_x();
+            const ny = n.get_y();
+            const separation = (heap[pos + 2 * i] - qx) * nx + (heap[pos + 2 * i + 1] - qy) * ny;
+            if (separation > this.cut) {
+                this.bridgeGen[slot] = 0;
+                continue;
+            }
+            if (stamp[i] !== tick) this.stats.bridges++;
+            this.film(i, kind, body, qx, qy, nx, ny, vel, substep);
         }
     }
 
     /**
-     * Distancia de `(x, y)` al polígono convexo antihorario `world` de `n` vértices, con el punto más cercano y la normal
-     * saliente en `this.near`. Un punto dentro vale distancia 0, con la arista menos hundida.
+     * Verdadero si la partícula `i` llega al `body` o está en reposo respecto de él (`v_r · n ≤ 0` en el punto `point`, con
+     * `n` la normal exterior): solo así se forma un puente nuevo. Una gota que sale disparada de un arma no moja hacia atrás.
      */
-    polygonDistance(world, n, x, y) {
-        let best = Infinity;
-        let maxD = -Infinity;
-        let bx = 0;
-        let by = 0;
-        let inx = 0;
-        let iny = 0;
-        for (let i = 0, j = n - 1; i < n; j = i++) {
-            const ax = world[2 * j];
-            const ay = world[2 * j + 1];
-            const ex = world[2 * i] - ax;
-            const ey = world[2 * i + 1] - ay;
-            const len2 = ex * ex + ey * ey;
-            if (len2 < 1e-18) continue;
-            const len = Math.sqrt(len2);
-            const d = ((x - ax) * ey - (y - ay) * ex) / len;
-            if (d > maxD) {
-                maxD = d;
-                inx = ey / len;
-                iny = -ex / len;
-            }
-            let t = ((x - ax) * ex + (y - ay) * ey) / len2;
-            t = t < 0 ? 0 : t > 1 ? 1 : t;
-            const cx = ax + t * ex;
-            const cy = ay + t * ey;
-            const dist2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-            if (dist2 < best) {
-                best = dist2;
-                bx = cx;
-                by = cy;
-            }
+    arriving(i, body, vel, nx, ny) {
+        const heap = Box2D.HEAPF32;
+        let vx = heap[vel + 2 * i];
+        let vy = heap[vel + 2 * i + 1];
+        if (body.GetType() !== STATIC) {
+            const vb = body.GetLinearVelocityFromWorldPoint(this.point);
+            vx -= vb.get_x();
+            vy -= vb.get_y();
         }
-        const near = this.near;
-        if (maxD <= 0) {
-            near.dist = 0;
-            near.nx = inx;
-            near.ny = iny;
-            near.qx = x - maxD * inx;
-            near.qy = y - maxD * iny;
-        } else {
-            const dist = Math.sqrt(best);
-            near.dist = dist;
-            near.nx = dist > 0 ? (x - bx) / dist : inx;
-            near.ny = dist > 0 ? (y - by) / dist : iny;
-            near.qx = bx;
-            near.qy = by;
-        }
+        return vx * nx + vy * ny <= 0;
     }
 
-    /** Aplica la película de este paso a todas las partículas cercanas. `dt` es el paso fijo (s). */
-    step(dt) {
-        const stats = this.stats;
-        stats.contacts = 0;
-        stats.particleX = 0;
-        stats.particleY = 0;
-        stats.bodyX = 0;
-        stats.bodyY = 0;
-        stats.magnitude = 0;
-        const total = this.system.GetParticleCount();
-        if (total === 0 || this.pieces.length === 0) return;
-        this.prepare();
-        const store = this.store;
-        const pos = Box2D.getPointer(this.system.GetPositionBuffer()) >> 2;
-        const vel = Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2;
-        const heap = Box2D.HEAPF32;
-        const reach = this.reach;
-        for (let i = 0; i < total; i++) {
-            const slot = store.slotAt(i);
-            if (slot < 0 || store.alive[slot] === 0) continue;
-            const kind = store.kind[slot];
-            if (this.kinds[kind] === 0) continue;
-            const x = heap[pos + 2 * i];
-            const y = heap[pos + 2 * i + 1];
-            for (const robot of this.robots) {
-                const rb = robot.box;
-                if (x < rb[0] || x > rb[2] || y < rb[1] || y > rb[3]) continue;
-                for (const piece of robot.pieces) {
-                    const pb = piece.box;
-                    if (x < pb[0] || x > pb[2] || y < pb[1] || y > pb[3]) continue;
-                    let foundDist = reach;
-                    let found = false;
-                    const near = this.near;
-                    let nx = 0;
-                    let ny = 0;
-                    let qx = 0;
-                    let qy = 0;
-                    for (let s = 0; s < piece.shapes.length; s++) {
-                        this.polygonDistance(piece.world[s], piece.shapes[s].n, x, y);
-                        if (near.dist <= foundDist) {
-                            foundDist = near.dist;
-                            found = true;
-                            nx = near.nx;
-                            ny = near.ny;
-                            qx = near.qx;
-                            qy = near.qy;
-                        }
-                    }
-                    if (found) this.film(i, vel, kind, piece, foundDist, nx, ny, qx, qy, dt);
-                }
-            }
-        }
-    }
-    /** Película entre la partícula `i` y la pieza `piece`, con la geometría ya resuelta. */
-    film(i, vel, kind, piece, dist, nx, ny, qx, qy, dt) {
+    /** Película entre la partícula `i` y `body`, con anclaje `(qx, qy)` y normal exterior `(nx, ny)` ya en el mundo. */
+    film(i, kind, body, qx, qy, nx, ny, vel, dt) {
         const heap = Box2D.HEAPF32;
         const stats = this.stats;
-        const body = piece.body;
-        const dynamic = piece.dynamic;
+        const type = body.GetType();
+        const dynamic = type === DYNAMIC;
         const mass = this.mass[kind];
-        const center = body.GetWorldCenter();
-        const cx = center.get_x();
-        const cy = center.get_y();
-        const rx = qx - cx;
-        const ry = qy - cy;
+        this.point.set_x(qx);
+        this.point.set_y(qy);
         let vbx = 0;
         let vby = 0;
         let invBody = 0;
         let invInertia = 0;
-        if (piece.moving) {
-            const v = body.GetLinearVelocity();
-            const omega = body.GetAngularVelocity();
-            vbx = v.get_x() - omega * ry;
-            vby = v.get_y() + omega * rx;
+        let rx = 0;
+        let ry = 0;
+        if (type !== STATIC) {
+            const vb = body.GetLinearVelocityFromWorldPoint(this.point);
+            vbx = vb.get_x();
+            vby = vb.get_y();
         }
         if (dynamic) {
+            const center = body.GetWorldCenter();
+            rx = qx - center.get_x();
+            ry = qy - center.get_y();
             invBody = 1 / body.GetMass();
             const local = body.GetLocalCenter();
             const inertia = body.GetInertia() - body.GetMass() * (local.get_x() * local.get_x() + local.get_y() * local.get_y());
@@ -303,19 +270,20 @@ export class Adhesion {
         const tx = -ny;
         const ty = nx;
         const vt = vrx * tx + vry * ty;
-        const delta = Math.max(dist, this.minDelta);
-        const k = (this.filmFactor * mixtureViscosity(this.honey[kind]) * THICKNESS * this.diameter) / delta;
+        const mub = this.mu[kind] * THICKNESS;
         const invParticle = 1 / mass;
 
         const armT = rx * ty - ry * tx;
         const invT = invParticle + invBody + armT * armT * invInertia;
-        const jt = ((1 - Math.exp(-k * dt * invT)) * vt) / invT;
+        const kt = TANGENTIAL * mub;
+        const jt = ((1 - Math.exp(-kt * dt * invT)) * vt) / invT;
         let jx = jt * tx;
         let jy = jt * ty;
         if (vn > 0) {
             const armN = rx * ny - ry * nx;
             const invN = invParticle + invBody + armN * armN * invInertia;
-            const jn = ((1 - Math.exp(-k * dt * invN)) * vn) / invN;
+            const kn = NORMAL * mub;
+            const jn = ((1 - Math.exp(-kn * dt * invN)) * vn) / invN;
             jx += jn * nx;
             jy += jn * ny;
         }
@@ -323,18 +291,17 @@ export class Adhesion {
         heap[vel + 2 * i + 1] -= jy / mass;
         stats.particleX -= jx;
         stats.particleY -= jy;
-        stats.bodyX += jx;
-        stats.bodyY += jy;
-        piece.impulseX += jx;
-        piece.impulseY += jy;
         stats.magnitude += Math.hypot(jx, jy);
         stats.contacts++;
         if (dynamic) {
+            stats.bodyX += jx;
+            stats.bodyY += jy;
             this.impulse.set_x(jx);
             this.impulse.set_y(jy);
-            this.point.set_x(qx);
-            this.point.set_y(qy);
             body.ApplyLinearImpulse(this.impulse, this.point, true);
+        } else {
+            stats.staticX += jx;
+            stats.staticY += jy;
         }
     }
 }
