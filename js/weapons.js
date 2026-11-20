@@ -53,6 +53,14 @@ export function weaponById(id) {
     return byId.get(id);
 }
 
+/**
+ * Flags de partícula del material de `weapon`: la única definición (con `color` de la tabla) que usan todos los
+ * emisores del material, el chorro y la lluvia (#219).
+ */
+export function particleFlags(weapon) {
+    return weapon.flags | CONTACT_LISTENER_PARTICLE;
+}
+
 /** Tipo de fluido por color de partícula (para las que no tienen disparo asociado). Los pares (r, g) salen de la tabla. */
 const byColor = new Map(WEAPONS.map((w) => [w.color[0] * 256 + w.color[1], w.id]));
 
@@ -183,7 +191,7 @@ export class ShotEmitter {
         }
         this.props.kind = weapon.id;
         this.props.shot = this.damage.shotId(k, weapon.id, now);
-        this.def.set_flags(weapon.flags | CONTACT_LISTENER_PARTICLE);
+        this.def.set_flags(particleFlags(weapon));
         this.def.set_color(this.colors.get(weapon.id));
         let made = 0;
         for (let j = 0; j < n; j++) {

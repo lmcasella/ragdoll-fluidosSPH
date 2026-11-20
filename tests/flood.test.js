@@ -4,11 +4,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeScene, fillField, floodRun, A_P, DT } from "./helpers/water-scene.js";
+import { makeScene, fillField, floodRun, particle, A_P, DT } from "./helpers/water-scene.js";
 import { loadGame } from "./helpers/game.js";
 
 const { LEVEL } = await import("../js/level.js");
-const { floodLevel, waterArea, freeWidth, levelOfArea, rainX } = await import("../js/flood.js");
+const { floodLevel, waterArea, freeWidth, levelOfArea, Flood } = await import("../js/flood.js");
+const { FLUID, weaponById, particleFlags, CONTACT_LISTENER_PARTICLE } = await import("../js/weapons.js");
 
 const F = LEVEL.flood;
 const fmt = (n, digits = 3) => Number(n).toFixed(digits);
@@ -44,26 +45,53 @@ test("freeWidth y levelOfArea: el ancho libre es la derivada del área y la inve
     assert.equal(levelOfArea(-5), LEVEL.pool.surface);
 });
 
-test("rainX: determinista, dentro del emisor y bien repartida", () => {
-    const xs = Array.from({ length: 1000 }, (_, i) => rainX(i, F));
-    assert.deepEqual(xs.slice(0, 5), Array.from({ length: 5 }, (_, i) => rainX(i, F)));
-    for (const x of xs) assert.ok(x >= F.emitX1 && x <= F.emitX2);
-    const buckets = new Array(10).fill(0);
-    for (const x of xs) buckets[Math.min(9, Math.floor(((x - F.emitX1) / (F.emitX2 - F.emitX1)) * 10))]++;
-    for (const count of buckets) assert.ok(count > 80 && count < 120, `reparto ${buckets}`);
+test("la gota de lluvia y la del chorro de agua tienen las mismas flags y el mismo color", () => {
+    const scene = makeScene();
+    const { flood } = scene;
+    const water = weaponById(FLUID.WATER);
+    assert.ok(flood.emit(F.start));
+    assert.deepEqual([flood.color.get_r(), flood.color.get_g(), flood.color.get_b()], water.color);
+    assert.equal(flood.def.get_flags(), particleFlags(water));
+    assert.equal(flood.def.get_flags() & CONTACT_LISTENER_PARTICLE, CONTACT_LISTENER_PARTICLE);
+    scene.dispose();
 });
 
-test("la fuente emite Q / A_p con Q = riseSpeed · W_libre, no antes de start y se corta con el nivel en maxLevel", (t) => {
+test("la lluvia con la misma semilla repite posiciones y velocidades, sale de la franja y varía el viento", () => {
+    const drops = (seed) => {
+        const scene = makeScene();
+        const rain = new Flood(scene.store, scene.water, LEVEL, seed);
+        for (let i = 0; i < 120; i++) rain.step(F.start + i * DT, DT);
+        const out = Array.from({ length: scene.system.GetParticleCount() }, (_, i) => particle(scene.system, i));
+        const winds = [0, 1, 2, 3, 4, 5, 6, 7].map((s) => rain.wind(s));
+        rain.dispose();
+        scene.dispose();
+        return { out, winds };
+    };
+    const a = drops(7);
+    assert.deepEqual(a, drops(7));
+    assert.notDeepEqual(a.out, drops(8).out);
+    for (const p of a.out) {
+        assert.ok(p.x >= F.emitX1 - 2 && p.x <= F.emitX2 + 2);
+        assert.ok(p.y <= F.emitY && p.y >= F.emitY - F.spawnBand - 120 * DT * F.dropSpeed * (1 + F.dropSpeedSpread) - 1);
+    }
+    for (const w of a.winds) assert.ok(Math.abs(w) <= F.windMax + 1e-9);
+});
+
+test("la fuente emite como mucho el 40 % de las gotas de antes, no antes de start y se corta con el nivel en maxLevel", (t) => {
     const scene = makeScene();
     const { flood, water, store } = scene;
     for (let i = 0; i < 120; i++) flood.step(F.start - 1, DT);
     assert.equal(flood.emitted, 0, "antes de start no llueve");
     assert.equal(flood.level, -Infinity);
     const before = flood.emitted;
-    for (let i = 0; i < 60; i++) flood.step(F.start, DT);
-    const expected = (F.riseSpeed * freeWidth(LEVEL.pool.surface)) / A_P;
-    t.diagnostic(`fuente a nivel de la pileta: ${flood.emitted - before} gotas en 1 s contra Q / A_p = ${fmt(expected, 2)}`);
-    assert.ok(Math.abs(flood.emitted - before - expected) <= 1.5, `${flood.emitted - before} contra ${expected}`);
+    let was = 0;
+    for (let i = 0; i < 240; i++) {
+        const roundTime = F.start + i * DT;
+        was += Math.min(F.maxRate, (F.riseSpeed * freeWidth(floodLevel(roundTime))) / A_P) * DT;
+        flood.step(roundTime, DT);
+    }
+    t.diagnostic(`gotas en un ciclo de ráfaga (4 s): ${flood.emitted - before} contra ${fmt(was, 1)} de antes (${fmt(((flood.emitted - before) / was) * 100, 1)} %)`);
+    assert.ok(flood.emitted - before <= F.particleShare * was, `${flood.emitted - before} contra ${F.particleShare * was}`);
     assert.equal(store.alive.reduce((a, b) => a + b, 0), flood.emitted);
 
     fillField(water, F.maxLevel);
@@ -121,6 +149,16 @@ test("I7: el volumen total (campo + partículas · A_p) sigue la curva de la inu
     assert.ok(etaGap <= 0.02, `η real contra levelOfArea ${etaGap}`);
     assert.ok(Math.abs(last.realEta - LEVEL.flood.maxLevel) <= 0.075, `η real final ${last.realEta}`);
     if (run.maxRetained > 800) t.todo(`#143: retenidas en plataformas ${run.maxRetained}, tope 800`);
+});
+
+test("la subida media de la inundación sigue la curva de diseño dentro del 5 %", (t) => {
+    let worst = 0;
+    for (const s of flooded().samples) {
+        const rise = (s.meanLevel - LEVEL.pool.surface) / (s.curveLevel - LEVEL.pool.surface);
+        if (s.t >= 10) worst = Math.max(worst, Math.abs(rise - 1));
+    }
+    t.diagnostic(`subida media contra la curva: desvío máximo ${fmt(worst * 100, 2)} %`);
+    assert.ok(worst <= 0.05, `desvío ${worst}`);
 });
 
 test("I4: ninguna partícula miscible queda por debajo de η − 2r después de un paso de absorción", (t) => {

@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.3] - 2026-11-20
+
+### Changed
+- La lluvia de la inundación es la misma agua que el chorro del jugador: mismas flags (genera los eventos de contacto que mojan y adhieren) y mismo color, definidos en un solo lugar (`WEAPONS`). La lluvia solo se distingue por su origen en el libro de masa.
+- La lluvia cae de forma natural y menos densa: posición al azar con la semilla (`?seed`), nacimiento repartido en una franja de 2 m, velocidad de cada gota de 8 m/s ±25 %, viento leve de -1,5 a 1,5 m/s con período de 8 s y ráfagas de 0,5 a 1,5 veces el caudal medio cada 4 s. Solo el 40 % del caudal sale como gotas; el resto entra al campo de alturas repartido a lo ancho del agua, con su volumen en el libro de masa, así que la subida de la inundación no cambia.
+
 ## [0.42.2] - 2026-11-20
 
 ### Changed

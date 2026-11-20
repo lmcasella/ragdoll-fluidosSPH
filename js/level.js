@@ -29,7 +29,14 @@ export const LEVEL = {
         surface: 3,
         killY: 2.2,
     },
-    /** Inundación (muerte súbita): llueve desde `emitY` y la fuente sube el nivel `riseSpeed` m/s a partir de `start` s de ronda; `maxRate` en gotas/s. */
+    /**
+     * Inundación (muerte súbita): llueve desde `emitY` y la fuente sube el nivel `riseSpeed` m/s a partir de `start` s
+     * de ronda; `maxRate` en gotas/s. `particleShare` es la fracción del caudal que sale como gotas (el resto entra
+     * directo al campo); `spawnBand` (m) la franja de nacimiento bajo `emitY`; `dropSpeed` (m/s) la velocidad
+     * vertical media y `dropSpeedSpread` su variación relativa (±); `windMax` (m/s) la velocidad horizontal máxima
+     * del viento y `windPeriod` (s) su período; `gustMin` y `gustMax` (veces la media) los extremos de la ráfaga y
+     * `gustPeriod` (s) su período.
+     */
     flood: {
         start: 60,
         riseSpeed: 0.15,
@@ -39,6 +46,14 @@ export const LEVEL = {
         emitX2: 55,
         dropSpeed: 8,
         maxRate: 1200,
+        particleShare: 0.4,
+        spawnBand: 2,
+        dropSpeedSpread: 0.25,
+        windMax: 1.5,
+        windPeriod: 8,
+        gustMin: 0.5,
+        gustMax: 1.5,
+        gustPeriod: 4,
     },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
     spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
