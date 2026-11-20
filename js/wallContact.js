@@ -43,6 +43,8 @@ export class WallContact {
         this.pressureStrength = params.pressureStrength;
         this.offset = DEFAULT_OFFSET;
         this.stale = false;
+        this.skipped = false;
+        this.escaped = new Uint8Array(system.GetMaxParticleCount());
         this.point = new Box2D.b2Vec2(0, 0);
         this.impulse = new Box2D.b2Vec2(0, 0);
         const cap = system.GetMaxParticleCount();
@@ -114,11 +116,15 @@ export class WallContact {
 
     /**
      * Un subpaso, antes de `world.Step`. La normal del contacto apunta de la partícula al cuerpo, así que la
-     * componente saliente es `−(v − v_b)·n`.
+     * componente saliente es `−(v − v_b)·n`. Deja para quien corre después en el mismo subpaso (`js/adhesion.js`)
+     * `skipped` (el buffer de contactos estaba descartado y no se leyó) y `escaped[i]` (1 si a la partícula `i` se le
+     * impuso la salida lateral del escape).
      * @param {number} substep Duración del subpaso en segundos.
      */
     update(substep) {
         const vel = Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2;
+        this.escaped.fill(0, 0, this.system.GetParticleCount());
+        this.skipped = this.stale;
         if (this.stale) this.stale = false;
         else this.correct(vel, substep);
         this.record(vel);
@@ -351,6 +357,7 @@ export class WallContact {
                 stats.paid += paid;
                 stats.unpaid += gained - paid;
             }
+            this.escaped[i] = 1;
             stats.events++;
             stats.lateralX += mp * dv * tx;
             stats.lateralY += mp * dv * ty;

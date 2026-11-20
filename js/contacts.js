@@ -10,8 +10,8 @@
  * hallado difiere del esperado se avisa una vez con `console.warn`; si no se encuentra, `failed` queda en
  * verdadero y quien depende de los contactos se desactiva. El puntero `data` se relee en cada lectura.
  * No crea objetos nativos. `weights` suma pesos por partícula; `pairs` y `bodies` copian los contactos a arreglos
- * propios (`pairA/B/W`, `bodyIndex/Ptr/W`) para quien necesite recorrerlos uno por uno (`js/thermal.js`,
- * `js/viscosity.js`).
+ * propios (`pairA/B/W`, `bodyIndex/Ptr/W/Nx/Ny`) para quien necesite recorrerlos uno por uno (`js/thermal.js`,
+ * `js/viscosity.js`, `js/adhesion.js`).
  */
 
 const SEARCH_WORDS = 600;
@@ -38,6 +38,8 @@ export class Contacts {
         this.bodyIndex = new Int32Array(0);
         this.bodyPtr = new Int32Array(0);
         this.bodyW = new Float32Array(0);
+        this.bodyNx = new Float32Array(0);
+        this.bodyNy = new Float32Array(0);
     }
 
     /** Verdadero si algún buffer existe y no se pudo ubicar: los contactos no son confiables. */
@@ -93,8 +95,8 @@ export class Contacts {
     }
 
     /**
-     * Copia los contactos partícula-cuerpo a `bodyIndex`, `bodyPtr` (puntero nativo del `b2Body`) y `bodyW` (peso),
-     * arreglos propios que crecen y valen hasta la próxima llamada. Devuelve cuántos son, o -1 si el buffer no se
+     * Copia los contactos partícula-cuerpo a `bodyIndex`, `bodyPtr` (puntero nativo del `b2Body`), `bodyW` (peso) y
+     * `bodyNx`/`bodyNy` (normal unitaria exterior, del sólido a la partícula; el motor la guarda al revés), arreglos propios que crecen y valen hasta la próxima llamada. Devuelve cuántos son, o -1 si el buffer no se
      * pudo leer. El buffer guarda punteros a los cuerpos hasta el próximo `world.Step`: leerlo justo después de `stepWorld`.
      */
     bodies(n) {
@@ -119,6 +121,8 @@ export class Contacts {
             this.bodyIndex = new Int32Array(size);
             this.bodyPtr = new Int32Array(size);
             this.bodyW = new Float32Array(size);
+            this.bodyNx = new Float32Array(size);
+            this.bodyNy = new Float32Array(size);
         }
         const words = data >> 2;
         let kept = 0;
@@ -129,6 +133,8 @@ export class Contacts {
             this.bodyIndex[kept] = index;
             this.bodyPtr[kept] = heapI[w + 1];
             this.bodyW[kept] = heapF[w + 3];
+            this.bodyNx[kept] = -heapF[w + 4];
+            this.bodyNy[kept] = -heapF[w + 5];
             kept++;
         }
         return kept;

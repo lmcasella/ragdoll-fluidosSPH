@@ -338,8 +338,8 @@
             const viscosity = new Viscosity(particleSystem, store, thermal);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
-            const adhesion = new Adhesion(particleSystem, store);
-            adhesion.register(players);
+            const adhesion = new Adhesion(particleSystem, store, wallContact);
+            instances.push(adhesion);
             let pickups = new Pickups(world, damage, LEVEL.pickups);
             const stagePrizes = new StagePrizes();
 
@@ -451,7 +451,6 @@
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
-                adhesion.register(players);
                 stagePrizes.reset();
                 flood.reset();
                 bots.forEach((bot) => bot.reset());
@@ -552,7 +551,6 @@
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
-                adhesion.register(players);
             }
 
             function laserDe(player) {
@@ -706,7 +704,6 @@
                     evaporation.step(STEP_SETTINGS.dt);
                     thermal.step(STEP_SETTINGS.dt);
                     viscosity.step(STEP_SETTINGS.dt);
-                    adhesion.step(STEP_SETTINGS.dt);
                     water.step(STEP_SETTINGS.dt);
                     damage.process(
                         now,

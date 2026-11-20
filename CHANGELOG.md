@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.12] - 2026-11-20
+
+### Fixed
+- La miel cuelga del techo unos 2 segundos antes de soltarse, escurre despacio por las paredes y las plataformas (unos 6 cm/s) y se estira en hilos entre las gotas, en lugar de caer como agua. Pega contra cualquier cosa del mapa, no solo contra los robots. La miel sale con más partículas por segundo y el mismo tiempo de fuego, para que el chorro vaya unido.
+
 ## [0.42.11] - 2026-11-20
 
 ### Fixed
