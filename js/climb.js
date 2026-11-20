@@ -22,7 +22,7 @@ import { FLUID, refillTanks } from "./weapons.js";
  * - `pickups`: armas por etapa, entrada `min(n − 1, 3)` para la etapa `n ≥ 1` (la etapa 0 no lleva armas), con una cada
  *   `period` plataformas de la etapa y los `weights` por nombre de `FLUID`;
  * - `repairPerStage`: ítems de reparación (#156) por etapa `n ≥ 1`, sobre la primera plataforma cuyo tope llega a la mitad
- *   de la etapa (fila central); `repairShift` (m): corrimiento en x si esa plataforma ya lleva un arma;
+ *   de la etapa (fila central), que en ese caso no lleva arma;
  * - `flood`: `surface` (m) del agua al empezar, `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del
  *   fondo efectivo y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
  * - `ahead`: cuánto por encima de la cámara se genera;
@@ -64,7 +64,6 @@ export const CLIMB = {
         { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } },
     ],
     repairPerStage: 1,
-    repairShift: 0.6,
     flood: { surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 },
     ahead: 30,
     loadout: { weapon: null, weapons: [] },
@@ -272,15 +271,15 @@ export class ClimbGenerator {
 
     /**
      * Ítems de reparación de la plataforma: hasta `repairPerStage` por etapa `stage ≥ 1`, desde la primera plataforma con
-     * tope en la mitad superior de la etapa; con `armed` (ya lleva un arma) se corren `repairShift` m en x.
+     * tope en la mitad superior de la etapa; esa plataforma no sortea arma, para no encimar los sensores.
      */
-    repairsOf(x, top, stage, armed) {
-        const { stageHeight, repairPerStage, repairShift, pickupLift } = this.config;
+    repairsOf(x, top, stage) {
+        const { stageHeight, repairPerStage, pickupLift } = this.config;
         if (stage < 1 || top < stage * stageHeight + stageHeight / 2) return [];
         const given = this.repairs.get(stage) ?? 0;
         if (given >= repairPerStage) return [];
         this.repairs.set(stage, given + 1);
-        return [{ x: armed ? x + repairShift : x, y: top + pickupLift, kind: "repair" }];
+        return [{ x, y: top + pickupLift, kind: "repair" }];
     }
 
     /**
@@ -364,8 +363,9 @@ export class ClimbGenerator {
         if (top >= (k + 1) * tract - (dy[1] - separation)) this.reached.add(k);
         this.front = Math.max(this.front, top);
         const stage = stageOf(top, this.config);
-        const pickups = this.pickupsOf(spot.x, top, stage);
-        pickups.push(...this.repairsOf(spot.x, top, stage, pickups.length > 0));
+        const weapons = this.pickupsOf(spot.x, top, stage);
+        const repairs = this.repairsOf(spot.x, top, stage);
+        const pickups = repairs.length > 0 ? repairs : weapons;
         this.items.push({ x: spot.x, minX: spot.x - spot.w / 2, maxX: spot.x + spot.w / 2, top });
         const floor = Math.max(...this.items.map((v) => v.top)) - window;
         this.items = this.items.filter((v) => v.top >= floor);

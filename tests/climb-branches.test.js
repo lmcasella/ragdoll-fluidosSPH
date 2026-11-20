@@ -122,14 +122,17 @@ test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", 
 test("armas: ninguna en la etapa 0 y una por plataforma cada period de la etapa, de weights; misma semilla, mismas plataformas", () => {
     const { list } = run(3, 200);
     const seen = new Map();
-    for (const platform of list) {
-        const p = { ...platform, pickups: platform.pickups.filter((q) => q.kind !== "repair") };
+    for (const p of list) {
         if (p.stage < 1) {
             assert.equal(p.pickups.length, 0);
             continue;
         }
         const n = seen.get(p.stage) ?? 0;
         seen.set(p.stage, n + 1);
+        if (p.pickups.some((q) => q.kind === "repair")) {
+            assert.equal(p.pickups.length, 1, "la plataforma de la reparación no lleva arma");
+            continue;
+        }
         const entry = CLIMB.pickups[Math.min(p.stage - 1, CLIMB.pickups.length - 1)];
         assert.equal(p.pickups.length, n % entry.period === 0 ? 1 : 0);
         for (const w of p.pickups) {

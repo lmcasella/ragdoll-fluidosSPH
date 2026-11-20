@@ -27,7 +27,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | El grafo del bot usa la regla completa |
 | `pickupLift` | 0.6 | Altura del ícono sobre el tope (m) |
 | `pickups` | `[{ period: 3, weights: { WATER: 1 } }, { period: 3, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } }, { period: 2, weights: { LAVA: 1 } }, { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 3)` para la etapa `n ≥ 1`; una arma sobre una de cada `period` plataformas de la etapa. Claves = nombres de `FLUID` |
-| `repairPerStage`, `repairShift` | `1`, `0.6` | Ítems de reparación por etapa `n ≥ 1` (16.4) y corrimiento en x (m) si la plataforma ya lleva un arma |
+| `repairPerStage` | `1` | Ítems de reparación por etapa `n ≥ 1` (16.4) |
 | `flood` | `{ surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m, locales) |
 | `loadout` | `{ weapon: null, weapons: [] }` | Equipo inicial del mapa (16.10) |
@@ -52,7 +52,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 - Armas por etapa: etapa 0, ninguna (ni los puntos de `LEVEL.pickups` del clásico ni plataformas generadas de 10 a 15 m locales); etapa 1, agua; etapa 2, agua y miel con lava ocasional; etapa 3, lava; etapa 4 en adelante, ácido y lava.
 - Etapa `n ≥ 1`: una plataforma lleva un arma si `índice de la plataforma dentro de su etapa % period === 0`, en `(x de la plataforma, tope + 0,6)` (un sorteo con `weights`).
-- Reparación ✅ #156: un ítem por etapa `n ≥ 1` (`repairPerStage`), sobre la primera plataforma generada de la etapa cuyo tope llega a la mitad de la etapa (fila central), en `(x, tope + 0,6)`; si esa plataforma ya lleva un arma, se corre `repairShift` m en x. Suma 35 de salud y reaparece a los 20 s (`docs/design/04-fluidos.md` §4.2).
+- Reparación ✅ #156: un ítem por etapa `n ≥ 1` (`repairPerStage`), sobre la primera plataforma generada de la etapa cuyo tope llega a la mitad de la etapa (fila central), en `(x, tope + 0,6)`; esa plataforma no lleva arma. Suma 35 de salud y reaparece a los 20 s (`docs/design/04-fluidos.md` §4.2).
 
 ## 16.5 Agua
 
