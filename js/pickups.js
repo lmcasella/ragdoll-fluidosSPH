@@ -1,10 +1,12 @@
 import { WEAPONS } from "./weapons.js";
-import { MAX_HP } from "./ActiveRagdoll.js";
 
 /** Segundos de juego hasta que un punto de aparición vuelve a estar disponible después de recogerse. */
 export const PICKUP_RESPAWN = 15;
 
-/** Ítem de reparación (#156): `hp` que suma al recogerse (con tope en la salud máxima) y `respawn` s de juego hasta que reaparece. */
+/**
+ * Ítem de reparación (#156): `hp` que suma al recogerse (con tope en la salud máxima; en Infinito resta esos % de daño,
+ * sin bajar de 0) y `respawn` s de juego hasta que reaparece.
+ */
 export const REPAIR = { hp: 35, respawn: 20 };
 
 /** Radio del sensor circular de cada punto de aparición, en metros. */
@@ -83,8 +85,8 @@ export class Pickups {
             if (!point.active) continue;
             const owner = this.damage.ownerOf(bodyPtr);
             if (point.kind === "repair") {
-                if (!owner || owner.player.dead || owner.player.hp >= MAX_HP) continue;
-                owner.player.hp = Math.min(MAX_HP, owner.player.hp + REPAIR.hp);
+                if (!owner || owner.player.dead || owner.player.intact) continue;
+                owner.player.repair(REPAIR.hp);
                 this.consume(point, now + REPAIR.respawn);
                 this.events.push({ kind: "repair" });
                 continue;

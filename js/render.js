@@ -538,9 +538,15 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
         const left = k === 0;
         const x = left ? 20 : width - 20;
         ctx.textAlign = left ? "left" : "right";
-        ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
         const weapon = weapons.find((w) => w.id === player.weapon);
-        ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}%${weapon ? ` · ${weapon.name}` : ""}`, x, height - 30);
+        const gun = weapon ? ` · ${weapon.name}` : "";
+        if (player.accumulates) {
+            ctx.fillStyle = colors[k];
+            ctx.fillText(`J${k + 1} ${Math.floor(player.damagePct)} %${gun}`, x, height - 30);
+        } else {
+            ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
+            ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}%${gun}`, x, height - 30);
+        }
 
         if (weapon) {
             const left0 = left ? x : x - TANK_BAR.width;

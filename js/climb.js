@@ -70,8 +70,6 @@ export const CLIMB = {
     stagePrize: { banner: 1.5, repair: "full", refill: true },
 };
 
-/** Salud máxima de un robot (la inicial de `ActiveRagdoll`). */
-const FULL_HP = 100;
 
 /** Holgura horizontal (m) y vertical (m) con que un robot cuenta como apoyado en una plataforma. */
 const SUPPORT_SLACK = { x: 0.3, y: 0.35 };
@@ -583,7 +581,7 @@ export class StagePrizes {
         const prize = this.config.stagePrize;
         for (const { k, stage } of applied) {
             const player = players[k];
-            if (prize.repair === "full") player.hp = FULL_HP;
+            if (prize.repair === "full") player.repair(Infinity);
             if (prize.refill) refillTanks(player);
             this.banner = { text: `ETAPA ${stage} · J${k + 1}`, until: now + prize.banner };
         }

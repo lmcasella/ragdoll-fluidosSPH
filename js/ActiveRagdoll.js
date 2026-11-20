@@ -3,6 +3,12 @@ import { MATERIALS } from "./materials.js";
 
 /** Salud máxima de un robot. */
 export const MAX_HP = 100;
+
+/**
+ * Empuje por daño acumulado (#162, solo Infinito): todo impulso de golpe o chorro que recibe un robot se multiplica por
+ * `1 + scale · daño% / 100`; con `scale` = 1, 100 % de daño duplica el empuje.
+ */
+export const KNOCKBACK = { scale: 1 };
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
@@ -110,6 +116,9 @@ export class ActiveRagdoll {
 
         // Estados del jugador
         this.hp = MAX_HP;
+        /** Verdadero en Infinito: la vida es el daño acumulado `damagePct` (%, sin tope) y solo el agua mata. */
+        this.accumulates = false;
+        this.damagePct = 0;
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
@@ -155,7 +164,28 @@ export class ActiveRagdoll {
     }
 
     get dead() {
-        return this.hp <= 0;
+        return this.accumulates ? this.drowned : this.hp <= 0;
+    }
+
+    /** Multiplicador de todo impulso que recibe el robot por golpes y chorros; 1 fuera de Infinito. */
+    get knockbackFactor() {
+        return this.accumulates ? 1 + (KNOCKBACK.scale * this.damagePct) / 100 : 1;
+    }
+
+    /** Salud equivalente en [0, `MAX_HP`] para decidir (bot): más daño acumulado, menos salud. */
+    get vitality() {
+        return this.accumulates ? Math.max(0, MAX_HP - this.damagePct) : this.hp;
+    }
+
+    /** Verdadero si no hay nada que reparar: salud llena, o 0 % de daño en Infinito. */
+    get intact() {
+        return this.accumulates ? this.damagePct <= 0 : this.hp >= MAX_HP;
+    }
+
+    /** Repara `amount` (salud o %), sin pasar de la salud máxima ni bajar de 0 % de daño. */
+    repair(amount) {
+        if (this.accumulates) this.damagePct = Math.max(0, this.damagePct - amount);
+        else this.hp = Math.min(MAX_HP, this.hp + amount);
     }
 
     // Cayó a la pileta: cortocircuito total
@@ -373,6 +403,8 @@ export class ActiveRagdoll {
      */
     copyStateFrom(old) {
         this.hp = old.hp;
+        this.accumulates = old.accumulates;
+        this.damagePct = old.damagePct;
         this.weapon = old.weapon;
         this.tanks = old.tanks;
         this.framesGrounded = old.framesGrounded;
@@ -473,6 +505,10 @@ export class ActiveRagdoll {
     }
 
     takeDamage(amount) {
+        if (this.accumulates) {
+            this.damagePct += amount;
+            return;
+        }
         this.hp -= amount;
         if (this.hp < 0) this.hp = 0;
     }
