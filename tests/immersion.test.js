@@ -228,6 +228,9 @@ test("una gota que cae al piso seco de una isla se absorbe como película", () =
     scene.spawn(FLUID.WATER, 5.05, 4.05);
     scene.immersion.step(DT);
     assert.equal(scene.immersion.stats.absorbed, 1);
-    assert.ok(Math.abs(scene.water.h[column] - A_P / scene.water.dx) < 1e-3 * (A_P / scene.water.dx), `h ${scene.water.h[column]} contra A_p / dx ${A_P / scene.water.dx}`);
+    const film = A_P / scene.water.dx;
+    const total = scene.water.h[column - 1] + scene.water.h[column] + scene.water.h[column + 1];
+    assert.ok(Math.abs(total - film) < 1e-6 * film, `Σh ${total} contra A_p / dx ${film}`);
+    assert.ok(Math.abs(scene.water.h[column] - (4 / 6) * film) < 1e-6 * film, `h ${scene.water.h[column]} contra 4/6 de A_p / dx ${film}`);
     scene.dispose();
 });

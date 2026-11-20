@@ -145,6 +145,7 @@ export class ShallowWater {
             fM: make(N + 1),
             fA: make(N + 1),
         };
+        this.kernel = { cells: new Int32Array(4), weights: new Float64Array(4), raw: new Float64Array(4), count: 0 };
         this.cWater = MATERIALS.water.c;
         this.lnMuWater = Math.log(MATERIALS.water.mu);
         this.lnMuHoney = Math.log(MATERIALS.honey.mu);
@@ -493,17 +494,47 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
     }
 
     /**
-     * Suma una fuente en `x` repartida entre las dos celdas vecinas con pesos lineales (cloud-in-cell):
+     * Calcula el núcleo de reparto de una fuente puntual en `x`: B-spline cúbico de cuatro celdas (desvío 0,58 dx, del
+     * orden del diámetro de una partícula), de pesos no negativos que suman 1. Deja en `kernel.cells` y `kernel.weights`
+     * las `kernel.count` celdas y sus pesos; los pesos que caen fuera del span se suman a la celda más cercana del span.
+     */
+    spread(x) {
+        const { i0, i1, kernel } = this;
+        const s = (x - this.x0) / this.dx - 0.5;
+        const i = Math.floor(s);
+        const t = s - i;
+        const t2 = t * t;
+        const t3 = t2 * t;
+        const raw = kernel.raw;
+        raw[0] = (1 - t) ** 3 / 6;
+        raw[1] = (3 * t3 - 6 * t2 + 4) / 6;
+        raw[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6;
+        raw[3] = t3 / 6;
+        let count = 0;
+        for (let k = 0; k < 4; k++) {
+            const c = Math.min(Math.max(i - 1 + k, i0), i1 - 1);
+            if (count > 0 && kernel.cells[count - 1] === c) {
+                kernel.weights[count - 1] += raw[k];
+            } else {
+                kernel.cells[count] = c;
+                kernel.weights[count] = raw[k];
+                count++;
+            }
+        }
+        kernel.count = count;
+    }
+
+    /**
+     * Suma una fuente en `x` repartida con el núcleo de `spread` (la superficie no representa nada más fino que 4 dx):
      * `area` (m²), `momentum` (`Σ SG A v_x`, m³/s), `energy` (J), `honey` (m²) y `acid` (kg de H2SO4). Se aplica
      * en el acto: equivale a acumularla y sumarla al principio de `step`, porque nada corre entre ambos.
      */
     deposit(x, area, momentum, energy, honey, acid = 0) {
-        const { i0, i1, dx } = this;
-        const s = (x - this.x0) / dx - 0.5;
-        const i = Math.floor(s);
-        const w1 = s - i;
-        const targets = [[Math.min(Math.max(i, i0), i1 - 1), 1 - w1], [Math.min(Math.max(i + 1, i0), i1 - 1), w1]];
-        for (const [c, w] of targets) {
+        const { dx, kernel } = this;
+        this.spread(x);
+        for (let k = 0; k < kernel.count; k++) {
+            const c = kernel.cells[k];
+            const w = kernel.weights[k];
             this.h[c] += (w * area) / dx;
             this.q[c] += (w * momentum) / dx;
             this.E[c] += (w * energy) / dx;
@@ -823,7 +854,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
     step(dt) {
         const { i0, i1, h, q, config } = this;
         this.settle(this);
-        const split = this.dispersion !== null && this.dispersion.split();
+        const split = this.dispersion !== null && this.dispersion.split(dt);
         const smax = this.maxSpeed(h, q);
         let n = Math.max(1, Math.ceil((dt * smax) / (config.cfl * this.dx)));
         if (n > config.maxSubsteps) {

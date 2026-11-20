@@ -142,19 +142,15 @@ export class Immersion {
     }
 
     /**
-     * Pérdida inelástica del choque (J): `½ m v² − ΔK_col`, con `ΔK_col` el cambio de energía cinética de las dos
-     * columnas vecinas al recibir el volumen y la cantidad de movimiento. No es negativa.
+     * Pérdida inelástica del choque (J): `½ m v² − ΔK_col`, con `ΔK_col` el cambio de energía cinética de las
+     * columnas del núcleo de `water.spread` al recibir el volumen y la cantidad de movimiento. No es negativa.
      */
     inelasticLoss(x, area, momentum, sg, vx, vy) {
         const { water } = this;
-        const { i0, i1, dx } = water;
-        const s = (x - water.x0) / dx - 0.5;
-        const i = Math.floor(s);
-        const w1 = s - i;
-        const c0 = Math.min(Math.max(i, i0), i1 - 1);
-        const c1 = Math.min(Math.max(i + 1, i0), i1 - 1);
-        let deltaK = this.columnKinetic(c0, c0 === c1 ? 1 : 1 - w1, area, momentum);
-        if (c1 !== c0) deltaK += this.columnKinetic(c1, w1, area, momentum);
+        const { dx, kernel } = water;
+        water.spread(x);
+        let deltaK = 0;
+        for (let k = 0; k < kernel.count; k++) deltaK += this.columnKinetic(kernel.cells[k], kernel.weights[k], area, momentum);
         const kinetic = 0.5 * sg * SIGMA_W * area * (vx * vx + vy * vy);
         return Math.max(0, kinetic - deltaK * 0.5 * SIGMA_W * dx);
     }

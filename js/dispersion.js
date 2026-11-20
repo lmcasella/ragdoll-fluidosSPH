@@ -7,10 +7,14 @@ import { Fft } from "./fft.js";
  * no hay superficie. `quiet` es el umbral (m y m²/s) bajo el cual no hay superficie que avanzar. `steepness` es la
  * pendiente límite `H/λ` de Stokes y Michell. `reserve` es la fracción de `h̄` que la superficie puede quitar a una columna.
  * `nonlinear` es la amplitud máxima de `h̃` relativa a `h̄` en una cuenca: la teoría lineal no vale con ondas grandes y esa
- * cuenca sigue entera con Saint-Venant ese paso.
- * `minCells` es el ancho mínimo (celdas) de una cuenca mojada.
+ * cuenca sigue entera con Saint-Venant. Histéresis: vuelve a la superficie dispersiva solo cuando `|h̃| < nonlinearExit · h̄`
+ * en toda la cuenca durante `nonlinearHold` s seguidos.
+ * `minCells` es el ancho mínimo (celdas) de una cuenca mojada. `filterOrder` y `filterRate` (1/s) definen el límite de
+ * resolución: el filtro espectral exponencial `σ(k) = exp(−dt · filterRate · (k/k_N)^filterOrder)` de la superficie en cada
+ * paso, con `k_N = π/dx`. Con `filterRate` = 480 un paso de 1/60 s deja `exp(−8 (k/k_N)^8)`: pierde menos de 0,1 % por período
+ * en `λ ≥ 1 m` y amortigua en pocos pasos lo que mide 3 dx o menos. Lo más chico que 4 dx lo representan las partículas, no el campo.
  */
-export const DISPERSION = { levels: 8, depthMin: 0.25, cutoff: 0.5, beach: 0.1, quiet: 1e-6, steepness: 0.142, reserve: 0.9, nonlinear: 0.25, minCells: 4 };
+export const DISPERSION = { levels: 8, depthMin: 0.25, cutoff: 0.5, beach: 0.1, quiet: 1e-6, steepness: 0.142, reserve: 0.9, nonlinear: 0.25, nonlinearExit: 0.15, nonlinearHold: 0.5, minCells: 4, filterOrder: 8, filterRate: 480 };
 
 const RHO_W = 1000;
 
@@ -20,7 +24,7 @@ const SLOPE_MAX = Math.PI * DISPERSION.steepness;
 /** Tablas de una cuenca de `n` celdas con el paso `dt`: la FFT de longitud `2n`, los buffers y la rotación de fase por nivel. */
 class Plan {
     constructor(n, dt, dx, g) {
-        const { levels, depthMin } = DISPERSION;
+        const { levels, depthMin, filterRate, filterOrder } = DISPERSION;
         this.n = n;
         this.dt = dt;
         this.fft = new Fft(2 * n);
@@ -30,6 +34,13 @@ class Plan {
         this.qk = new Float64Array(n);
         this.cosT = new Float64Array(n);
         this.sinT = new Float64Array(n);
+        this.sig = new Float64Array(n);
+        this.ex = new Float64Array(n);
+        for (let k = 1; k < n; k++) {
+            const half = (Math.PI * k) / (2 * n);
+            this.sig[k] = Math.exp(-dt * filterRate * (k / n) ** filterOrder);
+            this.ex[k] = (1 - this.sig[k]) / (((2 * half) / dx) * (Math.sin(half) / half));
+        }
         this.a1 = [];
         this.b1 = [];
         this.a2 = [];
@@ -123,6 +134,8 @@ export class Dispersion {
         this.pre = make();
         this.nu = make();
         this.plans = new Map();
+        this.hold = make();
+        this.stats = { switches: 0 };
     }
 
     /** Busca las cuencas mojadas del span activo con agua de al menos `depthMin` y `minCells` celdas. */
@@ -194,11 +207,11 @@ export class Dispersion {
      * Separa el estado en volumen y superficie en todas las cuencas. Devuelve `true` si hay superficie que avanzar y
      * entonces deja `h` y `q` (y `E`, `M`, `A`) del campo en la parte de volumen.
      */
-    split() {
+    split(dt) {
         const water = this.water;
         const { h, q, b, E, M, A, dx } = water;
-        const { ht, qt, hbar, qbar, eta, qq, work, coef } = this;
-        const { cutoff, beach, quiet, nonlinear } = DISPERSION;
+        const { ht, qt, hbar, qbar, eta, qq, work, coef, hold } = this;
+        const { cutoff, beach, quiet, nonlinear, nonlinearExit, nonlinearHold } = DISPERSION;
         this.findBasins();
         if (this.count === 0) return false;
         let peakH = 0;
@@ -231,15 +244,30 @@ export class Dispersion {
                 ht[i] = h[i] - hb;
                 qt[i] = q[i] - qq[i];
             }
-            let linear = true;
+            let exceeds = false;
+            let calm = true;
+            let wasSaintVenant = false;
             for (let i = a; i < a + n; i++) {
                 const left = i > a ? ht[i - 1] : ht[i];
                 const right = i < a + n - 1 ? ht[i + 1] : ht[i];
                 const span = (i > a ? 1 : 0) + (i < a + n - 1 ? 1 : 0);
                 const slope = Math.abs(right - left) / (span * dx);
                 work[i] = hbar[i] < beach ? 0 : slope > SLOPE_MAX ? SLOPE_MAX / slope : 1;
-                if (hbar[i] >= beach && Math.abs(ht[i]) > nonlinear * hbar[i]) linear = false;
+                if (hbar[i] >= beach) {
+                    const ratio = Math.abs(ht[i]) / hbar[i];
+                    if (ratio > nonlinear) exceeds = true;
+                    if (ratio >= nonlinearExit) calm = false;
+                }
+                if (hold[i] > 0) wasSaintVenant = true;
             }
+            const reload = exceeds || (wasSaintVenant && !calm);
+            let saintVenant = false;
+            for (let i = a; i < a + n; i++) {
+                hold[i] = reload ? nonlinearHold : Math.max(0, hold[i] - dt);
+                if (hold[i] > 0) saintVenant = true;
+            }
+            if (saintVenant !== wasSaintVenant) this.stats.switches++;
+            const linear = !saintVenant;
             for (let i = a; i < a + n; i++) {
                 const f = linear ? work[i] : 0;
                 if (f < 1) {
@@ -405,7 +433,7 @@ export class Dispersion {
      * entre los niveles.
      */
     spectrum(plan, a, n) {
-        const { re, im, hk, qk, cosT, sinT, fft, used, lv, fr, lvF, frF, flux, qNew } = plan;
+        const { re, im, hk, qk, cosT, sinT, fft, used, lv, fr, lvF, frF, flux, qNew, sig, ex } = plan;
         const { ht, qt } = this;
         const { h } = this.water;
         const m = 2 * n;
@@ -439,8 +467,8 @@ export class Dispersion {
             re.fill(0);
             im.fill(0);
             for (let k = 1; k < n; k++) {
-                const fc = a1[k] * qk[k] + b1[k] * hk[k];
-                const qc = a2[k] * qk[k] + b2[k] * hk[k];
+                const fc = sig[k] * (a1[k] * qk[k] + b1[k] * hk[k]) + ex[k] * hk[k];
+                const qc = sig[k] * (a2[k] * qk[k] + b2[k] * hk[k]);
                 re[k] = (qc * cosT[k]) / 2;
                 im[k] = -fc / 2 + (qc * sinT[k]) / 2;
                 re[m - k] = -(qc * cosT[k]) / 2;
