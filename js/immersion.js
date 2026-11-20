@@ -17,6 +17,7 @@ export const KIND_MATERIAL = {
     [FLUID.HONEY]: { material: MATERIALS.honey, honey: 1 },
     [FLUID.LAVA]: { material: MATERIALS.lava, honey: 0 },
     [FLUID.STONE]: { material: MATERIALS.stone, honey: 0 },
+    [FLUID.STEAM]: { material: MATERIALS.steam, honey: 0 },
 };
 
 /**
@@ -37,6 +38,8 @@ export const KIND_MATERIAL = {
  * `stats` suma lo absorbido (`absorbed`, `volume` en m²), el impulso vertical, los recortes por masa reducida
  * (`capped`) y el calor de la pérdida inelástica que se sumó a las columnas (`inelastic`, J). Con `store.thermal`
  * (`js/thermal.js`) la energía que lleva la partícula es la de su entalpía propia, no la del agua ambiente.
+ * El vapor (`STEAM`, miscible) se absorbe como el agua con su entalpía, salvo sobre una columna a 100 °C
+ * (`passes`): ahí no condensa y sigue subiendo (#112).
  */
 export class Immersion {
     constructor(system, store, water, { gravity = 10 } = {}) {
@@ -83,7 +86,7 @@ export class Immersion {
             const y = heap[pos + 2 * i + 1];
             const eta = water.surfaceAt(x);
             if (entry.material.miscible) {
-                if (y <= eta + this.radius) this.absorb(i, entry, x, heap[vel + 2 * i], heap[vel + 2 * i + 1]);
+                if (y <= eta + this.radius && !this.passes(store.kind[slot], x)) this.absorb(i, entry, x, heap[vel + 2 * i], heap[vel + 2 * i + 1]);
             } else if (y < eta) {
                 this.immerse(i, entry.material, x, vel, dt);
             }
@@ -97,13 +100,21 @@ export class Immersion {
                 if (!entry || !entry.material.miscible) continue;
                 const x = heap[pos + 2 * i];
                 if (x < minX || x > maxX) continue;
-                if (heap[pos + 2 * i + 1] <= water.surfaceAt(x) + this.radius) {
+                if (heap[pos + 2 * i + 1] <= water.surfaceAt(x) + this.radius && !this.passes(store.kind[slot], x)) {
                     this.absorb(i, entry, x, heap[vel + 2 * i], heap[vel + 2 * i + 1]);
                 }
             }
             if (this.stats.absorbed === before) break;
         }
         if (this.stats.absorbed !== absorbedAtStart) water.consolidate();
+    }
+
+    /**
+     * El vapor sobre una columna a `boilingPoint` (docs/design/14-agua.md §14.8, ficha 15) no condensa y sigue
+     * subiendo: no se absorbe. Con cualquier otro material, siempre falso.
+     */
+    passes(kind, x) {
+        return kind === FLUID.STEAM && this.water.temperatureAt(x) >= MATERIALS.water.boilingPoint - 1e-6;
     }
 
     /**
