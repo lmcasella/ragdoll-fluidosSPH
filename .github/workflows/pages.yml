@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node --test tests/
+      - run: node --test "tests/**/*.test.js"
 
   build:
     needs: test
@@ -70,7 +70,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html _site/
-          for dir in js lib vendor assets; do
+          for dir in js lib vendor assets audio; do
             if [ -d "$dir" ]; then cp -r "$dir" _site/; fi
           done
           touch _site/.nojekyll
