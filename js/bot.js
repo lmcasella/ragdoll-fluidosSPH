@@ -201,7 +201,8 @@ export class Bot {
         this.blockUntil = -Infinity;
         this.aimOffset = 0;
         this.aimStamp = -Infinity;
-        this.weaponStamp = -Infinity;
+        this.tankSeen = null;
+        this.weaponTarget = null;
         this.burstUntil = -Infinity;
         this.burstReadyAt = -Infinity;
         this.hurtAt = -Infinity;
@@ -281,6 +282,7 @@ export class Bot {
     think(game, now) {
         const me = game.players[this.k];
         if (game.match.state !== "playing" || me.dead) return;
+        this.pickWeapon(me);
         const mx = me.torso.GetPosition().get_x();
         let foe = null;
         let best = Infinity;
@@ -557,12 +559,8 @@ export class Bot {
         if (adx > cfg.max) return;
         if (adx < cfg.min && cur !== null && cur === foeNode) return;
         const tank = me.tanks.get(me.weapon) ?? 0;
-        if (tank <= 0) {
-            this.pickWeapon(me, now);
-            return;
-        }
+        if (tank <= 0) return;
         if (!this.lineOfSight(me, foe)) return;
-        this.pickWeapon(me, now);
         if (now - this.aimStamp >= cfg.aimRefresh) {
             this.aimOffset = (this.rng() * 2 - 1) * cfg.aimError;
             this.aimStamp = now;
@@ -597,17 +595,23 @@ export class Bot {
         return hit !== null && foe.ownBodies.has(hit.bodyPtr);
     }
 
-    /** Equipa el arma con más daño por segundo que tenga tanque, si no es la actual. */
-    pickWeapon(me, now) {
-        if (now - this.weaponStamp < 0.5) return;
-        let best = null;
-        WEAPONS.forEach((w, i) => {
-            if ((me.tanks.get(w.id) ?? 0) <= 0) return;
-            if (best === null || w.dps > WEAPONS[best].dps) best = i;
-        });
-        if (best === null || WEAPONS[best].id === me.weapon) return;
-        this.weaponStamp = now;
-        this.pulse(PAD.weapons[best]);
+    /**
+     * Elige el arma por la cruceta (la misma acción de cambio directo del jugador). Un tanque que pasó a estar lleno
+     * (arma recién recogida) se equipa enseguida y la más reciente gana; con el tanque equipado vacío elige al azar,
+     * con `rng`, entre las que tienen carga. Sin armas cargadas no hace nada.
+     */
+    pickWeapon(me) {
+        const seen = this.tankSeen;
+        this.tankSeen = new Map(WEAPONS.map((w) => [w.id, me.tanks.get(w.id) ?? 0]));
+        if (seen !== null) {
+            for (const w of WEAPONS) if (this.tankSeen.get(w.id) > seen.get(w.id) && this.tankSeen.get(w.id) >= w.tank) this.weaponTarget = w.id;
+        }
+        if (this.weaponTarget !== null && (this.weaponTarget === me.weapon || this.tankSeen.get(this.weaponTarget) <= 0)) this.weaponTarget = null;
+        if (this.weaponTarget === null && (this.tankSeen.get(me.weapon) ?? 0) <= 0) {
+            const loaded = WEAPONS.filter((w) => this.tankSeen.get(w.id) > 0);
+            if (loaded.length > 0) this.weaponTarget = loaded[Math.floor(this.rng() * loaded.length)].id;
+        }
+        if (this.weaponTarget !== null) this.pulse(PAD.weapons[WEAPONS.findIndex((w) => w.id === this.weaponTarget)]);
     }
 
     /** Se acerca al rival (en su plataforma, o por la ruta hasta la plataforma que elige). */
