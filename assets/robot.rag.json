@@ -7173,7 +7173,7 @@
       "hold": true,
       "layer": 0,
       "blend": "override",
-      "length": 1,
+      "length": 0.7,
       "fadeIn": 0,
       "fadeOut": 0,
       "speed": 1,
@@ -7184,12 +7184,22 @@
           "keys": [
             {
               "t": 0,
-              "v": -0.22371,
+              "v": -0.23911,
+              "interp": "linear"
+            },
+            {
+              "t": 0.16667,
+              "v": 1.04509,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": 0.76163,
               "interp": "linear"
             },
             {
               "t": 0.5,
-              "v": 0.75087,
+              "v": 0.37038,
               "interp": "linear"
             }
           ]
@@ -7200,12 +7210,22 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.00124,
+              "v": 0.02338,
+              "interp": "linear"
+            },
+            {
+              "t": 0.16667,
+              "v": -0.18298,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": -0.31995,
               "interp": "linear"
             },
             {
               "t": 0.5,
-              "v": -0.33901,
+              "v": -0.17724,
               "interp": "linear"
             }
           ]
@@ -7216,12 +7236,22 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.78104,
+              "v": 0.774,
+              "interp": "linear"
+            },
+            {
+              "t": 0.16667,
+              "v": 0.2759,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": -0.36947,
               "interp": "linear"
             },
             {
               "t": 0.5,
-              "v": -0.37749,
+              "v": -0.16135,
               "interp": "linear"
             }
           ]
@@ -7232,12 +7262,17 @@
           "keys": [
             {
               "t": 0,
-              "v": -0.54078,
+              "v": -0.52193,
               "interp": "linear"
             },
             {
-              "t": 0.5,
-              "v": -0.26142,
+              "t": 0.16667,
+              "v": -0.00209,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": -0.18559,
               "interp": "linear"
             }
           ]
@@ -7248,12 +7283,17 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.02647,
+              "v": 0.00939,
               "interp": "linear"
             },
             {
-              "t": 0.5,
-              "v": 0.09132,
+              "t": 0.16667,
+              "v": 0.12051,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": 0.18724,
               "interp": "linear"
             }
           ]
@@ -7264,12 +7304,17 @@
           "keys": [
             {
               "t": 0,
-              "v": 1.98402,
+              "v": 1.98711,
               "interp": "linear"
             },
             {
-              "t": 0.5,
-              "v": 2.39482,
+              "t": 0.16667,
+              "v": 1.78821,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": 1.43017,
               "interp": "linear"
             }
           ]
@@ -7280,12 +7325,17 @@
           "keys": [
             {
               "t": 0,
-              "v": 1.9685,
+              "v": 1.45322,
               "interp": "linear"
             },
             {
-              "t": 0.5,
-              "v": 2.41531,
+              "t": 0.16667,
+              "v": 1.89151,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": 2.49098,
               "interp": "linear"
             }
           ]
@@ -7296,12 +7346,22 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.21613,
+              "v": 0.23813,
+              "interp": "linear"
+            },
+            {
+              "t": 0.16667,
+              "v": -0.03271,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": -0.4304,
               "interp": "linear"
             },
             {
               "t": 0.5,
-              "v": -0.46679,
+              "v": 0.85337,
               "interp": "linear"
             }
           ]
@@ -7312,12 +7372,12 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.70788,
+              "v": 0.73157,
               "interp": "linear"
             },
             {
-              "t": 0.5,
-              "v": 0.95871,
+              "t": 0.33333,
+              "v": 0.74567,
               "interp": "linear"
             }
           ]
@@ -7328,12 +7388,12 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.73446,
+              "v": 1.3058,
               "interp": "linear"
             },
             {
-              "t": 0.5,
-              "v": 1.02462,
+              "t": 0.33333,
+              "v": 1.01631,
               "interp": "linear"
             }
           ]
@@ -7344,12 +7404,22 @@
           "keys": [
             {
               "t": 0,
-              "v": -0.25735,
+              "v": -0.26321,
+              "interp": "linear"
+            },
+            {
+              "t": 0.16667,
+              "v": -0.05601,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": 0.14792,
               "interp": "linear"
             },
             {
               "t": 0.5,
-              "v": 0.21132,
+              "v": -0.02238,
               "interp": "linear"
             }
           ]
@@ -7364,8 +7434,18 @@
               "interp": "linear"
             },
             {
+              "t": 0.16667,
+              "v": -1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": 0.02125,
+              "interp": "linear"
+            },
+            {
               "t": 0.5,
-              "v": 0.04681,
+              "v": 0.11238,
               "interp": "linear"
             }
           ]
@@ -7376,12 +7456,28 @@
           "keys": [
             {
               "t": 0,
-              "v": 0.14889,
+              "v": 0.13939,
+              "interp": "linear"
+            },
+            {
+              "t": 0.33333,
+              "v": -0.19526,
               "interp": "linear"
             },
             {
               "t": 0.5,
-              "v": -0.21761,
+              "v": -0.8104,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "balance",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0,
               "interp": "linear"
             }
           ]
@@ -7540,6 +7636,1436 @@
             {
               "t": 0,
               "v": 1.64751,
+              "interp": "linear"
+            }
+          ]
+        }
+      ],
+      "events": []
+    },
+    {
+      "key": "land_hurt",
+      "name": "land_hurt",
+      "loop": false,
+      "hold": true,
+      "layer": 0,
+      "blend": "override",
+      "length": 1,
+      "fadeIn": 0,
+      "fadeOut": 0,
+      "speed": 1,
+      "tracks": [
+        {
+          "target": "j_2",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.1655,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 0.31569,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.90063,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.11753,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_8",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -0.01571,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 0.41744,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.77664,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": -0.07679,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_14",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.15976,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 0.09382,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.1374,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": -0.48514,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_3",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.54248,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 0.79578,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.6932,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": -0.30243,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_11",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.26609,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 2.06838,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.74149,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.53751,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_13",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.19051,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 2.13641,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.75856,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.66778,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_15",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.48405,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 0.50211,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.07127,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.803,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_4",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": -1.55451,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -1.52279,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": -0.18379,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_16",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -1.50503,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": -0.58577,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -1.03608,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": -1.16496,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "bodyAngle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.0051,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": -0.4271,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.96668,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.06727,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_10",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.0539,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": -0.21959,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_12",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -0.09577,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 1.54164,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.51916,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.06529,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "balance",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "strength",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.5,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_9",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.01124,
+              "interp": "linear"
+            },
+            {
+              "t": 0.2,
+              "v": 0.19494,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.69022,
+              "interp": "linear"
+            },
+            {
+              "t": 0.7,
+              "v": 0.00189,
+              "interp": "linear"
+            }
+          ]
+        }
+      ],
+      "events": []
+    },
+    {
+      "key": "getup_front",
+      "name": "getup_front",
+      "loop": false,
+      "hold": true,
+      "layer": 0,
+      "blend": "override",
+      "length": 2,
+      "fadeIn": 0,
+      "fadeOut": 0,
+      "speed": 1,
+      "tracks": [
+        {
+          "target": "j_2",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.45627,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.03434,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.47298,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.09867,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.15251,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.3177,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_8",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.48218,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.57192,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.54404,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -0.09381,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.07086,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.48848,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_14",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.32067,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.04053,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.76195,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.85534,
+              "interp": "linear"
+            },
+            {
+              "t": 1.33333,
+              "v": 0.77881,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 1.00408,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.57911,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_3",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -0.12221,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.04674,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.30558,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -0.01352,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.2975,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.55228,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_9",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.47638,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.46048,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.77513,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -0.47958,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.24048,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.09461,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_11",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.39996,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.36001,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.55664,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.48793,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.0324,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.32155,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_13",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.56246,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.13473,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.45745,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.30164,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.10942,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.2377,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_15",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.43577,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.45478,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -1.05684,
+              "interp": "linear"
+            },
+            {
+              "t": 1.33333,
+              "v": 0.09131,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.12274,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.38992,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_4",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.20125,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.25284,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.68616,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -1.57026,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.41326,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.15541,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_16",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -1.49157,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -1.56632,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.2618,
+              "interp": "linear"
+            },
+            {
+              "t": 1.33333,
+              "v": -1.14307,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.66983,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.50603,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "bodyAngle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -1.78556,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -1.44789,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.98442,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -0.29895,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.16492,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.26542,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_10",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.05004,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1.04226,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 1.39105,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.18913,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.11613,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_12",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.15934,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1.0515,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 1.1754,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.14906,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.04277,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "balance",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 1,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "strength",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.5,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 1,
+              "interp": "linear"
+            }
+          ]
+        }
+      ],
+      "events": []
+    },
+    {
+      "key": "getup_back",
+      "name": "getup_back",
+      "loop": false,
+      "hold": true,
+      "layer": 0,
+      "blend": "override",
+      "length": 2,
+      "fadeIn": 0,
+      "fadeOut": 0,
+      "speed": 1,
+      "tracks": [
+        {
+          "target": "root",
+          "channel": "balance",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "strength",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.5,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_2",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.53932,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.24458,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -1.01712,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.97064,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.34429,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.09805,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_8",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -0.63277,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.75025,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.76311,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.08736,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.4759,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.00253,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_14",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.65636,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.02687,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.39001,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -0.23237,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.95631,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 1.03508,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_3",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.07368,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.51405,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1.50119,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.98069,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.45727,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_9",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.67716,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.39404,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": -0.7854,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.25812,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.77471,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.12516,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_11",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.422,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 2.09096,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 1.20425,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 3.63373,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 5.42578,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 6.40397,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_13",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.43797,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 1.79955,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.96185,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 2.93436,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 5.40273,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 6.2515,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_15",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -0.75786,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 0.68269,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.9457,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.33131,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 0.91637,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.56576,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_4",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -1.23859,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -1.56484,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.2618,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.23135,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -1.36203,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.26541,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_10",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.08554,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.14125,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.27436,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 1.5708,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 1.35787,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.29151,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_12",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 0.09467,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -0.39804,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.0115,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 0.57602,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": 1.42529,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": 0.01942,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "j_16",
+          "channel": "angle",
+          "keys": [
+            {
+              "t": 0,
+              "v": -0.52923,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": -1.38134,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 0.2618,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": -0.42967,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.97526,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.22179,
+              "interp": "linear"
+            }
+          ]
+        },
+        {
+          "target": "root",
+          "channel": "bodyAngle",
+          "keys": [
+            {
+              "t": 0,
+              "v": 1.76346,
+              "interp": "linear"
+            },
+            {
+              "t": 0.5,
+              "v": 2.15899,
+              "interp": "linear"
+            },
+            {
+              "t": 1,
+              "v": 3.26471,
+              "interp": "linear"
+            },
+            {
+              "t": 1.26667,
+              "v": 2.15995,
+              "interp": "linear"
+            },
+            {
+              "t": 1.5,
+              "v": -0.19631,
+              "interp": "linear"
+            },
+            {
+              "t": 2,
+              "v": -0.02121,
               "interp": "linear"
             }
           ]

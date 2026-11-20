@@ -191,7 +191,7 @@ export class DamageSystem {
             const key = `${owner.index}:${owner.bodyId}`;
             if (now - (this.lastImpact.get(key) ?? -Infinity) < IMPACT_COOLDOWN) continue;
             this.lastImpact.set(key, now);
-            owner.player.hurt(owner.bodyId, (speed - IMPACT_SPEED) * IMPACT_DAMAGE, now);
+            if (owner.player.hurt(owner.bodyId, (speed - IMPACT_SPEED) * IMPACT_DAMAGE, now) > 0) owner.player.markImpact();
             this.stats.impacts++;
         }
 

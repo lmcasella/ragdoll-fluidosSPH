@@ -287,6 +287,8 @@ Vive en `ActiveRagdoll` (patrón "máquinas de estado"): un solo método resuelv
 | `ROLL` | `speed` | 4 m/s | Recorre ≈ 3,2 m: sale del alcance de un golpe (1,1 m) sin cruzar medio mapa. Pegado (miel): × `STICKY.speed` |
 | `ROLL` | `cooldown` | 0,5 s | Desde que termina, para que no se encadenen rolls |
 
+**Caída con daño (#195, robot v7).** Si el impacto de una caída alta (`fallLatched`) hizo daño (`IMPACT_SPEED`), al aterrizar el robot entra en `landHurt` (1 s, el largo del clip) y después en `getupFront` o `getupBack` (2 s cada una), según `chestDown()`: el pecho es el lado al que mira (`side`) sobre el eje x local del torso, y mira al piso si `side · sin θ < 0` (boca abajo, `getupFront`); si no, espalda abajo (`getupBack`). Durante los tres segundos el input se lee pero no actúa (sin mover, girar, saltar, rodar, atacar ni disparar); un golpe aplica daño sin cambiar de clip y la muerte corta la secuencia. Una caída sin daño sigue como antes. La secuencia dura lo que los clips (`rig.clipLengths`), no un valor propio.
+
 ### 3.7.4 Ataques melee (datos en `MELEE`)
 
 Tabla `MELEE` en el módulo nuevo `js/melee.js`. La raíz de composición la pasa a `ActiveRagdoll` dentro del rig (`ROBOT_RIG.melee`), así `ActiveRagdoll` no importa el módulo (lo mismo que con `WEAPONS`).
