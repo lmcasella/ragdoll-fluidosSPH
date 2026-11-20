@@ -37,6 +37,8 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
 
 Pedido del usuario (remapeo del 18/11; issue #149, requisito del ascenso infinito #25). Un robot atraviesa una plataforma atravesable al subir desde abajo, y la atraviesa hacia abajo con `drop` (abajo + A, [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)). El usuario pidió un **sistema estándar y genérico**, reutilizable por otros sistemas (ascenso infinito, plataformas cinemáticas #33) y fácil de ajustar.
 
+**Fluidos (decisión del usuario, 20/11):** las partículas no atraviesan las plataformas en ningún sentido. La plataforma es sólida para los fluidos: retiene charcos, lava y piedra, y sirve de cobertura contra disparos desde abajo. Solo los robots la cruzan.
+
 **Decisiones del 19/11 (reemplazan lo que se contradiga más abajo):**
 - **Atravesable es un dato:** `oneWay: true` en el sólido de `LEVEL`. Todas las `kind: "platform"` actuales lo llevan; piso y paredes no. Un sistema que cree plataformas en ejecución las registra con `addPlatform(fixture)` / `removePlatform(fixture)`.
 - **Decisión por dueño, no por pieza:** un dueño es un conjunto de cuerpos que pasa entero o choca entero (`addOwner(key, bodies)` / `removeOwner(key)`; cada robot es un dueño, y cualquier otro sistema puede registrar los suyos). Un cuerpo dinámico sin dueño es su propio dueño. Así ninguna pieza del ragdoll queda trabada a medio cruzar.
