@@ -50,8 +50,10 @@ export function createFakeAudioContext() {
                 playbackRate: new Param(),
                 connect() {},
                 stopped: false,
-                stop() {
+                stopAt: Infinity,
+                stop(when = 0) {
                     this.stopped = true;
+                    this.stopAt = when;
                 },
                 start() {
                     (this.loop ? tracks : plays).push(this);
@@ -61,5 +63,7 @@ export function createFakeAudioContext() {
         }
     }
 
-    return { FakeAudioContext, plays, tracks, created };
+    const live = (time) => tracks.filter((track) => track.stopAt > time);
+
+    return { FakeAudioContext, plays, tracks, created, live };
 }

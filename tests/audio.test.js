@@ -274,3 +274,62 @@ test("un archivo que no carga deja mudo a su evento sin romper nada", async () =
     assert.ok(events.includes("hurt"), `eventos: ${events}`);
     assert.equal(fake.tracks.length, 0);
 });
+
+/**
+ * Corre `seconds` s de juego avanzando el reloj del contexto falso y devuelve el máximo de pistas de música vivas y
+ * cuántos frames hubo más de una viva sin un cambio de pista en el último segundo (el fundido).
+ */
+async function musicOverlaps(map, seconds) {
+    const fake = createFakeAudioContext();
+    const game = await loadGame({ audioContext: fake.FakeAudioContext, map });
+    game.setPad(0);
+    game.setPad(1);
+    game.frames(5);
+    await tick();
+    await unlock(game);
+    const [context] = fake.created;
+    let max = 0;
+    let stray = 0;
+    let lastChange = -Infinity;
+    let seen = fake.tracks.length;
+    for (let f = 0; f < seconds * 60; f++) {
+        game.frame();
+        context.currentTime += 1 / 60;
+        if (fake.tracks.length !== seen) {
+            seen = fake.tracks.length;
+            lastChange = context.currentTime;
+        }
+        const live = fake.live(context.currentTime).length;
+        max = Math.max(max, live);
+        if (live > 1 && context.currentTime - lastChange > AUDIO.fade + 1e-6) stray++;
+    }
+    return { max, stray, changes: fake.tracks.length };
+}
+
+test("en Infinito y en Clásico nunca suenan más de dos pistas, y dos solo durante el fundido", async () => {
+    for (const map of ["infinite", "classic"]) {
+        const { max, stray, changes } = await musicOverlaps(map, map === "infinite" ? 150 : 70);
+        assert.ok(changes >= 2, `${map}: cambios ${changes}`);
+        assert.ok(max <= 2, `${map}: máximo ${max}`);
+        assert.equal(stray, 0, `${map}: frames con dos pistas fuera del fundido`);
+    }
+});
+
+test("un cambio de pista pedido durante un fundido corta la que estaba saliendo", async () => {
+    const fake = createFakeAudioContext();
+    const audio = new GameAudio(fake.FakeAudioContext);
+    audio.context.state = "running";
+    for (const file of Object.values(MUSIC)) audio.buffers.set(`./audio/music/${file}.ogg`, { url: `./audio/music/${file}.ogg` });
+    const [context] = fake.created;
+    let max = 0;
+    const sample = () => (max = Math.max(max, fake.live(context.currentTime).length));
+    for (const name of ["combat", "suddenDeath", "combat", "mainMenu", "suddenDeath"]) {
+        audio.playMusic(name);
+        sample();
+        context.currentTime += 0.3;
+        sample();
+    }
+    assert.ok(max <= 2, `máximo ${max}`);
+    context.currentTime += AUDIO.fade;
+    assert.deepEqual(fake.live(context.currentTime).map((t) => name(t.buffer.url)), [MUSIC.suddenDeath]);
+});

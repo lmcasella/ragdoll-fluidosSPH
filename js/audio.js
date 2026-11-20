@@ -50,6 +50,7 @@ export class GameAudio {
         this.lastPlayed = new Map();
         this.wanted = null;
         this.current = null;
+        this.leaving = [];
         if (!Context) return;
         try {
             this.context = new Context();
@@ -146,18 +147,32 @@ export class GameAudio {
         this.syncMusic();
     }
 
+    /**
+     * Lleva la música a la pista pedida. Nunca hay más de una pista entrando y una saliendo: si el cambio llega durante
+     * un fundido, la que ya estaba saliendo se corta en el acto.
+     */
     syncMusic() {
         if (!this.running || !this.wanted || this.current?.name === this.wanted) return;
         const buffer = this.buffers.get(musicUrl(MUSIC[this.wanted]));
         if (!buffer) return;
         const context = this.context;
         const t = context.currentTime;
+        for (const leaving of this.leaving) {
+            leaving.source.stop(t);
+            leaving.gain.disconnect();
+        }
+        this.leaving = [];
         const old = this.current;
         if (old) {
             old.gain.gain.cancelScheduledValues(t);
             old.gain.gain.setValueAtTime(old.gain.gain.value, t);
             old.gain.gain.linearRampToValueAtTime(0, t + AUDIO.fade);
             old.source.stop(t + AUDIO.fade);
+            old.source.onended = () => {
+                old.gain.disconnect();
+                this.leaving = this.leaving.filter((track) => track !== old);
+            };
+            this.leaving.push(old);
         }
         const source = context.createBufferSource();
         source.buffer = buffer;

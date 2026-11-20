@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.41.2] - 2026-11-20
+
+### Fixed
+- Música: un cambio de pista pedido durante un fundido ya no deja sonando la pista que estaba saliendo. Nunca hay más de una pista entrando y una saliendo.
+
 ## [0.41.1] - 2026-11-20
 
 ### Fixed
