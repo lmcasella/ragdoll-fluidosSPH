@@ -264,7 +264,7 @@ Acople partícula ↔ campo, una vez por paso, después de `stepWorld` y `store.
   | H₂SO₄ (#98) | `SG · σ_w · A_p · species.H2SO4` del material de la partícula (`material.species.H2SO4`, 0 si no está): 8,16·10⁻³ kg por partícula de ácido (de 0,102 kg), 0 en el agua y la lluvia. Sale de `MATERIALS`, sin columna nueva en `KIND_MATERIAL` | kg |
 
 - **Volumen por partícula:** `A_p / dx` = **0,081 m** (0,32 m con `r` = 0,12) de altura de agua si cae entera en una celda (repartida entre dos celdas, menos en cada una). Una gota es un montículo de ese tamaño, que el campo reparte como dos ondas.
-- **Cantidad de movimiento vertical:** el modelo hidrostático no la resuelve, y **no genera ola**. Se transfiere al lecho como impulso de presión y se registra en el debug. La **salpicadura es la ola** que genera el volumen agregado: dos frentes a ±√(g h).
+- **Cantidad de movimiento vertical:** el modelo hidrostático no la resuelve, y **no genera ola**. Se transfiere al lecho como impulso de presión y se registra en el debug. La **salpicadura de una gota** es la ola que genera el volumen agregado: dos frentes a ±√(g h). La salpicadura que levanta un cuerpo al entrar es de partículas: sale del campo y vuelve por esta misma absorción ([14.5](#salpicaduras-del-campo-a-partículas-244)).
 - **Evaporación previa** ([14.7b](#147b-evaporación-de-agua-detenida-d7)): si la partícula ya se evaporó en parte (fracción `φ`), deposita `A_p (1 − φ)` de volumen y la masa, la cantidad de movimiento y la energía en la misma proporción.
 - Después de depositar, `store.destroy(i)`.
 - **Ácido** (#98): se absorbe como cualquier miscible (volumen `A_p`, cantidad de movimiento con su `SG`, energía como hoy) y **conserva su identidad**: su H₂SO₄ entra en `A` con la fila de arriba. Deja de dañar como partícula; la columna no daña ([14.3](#ecuaciones)). Con la evaporación de #73, deposita `A_p (1 − φ)` y su H₂SO₄ también por `(1 − φ)`, porque D7 evapora la partícula entera (limitación de [15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 15: en la realidad queda el H₂SO₄).
@@ -325,6 +325,16 @@ Sin este término, el robot flota, pero el agua no lo siente entrar: no hay ola 
 - **Piezas totalmente sumergidas:** su `d` se apaga linealmente cuando el tope de la pieza queda a más de 0,1 m bajo la superficie. Una pieza profunda no deprime la superficie. Su desplazamiento sube el nivel medio solo `A/W` (el robot entero en la pileta: 1,08/20 = 5 cm), que se ignora.
 - **Recorte de la flotación** contra `ζ = η + d`, la superficie de presión, que en equilibrio es plana.
 - **Riesgo:** el acople implícito entre `d` y `η` puede oscilar. Si no cumple el criterio B5, se recorta a M5 y queda solo la reacción horizontal del arrastre.
+
+### Salpicaduras del campo a partículas (#244)
+
+Las dispara **solo un cuerpo Box2D**, desde `js/buoyancy.js` (nunca las gotas): una pieza que perfora la superficie en una franja con velocidad normal `v_n < 0` y `Fr = v_n²/(g ℓ) > 1` (`ℓ`, ancho mojado de la franja). Se encolan durante `apply` y se crean después de `stepWorld` (`releaseSplashes`, patrón "juntar y actuar después"), como `ORIGIN.SPLASH`.
+
+- **Cantidad, acotada por energía:** `n = ⌊(ε W + resto) / (½ m_p v_p²)⌋`, con `W = −J·v_r` el trabajo del arrastre de la franja en el paso, `m_p = σ_w A_p`, el `resto` acarreado por columna y un tope para que la columna no baje de `h_min`. **`ε` = 0,08**, aproximación declarada (aprobada por el usuario; rango 5–10 %: la fracción del trabajo del arrastre que se vuelve energía cinética de las gotas).
+- **Velocidad:** `|v_p| = v_n`, a 60° ± 10° de la horizontal, hacia afuera del centro de la pieza, con el azar de `?seed`. Cada gota sale desde el borde mojado de la franja, a 2 r sobre la superficie que tenía la columna, separadas `1,5 r` sobre su rayo.
+- **Libro exacto:** `h[c] −= n A_p/dx`, `q[c] −= Σ A_p v_x/dx` y `E[c] −= (n A_p/dx) E[c]/h[c]`, con la entalpía de la gota a esa misma `T`. El impulso vertical lanzado `Σ σ_w A_p v_y` no supera `|J_y|` de la franja (tope por construcción; `stats.splash` lo lleva).
+- **Solo agua:** no salpica desde columnas con miel ≥ 1 % ni ácido ≥ 0,5 % (límite declarado).
+- Al volver, las gotas se absorben como cualquiera ([14.4](#144-absorción-e-inmersión)).
 
 ## 14.6 Disparos con agua pura
 
