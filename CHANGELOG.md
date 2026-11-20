@@ -5,10 +5,20 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
-## [0.39.1] - 2026-11-20
+## [0.39.3] - 2026-11-20
 
 ### Fixed
 - La levantada tras una caída con daño espera a que el robot esté apoyado y quieto: `land_hurt` sigue mientras esté en el aire o rebotando, y la levantada empieza tras 0,5 s seguidos con alguna pieza apoyada en el mapa o en el agua (mínimo 1 s de `land_hurt`).
+
+## [0.39.2] - 2026-11-20
+
+### Fixed
+- Los modos contra bot y bot contra bot funcionan aunque haya más de un gamepad conectado: el jugador elegido como bot lo maneja el bot, y ya no se queda quieto esperando a un mando.
+
+## [0.39.1] - 2026-11-20
+
+### Fixed
+- Al romperse la guardia vuelve la animación de tropiezo (`stumble`) del que bloqueaba; sigue sin el empuje artificial.
 
 ## [0.39.0] - 2026-11-20
 

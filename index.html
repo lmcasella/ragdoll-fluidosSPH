@@ -623,7 +623,7 @@
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
                 const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
-                bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
+                bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
                     const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);

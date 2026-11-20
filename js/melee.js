@@ -6,7 +6,8 @@
  * sumados a todo el robot golpeado; `stun` en s; `reaction` = `simple` o `stumble`; `lunge` (m/s, opcional) es el paso adelante del atacante hasta el fin de la ventana activa. `impulse` (N·s) se aplica en el
  * punto de impacto. `combo`: secuencia, `grace` (s de tolerancia tras terminar un golpe para encadenar) y `cooldown`
  * (s tras cortarse o terminar un ataque). `breaksGuard` (opcional): si el golpe llega a un bloqueo lo rompe en vez de
- * ser bloqueado: sin daño, sin empuje ni reacción, el receptor sale de `block` y queda aturdido `guardBreakStun` s (#192).
+ * ser bloqueado: sin daño ni empuje (#192), el receptor sale de `block` con la reacción del golpe y queda aturdido
+ * `guardBreakStun` s.
  */
 export const MELEE = {
     impulse: 5,
@@ -150,6 +151,7 @@ export class Melee {
         if (guarded && row.breaksGuard) {
             victim.stun(this.config.guardBreakStun, now);
             victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
+            victim.hit(row.reaction, now);
             this.events.push({ kind: "blockBreak", victim: owner.index });
         } else if (guarded) {
             victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);

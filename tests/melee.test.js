@@ -232,14 +232,14 @@ test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no daña
     }
 });
 
-test("con el rival bloqueando, el combo con el pad llega a combo3 y rompe la guardia sin hacerlo tropezar", async (t) => {
+test("con el rival bloqueando, el combo con el pad llega a combo3, rompe la guardia y el rival tropieza", async (t) => {
     const { hits, samples } = await blockDuel(170);
     t.diagnostic(`eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}`);
     assert.deepEqual(hits.map((h) => h.kind), ["block", "block", "blockBreak"]);
-    assert.ok(!samples.some((s) => s.state === "reactStumble"));
+    assert.equal(samples[hits[2].frame].state, "reactStumble");
 });
 
-test("el tercer golpe del combo rompe la guardia: sin daño ni empuje, el rival sale de block y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
+test("el tercer golpe del combo rompe la guardia: sin daño ni empuje, el rival tropieza y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
     const game = await startDuel(GAP);
     game.setPad(1, { buttons: [BUTTON.LT], axes: AIM_LEFT });
     game.frames(10);
@@ -260,15 +260,12 @@ test("el tercer golpe del combo rompe la guardia: sin daño ni empuje, el rival 
     assert.equal(p2.hp, 100);
     const f = hits[0].frame;
     assert.equal(samples[f - 1].state, "block");
-    assert.notEqual(samples[f].state, "reactStumble");
+    assert.equal(samples[f].state, "reactStumble");
     const dv = Math.hypot(samples[f].vx - samples[f - 1].vx, samples[f].vy - samples[f - 1].vy);
     t.diagnostic(`Δv del torso rival al romper la guardia ${dv.toFixed(3)} m/s`);
     assert.ok(dv < 1.5);
     const stunned = Math.round(0.7 / DT);
-    for (let i = f + 1; i < f + stunned; i++) {
-        assert.notEqual(samples[i].state, "block", `frame ${i - f}`);
-        assert.notEqual(samples[i].state, "reactStumble", `frame ${i - f}`);
-    }
+    for (let i = f; i < f + stunned - 1; i++) assert.notEqual(samples[i].state, "block", `frame ${i - f}`);
     const back = samples.findIndex((s, i) => i > f && s.state === "block");
     t.diagnostic(`vuelve a block ${back - f} pasos después (${((back - f) * DT).toFixed(3)} s)`);
     assert.ok(back >= 0, "vuelve a bloquear después");
