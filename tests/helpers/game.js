@@ -76,6 +76,7 @@ export async function loadGame(options = {}) {
             }
             return elements.get(id);
         },
+        createElement: () => inert({ width: 0, height: 0, style: {}, getContext: () => inert({ createRadialGradient: () => inert() }) }),
     };
 
     if (options.storage) globalThis.localStorage = options.storage;

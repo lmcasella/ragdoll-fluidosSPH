@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.41.1] - 2026-11-20
+
+### Fixed
+- Las gotas del mismo material se funden en una masa continua (chorro, charco, hilo) en lugar de verse como bolitas sueltas. Cada partícula aporta un campo que se suma al de sus vecinas y un umbral recorta el contorno, con la gota aislada con su área física. Cada material se dibuja en su propia capa, así que materiales distintos ya no se funden entre sí. Se conserva el color por temperatura.
+
 ## [0.41.0] - 2026-11-20
 
 ### Changed

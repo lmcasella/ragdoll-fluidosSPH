@@ -22,7 +22,7 @@
                 left: 0;
                 display: block;
             }
-            #fluidCanvas {
+            .fluidLayer {
                 pointer-events: none;
                 filter: url("#goo");
             }
@@ -42,14 +42,8 @@
         <svg style="display: none">
             <defs>
                 <filter id="goo">
-                    <feGaussianBlur
-                        id="gooBlur"
-                        in="SourceGraphic"
-                        stdDeviation="6"
-                        result="blur"
-                    />
                     <feColorMatrix
-                        in="blur"
+                        in="SourceGraphic"
                         mode="matrix"
                         values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10"
                         result="goo"
@@ -60,7 +54,6 @@
 
         <div id="gameContainer">
             <canvas id="canvas"></canvas>
-            <canvas id="fluidCanvas"></canvas>
             <canvas id="pickupCanvas"></canvas>
             <canvas id="hudCanvas"></canvas>
         </div>
@@ -123,7 +116,7 @@
                 drawWeaponWheel,
                 WHEEL_RADII,
                 SHOT_DRAW,
-                GOO_BLUR,
+                FluidLayers,
                 collectSurfaces,
                 drawRobot,
             } from "./js/render.js";
@@ -195,9 +188,8 @@
 
             const canvas = document.getElementById("canvas");
             const ctx = canvas.getContext("2d");
-            const fluidCanvas = document.getElementById("fluidCanvas");
-            const fluidCtx = fluidCanvas.getContext("2d");
             const pickupCanvas = document.getElementById("pickupCanvas");
+            const fluidLayers = new FluidLayers(document, pickupCanvas, (layerCtx) => camera.apply(layerCtx));
             const pickupCtx = pickupCanvas.getContext("2d");
             const hudCanvas = document.getElementById("hudCanvas");
             const hudCtx = hudCanvas.getContext("2d");
@@ -205,10 +197,11 @@
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [canvas, fluidCanvas, pickupCanvas, hudCanvas]) {
+                for (const c of [canvas, pickupCanvas, hudCanvas]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }
+                fluidLayers.resize(window.innerWidth, window.innerHeight);
                 camera.resize(canvas.width, canvas.height);
             }
             resize();
@@ -586,18 +579,8 @@
                 }
             }
 
-            // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
-            // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
             const wetSurface = (x) =>
                 flood.active && water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity;
-            const gooBlur = document.getElementById("gooBlur");
-            let gooSigma = 0;
-            function ajustarGoo(scale) {
-                const sigma = Math.round(GOO_BLUR * scale * 2) / 2;
-                if (sigma === gooSigma) return;
-                gooSigma = sigma;
-                gooBlur.setAttribute("stdDeviation", String(sigma));
-            }
 
             // Reloj de simulación (s): avanza con el dt del frame por la escala de tiempo. Lo usan los disparos, el daño
             // y los efectos, así una pestaña oculta no vence los charcos y la cámara lenta los alarga igual que a la física.
@@ -738,19 +721,15 @@
                 }
                 const scale = camera.scale;
                 const bottom = camera.y - camera.viewH / (2 * scale);
-                ajustarGoo(scale);
 
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                fluidCtx.setTransform(1, 0, 0, 1, 0, 0);
-                fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
                 pickupCtx.setTransform(1, 0, 0, 1, 0, 0);
                 pickupCtx.clearRect(0, 0, pickupCanvas.width, pickupCanvas.height);
                 hudCtx.setTransform(1, 0, 0, 1, 0, 0);
                 hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
 
                 camera.apply(ctx);
-                camera.apply(fluidCtx);
                 camera.apply(pickupCtx);
                 const offsetY = climb ? climb.offsetY : 0;
                 ctx.save();
@@ -758,7 +737,7 @@
                 drawLevel(ctx, climb ? climb.level : LEVEL, scale);
                 ctx.restore();
                 collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
-                drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
+                drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                 });
