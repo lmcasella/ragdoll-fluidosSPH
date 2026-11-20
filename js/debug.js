@@ -6,9 +6,17 @@
  * - `maxArrows`: tope de flechas de velocidad de partículas por frame;
  * - `arrowTime`: segundos de movimiento que representa la flecha de una velocidad (m/s → m);
  * - `forceScale`: largo (m) de la flecha de una fuerza igual al peso de su pieza;
- * - `maxColumns`: tope de columnas del campo que se dibujan.
+ * - `maxColumns`: tope de columnas del campo que se dibujan;
+ * - `materials`: nombre que muestra el panel para cada clave de `FLUID`.
  */
-export const DEBUG = { alpha: 0.1, maxArrows: 300, arrowTime: 0.1, forceScale: 0.5, maxColumns: 200 };
+export const DEBUG = {
+    alpha: 0.1,
+    maxArrows: 300,
+    arrowTime: 0.1,
+    forceScale: 0.5,
+    maxColumns: 200,
+    materials: { ACID: "ácido", LAVA: "lava", HONEY: "miel", WATER: "agua", STONE: "piedra", STEAM: "vapor" },
+};
 
 const PANEL = { x: 8, y: 8, width: 330, line: 15, pad: 6, font: "12px monospace" };
 
@@ -103,7 +111,7 @@ export class Debug {
         const lines = [`FPS ${fixed(avg.fps, 1)}`];
         for (const key in avg.ms) lines.push(`${key} ${fixed(avg.ms[key], 2)} ms`);
         const counts = [];
-        for (const key in avg.particles) counts.push(`${key} ${fixed(avg.particles[key], 0)}`);
+        for (const key in avg.particles) counts.push(`${DEBUG.materials[key] ?? key} ${fixed(avg.particles[key], 0)}`);
         lines.push(`partículas: ${counts.join(" · ") || "-"}`);
         lines.push(`contactos partícula-cuerpo ${fixed(avg.contacts, 0)}`);
         lines.push(`subpasos CFL ${fixed(avg.cflSubsteps, 1)}`);
