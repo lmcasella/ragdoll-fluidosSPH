@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-11-20
+
+### Fixed
+- En el cartel de fin de partida, Escape (o el Start de cualquier control) vuelve al menú y Enter (o A) pide la revancha, aunque el teclado o ese control no estén asignados a un jugador.
+
 ## [0.43.0] - 2026-11-20
 
 ### Added

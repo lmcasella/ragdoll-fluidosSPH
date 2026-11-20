@@ -87,7 +87,7 @@ test("título, cuenta regresiva sin movimiento, rondas, fin de partida y revanch
     game.frames(185);
     assert.equal(match.state, "matchOver");
     assert.equal(match.matchWinner, 0);
-    assert.equal(match.banner.subtitle, "2 – 0 · A revancha · Start menú");
+    assert.equal(match.banner.subtitle, "2 – 0 · A / Enter revancha · Start / Esc menú");
 
     press(game, A);
     game.frames(10);
