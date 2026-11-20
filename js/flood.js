@@ -135,6 +135,7 @@ export class Flood {
         this.random = seededRandom(this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0);
         this.windPhase = 2 * Math.PI * this.random();
         this.gustPhase = 2 * Math.PI * this.random();
+        this.swellRandom = seededRandom((this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0) ^ 0x5eed);
     }
 
     /** Velocidad horizontal del viento (m/s) en el tiempo de ronda `t`. */
@@ -228,15 +229,19 @@ export class Flood {
         return true;
     }
 
-    /** Deja el agua como al empezar: el campo vuelve al estado asentado y se reinicia la fuente. Las gotas las destruye `store.reset()`. */
+    /**
+     * Deja el agua como al empezar: el campo vuelve al estado asentado, con el oleaje residual (`water.swell`, del azar de
+     * `?seed`), y se reinicia la fuente. Las gotas las destruye `store.reset()`.
+     */
     reset() {
         this.water.reset();
-        this.baseVolume = this.water.volume();
         this.roundTime = 0;
         this.emitted = 0;
         this.credit = 0;
         this.rate = 0;
         this.reseed();
+        this.water.swell(this.swellRandom);
+        this.baseVolume = this.water.volume();
     }
 
     dispose() {
@@ -255,8 +260,9 @@ export class Flood {
  * Misma interfaz que `Flood`: `active`, `level`, `config.start`, `step`, `reset` y `dispose`.
  */
 export class RisingFlood {
-    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0) {
+    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0, seed = null) {
         this.water = water;
+        this.seed = seed;
         this.data = level;
         this.climb = climb;
         this.config = climb.flood;
@@ -296,11 +302,12 @@ export class RisingFlood {
         if (dh > 0) this.water.rise(dh, this.eta);
     }
 
-    /** Deja el agua como al empezar. */
+    /** Deja el agua como al empezar, con el oleaje residual del agua que existe (`water.swell`). */
     reset() {
         this.water.reset();
         this.eta = this.config.surface;
         this.roundTime = 0;
+        this.water.swell(seededRandom((this.seed ?? (Math.random() * 2 ** 32) >>> 0) ^ 0x5eed));
     }
 
     dispose() {}

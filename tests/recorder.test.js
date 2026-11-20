@@ -51,7 +51,7 @@ test("graba 60 frames con partículas, piezas y sólidos, y el JSON se relee ent
         assert.ok(shots[59] > shots[0], "el chorro suma partículas");
         assert.ok(frames[0].eta.some((v, i) => v > meta.field.beds[i]), "la pileta tiene agua");
         const pool = frames[0].eta.filter((v, i) => v > meta.field.beds[i] + 1e-3);
-        assert.ok(pool.every((v) => Math.abs(v - 3) < 1e-3), "la pileta arranca asentada en 3 m");
+        assert.ok(pool.every((v) => Math.abs(v - 3) < 0.03), "la pileta arranca a 3 m con el oleaje residual (Hs 3 cm)");
         assert.ok(Math.abs(frames[59].t - 59 / 60) < 1e-3);
     } finally {
         rmSync(dir, { recursive: true, force: true });

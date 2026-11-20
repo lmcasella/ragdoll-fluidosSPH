@@ -362,7 +362,7 @@
                     pickups.dispose();
                     pickups = new Pickups(world, damage, []);
                     water.setStart({ surface: CLIMB.flood.surface });
-                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY);
+                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY, Number.isFinite(botSeed) ? botSeed : null);
                     climb = new Climb({ world, platforms, pickups });
                     damage.drownSurface = drownSurface;
                 } else {

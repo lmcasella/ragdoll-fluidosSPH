@@ -7,6 +7,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [0.44.0] - 2026-11-20
 
+### Changed
+- Las olas del agua se comportan como las de verdad: las cortas viajan más despacio que las largas, un golpe abre ondas que se van separando en lugar de un solo frente, y las olas casi no se apagan solas (las apaga la viscosidad real; con miel se frenan enseguida). Una ola muy empinada rompe.
+- Al empezar cada ronda la pileta tiene un oleaje suave de fondo (de unos 3 cm de altura) en lugar de quedar completamente quieta; la misma semilla (?seed) lo repite.
+
 ### Added
 - Cuando un robot cae al agua, la superficie levanta gotas hacia afuera, con la energía que el golpe le da al agua; el agua que sale de la pileta vuelve a ella cuando las gotas caen. Solo salpica el agua limpia, no la mezclada con miel o ácido.
 
