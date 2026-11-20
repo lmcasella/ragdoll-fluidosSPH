@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.35.2] - 2026-11-20
+
+### Fixed
+- Con el tanque de un líquido lleno, el robot atraviesa el punto de ese líquido sin gastarlo y queda para el contrincante.
+
 ## [0.35.1] - 2026-11-20
 
 ### Fixed
