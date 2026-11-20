@@ -218,7 +218,14 @@ function honeyConservation(game, label) {
     ];
 }
 
-test("U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 s del último disparo y H6 en 60 s (desplazamiento del fondo ≤ 0,5 m)", async (t) => {
+/**
+ * Tope de H6 en U2 (m en 60 s). Con la μ real en el charco de varias capas (#214), la capa de miel del fondo se arrastra
+ * con la corriente de las columnas: τ ≈ ρ_w C_f u² ≈ 1000 · 0,003 · 1,1² ≈ 4 Pa sobre una capa de h ≈ 0,1 m con
+ * μ = 10 Pa·s da una velocidad media ≈ τ h / (2 μ) ≈ 2 cm/s, unos 1,2 m en 60 s si la corriente no cambia de sentido.
+ */
+const H6_U2_MAX_SHIFT = 1.5;
+
+test(`U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 s del último disparo y H6 en 60 s (desplazamiento del fondo ≤ ${H6_U2_MAX_SHIFT} m, arrastre por la corriente)`, async (t) => {
     const game = await start();
     const { store, particleSystem } = game.state;
     const recorder = recorderFor(game, "u2-miel-en-pileta");
@@ -266,7 +273,7 @@ test("U2 (#110): un tanque de miel a la pileta; H2 a los 10 y 60 s, H4 a los 10 
         { name: "H4, 0 pasos con y > η − 2r desde que toca el fondo", issue: "#110", ok: probe.resurfaced === 0, detail: `${probe.resurfaced} pasos-partícula (${probe.resurfacedParticles.size} partículas)` },
     );
     t.diagnostic(`H6: desplazamiento medio máx de la miel apoyada ${num(probe.maxShift)} m (paso ${probe.maxShiftStep}), final ${num(probe.shift)} m; |u_c| máx de las columnas del fondo ${num(probe.maxColumnSpeed)} m/s`);
-    const h6 = { name: "H6, desplazamiento horizontal del centroide de la miel apoyada en 60 s ≤ 0,5 m", issue: "#110", ok: probe.maxShift <= 0.5, detail: `${num(probe.maxShift)} m, |u_c| máx ${num(probe.maxColumnSpeed)} m/s` };
+    const h6 = { name: `H6, desplazamiento horizontal del centroide de la miel apoyada en 60 s ≤ ${H6_U2_MAX_SHIFT} m`, issue: "#214", ok: probe.maxShift <= H6_U2_MAX_SHIFT, detail: `${num(probe.maxShift)} m, |u_c| máx ${num(probe.maxColumnSpeed)} m/s` };
     const failed = checks.filter((c) => !c.ok);
     for (const c of checks.concat(h6)) t.diagnostic(`${c.ok ? "ok" : "FALLA"} ${c.name}: ${c.detail}`);
     assert.equal(failed.length, 0, failed.map((c) => `${c.name}: ${c.detail}`).join(" | "));
