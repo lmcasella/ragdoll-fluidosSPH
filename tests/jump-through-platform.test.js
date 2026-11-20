@@ -66,8 +66,19 @@ for (const c of CASES) {
     });
 }
 
-test("salto completo: Infinito, bajo plataformas generadas con solapamiento y a <= 3,3 m", { timeout: 300000 }, async () => {
-    globalThis.location = { search: "?seed=2" };
+for (const seed of [1, 2, 3, 4, 5, 6]) {
+    test(`salto completo: Infinito, semilla ${seed}, bajo plataformas generadas con solapamiento y a <= 3,3 m`, { timeout: 300000 }, async () => {
+        await infiniteJumps(seed);
+    });
+}
+
+/**
+ * Salta bajo cada plataforma atravesable de la semilla `seed`. La inundación se reinicia antes de cada salto: tras unas
+ * decenas de saltos el agua alcanza al robot y el arrastre le acorta el salto, algo que no tiene que ver con las plataformas.
+ * Exige además que el apogeo de los pies supere 3,5 m sobre el punto de partida (sin corte el salto sube unos 4,2 m).
+ */
+async function infiniteJumps(seed) {
+    globalThis.location = { search: `?seed=${seed}` };
     const game = await loadGame({ map: "infinite" });
     for (const p of game.state.players) Object.assign(p, { drown: noop, hurt: noop, burn: noop, takeDamage: noop });
     game.state.climb.update({ top: 70, level: -Infinity });
@@ -82,10 +93,13 @@ test("salto completo: Infinito, bajo plataformas generadas con solapamiento y a 
         if (!below) continue;
         tried++;
         const x = (Math.max(below.x - below.w / 2, p.x - p.w / 2) + Math.min(below.x + below.w / 2, p.x + p.w / 2)) / 2;
+        game.state.flood.reset();
         settle(game, x, below.y + below.h / 2);
+        const start = game.state.players[0].lowestPoint() - game.state.climb.offsetY;
         const r = jump(game, p, 0);
-        console.log(`Infinito plataforma x ${p.x.toFixed(1)} y ${p.y.toFixed(2)}: pies máx ${r.high.toFixed(2)} m, tope ${r.top.toFixed(2)} m`);
+        console.log(`Infinito semilla ${seed} plataforma x ${p.x.toFixed(1)} y ${p.y.toFixed(2)}: pies máx ${r.high.toFixed(2)} m, tope ${r.top.toFixed(2)} m`);
         assert.ok(r.high > r.top + 0.3, `no pasó en x ${p.x} y ${p.y}`);
+        assert.ok(r.high - start > 3.5, `salto cortado en x ${p.x} y ${p.y}: apogeo ${(r.high - start).toFixed(2)} m`);
     }
     assert.ok(tried > 0, "no había plataformas con un apoyo a <= 3,3 m");
-});
+}
