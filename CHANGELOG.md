@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-11-20
+
+### Fixed
+- Bloquear vale la pena: un golpe bloqueado corta el combo del atacante, y romper la guardia solo aturde 0,7 s, sin lanzar ni hacer tropezar al que bloqueaba.
+
 ## [0.37.0] - 2026-11-20
 
 ### Changed
