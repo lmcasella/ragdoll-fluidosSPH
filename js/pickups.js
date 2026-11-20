@@ -10,7 +10,8 @@ export const PICKUP_RADIUS = 0.5;
  * Puntos de aparición de armas (docs/design/04-fluidos.md §4.2). Cada punto es un sensor circular en su propio cuerpo
  * estático. Los contactos llegan por `DamageSystem.sensorHooks` y solo se encolan: `process` aplica la recogida
  * después de `stepWorld`. Mientras espera reaparecer, el cuerpo queda inactivo y al reactivarse Box2D vuelve a
- * generar el contacto con quien siga encima.
+ * generar el contacto con quien siga encima. Quien ya tiene el tanque de ese líquido lleno lo atraviesa sin
+ * consumirlo (#181).
  */
 export class Pickups {
     constructor(world, damage, points, weapons = WEAPONS) {
@@ -72,6 +73,7 @@ export class Pickups {
             const owner = this.damage.ownerOf(bodyPtr);
             const weapon = this.weapons.get(point.weapon);
             if (!owner || owner.player.dead || !weapon) continue;
+            if ((owner.player.tanks.get(weapon.id) ?? -1) >= weapon.tank) continue;
             owner.player.tanks.set(weapon.id, weapon.tank);
             if (owner.player.weapon === null) owner.player.weapon = weapon.id;
             point.active = false;
