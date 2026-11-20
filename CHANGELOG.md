@@ -5,10 +5,24 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 ## [0.30.2] - 2026-11-20
 
 ### Added
 - Deploy automático a GitHub Pages en cada merge a `main`, con tests previos, tag y release por versión, y `version.json` publicado. El sitio publicado incluye el audio.
+=======
+## [0.31.0] - 2026-11-19
+
+### Added
+- Evaporación del agua detenida. Las gotas y charcos de agua con menos de 1 m/s se evaporan según su superficie expuesta: una gota suelta desaparece en unos 2,5 s y un charco grande dura mucho más, porque solo evaporan las partículas de arriba y los bordes. La lluvia y los chorros en vuelo no se evaporan, y el ácido, la miel y la lava persisten detenidos. La tasa real se acelera 300.000 veces para que se vea en una ronda (`MATERIALS.water.evaporationScale`).
+- `js/contacts.js`: lector en solo lectura de los contactos nativos partícula-partícula y partícula-cuerpo de LiquidFun. Busca y valida los offsets al arrancar (+54 y +58 palabras), los informa en `stats` y avisa por consola si difieren; si no los halla, la evaporación se desactiva y el juego sigue.
+- `js/evaporation.js` y `store.evaporated` (fracción `φ` por partícula). `stats.latent` acumula el calor latente (negativo, J) hasta que exista el monitor `E_perdida`.
+- Tests: E1 a E5 de evaporación contra el modelo del GDD y del lector de contactos.
+
+### Changed
+- La absorción en el campo deposita solo `A_p (1 − φ)` de una partícula ya evaporada en parte, y el libro de masa de `ParticleStore` anota la parte evaporada en `EVAPORATED`; los invariantes I1 e I2b cuentan `m (1 − φ)` como agua y `m φ` como evaporada.
+- El banco P3 informa `W_full` como mediana (1,1114) y usa `js/contacts.js`.
+>>>>>>> origin/main
 
 ## [0.30.1] - 2026-11-19
 

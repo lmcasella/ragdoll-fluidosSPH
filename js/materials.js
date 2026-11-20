@@ -13,10 +13,13 @@ export const SIGMA_W = 12.0;
  * `sigmaE` es la conductividad eléctrica (S/m) del agua de red y del ácido al 8 %; `tint` (RGB) y `tintAbsorbance`
  * (absorbancia decimal de una columna al 8 %) son el tinte de juego del ácido, que en la realidad es incoloro
  * (docs/design/14-agua.md §14.1 y §14.3, #98).
+ * `evaporationScale` (solo el agua) es el factor de aceleración `F_evap` de la evaporación de agua detenida, una
+ * aproximación nombrada: la tasa real es de milímetros por día y no se vería en una ronda (docs/design/14-agua.md
+ * §14.7b); un material sin este dato no se evapora.
  * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
-    water: { SG: 1.0, c: 4186, mu: 1.0e-3, sigmaE: 5e-3, miscible: true, species: { H2O: 1 } },
+    water: { SG: 1.0, c: 4186, mu: 1.0e-3, sigmaE: 5e-3, miscible: true, species: { H2O: 1 }, evaporationScale: 3e5 },
     acid: { SG: 1.05, c: 3850, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
     honey: { SG: 1.42, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
     lava: { SG: 2.6, Cd: 1.2, miscible: false, species: { basalt: 1 } },
