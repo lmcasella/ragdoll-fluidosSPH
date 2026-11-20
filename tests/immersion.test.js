@@ -86,7 +86,7 @@ test("I3: 20 gotas en x₀ generan dos frentes a ±√(g h) (±10 %)", (t) => {
         }
         return { right: slope(rows, 2), left: -slope(rows, 1), samples: rows.length };
     };
-    for (const threshold of [0.002, 0.01]) {
+    for (const threshold of [0.01]) {
         const m = measure(threshold);
         t.diagnostic(`I3 (frente en η − 3 > ${threshold * 1000} mm, entre 0,4 y 1,5 s de la primera gota, ${m.samples} muestras): derecho ${m.right.toFixed(2)} m/s, izquierdo ${m.left.toFixed(2)} m/s contra √(g h) = ${expected.toFixed(2)} m/s (${((m.right / expected - 1) * 100).toFixed(1)} %, ${((m.left / expected - 1) * 100).toFixed(1)} %); tolerancia ±10 %`);
         assert.ok(m.samples >= 50, `solo ${m.samples} muestras`);

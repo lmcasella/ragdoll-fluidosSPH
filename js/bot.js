@@ -596,7 +596,7 @@ export class Bot {
         const lift = this.lift(adx, dy, weaponById(me.weapon)?.speed ?? 14);
         const angle = Math.atan2(dy + lift, adx) + this.aimOffset;
         this.aim(sign * Math.cos(angle), Math.sin(angle));
-        if (adx >= this.config.reserveRange && tank <= this.config.reserve * weaponById(me.weapon).tank) return;
+        if (Math.hypot(adx, dy) >= this.config.reserveRange && tank <= this.config.reserve * weaponById(me.weapon).tank) return;
         if (now >= this.burstUntil && now >= this.burstReadyAt) {
             this.burstUntil = now + this.config.burst;
             this.burstReadyAt = this.burstUntil + this.config.burstCooldown;
