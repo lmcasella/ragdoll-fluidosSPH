@@ -17,7 +17,7 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   por `short`; `window` (m) hacia abajo que se recuerda; `width`: rango de ancho en la etapa 0 y en la `stages`, lineal entre
  *   ellas; `base`: cantidad y tope de las plataformas anchas con que arranca la etapa 0;
  * - `spawn`: aparición de los jugadores sobre dos plataformas de la etapa 0: `distance` [mín, máx] horizontal entre ellos,
- *   `dy` máxima entre sus plataformas, `inset` (m) al borde, `tries` sorteos;
+ *   `dy` máxima entre sus plataformas, `inset` (m) al borde, `tries` sorteos y `maxTop` (m): solo plataformas con tope hasta esa altura (la base);
  * - `scroll`: el cuerpo del mapa baja `base` m/s más `perStage` por etapa alcanzada por el jugador más alto;
  * - `reach`: regla de alcance del bot, la misma que usa `buildNav`; `pickupLift`: altura del ícono sobre el tope;
  * - `pickups`: armas por etapa, entrada `min(n − 1, 3)` para la etapa `n ≥ 1` (la etapa 0 no lleva armas), con una cada
@@ -53,15 +53,15 @@ export const CLIMB = {
         width: { first: [5, 9], last: [2, 4], stages: 5 },
         base: { count: [3, 5], top: [4, 7] },
     },
-    spawn: { distance: [4, 10], dy: 3, inset: 0.8, tries: 400 },
+    spawn: { distance: [4, 10], dy: 3, inset: 0.8, tries: 400, maxTop: 7 },
     scroll: { base: 0.15, perStage: 0.02 },
     reach: BOT.reach,
     pickupLift: 0.6,
     pickups: [
-        { period: 3, weights: { WATER: 1 } },
-        { period: 3, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } },
-        { period: 2, weights: { LAVA: 1 } },
-        { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } },
+        { period: 9, weights: { WATER: 1 } },
+        { period: 9, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } },
+        { period: 6, weights: { LAVA: 1 } },
+        { period: 3, weights: { ACID: 0.5, LAVA: 0.5 } },
     ],
     repairPerStage: 1,
     flood: { surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 },
@@ -438,7 +438,7 @@ export class Climb {
         const { dy, overlap } = this.config.branches;
         const climbable = (p) =>
             all.some((q) => q.y - p.y > 0 && q.y - p.y <= dy[1] && Math.min(p.x + p.w / 2, q.x + q.w / 2) - Math.max(p.x - p.w / 2, q.x - q.w / 2) >= overlap);
-        this.spawns = pickSpawns(all.filter((p) => p.y < this.config.stageHeight && climbable(p)), random, this.config);
+        this.spawns = pickSpawns(all.filter((p) => p.y <= this.config.spawn.maxTop && climbable(p)), random, this.config);
     }
 
     /**

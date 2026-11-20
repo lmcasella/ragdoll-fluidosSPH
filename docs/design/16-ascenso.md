@@ -22,11 +22,11 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `width` | `{ first: 56, base: 40, perStage: 4, min: 24 }` | `W(0) = first`; `W(n) = max(min, base − perStage · n)` para `n ≥ 1`; media `half(n) = W(n)/2` |
 | `wallOuter`, `wallBelow` | 20, 20 | Las paredes van de `centerX ± half(n)` hacia afuera hasta x = −20 y x = 76; las de la etapa 0 llegan 20 m bajo y = 0 |
 | `branches` | ver 16.3 | Generador por ramas |
-| `spawn` | `{ distance: [4, 10], dy: 3, inset: 0.8, tries: 400 }` | Aparición (16.6) |
+| `spawn` | `{ distance: [4, 10], dy: 3, inset: 0.8, tries: 400, maxTop: 7 }` | Aparición (16.6) |
 | `scroll` | `{ base: 0.15, perStage: 0.02 }` | Velocidad de descenso (m/s) del cuerpo: `base + perStage · etapa más alta alcanzada` por un jugador |
 | `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | El grafo del bot usa la regla completa |
 | `pickupLift` | 0.6 | Altura del ícono sobre el tope (m) |
-| `pickups` | `[{ period: 3, weights: { WATER: 1 } }, { period: 3, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } }, { period: 2, weights: { LAVA: 1 } }, { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 3)` para la etapa `n ≥ 1`; una arma sobre una de cada `period` plataformas de la etapa. Claves = nombres de `FLUID` |
+| `pickups` | `[{ period: 9, weights: { WATER: 1 } }, { period: 9, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } }, { period: 6, weights: { LAVA: 1 } }, { period: 3, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 3)` para la etapa `n ≥ 1`; una arma sobre una de cada `period` plataformas de la etapa. Claves = nombres de `FLUID` |
 | `repairPerStage` | `1` | Ítems de reparación por etapa `n ≥ 1` (16.4) |
 | `flood` | `{ surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m, locales) |
@@ -105,7 +105,7 @@ dispose()
 - **Verificado en Node con LiquidFun real:** un robot apoyado en una fixture del cuerpo que baja la acompaña sin atravesarla (pies a 0,01 m del tope durante todo el descenso) y las partículas se apoyan igual que sobre un cuerpo quieto.
 - **Generar** (`update`): mientras `front < top − offsetY + ahead`, `generator.next()`; se crean las paredes de cada etapa nueva que toque una plataforma o ese límite. Cada arma se agrega con `pickups.add({ x, y local, weapon })`.
 - **Liberar** (`update`): todo elemento cuyo tope local quede por debajo de `level − offsetY − sinkBelow` (`level` = `flood.level`, la curva) se destruye en este orden: `platforms.removePlatform(fixture)` si es plataforma, `pickups.remove(point)` si es arma, `body.DestroyFixture(fixture)`. Incluye la etapa 0. Con `level = −Infinity` no libera nada.
-- **Aparición:** en `reset`, dos plataformas de la etapa 0 (tope local < 15 m) de las que se puede seguir subiendo (alguna otra a ≤ 3,3 m encima con solapamiento ≥ 1,5 m), con `pickSpawns`: distancia horizontal `spawn.distance`, `|dy| ≤ spawn.dy`, x al azar a `spawn.inset` de los bordes, mirándose; un sorteo con `seededRandom(seed ^ 0x9e3779b9)`. Si ningún sorteo vale, recorre todos los pares (también una misma plataforma) y usa el que menos se aleja. Los jugadores quedan parados sobre el tope (sin rayo desde el techo).
+- **Aparición:** en `reset`, dos plataformas de la base (tope local ≤ `spawn.maxTop` = 7 m) de las que se puede seguir subiendo (alguna otra a ≤ 3,3 m encima con solapamiento ≥ 1,5 m), con `pickSpawns`: distancia horizontal `spawn.distance`, `|dy| ≤ spawn.dy`, x al azar a `spawn.inset` de los bordes, mirándose; un sorteo con `seededRandom(seed ^ 0x9e3779b9)`. Si ningún sorteo vale, recorre todos los pares (también una misma plataforma) y usa el que menos se aleja. Los jugadores quedan parados sobre el tope (sin rayo desde el techo).
 - **Fuera de callbacks:** `update` y `reset` se llaman solo desde el loop, después de los pasos del frame, nunca dentro de `stepWorld` ni de un callback.
 - **Después de destruir:** la raíz llama a `wallContact.invalidate()` (el buffer de contactos partícula–cuerpo guarda punteros hasta el próximo `Step`) y a `bot.setNav(climb.level)` de cada bot.
 ### Cambios en otros módulos
