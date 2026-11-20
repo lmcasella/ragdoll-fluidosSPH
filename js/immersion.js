@@ -104,9 +104,15 @@ export class Immersion {
         if (this.stats.absorbed !== absorbedAtStart) water.consolidate();
     }
 
-    /** Deposita la partícula `i` en el campo y la destruye. */
+    /**
+     * Deposita la partícula `i` en el campo y la destruye. Si ya se evaporó una fracción `φ`
+     * (docs/design/14-agua.md §14.7b), deposita solo `A_p (1 − φ)` con la masa, la cantidad de movimiento y la
+     * energía en la misma proporción.
+     */
     absorb(i, entry, x, vx, vy) {
-        const { water, area } = this;
+        const { water } = this;
+        const keep = 1 - this.store.evaporated[this.store.slotAt(i)];
+        const area = this.area * keep;
         const sg = entry.material.SG;
         const momentum = sg * area * vx;
         const energy = this.heat * area + this.inelasticLoss(x, area, momentum, sg, vx, vy);

@@ -153,6 +153,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
     const outline = {};
     const drawn = new Float64Array(MATERIAL_NAMES.length);
     const alive = new Float64Array(MATERIAL_NAMES.length);
+    const evaporatedLive = new Float64Array(MATERIAL_NAMES.length);
     const round0 = match.round;
     let measuring = false;
     let ended = false;
@@ -166,12 +167,16 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         }
         const count = particleSystem.GetParticleCount();
         alive.fill(0);
+        evaporatedLive.fill(0);
         let slotChanges = 0;
         for (let slot = 0; slot < store.capacity; slot++) {
             if (store.alive[slot] === 0) continue;
             if (store.kind[slot] !== expectedKind[slot]) slotChanges++;
             const k = kindIndex.get(store.kind[slot]);
-            if (k !== undefined) alive[k]++;
+            if (k !== undefined) {
+                alive[k]++;
+                evaporatedLive[k] += store.evaporated[slot];
+            }
         }
         result.i2a.changes += slotChanges;
         MATERIAL_NAMES.forEach((n, k) => (result.peak[n] = Math.max(result.peak[n], alive[k])));
@@ -189,8 +194,8 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         const inj = {};
         MATERIAL_NAMES.forEach((n, k) => {
             const kind = KIND_OF[n];
-            P[n] = alive[k] * mass[n];
-            out[n] = (store.destroyed[SINK.OUT][kind] + store.destroyed[SINK.EVAPORATED][kind]) * mass[n];
+            P[n] = (alive[k] - evaporatedLive[k]) * mass[n];
+            out[n] = (store.destroyed[SINK.OUT][kind] + store.destroyed[SINK.EVAPORATED][kind] + evaporatedLive[k]) * mass[n];
             inj[n] = store.created[kind] * mass[n];
         });
         for (const s of SPECIES) {

@@ -42,6 +42,7 @@ export class ParticleStore {
         this.kind = new Uint8Array(capacity);
         this.origin = new Uint8Array(capacity);
         this.shot = new Int32Array(capacity);
+        this.evaporated = new Float32Array(capacity);
         this.vx = new Float32Array(capacity);
         this.vy = new Float32Array(capacity);
         this.slowTime = 0;
@@ -71,6 +72,7 @@ export class ParticleStore {
         this.created[this.kind[slot]]++;
         this.origin[slot] = props.origin ?? ORIGIN.SHOT;
         this.shot[slot] = props.shot ?? 0;
+        this.evaporated[slot] = 0;
         const vel = (Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2) + 2 * index;
         this.vx[slot] = Box2D.HEAPF32[vel];
         this.vy[slot] = Box2D.HEAPF32[vel + 1];
@@ -84,7 +86,9 @@ export class ParticleStore {
 
     /**
      * Idempotente: el slot vivo pasa a `pending` y la partícula queda zombi hasta el próximo `Step`. `cause` es
-     * un valor de `SINK` y es obligatoria: suma la partícula a `destroyed[cause][kind]`.
+     * un valor de `SINK` y es obligatoria: suma la partícula a `destroyed[cause][kind]`. Si ya se evaporó una
+     * fracción `φ` y la causa no es `EVAPORATED`, el libro anota `1 − φ` en la causa y `φ` en `EVAPORATED`: la
+     * parte evaporada pasó al aire y no sale con la partícula (docs/design/14-agua.md §14.7b).
      */
     destroy(i, cause) {
         if (!(cause >= 1 && cause < SINK_SLOTS)) throw new Error("ParticleStore.destroy exige una causa de SINK");
@@ -92,7 +96,9 @@ export class ParticleStore {
         if (slot < 0 || slot >= this.capacity || this.alive[slot] === 0) return;
         this.system.DestroyParticle(i);
         this.alive[slot] = 0;
-        this.destroyed[cause][this.kind[slot]]++;
+        const phi = cause === SINK.ABSORBED ? this.evaporated[slot] : 0;
+        this.destroyed[cause][this.kind[slot]] += 1 - phi;
+        this.destroyed[SINK.EVAPORATED][this.kind[slot]] += phi;
         this.pending[this.pendingCount++] = slot;
     }
 
