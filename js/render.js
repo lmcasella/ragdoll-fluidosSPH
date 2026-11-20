@@ -1,6 +1,7 @@
 // Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 import { MATERIALS } from "./materials.js";
+import { shortCircuitDps } from "./ActiveRagdoll.js";
 
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];
@@ -238,12 +239,117 @@ function hash01(n) {
     return ((n ^ (n >>> 15)) >>> 0) / 4294967296;
 }
 
+/**
+ * Chispas por destello según el daño del cortocircuito: `SPARKS_PER_FRAME` con agua limpia y proporcional al dps
+ * (el ácido al 8 % da unas 5 veces más).
+ */
+export function sparkCount(dps) {
+    return Math.max(1, Math.round((SPARKS_PER_FRAME * dps) / shortCircuitDps(MATERIALS.water.sigmaE)));
+}
+
+/**
+ * Burbujas de H2 (docs/design/15-quimica.md §15.5b), solo dibujo en metros y segundos. `perPiece` (1/s) es la tasa
+ * por pieza con ácido puro y se escala con σ/σ del ácido; nacen sobre la superficie de la pieza, suben `rise` (m/s),
+ * miden de `minRadius` a `maxRadius` (m) y desaparecen a los `life` s. `capacity` es el máximo vivo por robot.
+ */
+export const H2_BUBBLES = { perPiece: 20, rise: 0.3, life: 0.5, minRadius: 0.02, maxRadius: 0.04, capacity: 256 };
+const BUBBLE_STRIDE = 5;
+const bubbleStates = new WeakMap();
+const surface = [0, 0];
+
+function bubbleState(player) {
+    let state = bubbleStates.get(player);
+    if (!state) {
+        state = { data: new Float32Array(H2_BUBBLES.capacity * BUBBLE_STRIDE), cursor: 0, acc: 0, last: -1, seed: 0 };
+        bubbleStates.set(player, state);
+    }
+    return state;
+}
+
+/** Punto (x, y) del mundo sobre el borde de la pieza `item`, elegido con `u`, `v` en [0, 1); queda en `surface`. */
+function surfacePoint(item, u, v) {
+    let lx;
+    let ly;
+    if (item.type === "circle") {
+        lx = Math.cos(u * Math.PI * 2) * item.radius;
+        ly = Math.sin(u * Math.PI * 2) * item.radius;
+    } else if (item.type === "box") {
+        const side = Math.floor(u * 4);
+        const t = v * 2 - 1;
+        lx = side === 0 ? item.hw : side === 1 ? -item.hw : t * item.hw;
+        ly = side === 2 ? item.hh : side === 3 ? -item.hh : t * item.hh;
+    } else {
+        const verts = item.vertices;
+        const a = verts[Math.floor(u * verts.length) % verts.length];
+        const b = verts[(Math.floor(u * verts.length) + 1) % verts.length];
+        lx = a[0] + (b[0] - a[0]) * v;
+        ly = a[1] + (b[1] - a[1]) * v;
+    }
+    const ca = Math.cos(item.angle);
+    const sa = Math.sin(item.angle);
+    const bx = item.cx + lx * ca - ly * sa;
+    const by = item.cy + lx * sa + ly * ca;
+    const pos = item.body.GetPosition();
+    const angle = item.body.GetAngle();
+    const cb = Math.cos(angle);
+    const sb = Math.sin(angle);
+    surface[0] = pos.get_x() + bx * cb - by * sb;
+    surface[1] = pos.get_y() + bx * sb + by * cb;
+}
+
+function drawBubbles(ctx, player, scale, now) {
+    const items = player.renderItems;
+    const sigma = player.wetSigma;
+    const emitting = player.wet && !player.dead && sigma > MATERIALS.water.sigmaE;
+    let state = bubbleStates.get(player);
+    if (!state && !emitting) return;
+    state ??= bubbleState(player);
+    const dt = state.last < 0 ? 0 : Math.min(now - state.last, 0.1);
+    state.last = now;
+    const { data } = state;
+    const { life, rise, capacity } = H2_BUBBLES;
+    if (emitting && dt > 0) {
+        state.acc += H2_BUBBLES.perPiece * items.length * Math.min(1, sigma / MATERIALS.acid.sigmaE) * dt;
+        while (state.acc >= 1) {
+            state.acc -= 1;
+            const seed = state.seed++ * 7;
+            surfacePoint(items[Math.floor(hash01(seed) * items.length)], hash01(seed + 1), hash01(seed + 2));
+            const at = state.cursor * BUBBLE_STRIDE;
+            state.cursor = (state.cursor + 1) % capacity;
+            data[at] = surface[0];
+            data[at + 1] = surface[1];
+            data[at + 2] = H2_BUBBLES.minRadius + hash01(seed + 3) * (H2_BUBBLES.maxRadius - H2_BUBBLES.minRadius);
+            data[at + 3] = 0;
+            data[at + 4] = 1;
+        }
+    }
+    ctx.lineWidth = 1 / scale;
+    for (let at = 0; at < data.length; at += BUBBLE_STRIDE) {
+        if (data[at + 4] === 0) continue;
+        data[at + 3] += dt;
+        if (data[at + 3] >= life) {
+            data[at + 4] = 0;
+            continue;
+        }
+        data[at + 1] += rise * dt;
+        ctx.globalAlpha = 1 - data[at + 3] / life;
+        ctx.fillStyle = "rgba(235, 255, 235, 0.35)";
+        ctx.strokeStyle = "#f2fff2";
+        ctx.beginPath();
+        ctx.arc(data[at], data[at + 1], data[at + 2], 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+}
+
 function drawSparks(ctx, player, scale, now) {
     const items = player.renderItems;
     if (items.length === 0) return;
     const tick = Math.floor(now * SPARK_TICK_HZ);
     ctx.lineWidth = 3 / scale;
-    for (let s = 0; s < SPARKS_PER_FRAME; s++) {
+    const sparks = sparkCount(player.shortCircuitDps);
+    for (let s = 0; s < sparks; s++) {
         const seed = tick * 97 + s * 13;
         const pos = items[Math.floor(hash01(seed) * items.length)].body.GetPosition();
         let x = pos.get_x();
@@ -293,6 +399,7 @@ export function drawRobot(ctx, player, color, scale, now) {
         ctx.restore();
     }
     if (player.wet && !player.dead) drawSparks(ctx, player, scale, now);
+    drawBubbles(ctx, player, scale, now);
 }
 
 // Mira láser: desde la boca del arma hasta el primer impacto (o el alcance máximo)

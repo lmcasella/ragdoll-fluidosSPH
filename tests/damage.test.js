@@ -18,14 +18,22 @@ function setup() {
     const store = { system: { GetParticleCount: () => 0 }, destroy: (i) => destroyed.push(i) };
     const damage = new DamageSystem(world, store);
     const hurts = [];
-    const player = { hurt: (bodyId, amount) => hurts.push({ bodyId, amount }) };
+    const sigmas = [];
+    const player = { hurt: (bodyId, amount) => hurts.push({ bodyId, amount }), soak: (sigma) => sigmas.push(sigma) };
     const owner = { player, index: 0, bodyId: "torso" };
     const hit = (shotOwner, shotTime, index = 1) => {
         const id = damage.shotId(shotOwner, FLUID.ACID, shotTime);
         damage.fluidHits.push({ owner, index, shot: damage.shots.get(id), kind: FLUID.ACID });
     };
-    return { damage, hit, hurts, destroyed };
+    return { damage, hit, hurts, destroyed, sigmas };
 }
+
+test("el ácido que toca al robot lo moja con la conductividad del ácido", () => {
+    const { damage, hit, sigmas } = setup();
+    hit(1, 10);
+    damage.process(10.01);
+    assert.deepEqual(sigmas, [32]);
+});
 
 test("el ácido propio no daña al dueño dentro de los 0,4 s del disparo", () => {
     const { damage, hit, hurts, destroyed } = setup();
@@ -55,18 +63,26 @@ test("el ácido del rival daña sin período de gracia", () => {
 function wetSetup({ lowest, x = 10 }) {
     const { damage } = setup();
     let soaks = 0;
+    const sigmas = [];
     const player = {
         dead: false,
         torso: { GetPosition: () => ({ get_x: () => x }) },
         lowestPoint: () => lowest,
-        soak: (...args) => {
+        soak: (sigma) => {
             soaks++;
-            assert.equal(args.length, 0);
+            sigmas.push(sigma);
         },
     };
     damage.players = [player];
-    return { damage, soaks: () => soaks, player };
+    return { damage, soaks: () => soaks, player, sigmas };
 }
+
+test("el robot en el campo se moja con la conductividad de su columna", () => {
+    const { damage, soaks, sigmas } = wetSetup({ lowest: 4, x: 7.5 });
+    damage.process(10, 5, (x) => (x === 7.5 ? 12.5 : 0));
+    assert.equal(soaks(), 1);
+    assert.deepEqual(sigmas, [12.5]);
+});
 
 test("el borde inferior de una pieza bajo el nivel moja al robot", () => {
     const { damage, soaks } = wetSetup({ lowest: 4.9 });
@@ -199,7 +215,7 @@ test("el daño por partícula sale de la tabla de armas dada, calculado una vez"
     const damage = new DamageSystem(world, { system: { GetParticleCount: () => 0 }, destroy() {} }, [{ id: FLUID.ACID, rate: 50, dps: 10 }]);
     assert.equal(damage.particleDamage.get(FLUID.ACID), 0.2);
     const hurts = [];
-    const owner = { player: { hurt: (b, amount) => hurts.push(amount) }, index: 0, bodyId: "torso" };
+    const owner = { player: { hurt: (b, amount) => hurts.push(amount), soak: () => {} }, index: 0, bodyId: "torso" };
     damage.fluidHits.push({ owner, index: 1, shot: { owner: 1, weapon: FLUID.ACID, time: 0 }, kind: FLUID.ACID });
     damage.process(1);
     assert.deepEqual(hurts, [0.2]);

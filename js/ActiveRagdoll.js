@@ -1,4 +1,5 @@
 import { getRaycaster } from "./raycast.js";
+import { MATERIALS } from "./materials.js";
 
 /** Salud máxima de un robot. */
 export const MAX_HP = 100;
@@ -10,7 +11,18 @@ const BURN_TIME = 1.5;
 const BURN_DPS = 4;
 // Cortocircuito (agua): falla de todo el robot, por eso no usa el multiplicador por parte
 const WET_TIME = 3;
-const SHORT_CIRCUIT_DPS = 3;
+
+/**
+ * Cortocircuito del robot mojado (docs/design/15-quimica.md §15.5b): `maxDps` (vida/s) es la saturación del daño y
+ * `halfSigma` (S/m) la conductividad del líquido a la que se llega a la mitad; con `halfSigma` = 4 · σ del agua, el
+ * agua limpia da 3 vida/s y el ácido al 8 % (32 S/m) casi 15.
+ */
+export const SHORT_CIRCUIT = { maxDps: 15, halfSigma: 4 * MATERIALS.water.sigmaE };
+
+/** Daño por segundo (vida/s) del cortocircuito con un líquido de conductividad `sigma` (S/m): `maxDps · σ / (σ + σ½)`. */
+export function shortCircuitDps(sigma) {
+    return (SHORT_CIRCUIT.maxDps * sigma) / (sigma + SHORT_CIRCUIT.halfSigma);
+}
 const WALK_SPEED = 6;
 const JUMP_SPEED = 9;
 /**
@@ -110,6 +122,8 @@ export class ActiveRagdoll {
         this.burns = new Map(); // bodyId → segundos de quemadura restantes
         this.drowned = false;
         this.wetTimer = 0; // s restantes de cortocircuito
+        this.wetSigma = MATERIALS.water.sigmaE;
+        this.wetFresh = false;
         this.now = 0;
         this.blockHeld = false;
         this.attack = null;
@@ -366,6 +380,7 @@ export class ActiveRagdoll {
         this.flashes = old.flashes;
         this.burns = old.burns;
         this.wetTimer = old.wetTimer;
+        this.wetSigma = old.wetSigma;
         this.aimDir = old.aimDir;
         this.now = old.now;
         this.clipState = old.clipState;
@@ -488,9 +503,20 @@ export class ActiveRagdoll {
         this.burns.set(bodyId, BURN_TIME);
     }
 
-    // Moja al robot (renueva el tiempo); el daño se aplica en updateStatus
-    soak() {
+    /**
+     * Moja al robot con un líquido de conductividad `sigma` (S/m; agua de red por defecto) y renueva el tiempo; el
+     * daño se aplica en `updateStatus`. Queda el σ del último líquido que lo mojó; si lo mojan varios dentro del
+     * mismo paso (entre dos `updateStatus`), el mayor.
+     */
+    soak(sigma = MATERIALS.water.sigmaE) {
+        this.wetSigma = this.wetFresh ? Math.max(this.wetSigma, sigma) : sigma;
+        this.wetFresh = true;
         this.wetTimer = WET_TIME;
+    }
+
+    /** Daño por segundo del cortocircuito actual (vida/s), 0 si el robot está seco. */
+    get shortCircuitDps() {
+        return this.wetTimer > 0 ? shortCircuitDps(this.wetSigma) : 0;
     }
 
     // Lo seca (fin de la ronda: el cortocircuito no debe matar al ganador bajo el cartel)
@@ -563,8 +589,9 @@ export class ActiveRagdoll {
             if (left - dt <= 0) this.burns.delete(bodyId);
             else this.burns.set(bodyId, left - dt);
         }
+        this.wetFresh = false;
         if (this.wetTimer > 0 && !this.dead) {
-            this.takeDamage(SHORT_CIRCUIT_DPS * dt);
+            this.takeDamage(shortCircuitDps(this.wetSigma) * dt);
             this.wetTimer = Math.max(0, this.wetTimer - dt);
         }
     }

@@ -5,6 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-11-20
+
+### Added
+- El cortocircuito depende de la conductividad del líquido que moja al robot: agua limpia sigue en 3 de vida por segundo y el ácido (32 S/m) llega a ~15. El ácido de un disparo también moja, y en la pileta cuenta la conductividad del campo en la columna del robot, así que volcar ácido en la pileta la electrifica.
+- Las chispas del cortocircuito escalan con el daño (el ácido da unas 5 veces más) y las piezas mojadas de ácido sueltan burbujas de H₂ que suben y se apagan en 0,5 s, con tasa proporcional a la concentración.
+
+### Fixed
+- El ácido no hacía daño apreciable: de un tanque entero solo ~7 de vida llegaban a un blanco a 4 m, porque no lo mojaba. Ahora el mismo disparo le quita ~33 de vida.
+
 ## [0.39.3] - 2026-11-20
 
 ### Fixed

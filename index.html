@@ -705,6 +705,7 @@
                     damage.process(
                         now,
                         match.hazardsActive ? wetSurface : -Infinity,
+                        (x) => water.conductivityAt(x),
                     );
                     melee.resolve(players, now);
                     pickups.process(now);

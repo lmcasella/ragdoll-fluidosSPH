@@ -6,6 +6,7 @@
 
 import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
 import { SINK } from "./particleStore.js";
+import { MATERIALS } from "./materials.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -165,9 +166,10 @@ export class DamageSystem {
     /**
      * Aplica lo encolado durante el paso; llamar después de stepWorld y de `store.afterStep()`.
      * `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
-     * robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks).
+     * robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks), con la
+     * conductividad `conductivityAt(x)` (S/m) del campo en esa columna; sin esa función, la del agua de red.
      */
-    process(now, waterLevel = -Infinity) {
+    process(now, waterLevel = -Infinity, conductivityAt = null) {
         for (const owner of this.drowned) owner.player.drown(now);
         this.drowned.length = 0;
 
@@ -185,7 +187,8 @@ export class DamageSystem {
             const level = typeof waterLevel === "function" ? waterLevel(player.torso.GetPosition().get_x()) : waterLevel;
             if (level > -Infinity && player.lowestPoint() < level) {
                 player.inWater = true;
-                player.soak();
+                const x = player.torso.GetPosition().get_x();
+                player.soak(conductivityAt ? conductivityAt(x) : undefined);
             }
         }
 
@@ -203,8 +206,9 @@ export class DamageSystem {
             if (consumed.has(index)) continue;
             if (shot && shot.owner === owner.index && now - shot.time < SELF_IMMUNITY) continue;
             if (kind === FLUID.WATER) {
-                owner.player.soak();
+                owner.player.soak(MATERIALS.water.sigmaE);
             } else if (kind === FLUID.ACID) {
+                owner.player.soak(MATERIALS.acid.sigmaE);
                 owner.player.hurt(owner.bodyId, this.particleDamage.get(kind), now);
                 consumed.add(index);
             } else if (kind === FLUID.LAVA) {
