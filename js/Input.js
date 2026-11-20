@@ -84,11 +84,12 @@ export const TAP_MAX = 0.25;
  * - `aim`: dirección { x, y } del stick derecho (Y hacia arriba) o null; es null con la rueda abierta y en el poll
  *   en que se suelta;
  * - `wheel`: { open, x, y, pointer? } mientras la rueda de armas está abierta (LB o su tecla mantenidos `TAP_MAX`), o
- *   null. Elige solo lo que apunta, nunca el movimiento: la dirección es la del stick derecho ((0, 0) en la zona
- *   muerta) o, con la tecla y sin stick, `pointer` con el mouse en píxeles para que la raíz de composición la
- *   resuelva contra el robot. La fuente que abrió la rueda la sostiene: la otra no la cierra ni cambia su dirección;
- * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: { x, y, pointer? } o "cancel" sin
- *   dirección;
+ *   null. Elige solo lo que apunta, nunca el movimiento: la dirección es la última del stick derecho fuera de la zona
+ *   muerta (se conserva al volver el stick al centro; (0, 0) si todavía no apuntó) o, con la tecla y sin stick,
+ *   `pointer` con el mouse en píxeles para que la raíz de composición la resuelva contra el robot. La fuente que abrió
+ *   la rueda la sostiene: la otra no la cierra ni cambia su dirección;
+ * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: la última dirección apuntada
+ *   { x, y, pointer? }, o "cancel" si nunca se apuntó (no cambia el arma);
  * - `pointer` (solo el jugador con el teclado): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
  * `action` es el flanco de A, RT, la tecla de acción o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
@@ -111,6 +112,7 @@ export class Input {
         this.prevHold = Array.from({ length: playerCount }, () => null);
         this.wheelSources = Array.from({ length: playerCount }, () => null);
         this.wheelBlocked = Array.from({ length: playerCount }, () => false);
+        this.wheelLast = Array.from({ length: playerCount }, () => null);
         this.states = Array.from({ length: playerCount }, () => ({}));
         this.virtualPads = Array.from({ length: playerCount }, () => null);
         this.menu = { x: 0, y: 0, confirm: false, back: false };
@@ -264,17 +266,23 @@ export class Input {
                 if (source === "key" && useKeys && this.mouseActive) return { x: 0, y: 0, pointer: { ...this.mousePos } };
                 return { x: 0, y: 0 };
             };
+            const pointed = (source) => {
+                const d = direction(source);
+                if (d.x !== 0 || d.y !== 0 || d.pointer) this.wheelLast[k] = d;
+                return this.wheelLast[k];
+            };
             let source = this.wheelSources[k];
             if (source && !held[source]) {
-                const d = direction(source);
-                state.wheelPick = d.x === 0 && d.y === 0 && !d.pointer ? "cancel" : d;
+                state.wheelPick = pointed(source) ?? "cancel";
                 source = null;
+                this.wheelLast[k] = null;
                 this.wheelBlocked[k] = true;
             } else if (!source && prevHold && !this.wheelBlocked[k] && before !== null && now - before >= TAP_MAX) {
                 source = padHold ? "pad" : "key";
+                this.wheelLast[k] = null;
             }
             this.wheelSources[k] = source;
-            if (source) state.wheel = { open: true, ...direction(source) };
+            if (source) state.wheel = { open: true, ...(pointed(source) ?? { x: 0, y: 0 }) };
             if (source || state.wheelPick) state.aim = null;
 
             if (prevHold && before === null) this.prevHold[k] = now;
