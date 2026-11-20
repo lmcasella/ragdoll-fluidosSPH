@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.44.3] - 2026-11-20
+
+### Changed
+- Test de aterrizajes rápidos sobre plataformas atravesables, fijas y móviles: ninguna pieza del robot queda dentro de la plataforma y termina parado arriba. Sin cambios en el juego.
+
 ## [0.44.2] - 2026-11-20
 
 ### Changed
