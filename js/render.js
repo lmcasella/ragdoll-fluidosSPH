@@ -37,11 +37,12 @@ export function gooPeakAlpha(radius, sigma) {
  * Dibujo de las gotas de disparo y de lluvia: un solo círculo por partícula, de área física `area` = A_p en m²,
  * igual para toda partícula de un material (sin trazos: la velocidad y el origen no cambian el dibujo).
  * `snapReach` y `snapFullReach` (m) acercan el círculo de las partículas junto a un cuerpo a su superficie: la fila de contacto física queda a
- * 0,192 m. `kinds` se indexa por `store.kind` (ids de `FLUID` en `js/weapons.js`: 1 ácido, 2 lava, 3 miel, 4 agua) y
+ * 0,192 m. `kinds` se indexa por `store.kind` (ids de `FLUID` en `js/weapons.js`: 1 ácido, 2 lava, 3 miel, 4 agua, 5 piedra, con el k de la lava) y
  * dice, por material, `radiusScale` (k que multiplica a `√(A_p/π)`, con tope `maxRadius` en m). Los k se midieron con el fluido en reposo (|v| < 1 m/s) en la
  * escena estándar de `tests/helpers/invariants-run.js` (60 s, un muestreo cada 20 pasos): el k que hace que la
  * unión de círculos (con `skinPosition`) mida N · A_p, por bisección; resultado ponderado por N: agua 1,040
- * (109 muestras), miel 1,069 (111), lava 1,045 (12). El ácido nunca queda en reposo en esa escena (se absorbe o
+ * (109 muestras), miel 1,069 (111), lava 1,045 (12); con la viscosidad de la lava (#75) la pila de lava ya no se
+ * comprime y el k de lava y piedra sube a 1,06 (con 1,045, 6 de 2.458 pasos de I3p pasan de ±15 %). El ácido nunca queda en reposo en esa escena (se absorbe o
  * cae al campo) y usa el k del agua, que tiene sus mismos flags y separación SPH.
  */
 export const SHOT_DRAW = {
@@ -52,9 +53,10 @@ export const SHOT_DRAW = {
     snapFullReach: 0.11,
     kinds: {
         1: { radiusScale: 1.04 },
-        2: { radiusScale: 1.045 },
+        2: { radiusScale: 1.06 },
         3: { radiusScale: 1.069 },
         4: { radiusScale: 1.04 },
+        5: { radiusScale: 1.06 },
     },
 };
 const DEFAULT_KIND = { radiusScale: 1 };

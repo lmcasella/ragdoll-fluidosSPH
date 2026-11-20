@@ -83,6 +83,8 @@
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
             import { Evaporation } from "./js/evaporation.js";
+            import { Thermal } from "./js/thermal.js";
+            import { Viscosity } from "./js/viscosity.js";
             import { Buoyancy } from "./js/buoyancy.js";
             import { MATERIALS } from "./js/materials.js";
             import { Match } from "./js/round.js";
@@ -330,6 +332,8 @@
             let flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
             const evaporation = new Evaporation(particleSystem, store);
+            const thermal = new Thermal(particleSystem, store, water, immersion, { evaporation });
+            const viscosity = new Viscosity(particleSystem, store, thermal);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
             let pickups = new Pickups(world, damage, LEVEL.pickups);
@@ -445,6 +449,8 @@
                 bots.forEach((bot) => bot.reset());
                 immersion.reset();
                 evaporation.reset();
+                thermal.reset();
+                viscosity.reset();
                 pickups.reset();
                 emitter.reset();
                 melee.reset();
@@ -594,7 +600,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
+                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -683,6 +689,8 @@
                     store.afterStep();
                     immersion.step(STEP_SETTINGS.dt);
                     evaporation.step(STEP_SETTINGS.dt);
+                    thermal.step(STEP_SETTINGS.dt);
+                    viscosity.step(STEP_SETTINGS.dt);
                     water.step(STEP_SETTINGS.dt);
                     damage.process(
                         now,
