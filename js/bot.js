@@ -71,12 +71,13 @@ export const DIFFICULTY = {
     easy: { reaction: [0.3, 0.5], aimError: 0.1, defense: 0.4 },
     normal: { reaction: [0.15, 0.35], aimError: 0.05, defense: 0.7 },
     hard: { reaction: [0.1, 0.2], aimError: 0.02, defense: 0.9 },
+    dummy: { reaction: [0.3, 0.5], aimError: 0.1, defense: 0, idle: true },
 };
 
-/** Tabla `BOT` con el preset de `difficulty` aplicado (`normal` si no existe). */
+/** Tabla `BOT` con el preset de `difficulty` aplicado (`normal` si no existe). `idle`: muñeco de práctica que no toca ningún control. */
 export function botConfig(difficulty) {
     const preset = DIFFICULTY[difficulty] ?? DIFFICULTY.normal;
-    return { ...BOT, reaction: [...preset.reaction], defense: preset.defense, shoot: { ...BOT.shoot, aimError: preset.aimError } };
+    return { ...BOT, reaction: [...preset.reaction], defense: preset.defense, idle: preset.idle === true, shoot: { ...BOT.shoot, aimError: preset.aimError } };
 }
 
 const GRAVITY = 10;
@@ -253,6 +254,7 @@ export class Bot {
         this.offsetY = game.offsetY ?? 0;
         this.pad.axes.fill(0);
         for (const b of this.pad.buttons) b.pressed = false;
+        if (this.config.idle) return this.pad;
         if (!this.unstick(game.players[this.k], now)) this.think(game, now);
         this.holdJump(game.players[this.k]);
         this.previous.forEach((_, i) => (this.previous[i] = this.pad.buttons[i].pressed));
