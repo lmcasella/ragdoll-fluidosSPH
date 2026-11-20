@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-20
+
+### Added
+- Deploy automático a GitHub Pages en cada merge a `main`, con tests previos, tag y release por versión, y `version.json` publicado. El sitio publicado incluye el audio.
+
 ## [0.31.0] - 2026-11-19
 
 ### Added
