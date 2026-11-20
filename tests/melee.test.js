@@ -203,10 +203,9 @@ async function blockDuel(frames, { p2Aim = AIM_LEFT, pressFrames = COMBO_FRAMES,
     return { game, hits, probes, samples };
 }
 
-test("R8 y R8b: contra un rival que bloquea de frente, el golpe no daña, no aturde, emite block y corta el combo (#192)", async (t) => {
+test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no dañan, no aturden y emiten block", async (t) => {
     const { game, hits, probes, samples } = await blockDuel(60, { pressFrames: [0, 15] });
-    const [p1, p2] = game.state.players;
-    assert.equal(p1.attack, null, "el combo quedó cortado");
+    const p2 = game.state.players[1];
     const arms = new Set(p2.rig.arms);
     const report = probes.map((probe, i) => {
         const armRays = probe.touched.filter((id) => id && arms.has(id)).length;
@@ -214,7 +213,7 @@ test("R8 y R8b: contra un rival que bloquea de frente, el golpe no daña, no atu
     });
     t.diagnostic(`R8b: ${report.join("; ")}`);
     t.diagnostic(`R8: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}; estados ${[...new Set(samples.map((s) => s.state))]}`);
-    assert.equal(hits.length, 1, "el segundo toque cae en el enfriamiento del combo cortado");
+    assert.equal(hits.length, 2);
     for (const hit of hits) assert.equal(hit.kind, "block");
     assert.equal(p2.hp, 100);
     assert.ok(samples.every((s) => s.state === "block"), "el rival sigue en block, sin aturdimiento ni reacción");
@@ -233,11 +232,11 @@ test("R8 y R8b: contra un rival que bloquea de frente, el golpe no daña, no atu
     }
 });
 
-test("con el rival bloqueando, el combo con el pad no llega a combo3 (#192)", async (t) => {
-    const { hits } = await blockDuel(170);
+test("con el rival bloqueando, el combo con el pad llega a combo3 y rompe la guardia sin hacerlo tropezar", async (t) => {
+    const { hits, samples } = await blockDuel(170);
     t.diagnostic(`eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}`);
-    assert.ok(hits.length >= 1);
-    assert.ok(hits.every((h) => h.kind === "block"));
+    assert.deepEqual(hits.map((h) => h.kind), ["block", "block", "blockBreak"]);
+    assert.ok(!samples.some((s) => s.state === "reactStumble"));
 });
 
 test("el tercer golpe del combo rompe la guardia: sin daño ni empuje, el rival sale de block y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
