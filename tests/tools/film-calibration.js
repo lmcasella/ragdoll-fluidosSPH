@@ -1,6 +1,8 @@
-// Calibra `MATERIALS.honey.filmFactor` (docs/design/14-agua.md §14.10, #77) con el corte de Couette de
-// `tests/helpers/film-scene.js`: busca el factor con el que la fuerza sobre la placa iguala a `μ V L b / δ`.
-// Uso: node tests/tools/film-calibration.js
+/**
+ * Calibra `MATERIALS.honey.filmFactor` (docs/design/14-agua.md §14.10, #77) con el corte de Couette de
+ * `tests/helpers/film-scene.js`: busca el factor con el que la fuerza sobre la placa iguala a `μ V L b / δ`.
+ * Uso: node tests/tools/film-calibration.js
+ */
 import { couette } from "../helpers/film-scene.js";
 
 const LAYERS = 3;
