@@ -335,8 +335,8 @@ export class Bot {
     /** Anota cuándo el robot perdió vida o quedó mojado o quemado (para la evasión). */
     watchHurt(me, now) {
         const status = me.wet || me.burns.size > 0;
-        if (status || (this.lastHp !== null && me.hp < this.lastHp)) this.hurtAt = now;
-        this.lastHp = me.hp;
+        if (status || (this.lastHp !== null && me.vitality < this.lastHp)) this.hurtAt = now;
+        this.lastHp = me.vitality;
     }
 
     /**
@@ -482,7 +482,7 @@ export class Bot {
         }
         if (adx > cfg.range || Math.abs(dy) > cfg.vertical) return false;
         this.aim(dx, dy);
-        if (me.hp < this.config.lowHp && foe.attack === null && this.canRoll(me, cur, -dir, now)) {
+        if (me.vitality < this.config.lowHp && foe.attack === null && this.canRoll(me, cur, -dir, now)) {
             this.press(PAD.block);
             this.walk(-dir);
             this.pulse(PAD.jump);
@@ -522,7 +522,7 @@ export class Bot {
      */
     seekPickup(me, cur, points) {
         const wantsWeapon = !this.armed(me);
-        const wantsRepair = me.hp < this.config.repairHp;
+        const wantsRepair = me.vitality < this.config.repairHp;
         if (cur === null || !(wantsWeapon || wantsRepair)) return false;
         const { dist, parent } = this.search(cur);
         let best = null;

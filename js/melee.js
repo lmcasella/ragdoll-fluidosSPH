@@ -144,8 +144,9 @@ export class Melee {
         const victim = owner.player;
         const guarded =
             victim.blocking && dx * victim.side < 0 && (victim.rig.arms ?? []).includes(owner.bodyId);
-        this.impulse.set_x(dx * this.config.impulse);
-        this.impulse.set_y(dy * this.config.impulse);
+        const factor = victim.knockbackFactor ?? 1;
+        this.impulse.set_x(dx * this.config.impulse * factor);
+        this.impulse.set_y(dy * this.config.impulse * factor);
         this.point.set_x(hit.x);
         this.point.set_y(hit.y);
         if (guarded && row.breaksGuard) {
@@ -162,7 +163,7 @@ export class Melee {
             if (dealt > 0) this.events.push({ kind: "hit", victim: owner.index });
             victim.stun(row.stun, now);
             victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
-            victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
+            victim.knockback((Math.sign(dx) || 1) * row.push[0] * factor, row.push[1] * factor);
             victim.hit(row.reaction, now);
         }
         attacker.markConnected();

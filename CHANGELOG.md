@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-11-20
+
+### Changed
+- Infinito: la vida pasa a ser daño acumulado en %, que arranca en 0 y no tiene tope. El daño no mata: el robot solo muere ahogado. El HUD muestra el % (por ejemplo `47 %`) con el color del jugador en lugar de la salud. La reparación y el premio por etapa restan % sin bajar de 0. El bot usa el % de forma equivalente para huir y buscar reparación. Clásico no cambia.
+- Infinito: todo golpe y todo chorro empuja `1 + daño % / 100` veces más (100 % duplica el empuje). En los chorros el extra se estima con la masa de la partícula y su velocidad de acercamiento sobre la normal del contacto.
+
 ## [0.40.0] - 2026-11-20
 
 ### Added
