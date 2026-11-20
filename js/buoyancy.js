@@ -64,7 +64,8 @@ function clip(src, n, dst, a, b, c) {
  *
  * No modela la reacción vertical sobre el campo ni la masa agregada. `config.dragScale` y `config.viscousK` en 0 apagan el
  * arrastre de presión y el viscoso. Cada pieza expone `area` (suma de las áreas de sus fixtures) y `submerged` (área
- * sumergida del último `apply`), en m². Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
+ * sumergida del último `apply`), en m², y, para el monitor de `js/debug.js`, `cx` y `cy` (centro de masa en el mundo, m),
+ * `buoyancy` y `drag` (fuerza media del último paso, N, `{ x, y }`: el arrastre incluye el viscoso y el tope). Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
  */
 export class Buoyancy {
     constructor(water, materials = MATERIALS, { gravity = 10, dragScale = 1, viscousK = K_MU } = {}) {
@@ -112,7 +113,7 @@ export class Buoyancy {
                 const center = body.GetLocalCenter();
                 let area = 0;
                 for (const s of shapes) area += s.area;
-                this.pieces.push({ body, shapes, lx: center.get_x(), ly: center.get_y(), area, submerged: 0 });
+                this.pieces.push({ body, shapes, lx: center.get_x(), ly: center.get_y(), area, submerged: 0, cx: 0, cy: 0, buoyancy: { x: 0, y: 0 }, drag: { x: 0, y: 0 } });
             }
         }
     }
@@ -151,6 +152,7 @@ export class Buoyancy {
         const body = piece.body;
         const mass = body.GetMass();
         piece.submerged = 0;
+        piece.buoyancy.x = piece.buoyancy.y = piece.drag.x = piece.drag.y = 0;
         if (mass <= 0) return;
         const { x0, dx, N, h, b, config } = water;
         const hd = config.hDry;
@@ -240,6 +242,10 @@ export class Buoyancy {
             }
         }
 
+        piece.cx = cxm;
+        piece.cy = cym;
+        piece.buoyancy.x = jx / dt;
+        piece.buoyancy.y = jy / dt;
         const { lo, hi } = this;
         let sub = 0;
         for (let c = lo; c <= hi; c++) sub += this.area[c];
@@ -284,6 +290,8 @@ export class Buoyancy {
             this.clearColumn(c);
         }
 
+        piece.drag.x = jx / dt - piece.buoyancy.x;
+        piece.drag.y = jy / dt - piece.buoyancy.y;
         if (jx !== 0 || jy !== 0) {
             this.impulse.set_x(jx);
             this.impulse.set_y(jy);
