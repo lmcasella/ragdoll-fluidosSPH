@@ -5,6 +5,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-11-20
+
+### Fixed
+- El agua caliente (y la que condensa del vapor) se dibuja celeste claro en vez de blanca: antes se confundía con el vapor y parecía vapor que caía.
 ## [0.35.0] - 2026-11-20
 
 ### Changed

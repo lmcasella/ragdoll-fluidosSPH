@@ -27,7 +27,7 @@ export const THERMAL = {
     restSpeed: 0.05,
     restTime: 0.5,
     waterDensity: 1000,
-    hotWater: [235, 245, 255],
+    hotWater: [160, 210, 255],
     stone: [52, 50, 47],
     steam: [242, 244, 245],
     fog: [255, 255, 255],
