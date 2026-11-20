@@ -1,7 +1,7 @@
 /**
- * Ascenso infinito, densidad y alcance (#180, docs/design/16-ascenso.md §16.3): de 8 a 14 plataformas en cualquier ventana
- * de 10 m, dos vecinas alcanzables por plataforma, sin rachas hacia un costado y varias plataformas a la vista en una
- * partida bot contra bot.
+ * Ascenso infinito, alcance (#180, docs/design/16-ascenso.md §16.3): dos vecinas alcanzables por plataforma, sin rachas
+ * hacia un costado y varias plataformas a la vista en una partida bot contra bot. La densidad de 8 a 14 por ventana de
+ * 10 m se retiró con #227: las filas de 1 a 4 plataformas separadas de 2,2 a 3,2 m no la garantizan.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,39 +12,19 @@ import { loadGame } from "./helpers/game.js";
 
 const TOP = 200;
 const WINDOW = 10;
-const COUNT = [8, 14];
 const NEIGHBOR = { gap: 3, dy: 3.3 };
 const DRIFT = 6;
-const BASE_TOP = CLIMB.branches.base.top[1];
 
 function run(seed) {
     const generator = new ClimbGenerator(seed);
     const base = generator.base.map((p) => ({ ...p, index: -1 }));
     const list = [];
     do list.push(generator.next());
-    while (list[list.length - 1].y < TOP);
+    while (list[list.length - 1].y < TOP || generator.pending > 0);
     return { base, list, all: [...base, ...list] };
 }
 
 const gapBetween = (p, q) => Math.max(0, q.x - q.w / 2 - (p.x + p.w / 2), p.x - p.w / 2 - (q.x + q.w / 2));
-
-test("densidad: en 50 semillas hasta 200 m, toda ventana de 10 m (de a 1 m, desde el tope de la base) tiene de 8 a 14 plataformas", () => {
-    let min = Infinity;
-    let max = 0;
-    const bad = [];
-    for (let seed = 1; seed <= 50; seed++) {
-        const { all } = run(seed);
-        const last = Math.max(...all.map((p) => p.y));
-        for (let y = BASE_TOP; y + WINDOW <= last; y += 1) {
-            const n = all.filter((p) => p.y >= y && p.y < y + WINDOW).length;
-            min = Math.min(min, n);
-            max = Math.max(max, n);
-            if (n < COUNT[0] || n > COUNT[1]) bad.push(`semilla ${seed} y ${y}: ${n}`);
-        }
-    }
-    console.log(`densidad: de ${min} a ${max} plataformas por ventana de ${WINDOW} m`);
-    assert.deepEqual(bad.slice(0, 5), []);
-});
 
 test("alcance: en 50 semillas toda plataforma generada tiene una vecina alcanzable arriba (salvo en la última fila) y otra a su altura o abajo (hueco <= 3 m, |dy| <= 3,3 m)", () => {
     const bad = [];
