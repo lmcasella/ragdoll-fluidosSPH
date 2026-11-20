@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.11] - 2026-11-20
+
+### Fixed
+- En Infinito suena una sola música durante la ronda (la de muerte súbita), en lugar de cambiar de pista a los 5 s cuando empieza a subir el agua, en cada ronda.
+
 ## [0.42.9] - 2026-11-20
 
 ### Fixed

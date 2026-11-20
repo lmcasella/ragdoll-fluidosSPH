@@ -309,7 +309,7 @@ async function musicOverlaps(map, seconds) {
 test("en Infinito y en Clásico nunca suenan más de dos pistas, y dos solo durante el fundido", async () => {
     for (const map of ["infinite", "classic"]) {
         const { max, stray, changes } = await musicOverlaps(map, map === "infinite" ? 150 : 70);
-        assert.ok(changes >= 2, `${map}: cambios ${changes}`);
+        assert.ok(changes >= (map === "infinite" ? 1 : 2), `${map}: cambios ${changes}`);
         assert.ok(max <= 2, `${map}: máximo ${max}`);
         assert.equal(stray, 0, `${map}: frames con dos pistas fuera del fundido`);
     }
