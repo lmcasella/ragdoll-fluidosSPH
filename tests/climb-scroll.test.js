@@ -80,6 +80,28 @@ test("aparición: en 50 semillas los jugadores quedan sobre plataformas de la et
     }
 });
 
+test("aparición con una sola plataforma válida: los dos jugadores quedan sobre ella, separados y mirándose (#201)", () => {
+    const platform = { x: 28, w: 12, y: 5 };
+    const [a, b] = pickSpawns([platform], seededRandom(7), CLIMB);
+    for (const s of [a, b]) {
+        assert.equal(s.y, platform.y);
+        assert.ok(Math.abs(s.x - platform.x) <= platform.w / 2);
+    }
+    assert.ok(Math.abs(a.x - b.x) >= CLIMB.spawn.distance[0]);
+    assert.equal(a.flipX, b.x < a.x);
+});
+
+test("la semilla 342562443 arranca la partida de Infinito sin error (#201)", async () => {
+    globalThis.location = { search: "?seed=342562443" };
+    const game = await loadGame({ map: "infinite" });
+    delete globalThis.location;
+    game.setPad(0);
+    game.setPad(1);
+    game.frames(30);
+    assert.equal(game.state.players.length, 2);
+    assert.ok(game.state.players.every((p) => !p.dead));
+});
+
 test("aparición en la partida: cada robot queda parado sobre su plataforma, mirando al otro, sin arma", async () => {
     for (const seed of [1, 2, 3]) {
         const game = await infinite(seed);

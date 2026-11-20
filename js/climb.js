@@ -153,7 +153,7 @@ export function pickSpawns(platforms, random, config = CLIMB) {
         if (best === null || cost < best.cost) best = { cost, a, b, xa, xb };
         if (cost === 0) break;
     }
-    if (best.cost > 0) {
+    if (best === null || best.cost > 0) {
         const step = 0.5;
         const spots = (p) => {
             const room = Math.max(0, p.w / 2 - inset);
@@ -164,7 +164,7 @@ export function pickSpawns(platforms, random, config = CLIMB) {
                 for (const xa of spots(a)) {
                     for (const xb of spots(b)) {
                         const cost = penalty(xa, a, xb, b);
-                        if (cost < best.cost) best = { cost, a, b, xa, xb };
+                        if (best === null || cost < best.cost) best = { cost, a, b, xa, xb };
                     }
                 }
             }
