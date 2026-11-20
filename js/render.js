@@ -954,16 +954,25 @@ export function dropShape(x, y, kind, draw, out) {
 const shape = { radius: 0, x0: 0, y0: 0 };
 
 /**
+ * Estiramiento del sprite a lo largo de la velocidad, para que un chorro muestreado se dibuje continuo: medio largo extra
+ * `|v| · time / 2` (m), con `time` el intervalo de emisión del chorro (1/100 s), desde `minSpeed` (m/s) y con tope `max` (m).
+ * A 18 m/s la separación entre gotas del chorro es 0,18 m y el campo solo funde a menos de 2 `METABALL_RADIUS`.
+ */
+export const DROP_STRETCH = { time: 0.01, minSpeed: 1, max: 0.2 };
+
+/**
  * Dibuja las partículas de `particleSystem` como un sprite de campo cada una (ver `metaballPeak`) en la capa de su material
  * (`layers.contextFor(kind)`, `kind` = `store.kind` o 0 sin `store`), con el color propio de la partícula. `skin` (`SHOT_DRAW`) acerca las
  * partículas junto a un cuerpo a su superficie (ver `skinPosition`). La forma la decide `dropShape`. Dentro de la capa
- * los sprites se combinan en `source-over` y el filtro `#goo` recorta el campo por el umbral.
+ * los sprites se combinan en `source-over` y el filtro `#goo` recorta el campo por el umbral. Una gota en movimiento
+ * se estira a lo largo de su velocidad (`DROP_STRETCH`).
  */
 export function drawParticles(layers, particleSystem, skin = null, store = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
     const posBase = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
+    const velBase = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
     const draw = skin ?? NO_SKIN;
     const side = 2 * METABALL_RADIUS;
@@ -979,7 +988,19 @@ export function drawParticles(layers, particleSystem, skin = null, store = null)
         }
         dropShape(positions[posBase + i * 2], positions[posBase + i * 2 + 1], kind, draw, shape);
         const sprite = layers.sprite(kind, colors[c], colors[c + 1], colors[c + 2], shape.radius);
-        ctx.drawImage(sprite, shape.x0 - METABALL_RADIUS, shape.y0 - METABALL_RADIUS, side, side);
+        const vx = positions[velBase + i * 2];
+        const vy = positions[velBase + i * 2 + 1];
+        const speed = Math.hypot(vx, vy);
+        if (speed < DROP_STRETCH.minSpeed) {
+            ctx.drawImage(sprite, shape.x0 - METABALL_RADIUS, shape.y0 - METABALL_RADIUS, side, side);
+            continue;
+        }
+        const half = METABALL_RADIUS + Math.min(DROP_STRETCH.max, (speed * DROP_STRETCH.time) / 2);
+        ctx.save();
+        ctx.translate(shape.x0, shape.y0);
+        ctx.rotate(Math.atan2(vy, vx));
+        ctx.drawImage(sprite, -half, -METABALL_RADIUS, 2 * half, side);
+        ctx.restore();
     }
     layers.end();
 }
