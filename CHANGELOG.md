@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-11-20
+
+### Changed
+- Los golpes ya no empujan al atacante hacia adelante: el avance lo dan solo las piernas animadas.
+- Durante un golpe o un combo el robot no camina ni se da vuelta, aunque el stick apunte al otro lado; gira al terminar el golpe.
+
 ## [0.42.0] - 2026-11-20
 
 ### Added
