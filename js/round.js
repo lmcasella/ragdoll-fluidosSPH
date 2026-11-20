@@ -137,7 +137,7 @@ export class Match {
         }
         return {
             title: `J${this.matchWinner + 1} GANA LA PARTIDA`,
-            subtitle: `${this.wins.join(" – ")} · A revancha · Start menú`,
+            subtitle: `${this.wins.join(" – ")} · A / Enter revancha · Start / Esc menú`,
         };
     }
 }

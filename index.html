@@ -673,7 +673,11 @@
                         else pantalla = "asignacion";
                     }
                 }
-                if (match.update(players, inputs, frameDt) === "reset") {
+                const cualquiera = {
+                    start: input.devices.some((d) => (d.kind === "keyboard" ? d.back : d.start)),
+                    action: input.devices.some((d) => (d.kind === "keyboard" ? d.start : d.a)),
+                };
+                if (match.update(players, [...inputs, cualquiera], frameDt) === "reset") {
                     reiniciarRonda();
                 }
                 if (!enTitulo && match.state === "title") {
