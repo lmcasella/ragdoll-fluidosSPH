@@ -1,39 +1,30 @@
 /**
- * Teclas físicas (KeyboardEvent.code), independientes de la distribución del teclado. `up` y `down` mueven en
- * mantenido; `jump` es la tecla de salto (también `drop` si `down` está apretada).
+ * Teclas físicas (KeyboardEvent.code), independientes de la distribución del teclado: el teclado y el mouse son un
+ * solo dispositivo y lo maneja el jugador al que se asigna. `up` y `down` mueven en mantenido; `jump` es la tecla de
+ * salto (también `drop` si `down` está apretada y `roll` si `block` está mantenida); `action` es el flanco de menús y
+ * revancha. El disparo y el gancho secundario salen del mouse (clic izquierdo y derecho).
  */
-export const KEYBOARD_LAYOUTS = [
-    {
-        left: ["KeyA"],
-        right: ["KeyD"],
-        up: ["KeyW"],
-        down: ["KeyS"],
-        jump: ["KeyW"],
-        fire: ["Space"],
-        start: ["Escape"],
-        punch: ["KeyF"],
-        block: ["KeyG"],
-        grapple: ["KeyE"],
-        prevWeapon: ["KeyQ"],
-        nextWeapon: ["KeyR"],
-        weapons: ["Digit1", "Digit2", "Digit3", "Digit4"],
-    },
-    {
-        left: ["ArrowLeft"],
-        right: ["ArrowRight"],
-        up: ["ArrowUp"],
-        down: ["ArrowDown"],
-        jump: ["ArrowUp"],
-        fire: ["Enter", "NumpadEnter"],
-        start: ["Escape"],
-        punch: ["Numpad5"],
-        block: ["NumpadSubtract"],
-        grapple: ["Numpad0"],
-        prevWeapon: ["ControlRight"],
-        nextWeapon: ["NumpadAdd"],
-        weapons: ["Numpad1", "Numpad2", "Numpad3", "Numpad4"],
-    },
-];
+export const KEYBOARD_LAYOUT = {
+    left: ["KeyA"],
+    right: ["KeyD"],
+    up: ["KeyW"],
+    down: ["KeyS"],
+    jump: ["Space"],
+    action: ["Space"],
+    start: ["Escape"],
+    punch: ["KeyF"],
+    block: ["ShiftLeft", "ShiftRight"],
+    grapple: ["KeyE"],
+    prevWeapon: ["KeyQ"],
+    nextWeapon: ["KeyR"],
+    weapons: ["Digit1", "Digit2", "Digit3", "Digit4"],
+};
+
+/** Identificador del teclado y el mouse como dispositivo de `Input.assignment`. */
+export const KEYBOARD_DEVICE = "keyboard";
+
+/** Identificador de un gamepad real como dispositivo: su índice en la Gamepad API, o su posición si no la trae. */
+export const padDeviceId = (pad, position) => `pad:${pad.index ?? position}`;
 
 /**
  * Botones del mapeo "standard" de la Gamepad API. `weapons` es la cruceta en el orden de la posición en la tabla de
@@ -47,6 +38,7 @@ export const PAD = {
     prevWeapon: 4,
     nextWeapon: 5,
     fire: 7,
+    select: 8,
     start: 9,
     weapons: [12, 15, 13, 14],
 };
@@ -81,7 +73,9 @@ export const DROP_THRESHOLD = 0.6;
 export const TAP_MAX = 0.25;
 
 /**
- * Estado por jugador, leído una vez por frame con poll():
+ * Estado por jugador, leído una vez por frame con poll(). Sale de los dispositivos asignados a ese jugador en
+ * `assignment` ({ [id de dispositivo]: jugador o null }, con `KEYBOARD_DEVICE` y `padDeviceId`): nunca del índice del
+ * jugador. Un jugador puede tener varios dispositivos, que se combinan con O; uno sin dispositivos queda quieto.
  * - mantenidos: `left`, `right`, `up`, `down`, `fire`, `grapple`, `block`, `jumpHeld` (el botón o tecla de salto) y
  *   `strongDown` (stick izquierdo más allá de `DROP_THRESHOLD` o tecla abajo);
  * - flancos del frame: `jump`, `drop`, `roll`, `action`, `start`, `punch`, `kick`, `weapon` (1-4 o null) y `weaponStep`
@@ -91,36 +85,41 @@ export const TAP_MAX = 0.25;
  *   en que se suelta;
  * - `wheel`: { open, x, y, pointer? } mientras la rueda de armas está abierta (LB o su tecla mantenidos `TAP_MAX`), o
  *   null. Elige solo lo que apunta, nunca el movimiento: la dirección es la del stick derecho ((0, 0) en la zona
- *   muerta) o, en J1 con la tecla y sin stick, `pointer` con el mouse en píxeles para que la raíz de composición la
+ *   muerta) o, con la tecla y sin stick, `pointer` con el mouse en píxeles para que la raíz de composición la
  *   resuelva contra el robot. La fuente que abrió la rueda la sostiene: la otra no la cierra ni cambia su dirección;
  * - `wheelPick`: solo en el poll en que se suelta la fuente que abrió la rueda: { x, y, pointer? } o "cancel" sin
  *   dirección;
- * - `pointer` (solo J1): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
+ * - `pointer` (solo el jugador con el teclado): { x, y } del mouse en píxeles mientras el mouse es la fuente de mira, o null.
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
- * `action` es el flanco de A, RT, la tecla de disparo o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
+ * `action` es el flanco de A, RT, la tecla de acción o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
  * `menu` (en la instancia, tras cada poll) son las intenciones del menú, con `MENU_CONTROLS`: `x` e `y` (-1, 0 o +1, con
  * `y` positivo hacia abajo) valen distinto de cero solo en el frame del flanco y en las repeticiones de `MENU_REPEAT`;
  * `confirm` y `back` son flancos. Solo leen gamepads reales, no los virtuales de los bots.
+ * `devices` (en la instancia, tras cada poll) lista los dispositivos reales conectados, el teclado primero:
+ * { id, kind: "keyboard" | "pad", x, select, a, start, back }, para la pantalla de asignación; `x` es el flanco de
+ * izquierda (-1) o derecha (+1) con el stick, la cruceta o A/D y las flechas, y el resto son flancos de Select, A,
+ * Start (o Enter) y B (o Escape).
  */
 export class Input {
     constructor(playerCount) {
-        this.layouts = KEYBOARD_LAYOUTS.slice(0, playerCount);
+        this.playerCount = playerCount;
+        this.assignment = { [KEYBOARD_DEVICE]: 0 };
         this.held = new Set();
         this.pressed = new Set();
-        this.prevButtons = [];
-        this.prevHold = this.layouts.map(() => null);
-        this.wheelSources = this.layouts.map(() => null);
-        this.wheelBlocked = this.layouts.map(() => false);
-        this.states = this.layouts.map(() => ({}));
-        this.virtualPads = this.layouts.map(() => null);
+        this.prevButtons = {};
+        this.prevHold = Array.from({ length: playerCount }, () => null);
+        this.wheelSources = Array.from({ length: playerCount }, () => null);
+        this.wheelBlocked = Array.from({ length: playerCount }, () => false);
+        this.states = Array.from({ length: playerCount }, () => ({}));
+        this.virtualPads = Array.from({ length: playerCount }, () => null);
         this.menu = { x: 0, y: 0, confirm: false, back: false };
-        this.menuPrev = [];
+        this.devices = [];
+        this.menuPrev = {};
+        this.deviceX = {};
         this.menuRepeat = { x: { dir: 0, next: 0 }, y: { dir: 0, next: 0 } };
 
-        const gameCodes = new Set(
-            this.layouts.flatMap((l) => Object.values(l).flat()),
-        );
+        const gameCodes = new Set(Object.values(KEYBOARD_LAYOUT).flat());
 
         window.addEventListener("keydown", (e) => {
             if (gameCodes.has(e.code)) e.preventDefault();
@@ -160,9 +159,17 @@ export class Input {
     }
 
     /**
+     * Fija qué jugador maneja cada dispositivo: `{ [id]: 0 | 1 | null }`. Un dispositivo ausente o en `null` no maneja
+     * a nadie.
+     */
+    setAssignment(assignment) {
+        this.assignment = { ...assignment };
+    }
+
+    /**
      * Gamepad virtual del jugador `k` (un bot): un objeto con la forma de un `Gamepad` ({ axes, buttons: [{ pressed }] })
-     * que `poll` lee en lugar del gamepad real de ese índice: el jugador que se eligió como bot lo maneja el bot aunque
-     * haya otro mando conectado. `null` lo quita.
+     * que `poll` lee en lugar de los gamepads reales de ese jugador: el jugador que se eligió como bot lo maneja el bot
+     * aunque haya otro mando asignado. `null` lo quita.
      */
     setVirtualPad(k, pad) {
         this.virtualPads[k] = pad;
@@ -177,11 +184,14 @@ export class Input {
                   (p) => p && p.connected,
               )
             : [];
+        const devicePads = pads.map((pad, i) => ({ pad, id: padDeviceId(pad, i) }));
         this.padButton = pads.some((p) => [...p.buttons].some((b) => b.pressed));
+        const layout = KEYBOARD_LAYOUT;
 
-        this.layouts.forEach((layout, k) => {
-            const isHeld = (codes) => codes.some((c) => this.held.has(c));
-            const wasPressed = (codes) => codes.some((c) => this.pressed.has(c));
+        for (let k = 0; k < this.playerCount; k++) {
+            const useKeys = this.assignment[KEYBOARD_DEVICE] === k;
+            const isHeld = (codes) => useKeys && codes.some((c) => this.held.has(c));
+            const wasPressed = (codes) => useKeys && codes.some((c) => this.pressed.has(c));
 
             const state = {
                 left: isHeld(layout.left),
@@ -193,9 +203,9 @@ export class Input {
                 strongDown: false,
                 drop: false,
                 roll: false,
-                action: wasPressed(layout.fire),
+                action: wasPressed(layout.action),
                 start: wasPressed(layout.start),
-                fire: isHeld(layout.fire),
+                fire: false,
                 grapple: isHeld(layout.grapple),
                 block: isHeld(layout.block),
                 punch: wasPressed(layout.punch),
@@ -208,7 +218,7 @@ export class Input {
                 wheelPick: null,
             };
             layout.weapons.forEach((code, i) => {
-                if (this.pressed.has(code)) state.weapon = i + 1;
+                if (useKeys && this.pressed.has(code)) state.weapon = i + 1;
             });
             let strongDown = isHeld(layout.down);
             const keyHold = isHeld(layout.prevWeapon) || wasPressed(layout.prevWeapon);
@@ -216,16 +226,18 @@ export class Input {
             let stick = null;
             if (wasPressed(layout.nextWeapon)) state.weaponStep = 1;
 
-            const pad = this.virtualPads[k] ?? pads[k];
-            if (pad) {
-                const read = this.readPad(pad, k, state);
+            const mine = this.virtualPads[k]
+                ? [{ pad: this.virtualPads[k], id: `virtual:${k}` }]
+                : devicePads.filter((d) => this.assignment[d.id] === k);
+            for (const { pad, id } of mine) {
+                const read = this.readPad(pad, id, state);
                 strongDown ||= read.strongDown;
-                padHold = read.prevHold;
-                stick = read.stick;
+                padHold ||= read.prevHold;
+                stick = read.stick ?? stick;
             }
             state.strongDown = strongDown;
             const prevHold = keyHold || padHold;
-            if (k === 0) {
+            if (useKeys) {
                 if (this.mouseClicked) state.action = true;
                 if (this.mouseHeld) state.fire = true;
                 if (this.mouseGrapple) state.grapple = true;
@@ -249,7 +261,7 @@ export class Input {
             const held = { pad: padHold, key: keyHold };
             const direction = (source) => {
                 if (stick) return { x: stick.x, y: stick.y };
-                if (source === "key" && k === 0 && this.mouseActive) return { x: 0, y: 0, pointer: { ...this.mousePos } };
+                if (source === "key" && useKeys && this.mouseActive) return { x: 0, y: 0, pointer: { ...this.mousePos } };
                 return { x: 0, y: 0 };
             };
             let source = this.wheelSources[k];
@@ -272,37 +284,64 @@ export class Input {
             }
             if (!prevHold) this.wheelBlocked[k] = false;
             this.states[k] = state;
-        });
+        }
 
-        this.menu = this.readMenu(pads, now);
+        this.menu = this.readMenu(devicePads, now);
         this.pressed.clear();
         this.mouseClicked = false;
         return this.states;
     }
 
-    /** Intenciones del menú de este poll: gamepads reales primero, teclado como respaldo. */
-    readMenu(pads, now) {
+    /**
+     * Intenciones del menú de este poll (gamepads reales primero, teclado como respaldo) y las de cada dispositivo
+     * en `devices`.
+     */
+    readMenu(devicePads, now) {
         const { pad: buttons, keys } = MENU_CONTROLS;
         const dir = { x: 0, y: 0 };
         let confirm = false;
         let back = false;
-        pads.forEach((pad, i) => {
-            const prev = this.menuPrev[i] ?? [];
+        const held = (codes) => codes.some((c) => this.held.has(c));
+        const tapped = (codes) => codes.some((c) => this.pressed.has(c));
+        const keyX = (tapped(["ArrowRight", "KeyD"]) ? 1 : 0) - (tapped(["ArrowLeft", "KeyA"]) ? 1 : 0);
+        const devices = [
+            {
+                id: KEYBOARD_DEVICE,
+                kind: "keyboard",
+                x: keyX,
+                select: false,
+                a: false,
+                start: tapped(keys.confirm),
+                back: tapped(keys.back),
+            },
+        ];
+        devicePads.forEach(({ pad, id }) => {
+            const prev = this.menuPrev[id] ?? [];
             const down = (b) => pad.buttons[b]?.pressed ?? false;
             const edge = (b) => down(b) && !prev[b];
             const [lx = 0, ly = 0] = pad.axes;
             const axis = (neg, pos, v) =>
                 (v > STICK_DEADZONE || down(pos) ? 1 : 0) - (v < -STICK_DEADZONE || down(neg) ? 1 : 0);
-            dir.x ||= axis(buttons.left, buttons.right, lx);
+            const x = axis(buttons.left, buttons.right, lx);
+            dir.x ||= x;
             dir.y ||= axis(buttons.up, buttons.down, ly);
             confirm ||= buttons.confirm.some(edge);
             back ||= buttons.back.some(edge);
-            this.menuPrev[i] = pad.buttons.map((b) => b.pressed);
+            devices.push({
+                id,
+                kind: "pad",
+                x: x !== 0 && x !== (this.deviceX[id] ?? 0) ? x : 0,
+                select: edge(PAD.select),
+                a: edge(PAD.jump),
+                start: edge(PAD.start),
+                back: buttons.back.some(edge),
+            });
+            this.deviceX[id] = x;
+            this.menuPrev[id] = pad.buttons.map((b) => b.pressed);
         });
-        const held = (codes) => codes.some((c) => this.held.has(c));
+        this.devices = devices;
         dir.x ||= (held(keys.right) ? 1 : 0) - (held(keys.left) ? 1 : 0);
         dir.y ||= (held(keys.down) ? 1 : 0) - (held(keys.up) ? 1 : 0);
-        const tapped = (codes) => codes.some((c) => this.pressed.has(c));
         return {
             x: this.repeatMenu(this.menuRepeat.x, dir.x, now),
             y: this.repeatMenu(this.menuRepeat.y, dir.y, now),
@@ -328,11 +367,12 @@ export class Input {
     }
 
     /**
-     * Combina el gamepad en `state` y devuelve lo que `poll` necesita aparte: si el stick izquierdo está
-     * fuertemente hacia abajo, si LB está apretado y la dirección del stick derecho (null en la zona muerta).
+     * Combina el gamepad `pad` (de dispositivo `id`) en `state` y devuelve lo que `poll` necesita aparte: si el stick
+     * izquierdo está fuertemente hacia abajo, si LB está apretado y la dirección del stick derecho (null en la zona
+     * muerta).
      */
-    readPad(pad, k, state) {
-        const prev = this.prevButtons[k] ?? [];
+    readPad(pad, id, state) {
+        const prev = this.prevButtons[id] ?? [];
         const down = (i) => pad.buttons[i]?.pressed ?? false;
         const edge = (i) => down(i) && !prev[i];
         const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
@@ -356,7 +396,7 @@ export class Input {
         const stick = Math.hypot(rx, ry) > AIM_DEADZONE ? { x: rx, y: -ry } : null;
         if (stick) state.aim = stick;
 
-        this.prevButtons[k] = pad.buttons.map((b) => b.pressed);
+        this.prevButtons[id] = pad.buttons.map((b) => b.pressed);
         return { strongDown: ly > DROP_THRESHOLD, prevHold: down(PAD.prevWeapon), stick };
     }
 }

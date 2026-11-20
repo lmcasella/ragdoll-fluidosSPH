@@ -5,6 +5,19 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-20
+
+### Added
+- Pantalla de asignación de controles al elegir Jugar: cada dispositivo conectado (teclado y mouse, gamepad 1, gamepad 2) se ubica en J1, sin jugar o J2 con su propio stick, cruceta o A/D. Select o A suman al gamepad, Start, Enter o A empiezan y B o Escape vuelven. La última asignación se recuerda; un jugador sin dispositivo lo maneja el bot con la dificultad del menú.
+
+### Changed
+- El teclado y el mouse son un solo dispositivo con un esquema nuevo: Espacio salta, Shift bloquea, Shift + Espacio rueda, F golpea, S + F patea, S + Espacio baja de la plataforma, clic izquierdo dispara, clic derecho o E es el gancho, Q anterior o rueda, R siguiente, 1-4 directa y Escape es Start. W queda solo como arriba. La revancha se pide con Espacio.
+- El menú principal pierde la fila Modo; se elige con los dispositivos de la pantalla de asignación. ?bot= sigue forzando bots y salta la pantalla.
+- Input asigna el estado por dispositivo y no por el índice del gamepad.
+
+### Removed
+- El teclado de J2 y todas las teclas del teclado numérico.
+
 ## [0.41.3] - 2026-11-20
 
 ### Fixed

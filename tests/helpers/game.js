@@ -41,6 +41,7 @@ export function giveAllWeapons(game) {
  * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  * `options.storage` es el `localStorage` falso del juego (con `getItem` y `setItem`); sin él no hay almacenamiento.
  * `game.hudTexts` y `game.laserMoves` espían lo dibujado en el último frame (capas HUD y mira).
+ * Sin `intro`, la asignación de controles es la clásica de las pruebas: el teclado y el gamepad 0 en J1, el gamepad 1 en J2.
  * `options.map` es el mapa de la partida ("classic" por defecto, o "infinite"); se escribe en el menú antes de arrancar.
  */
 export async function loadGame(options = {}) {
@@ -119,6 +120,7 @@ export async function loadGame(options = {}) {
 
     if (!options.intro) {
         globalThis.game.menu.values.map = options.map ?? "classic";
+        globalThis.game.asignacion.assignment = { keyboard: 0, "pad:0": 0, "pad:1": 1 };
         globalThis.game.arrancarPartida();
         globalThis.game.match.state = "playing";
     }
@@ -163,6 +165,11 @@ export async function loadGame(options = {}) {
         // Gamepad k (0 = J1) con botones del mapeo "standard" y ejes [lx, ly, rx, ry]; sin argumentos, todo suelto
         setPad(k, { buttons = [], axes = [0, 0, 0, 0] } = {}) {
             padState[k] = { buttons, axes };
+            refreshPads();
+        },
+        /** Desconecta el gamepad k; los que siguen conectados se renumeran por posición. */
+        removePad(k) {
+            padState[k] = undefined;
             refreshPads();
         },
         emit(type, event = {}) {
