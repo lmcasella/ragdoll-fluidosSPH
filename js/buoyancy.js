@@ -1,5 +1,8 @@
 import { MATERIALS, SIGMA_W, K_MU } from "./materials.js";
 import { bodyShapes } from "./bodyShapes.js";
+import { FLUID, weaponById, particleFlags } from "./weapons.js";
+import { ORIGIN } from "./particleStore.js";
+import { seededRandom } from "./bot.js";
 
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
@@ -12,6 +15,15 @@ const MIN_AREA = 1e-12;
 
 /** Tolerancia (m) para asignar una arista vertical a la franja que la contiene cuando cae justo en una cara. */
 const FACE_EPS = 1e-9;
+
+/**
+ * Datos de las salpicaduras (docs/design/14-agua.md §14.5). `efficiency` es la fracción del trabajo que el arrastre de
+ * una franja le hace al agua que se vuelve energía cinética de las gotas: aproximación declarada, aprobada por el
+ * usuario, con rango de 5 % a 10 %. `angle` y `spread` (rad) dan la dirección de lanzamiento sobre la horizontal.
+ * `maxHoney` y `maxAcid` son las fracciones de miel (volumen) y de ácido (masa) de la columna desde las que ya no
+ * salpica: solo sale agua (límite declarado).
+ */
+export const SPLASH = { efficiency: 0.08, angle: Math.PI / 3, spread: (10 * Math.PI) / 180, maxHoney: 0.01, maxAcid: 0.005 };
 
 /**
  * Recorta el polígono `src` (`n` vértices `[x, y, …]`) con el semiplano `a x + b y ≤ c` (Sutherland–Hodgman) y deja el
@@ -62,13 +74,20 @@ function clip(src, n, dst, a, b, c) {
  * - el tope por masa reducida de cada franja, `|J_arrastre,i| ≤ m_red |v_r,i|` con `m_red = m m_col/(m + m_col)` y
  *   `m_col = σ_w h_i dx`, y la reacción horizontal sobre el agua, `addMomentum(i, −J_x/(σ_w dx))`.
  *
+ * Salpicaduras (con `splash: { store, seed }`): la pieza que perfora la superficie en una franja con `v_n < 0` y
+ * `Fr = v_n²/(g ℓ) > 1` (ℓ, ancho mojado de la franja) encola gotas durante `apply`, con la energía acotada por
+ * `ε W` (`W = −J·v_r`, el trabajo del arrastre de la franja; el resto se acarrea por columna), el espesor mínimo de
+ * la columna y el impulso vertical `|J_y|` de la franja. `releaseSplashes()`, después de `stepWorld`, las crea con
+ * `store.create` (`ORIGIN.SPLASH`) y le quita al campo, columna por columna, su `h`, `q` y `E`. `stats.splash` lleva
+ * lo lanzado: gotas, área (m²), cantidad de movimiento horizontal y vertical (kg·m/s) e impulso vertical de las franjas.
+ *
  * No modela la reacción vertical sobre el campo ni la masa agregada. `config.dragScale` y `config.viscousK` en 0 apagan el
  * arrastre de presión y el viscoso. Cada pieza expone `area` (suma de las áreas de sus fixtures) y `submerged` (área
  * sumergida del último `apply`), en m², y, para el monitor de `js/debug.js`, `cx` y `cy` (centro de masa en el mundo, m),
  * `buoyancy` y `drag` (fuerza media del último paso, N, `{ x, y }`: el arrastre incluye el viscoso y el tope). Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
  */
 export class Buoyancy {
-    constructor(water, materials = MATERIALS, { gravity = 10, dragScale = 1, viscousK = K_MU } = {}) {
+    constructor(water, materials = MATERIALS, { gravity = 10, dragScale = 1, viscousK = K_MU, splash = null } = {}) {
         this.water = water;
         this.drag = materials.drag;
         this.gravity = gravity;
@@ -90,14 +109,50 @@ export class Buoyancy {
         this.mu = new Float64Array(N);
         this.stamp = new Int32Array(N);
         this.clock = 0;
+        this.xlo = new Float64Array(N);
+        this.xhi = new Float64Array(N);
+        this.pierce = new Uint8Array(N);
         this.impulse = new Box2D.b2Vec2(0, 0);
         this.point = new Box2D.b2Vec2(0, 0);
+        this.store = splash?.store ?? null;
+        this.events = [];
+        this.eventCount = 0;
+        if (this.store) {
+            const rain = weaponById(FLUID.WATER);
+            this.seed = splash.seed ?? null;
+            this.dropArea = (1.5 * this.store.system.GetRadius()) ** 2;
+            this.carry = new Float64Array(N);
+            this.pending = new Float64Array(N);
+            this.def = new Box2D.b2ParticleDef();
+            this.position = new Box2D.b2Vec2(0, 0);
+            this.velocity = new Box2D.b2Vec2(0, 0);
+            this.color = new Box2D.b2ParticleColor(...rain.color, 255);
+            this.def.set_flags(particleFlags(rain));
+            this.def.set_color(this.color);
+            this.props = { kind: FLUID.WATER, origin: ORIGIN.SPLASH, enthalpy: 0 };
+        }
+        this.reset();
+    }
+
+    /** Vacía las salpicaduras pendientes, el resto de energía por columna y las estadísticas, y reinicia el azar con la semilla. */
+    reset() {
+        this.eventCount = 0;
+        this.stats.splash = { drops: 0, area: 0, momentumX: 0, momentumY: 0, impulseY: 0 };
+        if (!this.store) return;
+        this.carry.fill(0);
+        this.pending.fill(0);
+        this.random = seededRandom(this.seed ?? (Math.random() * 2 ** 32) >>> 0);
     }
 
     /** Libera los vectores nativos. */
     dispose() {
         Box2D.destroy(this.impulse);
         Box2D.destroy(this.point);
+        if (!this.store) return;
+        Box2D.destroy(this.def);
+        Box2D.destroy(this.position);
+        Box2D.destroy(this.velocity);
+        Box2D.destroy(this.color);
     }
 
     /**
@@ -181,6 +236,7 @@ export class Buoyancy {
             let minX = Infinity;
             let maxX = -Infinity;
             let minY = Infinity;
+            let maxY = -Infinity;
             for (let i = 0; i < n; i++) {
                 const lxv = verts[2 * i];
                 const lyv = verts[2 * i + 1];
@@ -191,6 +247,7 @@ export class Buoyancy {
                 if (wx < minX) minX = wx;
                 if (wx > maxX) maxX = wx;
                 if (wy < minY) minY = wy;
+                if (wy > maxY) maxY = wy;
             }
             if (maxX <= x0 + water.i0 * dx || minX >= x0 + water.i1 * dx) continue;
             const c0 = Math.max(water.i0, Math.floor((minX - x0) / dx));
@@ -226,6 +283,7 @@ export class Buoyancy {
                 jx += fx * dt;
                 jy += f * dt;
                 jl += ((ccx - cxm) * f - (ccy - cym) * fx) * dt;
+                if (this.store) this.markStrip(c, m, maxY > zeta);
                 this.area[c] += area;
                 this.cx[c] += area * ccx;
                 this.cy[c] += area * ccy;
@@ -283,6 +341,7 @@ export class Buoyancy {
                 dL *= s;
                 this.stats.capped++;
             }
+            if (this.store && this.pierce[c] === 1 && rvy < 0) this.queueSplash(c, ccx > cxm, rvx, rvy, dX, dY);
             jx += dX;
             jy += dY;
             jl += dL;
@@ -300,6 +359,122 @@ export class Buoyancy {
             body.ApplyLinearImpulse(this.impulse, this.point, true);
         }
         if (jl !== 0) body.ApplyAngularImpulse(jl, true);
+    }
+
+    /**
+     * Anota en la franja `c` el recorte `polyA` de `m` vértices: el tramo horizontal que moja (`xlo`, `xhi`, unión de
+     * las fixtures) y si la pieza perfora la superficie (`pierce`).
+     */
+    markStrip(c, m, pierces) {
+        const { polyA } = this;
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (let i = 0; i < m; i++) {
+            const x = polyA[2 * i];
+            if (x < lo) lo = x;
+            if (x > hi) hi = x;
+        }
+        if (this.area[c] === 0) {
+            this.xlo[c] = lo;
+            this.xhi[c] = hi;
+            this.pierce[c] = 0;
+        } else {
+            if (lo < this.xlo[c]) this.xlo[c] = lo;
+            if (hi > this.xhi[c]) this.xhi[c] = hi;
+        }
+        if (pierces) this.pierce[c] = 1;
+    }
+
+    /**
+     * Encola las gotas de la franja `c` que entra al agua: `outward` dice si salen hacia `+x`, `(rvx, rvy)` es la
+     * velocidad relativa al agua y `(dX, dY)` el impulso del arrastre de la franja. Las crea `releaseSplashes`.
+     */
+    queueSplash(c, outward, rvx, rvy, dX, dY) {
+        const { water, dropArea } = this;
+        const speed = -rvy;
+        const width = this.xhi[c] - this.xlo[c];
+        if (width <= 0 || (speed * speed) / (this.gravity * width) <= 1) return;
+        if (water.honeyFraction(c) >= SPLASH.maxHoney || water.acidFraction(c) >= SPLASH.maxAcid) {
+            this.carry[c] = 0;
+            return;
+        }
+        const work = -(dX * rvx + dY * rvy);
+        if (work <= 0) return;
+        const mass = SIGMA_W * dropArea;
+        const energy = 0.5 * mass * speed * speed;
+        this.carry[c] += SPLASH.efficiency * work;
+        const room = Math.floor(((water.h[c] - water.config.hMin) * water.dx - this.pending[c]) / dropArea);
+        const wanted = Math.min(Math.floor(this.carry[c] / energy), room);
+        if (wanted <= 0) return;
+        const event = (this.events[this.eventCount] ??= { c: 0, x: 0, speed: 0, side: 1, impulseY: 0, angles: [] });
+        event.angles.length = 0;
+        let left = Math.abs(dY);
+        for (let k = 0; k < wanted; k++) {
+            const angle = SPLASH.angle + SPLASH.spread * (2 * this.random() - 1);
+            const lift = mass * speed * Math.sin(angle);
+            if (lift > left) break;
+            left -= lift;
+            event.angles.push(angle);
+        }
+        const count = event.angles.length;
+        if (count === 0) return;
+        this.carry[c] = Math.min(this.carry[c] - count * energy, energy);
+        this.pending[c] += count * dropArea;
+        event.c = c;
+        event.speed = speed;
+        event.side = outward ? 1 : -1;
+        event.x = (outward ? this.xhi[c] : this.xlo[c]) + event.side * 1.5 * this.store.system.GetRadius();
+        event.impulseY = Math.abs(dY);
+        this.eventCount++;
+    }
+
+    /**
+     * Crea las gotas encoladas por `apply`, una vez por paso fijo y después de `stepWorld` (y de `store.afterStep()`):
+     * nunca dentro de un callback. Cada gota sale con `|v| = v_n` desde el borde mojado de la franja, 2 r sobre la
+     * superficie que tenía la columna, separadas `1,5 r` sobre su rayo, y le quita al campo `A_p/dx` de `h`, su
+     * cantidad de movimiento `A_p v_x/dx` de `q` y su parte de `E`, con su entalpía específica. Si el motor no tiene
+     * lugar para una gota, no sale ni se descuenta.
+     */
+    releaseSplashes() {
+        const { water, dropArea, store, def, position, velocity, props } = this;
+        const radius = store.system.GetRadius();
+        const part = dropArea / water.dx;
+        const mass = SIGMA_W * dropArea;
+        const total = this.stats.splash;
+        for (let e = 0; e < this.eventCount; e++) {
+            const event = this.events[e];
+            const c = event.c;
+            this.pending[c] = 0;
+            const y0 = water.surfaceAt(event.x) + 2 * radius;
+            let made = 0;
+            for (let k = 0; k < event.angles.length; k++) {
+                if (water.h[c] - part < water.config.hMin) break;
+                const angle = event.angles[k];
+                const reach = k * 1.5 * radius;
+                const vx = event.side * event.speed * Math.cos(angle);
+                const vy = event.speed * Math.sin(angle);
+                position.set_x(event.x + event.side * reach * Math.cos(angle));
+                position.set_y(y0 + reach * Math.sin(angle));
+                velocity.set_x(vx);
+                velocity.set_y(vy);
+                def.set_position(position);
+                def.set_velocity(velocity);
+                const hh = water.h[c];
+                const energy = water.E[c];
+                props.enthalpy = energy / (SIGMA_W * hh);
+                if (store.create(def, props) < 0) break;
+                water.h[c] = hh - part;
+                water.q[c] -= (dropArea * vx) / water.dx;
+                water.E[c] = energy - (part * energy) / hh;
+                total.drops++;
+                total.area += dropArea;
+                total.momentumX += mass * vx;
+                total.momentumY += mass * vy;
+                made++;
+            }
+            if (made > 0) total.impulseY += event.impulseY;
+        }
+        this.eventCount = 0;
     }
 
     /** Pone en cero los acumuladores de la franja `c`. */

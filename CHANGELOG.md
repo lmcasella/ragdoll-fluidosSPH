@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-11-20
+
+### Added
+- Cuando un robot cae al agua, la superficie levanta gotas hacia afuera, con la energía que el golpe le da al agua; el agua que sale de la pileta vuelve a ella cuando las gotas caen. Solo salpica el agua limpia, no la mezclada con miel o ácido.
+
 ## [0.43.1] - 2026-11-20
 
 ### Fixed
