@@ -1,5 +1,6 @@
 import { LEVEL } from "./level.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
+import { Dispersion } from "./dispersion.js";
 
 /** Gravedad del mundo (m/s²), la misma de `b2World`. */
 const G = 10;
@@ -46,9 +47,18 @@ export const WATER_FIELD = {
     hDry: 1e-3,
     hMin: 1.85e-3,
     manning: 0.012,
+    dispersion: true,
     ambientT: 20,
     draw: { alpha: 0.55, color: [40, 120, 255], lineColor: [170, 220, 255], lineWidth: 2, colorStep: 4 },
 };
+
+/**
+ * Datos del oleaje residual del arranque (docs/design/14-agua.md §14.11). Modos de cuenca `cos(nπx/L)` de longitud de
+ * onda entre `minWavelength` y `maxWavelength` (m) con espectro de Pierson y Moskowitz de pico en `peakWavelength` (m) y
+ * desvío estándar de la superficie `sigma` (m) (`Hs` = 4 σ = 3 cm). `edge` (m) es lo que tarda la ventana en llegar a 1
+ * desde la orilla, y `minDepth` (m) la profundidad bajo la cual la columna no recibe oleaje.
+ */
+export const SWELL = { minWavelength: 1, maxWavelength: 6, peakWavelength: 3, sigma: 0.0075, edge: 1, minDepth: 0.1 };
 
 const minmod = (a, b) => (a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b);
 
@@ -154,7 +164,92 @@ export class ShallowWater {
         this.bedLevel = Float64Array.from(this.b);
         this.bed0 = this.bedLevel;
         this.start = null;
+        this.dispersion = config.dispersion ? new Dispersion(this, G) : null;
         this.reset();
+    }
+
+    /**
+     * Pone el oleaje residual del arranque (`SWELL`) sobre el agua que existe ahora, una cuenca mojada (tramo contiguo
+     * con `h > hDry`) a la vez. Cada modo es una onda estacionaria de la cuenca, de frecuencia de Airy, con amplitud de
+     * Pierson–Moskowitz normalizada a `SWELL.sigma` y fase del azar `random` (`() => [0, 1)`); `q` sale de la
+     * continuidad. Se aplican promedios de celda, una ventana que vale 0 en la orilla y se resta `w_i Σδ/Σw`: el
+     * volumen queda exacto. `E`, `M` y `A` siguen a `h` en cada celda (mismas `T` y concentraciones).
+     */
+    swell(random) {
+        const { h, q, E, M, A, dx, i0, i1, config } = this;
+        const { minWavelength, maxWavelength, peakWavelength, sigma, edge, minDepth } = SWELL;
+        let i = i0;
+        while (i < i1) {
+            if (!(h[i] > config.hDry)) {
+                i++;
+                continue;
+            }
+            let j = i;
+            let depth = 0;
+            while (j < i1 && h[j] > config.hDry) depth += h[j++];
+            const n = j - i;
+            depth /= n;
+            const length = n * dx;
+            const omegaOf = (k) => Math.sqrt(G * k * Math.tanh(k * depth));
+            const omegaPeak = omegaOf((2 * Math.PI) / peakWavelength);
+            const modes = [];
+            let variance = 0;
+            for (let m = Math.ceil((2 * length) / maxWavelength); m <= Math.floor((2 * length) / minWavelength); m++) {
+                const kappa = (m * Math.PI) / length;
+                const omega = omegaOf(kappa);
+                const slope = (omegaOf(kappa + Math.PI / length / 2) - omegaOf(kappa - Math.PI / length / 2)) / (Math.PI / length);
+                const amplitude = Math.sqrt(omega ** -5 * Math.exp(-1.25 * (omegaPeak / omega) ** 4) * slope);
+                const phase = 2 * Math.PI * random();
+                const mode = { kappa, ratio: omega / kappa, eta: amplitude * Math.cos(phase), flow: amplitude * Math.sin(phase) };
+                variance += (mode.eta * mode.eta) / 2;
+                modes.push(mode);
+            }
+            if (variance > 0) this.applySwell(i, n, modes, sigma / Math.sqrt(variance), edge, minDepth);
+            i = j;
+        }
+    }
+
+    /**
+     * Suma a la cuenca de `n` celdas desde `first` los modos de `swell` (`eta` y `flow` son las amplitudes del modo en
+     * `h` y `q`, `ratio` es `ω/k`), multiplicados por `scale`, con la ventana de orilla y la corrección de volumen.
+     */
+    applySwell(first, n, modes, scale, edge, minDepth) {
+        const { h, q, E, M, A, dx } = this;
+        const length = n * dx;
+        const delta = new Float64Array(n);
+        const flow = new Float64Array(n);
+        const weight = new Float64Array(n);
+        let sumDelta = 0;
+        let sumWeight = 0;
+        for (let c = 0; c < n; c++) {
+            const x1 = c * dx;
+            const x2 = x1 + dx;
+            let eta = 0;
+            let u = 0;
+            for (const mode of modes) {
+                const k = mode.kappa;
+                eta += (scale * mode.eta * (Math.sin(k * x2) - Math.sin(k * x1))) / (k * dx);
+                u += (scale * mode.flow * mode.ratio * (Math.cos(k * x1) - Math.cos(k * x2))) / (k * dx);
+            }
+            const ramp = Math.sin((Math.PI / 2) * Math.min(1, Math.min(x1 + dx / 2, length - x1 - dx / 2) / edge));
+            const w = h[first + c] < minDepth ? 0 : ramp * ramp;
+            weight[c] = w;
+            delta[c] = w * eta;
+            flow[c] = w * u;
+            sumDelta += delta[c];
+            sumWeight += w;
+        }
+        if (sumWeight === 0) return;
+        for (let c = 0; c < n; c++) {
+            const cell = first + c;
+            const next = h[cell] + delta[c] - (weight[c] * sumDelta) / sumWeight;
+            const ratio = next / h[cell];
+            E[cell] *= ratio;
+            M[cell] *= ratio;
+            A[cell] *= ratio;
+            h[cell] = next;
+            q[cell] += flow[c];
+        }
     }
 
     /** Coordenada x del centro de la celda `i` (m). */
@@ -728,6 +823,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
     step(dt) {
         const { i0, i1, h, q, config } = this;
         this.settle(this);
+        const split = this.dispersion !== null && this.dispersion.split();
         const smax = this.maxSpeed(h, q);
         let n = Math.max(1, Math.ceil((dt * smax) / (config.cfl * this.dx)));
         if (n > config.maxSubsteps) {
@@ -741,6 +837,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
         }
         const sub = dt / n;
         for (let s = 0; s < n; s++) this.advance(sub);
+        if (split) this.dispersion.merge(dt);
         this.consolidate();
         this.stats.steps++;
         this.stats.substeps += n;
