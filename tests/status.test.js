@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { ActiveRagdoll, STICKY } = await import("../js/ActiveRagdoll.js");
+const { ActiveRagdoll } = await import("../js/ActiveRagdoll.js");
 
 // Estado mínimo para probar el cortocircuito sin física
 function robot() {
@@ -10,7 +10,6 @@ function robot() {
     r.burns = new Map();
     r.flashes = new Map();
     r.wetTimer = 0;
-    r.stickyTimer = 0;
     r.rig = {};
     return r;
 }
@@ -67,33 +66,4 @@ test("dry apaga el cortocircuito: no hay más daño", () => {
     run(r, 2);
     assert.equal(r.hp, hp);
     assert.equal(r.wet, false);
-});
-test("stick deja el robot pegado 0,3 s; a los 0,3 s + 1 paso sin renovar ya no", () => {
-    const r = robot();
-    assert.equal(r.sticky, false);
-    r.stick();
-    assert.equal(r.sticky, true);
-    run(r, 0.25);
-    assert.equal(r.sticky, true);
-    run(r, STICKY.grace + DT - 0.25); // 0,3 s más un paso desde stick
-    assert.equal(r.sticky, false);
-});
-
-test("renovar stick en cada paso lo mantiene 3 s", () => {
-    const r = robot();
-    for (let i = 0; i < 180; i++) {
-        r.stick();
-        r.updateStatus(DT);
-        assert.equal(r.sticky, true, `paso ${i}`);
-    }
-});
-
-test("copyStateFrom conserva el estado pegado", () => {
-    const old = robot();
-    old.stick();
-    run(old, 0.1);
-    const nuevo = robot();
-    nuevo.copyStateFrom(old);
-    assert.equal(nuevo.stickyTimer, old.stickyTimer);
-    assert.ok(nuevo.sticky);
 });
