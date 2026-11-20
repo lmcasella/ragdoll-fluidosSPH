@@ -17,19 +17,170 @@ export const PARTICLE_RADIUS = (1.5 * 0.06) / Math.sqrt(Math.PI);
 const PARTICLE_AREA = Math.PI * PARTICLE_RADIUS ** 2;
 
 /**
- * Desenfoque del filtro goo, en m (se pasa a píxeles con el zoom). El umbral del filtro (alfa · 20 − 10) solo deja
- * ver lo que supera alfa 0,5, y un círculo aislado de radio r desenfocado con σ llega en el centro a
- * `1 − exp(−r² / 2σ²)`: con σ = 0,07 m una gota de 0,05 m quedaba en 0,22 y desaparecía. Con 0,03 m llega a 0,75.
+ * Radio de influencia `R` del campo de cada partícula, en m: el campo vale 0 a `R` del centro y solo las vecinas a
+ * menos de `2 R` se suman. Con 2,2 radios dibujados las gotas a 0,12 m se funden y las de 0,16 m ya no.
  */
-export const GOO_BLUR = 0.03;
+export const METABALL_RADIUS = 2.2 * PARTICLE_RADIUS;
+
+/** Umbral de alfa del filtro `#goo` de `index.html` (alfa · 20 − 10 > 0, es decir alfa > 0,5). */
+export const METABALL_THRESHOLD = 0.5;
 
 /**
- * Alfa en el centro de un círculo aislado de radio `radius` después del desenfoque gaussiano de `sigma` (misma unidad).
- * @param {number} radius
- * @param {number} sigma
+ * Perfil radial del campo (Wyvill): `(1 − q²)²` con `q = d / R`, 1 en el centro y 0 desde `q` = 1, con derivada nula en ambos extremos.
+ * @param {number} q distancia al centro sobre el radio de influencia
  */
-export function gooPeakAlpha(radius, sigma) {
-    return 1 - Math.exp(-(radius * radius) / (2 * sigma * sigma));
+export function metaballProfile(q) {
+    if (q >= 1) return 0;
+    const s = 1 - q * q;
+    return s * s;
+}
+
+/**
+ * Pico de alfa del sprite de un material para que una gota aislada de radio `radius` (m) cruce el umbral justo en ese radio:
+ * `umbral / perfil(radius / R)`, con tope 1.
+ * @param {number} radius radio visible de la gota, en m
+ */
+export function metaballPeak(radius, influence = METABALL_RADIUS, threshold = METABALL_THRESHOLD) {
+    return Math.min(1, threshold / metaballProfile(radius / influence));
+}
+
+/**
+ * Alfa de una gota de pico `peak` a `distance` m de su centro.
+ * @param {number} distance
+ * @param {number} peak
+ */
+export function metaballAlpha(distance, peak, influence = METABALL_RADIUS) {
+    return peak * metaballProfile(distance / influence);
+}
+
+/**
+ * Radio visible (m) de una gota aislada de pico `peak`: donde el alfa baja al umbral. Invierte `metaballAlpha`.
+ * @param {number} peak
+ */
+export function metaballVisibleRadius(peak, influence = METABALL_RADIUS, threshold = METABALL_THRESHOLD) {
+    return influence * Math.sqrt(1 - Math.sqrt(threshold / peak));
+}
+
+const SPRITE_PX = 64;
+const SPRITE_STOPS = 16;
+const SPRITE_CAP = 256;
+
+/**
+ * Sprites de gradiente radial por material y color. El color se cuantiza a 5 bits por canal y cada material guarda
+ * hasta `cap` sprites (descarta el más viejo). `makeCanvas` crea un canvas (en Node, uno falso).
+ */
+export class MetaballSprites {
+    constructor(makeCanvas, cap = SPRITE_CAP) {
+        this.makeCanvas = makeCanvas;
+        this.cap = cap;
+        this.byKind = new Map();
+        this.baked = 0;
+    }
+
+    /** Sprite de `kind` con el color RGB (0-255) y el radio visible `radius` (m); lo hornea si no está. */
+    get(kind, r, g, b, radius) {
+        let cache = this.byKind.get(kind);
+        if (cache === undefined) {
+            cache = new Map();
+            this.byKind.set(kind, cache);
+        }
+        const rq = r >> 3;
+        const gq = g >> 3;
+        const bq = b >> 3;
+        const key = (rq << 10) | (gq << 5) | bq;
+        let sprite = cache.get(key);
+        if (sprite !== undefined) return sprite;
+        if (cache.size >= this.cap) cache.delete(cache.keys().next().value);
+        sprite = this.bake((rq << 3) | (rq >> 2), (gq << 3) | (gq >> 2), (bq << 3) | (bq >> 2), metaballPeak(radius));
+        cache.set(key, sprite);
+        return sprite;
+    }
+
+    bake(r, g, b, peak) {
+        const canvas = this.makeCanvas();
+        canvas.width = SPRITE_PX;
+        canvas.height = SPRITE_PX;
+        const ctx = canvas.getContext("2d");
+        const half = SPRITE_PX / 2;
+        const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
+        for (let i = 0; i <= SPRITE_STOPS; i++) {
+            const q = i / SPRITE_STOPS;
+            gradient.addColorStop(q, `rgba(${r}, ${g}, ${b}, ${(peak * metaballProfile(q)).toFixed(4)})`);
+        }
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, SPRITE_PX, SPRITE_PX);
+        this.baked++;
+        return canvas;
+    }
+}
+
+/**
+ * Una capa (canvas DOM con el filtro `#goo` por CSS) por material presente en el frame, para que materiales
+ * distintos no se fundan entre sí. Los canvas se crean al primer uso, antes de `anchor`, con `z-index` = id del material.
+ * `apply(ctx)` pone la cámara en cada contexto usado.
+ */
+export class FluidLayers {
+    constructor(doc, anchor, apply) {
+        this.doc = doc;
+        this.anchor = anchor;
+        this.apply = apply;
+        this.layers = new Map();
+        this.width = 0;
+        this.height = 0;
+        this.sprites = new MetaballSprites(() => doc.createElement("canvas"));
+    }
+
+    resize(width, height) {
+        this.width = width;
+        this.height = height;
+        for (const layer of this.layers.values()) {
+            layer.canvas.width = width;
+            layer.canvas.height = height;
+        }
+    }
+
+    begin() {
+        for (const layer of this.layers.values()) layer.used = false;
+    }
+
+    /** Contexto de la capa de `kind`: la crea si falta y, en el primer pedido del frame, la muestra, la limpia y le pone la cámara. */
+    contextFor(kind) {
+        let layer = this.layers.get(kind);
+        if (layer === undefined) {
+            const canvas = this.doc.createElement("canvas");
+            canvas.className = "fluidLayer";
+            canvas.style.zIndex = String(kind);
+            canvas.width = this.width;
+            canvas.height = this.height;
+            this.anchor.before(canvas);
+            layer = { canvas, ctx: canvas.getContext("2d"), used: false, shown: true };
+            this.layers.set(kind, layer);
+        }
+        if (!layer.used) {
+            layer.used = true;
+            if (!layer.shown) {
+                layer.canvas.style.display = "";
+                layer.shown = true;
+            }
+            layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+            this.apply(layer.ctx);
+        }
+        return layer.ctx;
+    }
+
+    /** Oculta las capas que no se usaron en este frame. */
+    end() {
+        for (const layer of this.layers.values()) {
+            if (layer.used || !layer.shown) continue;
+            layer.canvas.style.display = "none";
+            layer.shown = false;
+        }
+    }
+
+    sprite(kind, r, g, b, radius) {
+        return this.sprites.get(kind, r, g, b, radius);
+    }
 }
 
 /**
@@ -56,6 +207,7 @@ export const SHOT_DRAW = {
         3: { radiusScale: 1.069 },
         4: { radiusScale: 1.04 },
         5: { radiusScale: 1.06 },
+        6: { radiusScale: 1.04 },
     },
 };
 const DEFAULT_KIND = { radiusScale: 1 };
@@ -766,29 +918,34 @@ export function dropShape(x, y, kind, draw, out) {
 const shape = { radius: 0, x0: 0, y0: 0 };
 
 /**
- * Dibuja las partículas de `particleSystem` como un círculo cada una, de `radius` (por material con `skin`). Con
- * `skin` (`SHOT_DRAW`), las partículas junto a un cuerpo se dibujan acercadas a su superficie (ver `skinPosition`). Lo
- * que se dibuja lo decide `dropShape`. `store` (opcional): `store.kind` da el material de cada partícula.
+ * Dibuja las partículas de `particleSystem` como un sprite de campo cada una (ver `metaballPeak`) en la capa de su material
+ * (`layers.contextFor(kind)`, `kind` = `store.kind` o 0 sin `store`), con el color propio de la partícula. `skin` (`SHOT_DRAW`) acerca las
+ * partículas junto a un cuerpo a su superficie (ver `skinPosition`). La forma la decide `dropShape`. Dentro de la capa
+ * los sprites se combinan en `source-over` y el filtro `#goo` recorta el campo por el umbral.
  */
-export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, store = null) {
+export function drawParticles(layers, particleSystem, skin = null, store = null) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
     const posBase = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
     const draw = skin ?? NO_SKIN;
-    NO_SKIN.radius = radius;
+    const side = 2 * METABALL_RADIUS;
+    layers.begin();
+    let lastKind = -1;
+    let ctx = null;
     for (let i = 0; i < count; i++) {
         const c = colorBase + i * 4;
-        const x = positions[posBase + i * 2];
-        const y = positions[posBase + i * 2 + 1];
         const kind = store !== null ? store.kind[store.slotAt(i)] : 0;
-        dropShape(x, y, kind, draw, shape);
-        ctx.fillStyle = `rgb(${colors[c]}, ${colors[c + 1]}, ${colors[c + 2]})`;
-        ctx.beginPath();
-        ctx.arc(shape.x0, shape.y0, shape.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (kind !== lastKind) {
+            lastKind = kind;
+            ctx = layers.contextFor(kind);
+        }
+        dropShape(positions[posBase + i * 2], positions[posBase + i * 2 + 1], kind, draw, shape);
+        const sprite = layers.sprite(kind, colors[c], colors[c + 1], colors[c + 2], shape.radius);
+        ctx.drawImage(sprite, shape.x0 - METABALL_RADIUS, shape.y0 - METABALL_RADIUS, side, side);
     }
+    layers.end();
 }
 
 /**
