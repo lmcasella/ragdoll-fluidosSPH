@@ -899,7 +899,8 @@ export class ActiveRagdoll {
                 : target;
             this.enterState(state, this.animSpeed);
         } else {
-            this.enterState(state, state === "roll" || state === "rollBack" ? ROLL.clipSpeed : 1);
+            const speed = state === "roll" || state === "rollBack" ? ROLL.clipSpeed : state === "block" ? (this.rig.melee?.blockClipSpeed ?? 1) : 1;
+            this.enterState(state, speed);
         }
     }
 
