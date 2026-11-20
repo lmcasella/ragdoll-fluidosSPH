@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-11-20
+
+### Fixed
+- El salto completo a través de plataformas atravesables se verifica en las semillas 1 a 6 del Infinito. Los saltos "cortados" que mostraba la prueba eran el robot saltando ya bajo el agua de la inundación (el arrastre le acortaba el salto), no un fallo de las plataformas.
+
 ## [0.38.0] - 2026-11-20
 
 ### Changed
