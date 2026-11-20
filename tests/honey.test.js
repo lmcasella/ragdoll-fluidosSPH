@@ -68,21 +68,24 @@ function tags(game, kind) {
     return out;
 }
 
-// J2 a 3 m de J1 (J1 mira a la derecha y J2 a la izquierda); los dos disparan a la vez
-test("J1 dispara miel a J2 a ~3 m: a los 8 s la miel se conserva y nada del ácido", async () => {
+// J2 a 3 m a la izquierda de J1 (J1 dispara a la izquierda; el chorro empuja a J2 contra la pared, lejos de la pileta); los dos disparan a la vez
+test("J1 dispara miel a J2 a ~3 m: a los 8 s la miel se conserva y nada del ácido", async (t) => {
     const game = await start();
     const { players, damage } = game.state;
-    shift(game, J2, 7.5 + 3 - torso(game, J2).get_x());
+    shift(game, 0, 14 - torso(game, 0).get_x());
+    shift(game, J2, 14 - 3 - torso(game, J2).get_x());
     game.frames(30);
+    const j2Start = torso(game, J2).get_x();
     const firstTag = damage.nextShot;
     players[0].weapon = FLUID.HONEY;
     players[J2].weapon = FLUID.ACID;
-    game.setPad(0, { buttons: [RT] });
-    game.setPad(J2, { buttons: [RT], axes: [0, 0, -0.7, -0.7] }); // el ácido sale hacia arriba: no cruza el chorro de miel
+    game.setPad(0, { buttons: [RT], axes: [0, 0, -1, 0] });
+    game.setPad(J2, { buttons: [RT], axes: [0, 0, 0.7, -0.7] }); // el ácido sale hacia arriba: no cruza el chorro de miel
     game.frames(90);
     game.setPad(0);
     game.setPad(J2);
     game.frames(60);
+    t.diagnostic(`J2 se desplazó ${(j2Start - torso(game, J2).get_x()).toFixed(2)} m hacia la izquierda (de ${j2Start.toFixed(2)} a ${torso(game, J2).get_x().toFixed(2)})`);
     const emitted = weaponById(FLUID.HONEY).tank - game.state.players[0].tanks.get(FLUID.HONEY);
     assert.ok(emitted >= 140, `emitió ${emitted}`);
     game.frames(60 * 8);

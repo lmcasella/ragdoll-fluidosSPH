@@ -25,6 +25,12 @@ const NORMAL = 3;
  */
 const BRIDGE_CUT_RADII = 3.5;
 
+/** Vecinas de miel que se recuerdan por partícula para saber si otra capa la cubre (el resto se descarta). */
+const COVER_SLOTS = 12;
+
+/** Umbral del producto escalar entre la dirección a una vecina de miel y la normal de la pared para contarla como capa cubriente. */
+const COVER_DOT = 0.2;
+
 /**
  * Fluidos que forman película sobre un cuerpo: los que tienen miel (`X > 0`). Con la `μ` del agua o del ácido el efecto es
  * despreciable (`k ~ 1e-5`). La lava y la piedra tienen su propia viscosidad de contacto (`js/viscosity.js`).
@@ -159,6 +165,7 @@ export class Adhesion {
                 best[i] = c;
             }
         }
+        this.coverPairs(total, pos);
         const point = this.point;
         for (let c = 0; c < count; c++) {
             const i = index[c];
@@ -235,7 +242,58 @@ export class Adhesion {
         return vx * nx + vy * ny <= 0;
     }
 
-    /** Película entre la partícula `i` y `body`, con anclaje `(qx, qy)` y normal exterior `(nx, ny)` ya en el mundo. */
+    /** Guarda, por partícula, la dirección a sus vecinas de miel (contactos partícula-partícula de este paso). */
+    coverPairs(total, pos) {
+        const { contacts, store } = this;
+        const heap = Box2D.HEAPF32;
+        const K = COVER_SLOTS;
+        if (!this.coverCount || this.coverCount.length < total) {
+            const cap = Math.max(this.system.GetMaxParticleCount(), total, 1);
+            this.coverCount = new Uint8Array(cap);
+            this.coverDir = new Float32Array(cap * K * 2);
+        }
+        const cnt = this.coverCount;
+        const dir = this.coverDir;
+        cnt.fill(0, 0, total);
+        const k = contacts.pairs(total);
+        for (let c = 0; c < k; c++) {
+            const a = contacts.pairA[c];
+            const b = contacts.pairB[c];
+            const sa = store.slotAt(a);
+            const sb = store.slotAt(b);
+            if (sa < 0 || sb < 0 || this.honey[store.kind[sa]] === 0 || this.honey[store.kind[sb]] === 0) continue;
+            const dx = heap[pos + 2 * b] - heap[pos + 2 * a];
+            const dy = heap[pos + 2 * b + 1] - heap[pos + 2 * a + 1];
+            const l = Math.hypot(dx, dy) || 1;
+            if (cnt[a] < K) {
+                dir[(a * K + cnt[a]) * 2] = dx / l;
+                dir[(a * K + cnt[a]) * 2 + 1] = dy / l;
+                cnt[a]++;
+            }
+            if (cnt[b] < K) {
+                dir[(b * K + cnt[b]) * 2] = -dx / l;
+                dir[(b * K + cnt[b]) * 2 + 1] = -dy / l;
+                cnt[b]++;
+            }
+        }
+    }
+
+    /** Si la partícula `i` tiene una vecina de miel del lado opuesto a la pared, de normal exterior `(nx, ny)`. */
+    covered(i, nx, ny) {
+        const K = COVER_SLOTS;
+        const dir = this.coverDir;
+        for (let j = 0; j < this.coverCount[i]; j++) {
+            if (dir[(i * K + j) * 2] * nx + dir[(i * K + j) * 2 + 1] * ny > COVER_DOT) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Película entre la partícula `i` y `body`, con anclaje `(qx, qy)` y normal exterior `(nx, ny)` ya en el mundo. Sobre un
+     * cuerpo no dinámico, si la partícula tiene una vecina de miel del lado opuesto a la pared, `k_t` y `k_n` usan la `μ` real
+     * (`μ_ef / viscosityScale`): la similitud `F = 100` reemplaza una película de una partícula de espesor, pero en un charco de
+     * varias capas la profundidad ya la resuelven las partículas.
+     */
     film(i, kind, body, qx, qy, nx, ny, vel, dt) {
         const heap = Box2D.HEAPF32;
         const stats = this.stats;
@@ -270,7 +328,8 @@ export class Adhesion {
         const tx = -ny;
         const ty = nx;
         const vt = vrx * tx + vry * ty;
-        const mub = this.mu[kind] * THICKNESS;
+        const resolved = !dynamic && this.covered(i, nx, ny);
+        const mub = (resolved ? this.mu[kind] / MATERIALS.honey.viscosityScale : this.mu[kind]) * THICKNESS;
         const invParticle = 1 / mass;
 
         const armT = rx * ty - ry * tx;

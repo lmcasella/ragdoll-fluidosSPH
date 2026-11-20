@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-11-20
+
+### Fixed
+- El robot que pisa un charco de miel apoya los pies en el piso, en vez de quedar parado arriba del charco como sobre un bloque. La miel se sigue pegando al robot, pero ya no lo clava al piso: un chorro de miel puede empujar al rival, y caminar por un charco de miel cuesta más o menos lo mismo que por agua. La miel del fondo de la pileta se corre despacio con la corriente.
+
 ## [0.44.0] - 2026-11-20
 
 ### Added
