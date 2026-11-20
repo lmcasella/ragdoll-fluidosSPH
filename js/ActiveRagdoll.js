@@ -41,6 +41,12 @@ export const AIR = { deadband: 1.0, fallSpeed: 10 };
  */
 export const ROLL = { duration: 0.8, clipSpeed: 1.5, speed: 4, cooldown: 0.5 };
 
+/**
+ * Input vacío con el que `move` reemplaza al del jugador durante la secuencia de caída con daño (`landHurt`, luego
+ * `getupFront` o `getupBack`, cada uno con el largo de su clip en `rig.clipLengths`, s): el input se lee pero no actúa.
+ */
+const NO_INPUT = Object.freeze({});
+
 /** Largo (s) de los clips `jump_start` y de las reacciones al golpe. */
 const JUMP_START_TIME = 0.6;
 const REACT_TIME = 0.4;
@@ -59,6 +65,9 @@ const BUSY_STATES = new Set([
     "airPunch",
     "airKick",
     "block",
+    "landHurt",
+    "getupFront",
+    "getupBack",
 ]);
 
 /**
@@ -109,6 +118,11 @@ export class ActiveRagdoll {
         this.rollBack = false;
         this.rollDir = 1;
         this.fallLatched = false;
+        /** Estado de la secuencia de caída con daño (`landHurt`, `getupFront`, `getupBack`) o `null`. */
+        this.recoverState = null;
+        this.recoverStart = -Infinity;
+        /** Verdadero si el impacto de la caída alta en curso hizo daño (`markImpact` con `fallLatched`). */
+        this.impactInFall = false;
         /** Verdadero desde que aterriza una caída alta (la que activa `fallHigh`) hasta que quien lo consume lo baja. */
         this.landed = false;
         this.jumpAt = -Infinity;
@@ -144,6 +158,7 @@ export class ActiveRagdoll {
     get armsBusy() {
         return (
             this.dead ||
+            this.recoverState !== null ||
             this.reacting() ||
             this.rolling() ||
             this.attack !== null ||
@@ -181,7 +196,7 @@ export class ActiveRagdoll {
      */
     strike(kind, now = this.now) {
         const melee = this.rig.melee;
-        if (!melee || this.dead || this.reacting(now) || this.rolling(now) || this.isStunned(now)) return false;
+        if (!melee || this.dead || this.recoverState !== null || this.reacting(now) || this.rolling(now) || this.isStunned(now)) return false;
         if (!this.grounded) {
             if (this.attack !== null || now < this.meleeReadyAt) return false;
             this.beginAttack(kind === "kick" ? "airKick" : "airPunch", now);
@@ -290,7 +305,7 @@ export class ActiveRagdoll {
             this.rollStart = -Infinity;
             this.rollReadyAt = now + ROLL.cooldown;
         }
-        if (!this.dead) this.enterState(this.reactKind, 1, true);
+        if (!this.dead && this.recoverState === null) this.enterState(this.reactKind, 1, true);
     }
 
     /** Recibe un golpe melee bloqueado: no cambia de estado, solo deja el instante. */
@@ -357,10 +372,49 @@ export class ActiveRagdoll {
         this.rollBack = old.rollBack;
         this.rollDir = old.rollDir;
         this.fallLatched = old.fallLatched;
+        this.recoverState = old.recoverState;
+        this.recoverStart = old.recoverStart;
+        this.impactInFall = old.impactInFall;
         this.jumpAt = old.jumpAt;
         this.jumpCuttable = old.jumpCuttable;
         this.stunnedUntil = old.stunnedUntil;
         this.lastBlocked = old.lastBlocked;
+    }
+
+    /** Anota que un impacto con daño ocurrió; solo cuenta si el robot está en una caída alta. Lo llama `damage.js`. */
+    markImpact() {
+        this.impactInFall = this.fallLatched;
+    }
+
+    /** Verdadero durante `landHurt` y la levantada: el input se lee pero no actúa. */
+    recovering() {
+        return this.recoverState !== null;
+    }
+
+    /**
+     * Si el pecho mira al piso. El pecho es el lado al que mira el robot (`side`) sobre el eje x local del torso, así
+     * que su dirección en el mundo es `side · (cos θ, sin θ)` con θ el ángulo del torso; mira al piso si su
+     * componente y es negativa (boca abajo). Con la espalda abajo (boca arriba) es positiva.
+     */
+    chestDown() {
+        return this.side * Math.sin(this.torso.GetAngle()) < 0;
+    }
+
+    beginRecover(state, now) {
+        this.recoverState = state;
+        this.recoverStart = now;
+    }
+
+    /** Avanza la secuencia de caída con daño: de `landHurt` a la levantada según `chestDown()`, y de ahí al control normal. */
+    updateRecover(now) {
+        if (this.recoverState === null) return;
+        const length = this.rig.clipLengths?.[this.rig.clips[this.recoverState]] ?? 0;
+        if (now - this.recoverStart < length) return;
+        if (this.recoverState === "landHurt") {
+            this.beginRecover(this.chestDown() ? "getupFront" : "getupBack", now);
+        } else {
+            this.recoverState = null;
+        }
     }
 
     takeDamage(amount) {
@@ -607,6 +661,7 @@ export class ActiveRagdoll {
      * @param {number} now Reloj de simulación, s.
      */
     resolveState(input, velX, moving, blocking, now) {
+        if (this.recoverState !== null) return this.recoverState;
         if (this.reacting(now)) return this.reactKind;
         if (this.rolling(now)) return this.rollBack ? "rollBack" : "roll";
         if (this.attack !== null) return this.attack;
@@ -649,6 +704,24 @@ export class ActiveRagdoll {
             this.framesGrounded = 0;
         }
 
+        if (this.grounded) {
+            if (this.fallLatched) {
+                this.landed = true;
+                if (this.impactInFall && this.rig.clips.landHurt) {
+                    this.attack = null;
+                    this.nextAttack = null;
+                    this.rollStart = -Infinity;
+                    this.beginRecover("landHurt", now);
+                }
+            }
+            this.fallLatched = false;
+            this.impactInFall = false;
+        } else if (velY < -AIR.fallSpeed) {
+            this.fallLatched = true;
+        }
+        this.updateRecover(now);
+        if (this.recoverState !== null) input = NO_INPUT;
+
         if (input.roll) this.tryRoll(input, now);
         this.updateAttack(now);
         const rolling = this.rolling(now);
@@ -657,15 +730,9 @@ export class ActiveRagdoll {
             this.grounded &&
             !this.isStunned(now) &&
             !rolling &&
+            this.recoverState === null &&
             !this.reacting(now) &&
             this.attack === null;
-
-        if (this.grounded) {
-            if (this.fallLatched) this.landed = true;
-            this.fallLatched = false;
-        } else if (velY < -AIR.fallSpeed) {
-            this.fallLatched = true;
-        }
 
         let isMoving = false;
         const lunge = this.lungeSpeed(now);

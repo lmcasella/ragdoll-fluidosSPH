@@ -314,7 +314,7 @@ export class Bot {
         const cfg = this.config;
         this.watchHurt(me, now);
 
-        if (me.isStunned(now) || me.reacting(now) || me.rolling(now)) {
+        if (me.isStunned(now) || me.reacting(now) || me.rolling(now) || me.recovering()) {
             if (adx < cfg.shoot.max) this.aim(dx, dy);
             return;
         }

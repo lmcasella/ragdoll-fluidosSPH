@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-11-20
+
+### Added
+- Robot v7: clips nuevos `land_hurt`, `getup_front` y `getup_back`; los 19 anteriores no cambian.
+- Una caída alta que hace daño por impacto deja al robot dolorido en el piso (`land_hurt`) y después se levanta de frente o de espalda, según cómo quedó el torso. Durante esos 3 s no puede moverse, girar, saltar, rodar, atacar ni disparar; un golpe no reinicia la secuencia y la muerte la corta. Una caída sin daño sigue igual.
+
 ## [0.38.2] - 2026-11-20
 
 ### Fixed

@@ -179,8 +179,12 @@
                     airKick: "air_kick",
                     reactSimple: "melee_react_simple",
                     reactStumble: "melee_react_stumble",
+                    landHurt: "land_hurt",
+                    getupFront: "getup_front",
+                    getupBack: "getup_back",
                     dead: "dead",
                 },
+                clipLengths: Object.fromEntries(robotRag.json.clips.map((clip) => [clip.key, clip.length])),
                 arms: ["b_3", "b_13", "b_14", "b_15"],
                 melee: MELEE,
                 feet: ["b_4", "b_16"],
@@ -649,7 +653,7 @@
                     actualizarMira(player, state, k, now);
 
                     const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
-                    if (!player.dead && !player.rolling(now) && player.flipX !== wantsFlipX) {
+                    if (!player.dead && !player.rolling(now) && !player.recovering() && player.flipX !== wantsFlipX) {
                         girar(k, wantsFlipX);
                         actualizarMira(players[k], state, k, now);
                     }
