@@ -496,8 +496,8 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
   - vapor, por arrastre de aire de la pluma (hipótesis de *entrainment* de Morton, Taylor y Turner, 1956): `Q = λ m c_v (T − T_a)`, con `λ = 2 α w / R` (térmico lineal 2D):
     - `α` = 0,10 es el coeficiente de arrastre de aire de Morton–Taylor–Turner (rango de la literatura 0,07–0,13);
     - `w` es la velocidad de ascenso de la parcela;
-    - `R = √(ρ_w A_p / (π ρ_s))` ≈ 4,1 m es el radio del volumen real de vapor que representa la parcela (1.600 veces `A_p`).
-    - Con `w` = 1,35 m/s (`r` = 0,12) daba `λ` ≈ 0,066 1/s (τ ≈ 15 s); con `w` = 0,95 m/s, `λ` ≈ 0,046 1/s (τ ≈ 21 s), con el mismo `R`. Criterio T9.
+    - `R = √(ρ_w A_p / (π ρ_s))` ≈ 2,1 m con `r` = 0,06 (4,1 m con 0,12; escala con `r`) es el radio del volumen real de vapor que representa la parcela (1.600 veces `A_p`).
+    - Con `w` = 1,35 m/s (`r` = 0,12) daba `λ` ≈ 0,066 1/s (τ ≈ 15 s); con `w` = 0,95 m/s y `r` = 0,06, `λ` ≈ 0,092 1/s (τ ≈ 11 s): media condensación a ~73 m de altura. Criterio T9.
 - **Dinámica del vapor en el aire:** el motor aplica −g. Se suma el empuje del aire `+g ρ_a/ρ_s` y el arrastre cuadrático en aire, `½ ρ_a C_d D |v| v / (ρ_s A_p)`, integrado en forma exacta. Velocidad terminal resultante: `v_t = √(2 g (ρ_a − ρ_s) A_p / (ρ_a C_d D))` = **0,95 m/s** hacia arriba con `r` = 0,06 (1,35 m/s con `r` = 0,12; escala con `√r`). **Límite:** una partícula de vapor es una parcela que lleva la masa de agua de la que vino. Su volumen dibujado no está a escala (el vapor real ocuparía 1.600 veces más). Queda documentado.
 - **Piedra:** al solidificar, `SetParticleFlags(i, POWDER)` (granular, sin cohesión: cae y se apila con su `SG`). Cuando queda en reposo (|v| < 0,05 m/s durante 0,5 s), `SetParticleFlags(i, WALL)`, inmóvil (*verificado* en ejecución en el relevamiento `H`: la piedra con `WALL` quedó en 0,00 m/s). `POWDER` (1 << 6, de `b2Particle.h`) está *por verificar* en ejecución.
 
