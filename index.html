@@ -505,11 +505,6 @@
                     const m = camera.toWorld(state.pointer.x, state.pointer.y);
                     const len = Math.hypot(m.x - x, m.y - y) || 1;
                     player.aimDir = { x: (m.x - x) / len, y: (m.y - y) / len };
-                } else if (state.left || state.right || state.down) {
-                    const dx = state.left && !state.right ? -1 : state.right && !state.left ? 1 : player.flipX ? -1 : 1;
-                    player.aimDir = state.down
-                        ? { x: dx * Math.SQRT1_2, y: -Math.SQRT1_2 }
-                        : { x: dx, y: 0 };
                 }
                 player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
                 player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5, now);

@@ -5,10 +5,15 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
-## [0.42.8] - 2026-11-20
+## [0.42.9] - 2026-11-20
 
 ### Fixed
 - La miel cuelga del techo unos 2 segundos antes de soltarse, escurre despacio por las paredes y las plataformas (unos 6 cm/s) y se estira en hilos entre las gotas, en lugar de caer como agua. Pega contra cualquier cosa del mapa, no solo contra los robots. La miel sale con más partículas por segundo y el mismo tiempo de fuego, para que el chorro vaya unido.
+
+## [0.42.8] - 2026-11-20
+
+### Fixed
+- La mira la mueven solo el stick derecho o el mouse: caminar con el stick izquierdo o el teclado ya no cambia hacia dónde apunta el robot ni lo da vuelta. Caminar hacia el lado contrario de la mira es caminar de espaldas.
 
 ## [0.42.7] - 2026-11-20
 
