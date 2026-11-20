@@ -337,7 +337,7 @@
             const evaporation = new Evaporation(particleSystem, store);
             const thermal = new Thermal(particleSystem, store, water, immersion, { evaporation, ...THERMAL.game });
             const viscosity = new Viscosity(particleSystem, store, thermal);
-            const buoyancy = new Buoyancy(water, MATERIALS);
+            const buoyancy = new Buoyancy(water, MATERIALS, { splash: { store, seed: Number.isFinite(botSeed) ? botSeed : null } });
             buoyancy.register(players);
             const debug = new Debug();
             const adhesion = new Adhesion(particleSystem, store, wallContact);
@@ -453,6 +453,7 @@
                 wallContact.invalidate();
                 damage.register(players);
                 buoyancy.register(players);
+                buoyancy.reset();
                 stagePrizes.reset();
                 flood.reset();
                 bots.forEach((bot) => bot.reset());
@@ -744,6 +745,7 @@
                     stepWorld(world, instances);
                     platforms.update(now);
                     store.afterStep();
+                    buoyancy.releaseSplashes();
                     debug.mark("física");
                     immersion.step(STEP_SETTINGS.dt);
                     debug.mark("inmersión");

@@ -18,8 +18,8 @@
  */
 export const PARTICLES = { slowFrameMs: 20, slowTime: 1, trimBatch: 100 };
 
-/** Origen de cada partícula, para el dibujo y la limpieza. */
-export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4 };
+/** Origen de cada partícula, para el dibujo y la limpieza (SPLASH: gota lanzada por un cuerpo que entra al agua del campo). */
+export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4, SPLASH: 5 };
 
 /**
  * Causa de cada destrucción, obligatoria en `destroy` (libro de masa, docs/design/14-agua.md §14.2): `ABSORBED`
