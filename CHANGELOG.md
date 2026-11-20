@@ -5,12 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
-<<<<<<< HEAD
-## [0.30.2] - 2026-11-20
+## [0.31.1] - 2026-11-20
 
 ### Added
 - Deploy automático a GitHub Pages en cada merge a `main`, con tests previos, tag y release por versión, y `version.json` publicado. El sitio publicado incluye el audio.
-=======
+
 ## [0.31.0] - 2026-11-19
 
 ### Added
@@ -22,7 +21,6 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ### Changed
 - La absorción en el campo deposita solo `A_p (1 − φ)` de una partícula ya evaporada en parte, y el libro de masa de `ParticleStore` anota la parte evaporada en `EVAPORATED`; los invariantes I1 e I2b cuentan `m (1 − φ)` como agua y `m φ` como evaporada.
 - El banco P3 informa `W_full` como mediana (1,1114) y usa `js/contacts.js`.
->>>>>>> origin/main
 
 ## [0.30.1] - 2026-11-19
 
