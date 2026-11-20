@@ -126,6 +126,7 @@ export class Thermal {
         this.kindStone = FLUID.STONE;
         this.kindWater = FLUID.WATER;
         this.kindSteam = FLUID.STEAM;
+        this.kindAcid = FLUID.ACID;
         const liquid = MATERIALS.water;
         const steam = MATERIALS.steam;
         this.boilingPoint = liquid.boilingPoint;
@@ -248,6 +249,7 @@ export class Thermal {
             if (e >= this.eVapor) return this.boilingPoint + (e - this.eVapor) / this.cVapor;
             return e > this.eBoil ? this.boilingPoint : e / this.cWater;
         }
+        if (kind === this.kindAcid) return Math.min(this.boilingPoint, e / this.c[kind]);
         if (this.family[kind] === 0) return e / this.c[kind];
         if (e <= this.eSolid) return e / this.cSolid;
         if (e >= this.eLiquid) return this.solidus + (e - this.eLiquid) / this.cLiquid;
@@ -265,6 +267,7 @@ export class Thermal {
             if (e >= this.eVapor) return this.cVapor;
             return e > this.eBoil ? Infinity : this.cWater;
         }
+        if (kind === this.kindAcid && e >= this.c[kind] * this.boilingPoint) return Infinity;
         if (this.family[kind] === 0) return this.c[kind];
         if (e < this.eSolid) return this.cSolid;
         if (e <= this.eLiquid) return Infinity;

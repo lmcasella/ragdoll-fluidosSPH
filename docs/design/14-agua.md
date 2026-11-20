@@ -484,6 +484,7 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
   - mezcla en ebullición entre `e_l` y `e_v = e_l + L_v` (`T` = 100 °C; título `x = (e − e_l)/L_v`);
   - vapor, `T = 100 + (e − e_v)/c_v`;
   - lava/piedra: sólido hasta `e_s = c_p · 1000`, fusión entre `e_s` y `e_s + L_f`, y líquido por encima.
+- **Ácido en partícula (#112, límite declarado):** una partícula de ácido no pasa a `STEAM`, porque su masa de agua no coincide con la de una partícula de vapor y rompería I1. Al llegar a `e_l` queda a 100 °C y acumula el latente como título en su entalpía, sin emitir vapor (la energía se conserva). El ácido en el campo sí hierve su agua y deja el H₂SO₄ en `A`. La ebullición de la partícula con residuo queda para un issue de M5.
 - **Cambio de fase con histéresis natural:** el agua pasa a `STEAM` cuando `e ≥ e_v` y vuelve a `WATER` cuando `e ≤ e_l`; la lava pasa a `STONE` cuando `e ≤ e_s`. La masa de la partícula no cambia, y la energía se conserva por construcción.
 - **Intercambio entre vecinas** por el buffer de contactos, para cada par vivo `(a, b)` con peso `w`:
   - el calor `Q_ab = K_ab · w · (T_b − T_a)` (W) se aplica como `e_a += Q dt/m_a` y `e_b −= Q dt/m_b`, una suma de pares antisimétrica que conserva la energía;
@@ -515,7 +516,7 @@ La térmica escribe el color de las partículas según `T` y fase (agua que se c
 
 ### Expectativa física (decidido, [D3](#1418-decisiones-del-usuario): tiempos reales, sin escalar)
 
-Con `h_b` = 500 W/(m²·K), una partícula de lava de 0,12 m (`r` = 0,06) tarda **~1,25 min** en solidificar en el agua (2,5 min con la de 0,24 m; el modelo concentrado escala con `A_p / P ∝ r`; la costra real se forma en segundos, pero el interior sigue fundido). Un tanque de lava entero (180 partículas, ~45 kg, 1.150 °C) calienta la pileta (60 m², 720 kg) unos 27 K: hierve localmente en las columnas donde se junta la lava, no toda la pileta. Las "plataformas de piedra temporales" de #30 no aparecen en el tiempo de una ronda con valores reales.
+Con `h_b` = 500 W/(m²·K), una partícula de lava de 0,12 m (`r` = 0,06) tarda **~1,25 min** en solidificar en el agua (2,5 min con la de 0,24 m; el modelo concentrado escala con `A_p / P ∝ r`; la costra real se forma en segundos, pero el interior sigue fundido). Un tanque de lava entero (180 partículas, ~45 kg, 1.150 °C) calienta la pileta (60 m², 720 kg) unos 23 K (cota por energía con c de la piedra 1.000 J/(kg·K)): hierve localmente en las columnas donde se junta la lava, no toda la pileta. Las "plataformas de piedra temporales" de #30 no aparecen en el tiempo de una ronda con valores reales.
 
 ### Qué reemplaza
 

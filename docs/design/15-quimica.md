@@ -336,7 +336,7 @@ Cada ficha tiene: **1** qué pasa, **2** productos y estado final, **3** energí
 1. Como la [ficha 5](#5-agua--lava), sumergida. La lava se hunde (`v_t` ≈ 1,55 m/s, [14.4](14-agua.md#144-absorción-e-inmersión)) envuelta en su película de vapor.
    - **En agua subenfriada** (por debajo de ~90 °C), las burbujas de vapor colapsan en pocos milímetros: una burbuja de 1 cm colapsa en ~10 ms (número de Jakob ≈ 250). El calor queda en el agua y **no sale vapor a la superficie**.
    - **Sale vapor** solo donde el agua alrededor llegó a la saturación (100 °C).
-2. Piedra en el fondo, agua más caliente y estratificada ([ficha 10](#10-agua-campo--agua-campo)), y vapor solo si hierve. Un tanque de lava (45 kg) calienta la pileta de 720 kg unos 27 K en promedio ([14.8](14-agua.md#148-térmica-y-fases)), pero hierve localmente.
+2. Piedra en el fondo, agua más caliente y estratificada ([ficha 10](#10-agua-campo--agua-campo)), y vapor solo si hierve. Un tanque de lava (45 kg) calienta la pileta de 720 kg unos 23 K (cota por energía con c de la piedra 1.000 J/(kg·K)) en promedio ([14.8](14-agua.md#148-térmica-y-fases)), pero hierve localmente.
 3. Igual que la [ficha 5](#5-agua--lava).
 4. Hundimiento: segundos. Transferencia de calor: ~1 min por partícula con el modelo concentrado. Colapso de burbujas: milisegundos.
 5. [R5], [R10], [R17].
