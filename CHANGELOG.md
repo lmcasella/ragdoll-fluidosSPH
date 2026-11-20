@@ -5,6 +5,16 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.7] - 2026-11-20
+
+### Fixed
+- Las gotas en movimiento se dibujan estiradas a lo largo de su velocidad, así el chorro se ve como un hilo continuo y no como una fila de bolitas: a 18 m/s las gotas del chorro quedan a 0,18 m y el dibujo solo las fundía a menos de 0,12 m.
+
+## [0.42.6] - 2026-11-20
+
+### Fixed
+- Dificultad "Muñeco" en el menú: el rival que maneja la máquina se queda quieto, sin moverse ni atacar, para probar el combate con un solo control sin que la ronda se reinicie por su cuenta. En Clásico la inundación empieza a los 60 s.
+
 ## [0.42.5] - 2026-11-20
 
 ### Fixed

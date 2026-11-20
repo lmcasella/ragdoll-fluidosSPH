@@ -16,6 +16,7 @@ export const MENU = {
                 { id: "easy", label: "Fácil" },
                 { id: "normal", label: "Normal" },
                 { id: "hard", label: "Difícil" },
+                { id: "dummy", label: "Muñeco" },
             ],
         },
         {
