@@ -61,7 +61,7 @@ test("la tabla SOUNDS solo usa efectos de golpes, pasos, caídas, muertes, recog
     const files = Object.values(SOUNDS).flatMap((row) => row.files);
     assert.ok(files.length > 0);
     assert.ok(files.every((f) => !/^(laser|explosion)/.test(f)), `archivos: ${files}`);
-    assert.deepEqual(Object.keys(SOUNDS).sort(), ["block", "blockBreak", "death", "hit", "hurt", "land", "pickup", "roundEnd", "step"]);
+    assert.deepEqual(Object.keys(SOUNDS).sort(), ["block", "blockBreak", "death", "hit", "hurt", "land", "pickup", "repair", "roundEnd", "step"]);
     assert.equal(SOUNDS.step.volume, 0.4);
     assert.equal(SOUNDS.step.cooldown, 0.22);
     assert.equal(SOUNDS.hurt.cooldown, 0.3);

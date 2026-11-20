@@ -410,7 +410,7 @@
                     }
                 }
                 melee.events.length = 0;
-                for (const e of pickups.events) audio.play("pickup", e.weapon, now);
+                for (const e of pickups.events) audio.play(e.kind === "repair" ? "repair" : "pickup", e.weapon ?? 0, now);
                 pickups.events.length = 0;
                 for (const { player, index } of damage.footfalls) {
                     const walking = player.clipState === "walk" || player.clipState === "walkBack";

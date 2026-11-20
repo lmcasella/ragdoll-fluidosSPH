@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-20
+
+### Added
+- Ítem de reparación (tuerca hexagonal): suma 35 de salud con tope en el máximo, no se recoge con la salud llena y reaparece a los 20 s. Está en el mapa clásico (plataforma central, junto al agua, que se corrió a x = 26) y una vez por etapa en Infinito.
+- El bot con menos de 40 de salud busca la reparación cercana.
+- Sonido propio para la reparación.
+
 ## [0.35.2] - 2026-11-20
 
 ### Fixed

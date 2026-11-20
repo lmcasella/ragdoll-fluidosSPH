@@ -122,7 +122,8 @@ test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", 
 test("armas: ninguna en la etapa 0 y una por plataforma cada period de la etapa, de weights; misma semilla, mismas plataformas", () => {
     const { list } = run(3, 200);
     const seen = new Map();
-    for (const p of list) {
+    for (const platform of list) {
+        const p = { ...platform, pickups: platform.pickups.filter((q) => q.kind !== "repair") };
         if (p.stage < 1) {
             assert.equal(p.pickups.length, 0);
             continue;
