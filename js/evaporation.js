@@ -25,7 +25,9 @@ const KIND_SLOTS = 256;
  *
  * `stats`: `enabled`, `evaporated` (partículas destruidas por `φ ≥ 1`), `mass` (kg de agua pasados al aire) y
  * `latent` (J, negativo: el calor latente `−L_v m dφ` que aporta el aire y debe sumarse a `E_perdida` cuando el
- * monitor exista), más `contacts` (offsets hallados por `Contacts`).
+ * monitor exista) y `vapor` (J que lleva el vapor, `m dφ (e + L_v)` con la entalpía `e` de la partícula al evaporar,
+ * solo con `store.thermal`: es el término `Σ m φ e_v` del monitor de energía de `js/thermal.js`), más `contacts`
+ * (offsets hallados por `Contacts`).
  */
 export class Evaporation {
     constructor(system, store) {
@@ -51,7 +53,7 @@ export class Evaporation {
 
     /** Pone en cero las estadísticas. */
     reset() {
-        this.stats = { enabled: !this.contacts.failed, evaporated: 0, mass: 0, latent: 0, contacts: this.contacts.stats };
+        this.stats = { enabled: !this.contacts.failed, evaporated: 0, mass: 0, latent: 0, vapor: 0, contacts: this.contacts.stats };
     }
 
     /** Avanza `φ` de cada partícula de agua detenida y destruye las que llegan a 1. `dt` es el paso fijo. */
@@ -80,6 +82,7 @@ export class Evaporation {
             const gained = store.evaporated[slot] - before;
             stats.mass += this.mass[kind] * gained;
             stats.latent -= EVAPORATION.latentHeat * this.mass[kind] * gained;
+            if (store.thermal) stats.vapor += this.mass[kind] * gained * (store.enthalpy[slot] + EVAPORATION.latentHeat);
             if (store.evaporated[slot] >= 1) {
                 store.destroy(i, SINK.EVAPORATED);
                 stats.evaporated++;

@@ -6,6 +6,9 @@
  * arreglos tipados indexados por slot (`vx`, `vy` guardan la velocidad del último subpaso para el contorno
  * inelástico, `js/wallContact.js`). El slot de una destruida se libera en `afterStep()`.
  * Libro de masa: `created[kind]` cuenta las creaciones y `destroyed[cause][kind]` las destrucciones por causa.
+ * Térmica (#75): `enthalpy[slot]` es la entalpía específica (J/kg, 0 a 0 °C), que nace con `enthalpyInit[kind]` o
+ * con `props.enthalpy`; `thermal` lo pone en verdadero `js/thermal.js` al ocuparse de ellas, y `generation[slot]`
+ * sube con cada `create` para que quien guarde estado por slot sepa que es de otra partícula.
  * Recorte (#160): si los fotogramas se vuelven lentos se destruyen las más viejas con `SINK.PERF`.
  */
 
@@ -43,6 +46,10 @@ export class ParticleStore {
         this.origin = new Uint8Array(capacity);
         this.shot = new Int32Array(capacity);
         this.evaporated = new Float32Array(capacity);
+        this.enthalpy = new Float64Array(capacity);
+        this.generation = new Uint32Array(capacity);
+        this.enthalpyInit = new Float64Array(KIND_SLOTS);
+        this.thermal = false;
         this.vx = new Float32Array(capacity);
         this.vy = new Float32Array(capacity);
         this.slowTime = 0;
@@ -73,6 +80,8 @@ export class ParticleStore {
         this.origin[slot] = props.origin ?? ORIGIN.SHOT;
         this.shot[slot] = props.shot ?? 0;
         this.evaporated[slot] = 0;
+        this.enthalpy[slot] = props.enthalpy ?? this.enthalpyInit[this.kind[slot]];
+        this.generation[slot]++;
         const vel = (Box2D.getPointer(this.system.GetVelocityBuffer()) >> 2) + 2 * index;
         this.vx[slot] = Box2D.HEAPF32[vel];
         this.vy[slot] = Box2D.HEAPF32[vel + 1];

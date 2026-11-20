@@ -4,7 +4,9 @@
 // Flags por partícula (b2ParticleFlag, LiquidFun 1.1): el build no exporta los nombres
 export const PARTICLE = {
     WATER: 0,
+    WALL: 1 << 2,
     VISCOUS: 1 << 5,
+    POWDER: 1 << 6,
     TENSILE: 1 << 7,
     STATIC_PRESSURE: 1 << 11,
     CONTACT_LISTENER: 1 << 14, // b2_fixtureContactListenerParticle
