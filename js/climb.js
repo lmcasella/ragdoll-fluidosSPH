@@ -1,5 +1,5 @@
 import { LEVEL } from "./level.js";
-import { BOT, seededRandom } from "./bot.js";
+import { BOT, canReach, seededRandom } from "./bot.js";
 import { FLUID, refillTanks } from "./weapons.js";
 
 /**
@@ -14,7 +14,7 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   `rows`: `spacing` [mín, máx] (m) entre una fila y la anterior, `counts` peso de cada cantidad de plataformas por fila,
  *   `shift` (m) de corrimiento vertical de cada plataforma a ± de la altura de su fila, `maxRun` filas seguidas con la misma
  *   cantidad como máximo, `singleWidth` [mín, máx] (m) de ancho de la plataforma de una fila de 1 en todas las etapas (un descanso
- *   que deja apoyar dos en la fila siguiente) y `neighbor` (`gap` m horizontal, `dy` m) que debe cumplir cada plataforma con una vecina más alta;
+ *   que deja apoyar dos en la fila siguiente) con el alcance de salto de `reach` (`canReach` de `js/bot.js`) como regla de vecina;
  *   `tries` sorteos de fila; `transition`: una plataforma a menos de esto bajo un cambio de etapa ya
  *   usa el ancho de la etapa de arriba; `minWidth`; `tail`: con probabilidad `chance` el ancho se multiplica por `long` o
  *   por `short`; `window` (m) hacia abajo que se recuerda; `width`: rango de ancho en la etapa 0 y en la `stages`, lineal entre
@@ -46,7 +46,7 @@ export const CLIMB = {
         air: 1.8,
         separation: 1,
         sameHeight: 0.8,
-        rows: { spacing: [2.2, 3.2], counts: { 1: 0.2, 2: 0.35, 3: 0.3, 4: 0.15 }, shift: 0.4, maxRun: 2, singleWidth: [4, 5.5], neighbor: { gap: 3, dy: 3.3 } },
+        rows: { spacing: [2.2, 3.2], counts: { 1: 0.2, 2: 0.35, 3: 0.3, 4: 0.15 }, shift: 0.4, maxRun: 2, singleWidth: [4, 5.5] },
         tries: 300,
         transition: 3.5,
         minWidth: 1.6,
@@ -182,9 +182,9 @@ export function pickSpawns(platforms, random, config = CLIMB) {
  * `seededRandom(seed)` consumida fila por fila: el mapa no depende de cuándo se genera cada una. Cada fila queda
  * `branches.rows.spacing` m sobre la anterior y lleva de 1 a 4 plataformas (pesos `rows.counts`, sin más de `rows.maxRun`
  * filas seguidas con la misma cantidad), cada una corrida en vertical a ±`rows.shift`. Cada plataforma puede caer en cualquier x entre paredes
- * y es alcanzable desde otra de la fila anterior o de su misma fila (`rows.neighbor`), y su x se restringe por construcción para no pisar a otra,
+ * y es alcanzable desde otra de la fila anterior o de su misma fila (`reach`, `canReach`), y su x se restringe por construcción para no pisar a otra,
  * dejar `air` de aire con las que la cubren en x, `separation` con las de su altura y quedar dentro de las paredes. Una fila
- * se vuelve a sortear si alguna plataforma de las generadas queda sin vecina más alta alcanzable (`rows.neighbor`).
+ * se vuelve a sortear si alguna plataforma de las generadas queda sin vecina más alta alcanzable (`reach`).
  * `base` son las plataformas anchas de la etapa 0 `{ x, w, y }` (`y` es el tope); `next()` devuelve la plataforma siguiente
  * de la fila en curso, de abajo hacia arriba, `{ index, row, x, w, y, stage, pickups: [{ x, y, weapon } | { x, y, kind: "repair" }] }`,
  * y `pending` cuenta las que faltan de esa fila. `fallbacks` cuenta las filas que no pudieron armarse.
@@ -305,19 +305,20 @@ export class ClimbGenerator {
 
     /**
      * Intervalos de x del centro de una plataforma de ancho `w` y tope `top` dentro de `cell` [lo, hi] que cumplen paredes
-     * (con el ancho de la etapa de arriba), alcance desde alguna plataforma de `from` (`rows.neighbor.gap`), `air` y
-     * `separation`. Con `urgent` (plataformas sin vecina arriba) su x queda a `rows.neighbor.gap` de todas ellas. Sale por
+     * (con el ancho de la etapa de arriba), alcance desde alguna plataforma de `from` (`reach`), `air` y
+     * `separation`. Con `urgent` (plataformas sin vecina arriba) su x queda a su hueco máximo de salto de todas ellas. Sale por
      * construcción: se restringe x en vez de sortear y rechazar.
      */
     span(top, w, cell, from, urgent) {
         const { centerX, branches } = this.config;
-        const { gap } = branches.rows.neighbor;
+        const { up, short } = this.config.reach;
+        const gapFor = (dy) => (dy <= short.dy ? Math.max(short.gap, up.gap) : up.gap);
         const { air, separation, sameHeight, transition, dy } = branches;
-        const soft = halfWidth(stageOf(top + transition + dy[1], this.config), this.config) + gap;
+        const soft = halfWidth(stageOf(top + transition + dy[1], this.config), this.config) + up.gap;
         const half = Math.min(halfWidth(stageOf(top + transition, this.config), this.config), soft);
         const lo = Math.max(cell[0] + w / 2, centerX - half + w / 2);
         const hi = Math.min(cell[1] - w / 2, centerX + half - w / 2);
-        const reach = from.map((p) => [p.minX - gap - w / 2, p.maxX + gap + w / 2]).sort((a, b) => a[0] - b[0]);
+        const reach = from.map((p) => [p.minX - gapFor(top - p.top) - w / 2, p.maxX + gapFor(top - p.top) + w / 2]).sort((a, b) => a[0] - b[0]);
         const merged = [];
         for (const r of reach) {
             const last = merged[merged.length - 1];
@@ -325,7 +326,7 @@ export class ClimbGenerator {
             else merged.push([...r]);
         }
         let list = intersect(merged, lo, hi);
-        for (const p of urgent) list = intersect(list, p.minX - gap - w / 2, p.maxX + gap + w / 2);
+        for (const p of urgent) list = intersect(list, p.minX - gapFor(top - p.top) - w / 2, p.maxX + gapFor(top - p.top) + w / 2);
         for (const q of this.items) {
             const apart = Math.abs(top - q.top);
             if (apart >= air) continue;
@@ -353,21 +354,21 @@ export class ClimbGenerator {
     }
 
     /**
-     * Sortea una fila de `count` plataformas con su altura base `base`: cada una en cualquier x del ancho entre paredes, alcanzable desde la fila anterior o desde otra de la misma fila (hueco ≤ `rows.neighbor.gap`),
+     * Sortea una fila de `count` plataformas con su altura base `base`: cada una en cualquier x del ancho entre paredes, alcanzable desde la fila anterior o desde otra de la misma fila (`canReach`),
      * y con el tope limitado para que llegue a una plataforma sin vecina arriba. Devuelve las plataformas (ya en `items`) o `null`.
      */
     drawRow(count, base) {
-        const { shift, neighbor } = this.config.branches.rows;
-        const { centerX, branches } = this.config;
+        const { shift } = this.config.branches.rows;
+        const { centerX, branches, reach } = this.config;
         const half = halfWidth(stageOf(base + branches.transition, this.config), this.config);
         const whole = [centerX - half, centerX + half];
         const need = this.items.filter((q) => this.mustReach(q, base));
         const row = [];
         for (let i = 0; i < count; i++) {
             let top = base + this.uniform([-shift, shift]);
-            const target = need.find((q) => base - shift - q.top <= neighbor.dy);
-            if (target) top = Math.min(top, target.top + neighbor.dy);
-            const from = this.items.filter((q) => top - q.top > 0 && top - q.top <= neighbor.dy);
+            const target = need.find((q) => base - shift - q.top <= reach.up.dy);
+            if (target) top = Math.min(top, target.top + reach.up.dy);
+            const from = this.items.filter((q) => top - q.top > 0 && top - q.top <= reach.up.dy);
             const spot = (count === 1 && need.length > 1 && this.place(top, whole, from, need, true)) || (target && this.place(top, whole, from, [target], count === 1)) || this.place(top, whole, from, [], count === 1);
             if (spot === null) return null;
             const item = { x: spot.x, minX: spot.x - spot.w / 2, maxX: spot.x + spot.w / 2, top, above: false, generated: true };
@@ -379,18 +380,17 @@ export class ClimbGenerator {
     }
 
 
-    /** Verdadero si `b` está más alta que `a` y a su alcance (`rows.neighbor`). */
+    /** Verdadero si `b` está más alta que `a` y a su alcance (`canReach`). */
     reaches(a, b) {
-        const { neighbor } = this.config.branches.rows;
         const gap = Math.max(0, b.minX - a.maxX, a.minX - b.maxX);
         const dy = b.top - a.top;
-        return dy > 0 && dy <= neighbor.dy && gap <= neighbor.gap;
+        return dy > 0 && canReach(dy, gap, this.config.reach);
     }
 
     /** Verdadero si `q` es una plataforma generada sin vecina arriba que, con la fila de altura base `base`, ya no llegaría a la fila siguiente. */
     mustReach(q, base) {
-        const { spacing, shift, neighbor } = this.config.branches.rows;
-        return q.generated && !q.above && q.top + neighbor.dy < base + spacing[0] - shift;
+        const { spacing, shift } = this.config.branches.rows;
+        return q.generated && !q.above && q.top + this.config.reach.up.dy < base + spacing[0] - shift;
     }
 
     /** Verdadero si toda plataforma que `mustReach` tiene una vecina alcanzable en `row`. */
@@ -550,9 +550,8 @@ export class Climb {
         this.generate(60);
         const random = seededRandom((seed ^ 0x9e3779b9) >>> 0);
         const all = this.items.filter((item) => item.kind === "platform").map((item) => ({ x: item.solid.x, w: item.solid.w, y: item.top }));
-        const { gap } = this.config.branches.rows.neighbor;
         const climbable = (p) =>
-            all.some((q) => q.y - p.y > 0 && q.y - p.y <= this.config.branches.rows.neighbor.dy && Math.max(0, q.x - q.w / 2 - (p.x + p.w / 2), p.x - p.w / 2 - (q.x + q.w / 2)) <= gap);
+            all.some((q) => canReach(q.y - p.y, Math.max(0, q.x - q.w / 2 - (p.x + p.w / 2), p.x - p.w / 2 - (q.x + q.w / 2)), this.config.reach) && q.y > p.y);
         this.spawns = pickSpawns(all.filter((p) => p.y <= this.config.spawn.maxTop && climbable(p)), random, this.config);
     }
 

@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
+import { canReach } from "../js/bot.js";
 import { FLUID } from "../js/weapons.js";
 
 const TOP = 300;
@@ -51,7 +52,7 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma es alcan
             const supported = all.some((q) => {
                 const dy = p.y - q.y;
                 const gap = Math.max(0, p.x - p.w / 2 - (q.x + q.w / 2), q.x - q.w / 2 - (p.x + p.w / 2));
-                return q !== p && dy > 0 && dy <= B.rows.neighbor.dy + 1e-9 && gap <= B.rows.neighbor.gap + 1e-9;
+                return q !== p && canReach(dy, gap, CLIMB.reach);
             });
             if (!supported) violations.push(`${where}: sin apoyo`);
             for (const q of all) {

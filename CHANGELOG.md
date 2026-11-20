@@ -8,7 +8,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [0.42.2] - 2026-11-20
 
 ### Changed
-- Mapa Infinito: las plataformas se arman por filas separadas de 2,2 a 3,2 m, con de 1 a 4 plataformas por fila (sin más de 2 filas seguidas con la misma cantidad) y cada una corrida hasta 0,4 m en vertical, para que no parezca una escalera. Una plataforma vale si se alcanza con un salto en diagonal (hueco de hasta 3 m y 3,3 m de desnivel) desde otra de la fila de abajo o de su misma fila. La plataforma de una fila de 1 es siempre ancha (de 4 a 5,5 m).
+- Mapa Infinito: las plataformas se arman por filas separadas de 2,2 a 3,2 m, con de 1 a 4 plataformas por fila (sin más de 2 filas seguidas con la misma cantidad) y cada una corrida hasta 0,4 m en vertical, para que no parezca una escalera. Una plataforma vale si se alcanza con el salto real del robot (hasta 3,3 m de desnivel con 2 m de hueco, o 2 m de desnivel con 3,5 m de hueco) desde otra de la fila de abajo o de su misma fila. La plataforma de una fila de 1 es siempre ancha (de 4 a 5,5 m).
 
 ## [0.42.1] - 2026-11-20
 

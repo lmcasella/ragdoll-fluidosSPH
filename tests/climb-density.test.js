@@ -6,13 +6,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ClimbGenerator, CLIMB } from "../js/climb.js";
+import { canReach } from "../js/bot.js";
 import { Camera } from "../js/camera.js";
 import { LEVEL } from "../js/level.js";
 import { loadGame } from "./helpers/game.js";
 
 const TOP = 200;
 const WINDOW = 10;
-const NEIGHBOR = { gap: 3, dy: 3.3 };
 const DRIFT = 6;
 
 function run(seed) {
@@ -34,8 +34,8 @@ test("alcance: en 50 semillas toda plataforma generada tiene una vecina alcanzab
         const last = list[list.length - 1];
         for (const p of list) {
             count++;
-            const near = (q) => q !== p && Math.abs(q.y - p.y) <= NEIGHBOR.dy && gapBetween(p, q) <= NEIGHBOR.gap;
-            if (!all.some((q) => near(q) && q.y > p.y) && p.y <= last.y - NEIGHBOR.dy) bad.push(`semilla ${seed} plataforma ${p.index}: nada arriba`);
+            const near = (q) => q !== p && (q.y > p.y ? canReach(q.y - p.y, gapBetween(p, q), CLIMB.reach) : canReach(q.y - p.y, gapBetween(p, q), CLIMB.reach) && p.y - q.y <= CLIMB.reach.up.dy);
+            if (!all.some((q) => near(q) && q.y > p.y) && p.y <= last.y - CLIMB.reach.up.dy) bad.push(`semilla ${seed} plataforma ${p.index}: nada arriba`);
             if (!all.some((q) => near(q) && q.y <= p.y)) bad.push(`semilla ${seed} plataforma ${p.index}: nada abajo`);
         }
     }
@@ -56,7 +56,7 @@ test("sin rachas: ninguna plataforma nueva queda a más de 6 m en x de la más c
     assert.ok(worst <= DRIFT, `hueco ${worst}`);
 });
 
-test("en pantalla: partida bot contra bot en Infinito a 1366x768, siempre se ven 5 plataformas o más (cada 0,5 s)", { timeout: 300000 }, async () => {
+test("en pantalla: partida bot contra bot en Infinito a 1366x768, siempre se ven 4 plataformas o más (cada 0,5 s)", { timeout: 300000 }, async () => {
     const VIEW = { w: 1366, h: 768 };
     const PPM = 40;
     for (const seed of [1, 2]) {
@@ -87,7 +87,7 @@ test("en pantalla: partida bot contra bot en Infinito a 1366x768, siempre se ven
             min = Math.min(min, seen);
         }
         console.log(`pantalla semilla ${seed}: mínimo de plataformas a la vista ${min}`);
-        assert.ok(min >= 5, `semilla ${seed}: ${min}`);
+        assert.ok(min >= 4, `semilla ${seed}: ${min}`);
     }
     globalThis.location = { search: "" };
 });

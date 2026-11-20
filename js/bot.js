@@ -111,7 +111,7 @@ export function buildNav(level = LEVEL, config = BOT) {
         if (top <= floorTop) continue;
         nodes.push({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top, oneWay: !!s.oneWay });
     }
-    const { up, short, downGap } = config.reach;
+    const { up } = config.reach;
     const { through, cost } = config;
     const edges = nodes.map(() => []);
     const costs = nodes.map(() => []);
@@ -120,14 +120,23 @@ export function buildNav(level = LEVEL, config = BOT) {
             if (i === j) return;
             const gap = Math.max(0, b.minX - a.maxX, a.minX - b.maxX);
             const dy = b.top - a.top;
-            const ok = dy > 0 ? (dy <= up.dy && gap <= up.gap) || (dy <= short.dy && gap <= short.gap) : gap <= downGap;
-            if (!ok) return;
+            if (!canReach(dy, gap, config.reach)) return;
             const vertical = dy > 0 && dy <= up.dy && Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX) >= through.overlap;
             edges[i].push(j);
             costs[i].push(vertical ? cost.through : cost.jump);
         });
     });
     return { nodes, edges, costs };
+}
+
+/**
+ * Regla de alcance del salto de `reach` (la de `buildNav` y la del generador de Infinito): con `dy` > 0 (m, hacia arriba) y un
+ * hueco horizontal `gap` (m) entre bordes, vale subir hasta `up.dy` con hueco hasta `up.gap` o hasta `short.dy` con hueco hasta
+ * `short.gap`; con `dy` ≤ 0, un hueco hasta `downGap`.
+ */
+export function canReach(dy, gap, reach = BOT.reach) {
+    const { up, short, downGap } = reach;
+    return dy > 0 ? (dy <= up.dy && gap <= up.gap) || (dy <= short.dy && gap <= short.gap) : gap <= downGap;
 }
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
