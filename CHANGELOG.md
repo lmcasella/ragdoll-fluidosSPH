@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-20
+
+### Changed
+- Los bots equipan enseguida el arma que acaban de recoger y, cuando se les vacía el tanque equipado, cambian al azar a otra que tenga carga.
+
 ## [0.37.2] - 2026-11-20
 
 ### Fixed
