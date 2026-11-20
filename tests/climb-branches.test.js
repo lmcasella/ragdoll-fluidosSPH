@@ -5,19 +5,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
+import { canReach } from "../js/bot.js";
 import { FLUID } from "../js/weapons.js";
 
 const TOP = 300;
 
-/** Altura (m) desde la que el generador ya no puede estirar el hueco entre plataformas (pasada la base). */
-const LATE = 30;
 const B = CLIMB.branches;
 
 function run(seed, top = TOP) {
     const generator = new ClimbGenerator(seed);
     const list = [];
     do list.push(generator.next());
-    while (list[list.length - 1].y < top);
+    while (list[list.length - 1].y < top || generator.pending > 0);
     return { generator, list };
 }
 
@@ -37,19 +36,13 @@ test("la base de la etapa 0 son de 3 a 5 plataformas anchas entre 4 y 7 m, repar
     }
 });
 
-test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un apoyo con solapamiento >= 1,5 m y dy <= 3,3 m, y nada se pisa", () => {
+test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma es alcanzable desde otra de abajo (hueco <= 3 m, dy <= 3,3 m) y nada se pisa", () => {
     const violations = [];
     let count = 0;
     let fallbacks = 0;
-    let late = 0;
     for (let seed = 1; seed <= 50; seed++) {
         const { generator, list } = run(seed);
         fallbacks += generator.fallbacks;
-        let front = Math.max(...generator.base.map((b) => b.y));
-        for (const p of list) {
-            if (p.y >= LATE && p.y - front > B.gap[1] + 1e-9) late++;
-            front = Math.max(front, p.y);
-        }
         const all = [...generator.base.map((p) => ({ ...p, index: -1 })), ...list];
         list.forEach((p) => {
             count++;
@@ -58,8 +51,8 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un
             if (Math.abs(p.x - CLIMB.centerX) + p.w / 2 > half + 1e-9) violations.push(`${where}: fuera de las paredes`);
             const supported = all.some((q) => {
                 const dy = p.y - q.y;
-                const overlap = Math.min(q.x + q.w / 2, p.x + p.w / 2) - Math.max(q.x - q.w / 2, p.x - p.w / 2);
-                return q !== p && dy >= B.dy[0] - 1e-9 && dy <= B.dy[1] + 1e-9 && overlap >= B.overlap - 1e-9;
+                const gap = Math.max(0, p.x - p.w / 2 - (q.x + q.w / 2), q.x - q.w / 2 - (p.x + p.w / 2));
+                return q !== p && canReach(dy, gap, CLIMB.reach);
             });
             if (!supported) violations.push(`${where}: sin apoyo`);
             for (const q of all) {
@@ -71,13 +64,32 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un
             }
         });
     }
-    console.log(`alcance: ${count} plataformas en 50 semillas, ${fallbacks} de respaldo, ${late} con hueco mayor a ${B.gap[1]} m pasados los ${LATE} m, ${violations.length} violaciones`);
+    console.log(`alcance: ${count} plataformas en 50 semillas, ${fallbacks} de respaldo, ${violations.length} violaciones`);
     assert.deepEqual(violations.slice(0, 5), []);
     assert.equal(fallbacks, 0);
-    assert.ok(late <= count / 1000, `huecos mayores a ${B.gap[1]} m: ${late}`);
 });
 
-test("variedad en 50 semillas: desviación de alturas > 0,5 m en tramos de 3 m", () => {
+test("filas (#227): en 50 semillas cada cantidad de 1 a 4 es >= 10 % de las filas, nunca 3 seguidas iguales y con corrimiento de +-0,4 m", () => {
+    const tally = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    let rows = 0;
+    for (let seed = 1; seed <= 50; seed++) {
+        const groups = new Map();
+        for (const p of run(seed).list) groups.set(p.row, [...(groups.get(p.row) ?? []), p]);
+        const list = [...groups.values()];
+        list.forEach((row, i) => {
+            tally[row.length]++;
+            rows++;
+            assert.ok(row.length >= 1 && row.length <= 4, `semilla ${seed}: ${row.length}`);
+            if (i >= 2) assert.ok(!(list[i - 1].length === row.length && list[i - 2].length === row.length), `semilla ${seed} fila ${i}: 3 seguidas`);
+            assert.ok(Math.max(...row.map((p) => p.y)) - Math.min(...row.map((p) => p.y)) <= 2 * B.rows.shift + 1e-9);
+        });
+    }
+    const share = Object.fromEntries(Object.entries(tally).map(([n, c]) => [n, +((100 * c) / rows).toFixed(1)]));
+    console.log(`filas: ${rows} en 50 semillas, porcentaje por cantidad ${JSON.stringify(share)}`);
+    for (const n of [1, 2, 3, 4]) assert.ok(tally[n] >= 0.1 * rows, `cantidad ${n}: ${share[n]} %`);
+});
+
+test("variedad en 50 semillas: desviación de alturas > 0,4 m en tramos de 3 m", () => {
     const spreads = [];
     for (let seed = 1; seed <= 50; seed++) {
         const { generator, list } = run(seed);
@@ -94,7 +106,7 @@ test("variedad en 50 semillas: desviación de alturas > 0,5 m en tramos de 3 m",
     }
     const mean = spreads.reduce((a, b) => a + b, 0) / spreads.length;
     console.log(`variedad: desviación media de alturas en tramos de 3 m ${mean.toFixed(2)} m (${spreads.length} tramos con 2 o más)`);
-    assert.ok(mean > 0.5, `desviación ${mean}`);
+    assert.ok(mean > 0.4, `desviación ${mean}`);
 });
 
 test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", () => {
