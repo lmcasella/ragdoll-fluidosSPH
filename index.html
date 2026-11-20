@@ -661,7 +661,7 @@
                     actualizarMira(player, state, k, now);
 
                     const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
-                    if (!player.dead && !player.rolling(now) && !player.recovering() && player.flipX !== wantsFlipX) {
+                    if (!player.dead && !player.rolling(now) && !player.recovering() && player.attack === null && player.flipX !== wantsFlipX) {
                         girar(k, wantsFlipX);
                         actualizarMira(players[k], state, k, now);
                     }
