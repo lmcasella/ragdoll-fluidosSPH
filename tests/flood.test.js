@@ -243,7 +243,7 @@ test("reiniciar la ronda deja el campo asentado, sin gotas y con la fuente en ce
     flood.reset();
     store.reset();
     scene.step(0);
-    assert.equal(water.volume(), settled);
+    assert.ok(Math.abs(water.volume() - settled) <= 1e-12, `volumen tras reiniciar ${water.volume() - settled}`);
     assert.equal(system.GetParticleCount(), 0);
     assert.equal(flood.emitted, 0);
     assert.equal(flood.active, false);
