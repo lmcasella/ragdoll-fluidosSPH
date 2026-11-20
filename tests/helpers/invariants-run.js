@@ -226,7 +226,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         out.stone = store.destroyed[SINK.OUT][FLUID.STONE] * mass.stone;
         inj.stone = store.created[FLUID.STONE] * mass.stone;
         P.steam = steamAlive * mass.steam;
-        out.steam = store.destroyed[SINK.OUT][FLUID.STEAM] * mass.steam;
+        out.steam = (store.destroyed[SINK.OUT][FLUID.STEAM] + store.destroyed[SINK.HUMIDITY][FLUID.STEAM]) * mass.steam;
         inj.steam = (store.created[FLUID.STEAM] - g.thermal.stats.emitted) * mass.steam;
         for (const s of SPECIES) {
             let den = 0;

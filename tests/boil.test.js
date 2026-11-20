@@ -95,7 +95,7 @@ test("constantes: el agua y el vapor comparten tramos de T(e) y las filas boil y
     s.dispose();
 });
 
-test("el agua pasa a vapor al llegar a e_v y el vapor vuelve a agua al bajar a e_l, con histéresis y la misma energía", () => {
+test("el agua pasa a vapor al llegar a e_v y el vapor sin contacto que baja a e_l se disuelve como humedad, con histéresis y la misma energía", () => {
     const s = thermalScene({
         airLosses: false,
         points: [
@@ -116,12 +116,12 @@ test("el agua pasa a vapor al llegar a e_v y el vapor vuelve a agua al bajar a e
     assert.equal(store.kind[0], FLUID.WATER, "por debajo de e_v sigue siendo agua (mezcla a 100 °C)");
     assert.equal(store.kind[1], FLUID.STEAM);
     assert.equal(store.kind[2], FLUID.STEAM, "por encima de e_l sigue siendo vapor (histéresis)");
-    assert.equal(store.kind[3], FLUID.WATER);
+    assert.equal(store.alive[3], 0, "el vapor sin contacto que llega a e_l se disuelve en el aire (#113)");
+    assert.equal(store.destroyed[SINK.HUMIDITY][FLUID.STEAM], 1);
     assert.equal(th.stats.boiled, 1);
-    assert.equal(th.stats.condensed, 1);
+    assert.equal(th.stats.humidity, 1);
     assert.equal(th.stats.advance.boil, th.mass[FLUID.WATER]);
-    assert.equal(th.stats.advance.condense, th.mass[FLUID.STEAM]);
-    for (let k = 0; k < 4; k++) assert.equal(store.enthalpy[k], before[k], `la entalpía de la partícula ${k} no cambia al cambiar de fase`);
+    for (let k = 0; k < 3; k++) assert.equal(store.enthalpy[k], before[k], `la entalpía de la partícula ${k} no cambia al cambiar de fase`);
     s.dispose();
 });
 

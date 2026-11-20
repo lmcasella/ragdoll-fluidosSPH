@@ -5,6 +5,13 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-20
+
+### Agregado
+
+- El vapor que sube se enfría con el aire que arrastra la pluma y se vuelve niebla; al agotar su latente se disuelve en el aire como humedad, sin crear gotas de agua.
+- El vapor condensa por contacto directo sobre agua, ácido y piedra fría, que se calientan hasta 100 °C.
+
 ## [0.33.0] - 2026-11-20
 
 ### Added

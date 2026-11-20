@@ -3,13 +3,13 @@ import { KIND_MATERIAL } from "./immersion.js";
 import { FLUID } from "./weapons.js";
 import { PARTICLE } from "./particles.js";
 import { Contacts } from "./contacts.js";
-import { ORIGIN } from "./particleStore.js";
+import { ORIGIN, SINK } from "./particleStore.js";
 
 /**
  * Datos de la térmica (docs/design/14-agua.md §14.8). `restSpeed` (m/s) y `restTime` (s): la piedra por debajo de esa
  * rapidez durante ese tiempo pasa de `POWDER` a `WALL`. `thickness` es el espesor `b` de la rebanada (m) y
  * `waterDensity` la densidad del agua (kg/m³) con la que sale de `σ_w`. `hotWater` es el color (RGB) al que se
- * acerca el agua a 100 °C, `stone` el color de la piedra fría y `steam` el del vapor; `maxSteam` es el tope de
+ * acerca el agua a 100 °C, `stone` el color de la piedra fría y `steam` el del vapor y `fog` el de la niebla (el vapor que se enfría pasa del primero al segundo con el título `x`); `maxSteam` es el tope de
  * partículas de vapor vivas (las columnas no emiten más y el excedente espera en `boiled`); `incandescence` son los anclas de color por
  * temperatura (°C, RGB) de docs/design/15-quimica.md §15.1, con interpolación lineal entre ellas y, debajo de la
  * primera, desde el color propio del material desde `glowFrom` (°C).
@@ -21,6 +21,7 @@ export const THERMAL = {
     hotWater: [235, 245, 255],
     stone: [52, 50, 47],
     steam: [242, 244, 245],
+    fog: [255, 255, 255],
     maxSteam: 300,
     glowFrom: 425,
     incandescence: [
@@ -69,8 +70,15 @@ function seriesCapacity(a, b) {
  * cuando llega a `m_w L_v` la columna pierde `A_p` de volumen y `m_w e_l` de energía y se crea una partícula `STEAM`
  * en `η + 1,5 r` con `e_v`; a lo sumo una por columna y por paso, y hasta `THERMAL.maxSteam` vivas. Solo emite una
  * columna a 100 °C, así que bajo agua subenfriada el calor queda en el agua. Una columna no emite si quedaría con
- * `h < hMin`. El vapor no intercambia calor por contactos (su pérdida al aire y la condensación sobre superficies
- * son de #113). El vapor que toca el campo se absorbe (`Immersion`, es miscible) con su entalpía.
+ * `h < hMin`. El vapor que toca el campo se absorbe (`Immersion`, es miscible) con su entalpía.
+ * Vapor y niebla (#113, docs/design/14-agua.md §14.8). El vapor en el aire pierde `Q = λ m c_v (T − T_a)` con
+ * `λ = 2 α w / R` (arrastre de aire de Morton–Taylor–Turner, `w` la velocidad de ascenso y `R = √(ρ_w A_p / (π ρ_s))`
+ * el radio del volumen real que representa la parcela), sin bajar de `e_l`; con `e` por debajo de `e_v` es niebla
+ * (mezcla de título `x`) y su color va de `THERMAL.steam` a `THERMAL.fog`. El vapor que llega a `e_l` sin haber tocado
+ * en ese paso agua, ácido ni piedra se destruye con `SINK.HUMIDITY` (humedad del aire) y su energía `m e_l` va a
+ * `lost`: nunca vuelve como gota. Por contacto directo con agua, ácido o piedra fría el vapor intercambia calor
+ * (`K = h D b` con `MATERIALS.heat.condensation`, el mismo limitador): el vapor que llega a `e_l` con contacto pasa a
+ * agua por la fila `condense`. La piedra a 100 °C o más no intercambia con el vapor (se calienta solo hasta 100 °C).
  * Dinámica del vapor en el aire: el motor ya aplicó −g; se suma el empuje `g ρ_a/ρ_s` como impulso del paso y el
  * arrastre cuadrático `½ ρ_a C_d D |v| v / (ρ_s A_p)` integrado en forma exacta (`v ← v / (1 + k |v| dt)`), con
  * velocidad terminal `√(2 g (ρ_a − ρ_s) A_p / (ρ_a C_d D))`.
@@ -81,7 +89,8 @@ function seriesCapacity(a, b) {
  *
  * `stats`: `enabled`, `lost` (J que salieron al aire), `E_perdida` (`energyLost()` al final del último paso), `solidified`, `remelted`, `walled`
  * (cambios de fase y de flag), `boiled` (agua que pasó a vapor), `condensed` (vapor que volvió a agua), `emitted`
- * (partículas de vapor creadas por las columnas), `steam` (vapores vivos al principio del último paso),
+ * (partículas de vapor creadas por las columnas), `humidity` (niebla disuelta en el aire, `SINK.HUMIDITY`),
+ * `steam` (vapores vivos al principio del último paso),
  * `advance` (kg de avance de cada fila de `REACTIONS`, para el invariante I2), `pairs`
  * (contactos del último paso) y `contacts` (offsets hallados por `Contacts`).
  *
@@ -137,6 +146,10 @@ export class Thermal {
         this.steamForce = (this.gravity * MATERIALS.air.rho) / steam.rho;
         this.steamDrag = (0.5 * MATERIALS.air.rho * steam.Cd * diameter) / (steam.rho * area);
         this.area = area;
+        this.entrainment = steam.entrainment;
+        this.plumeRadius = Math.sqrt((THERMAL.waterDensity * area) / (Math.PI * steam.rho));
+        this.wetting = new Uint8Array(KIND_SLOTS);
+        this.steamPair = new Uint8Array(KIND_STRIDE * KIND_STRIDE);
         this.mass = new Float64Array(KIND_SLOTS);
         this.family = new Uint8Array(KIND_SLOTS);
         this.c = new Float64Array(KIND_SLOTS);
@@ -174,6 +187,15 @@ export class Thermal {
                 }
             }
         }
+        const condensation = heat.condensation;
+        for (const kind of [this.kindWater, this.kindAcid, this.kindStone]) {
+            const h = kind === this.kindStone ? condensation.stone : condensation.liquid;
+            this.wetting[kind] = 1;
+            this.exchange[this.kindSteam * KIND_STRIDE + kind] = h * diameter * this.thickness;
+            this.exchange[kind * KIND_STRIDE + this.kindSteam] = h * diameter * this.thickness;
+            this.steamPair[this.kindSteam * KIND_STRIDE + kind] = 1;
+            this.steamPair[kind * KIND_STRIDE + this.kindSteam] = 1;
+        }
         this.reactions = {};
         for (const row of REACTIONS) {
             const from = names[Object.keys(row.from)[0]];
@@ -188,10 +210,13 @@ export class Thermal {
         this.heatCap = new Float64Array(capacity);
         this.neighbors = new Int16Array(capacity);
         this.submergedMark = new Uint8Array(capacity);
+        this.wet = new Uint8Array(capacity);
         const slots = store.capacity;
         this.seen = new Uint32Array(slots);
         this.restTime = new Float32Array(slots);
         this.walled = new Uint8Array(slots);
+        this.altitude = new Float32Array(slots);
+        this.altitudeGeneration = new Uint32Array(slots);
         this.tinted = new Uint8Array(slots);
         this.base = new Uint8Array(3 * slots);
         this.steamCount = 0;
@@ -224,6 +249,7 @@ export class Thermal {
             boiled: 0,
             condensed: 0,
             emitted: 0,
+            humidity: 0,
             steam: 0,
             advance: Object.fromEntries(REACTIONS.map((row) => [row.id, 0])),
             pairs: 0,
@@ -318,6 +344,7 @@ export class Thermal {
         this.exchangeColumns(total, dt);
         if (this.airLosses) {
             this.loseToAir(total, dt);
+            this.loseSteam(total, dt);
             this.loseSurface(dt);
         }
         this.phases(total, dt);
@@ -404,6 +431,7 @@ export class Thermal {
             const slot = store.slotAt(i);
             this.neighbors[i] = 0;
             this.submergedMark[i] = 0;
+            this.wet[i] = 0;
             if (slot < 0 || store.alive[slot] === 0 || this.known[store.kind[slot]] === 0) {
                 this.slotOf[i] = -1;
                 continue;
@@ -435,9 +463,15 @@ export class Thermal {
             const sa = this.slotOf[a];
             const sb = this.slotOf[b];
             if (sa < 0 || sb < 0) continue;
+            const pair = this.kindOf[a] * KIND_STRIDE + this.kindOf[b];
+            if (this.steamPair[pair] === 1) {
+                const steam = this.kindOf[a] === this.kindSteam ? a : b;
+                const other = steam === a ? b : a;
+                this.wet[steam] = 1;
+                if (this.kindOf[other] === this.kindStone && this.temp[other] >= this.boilingPoint) continue;
+            }
             const dT = this.temp[b] - this.temp[a];
             if (dT === 0) continue;
-            const pair = this.kindOf[a] * KIND_STRIDE + this.kindOf[b];
             let K = this.exchange[pair];
             if (shearOn && this.shear[pair] > 0) {
                 K += this.shear[pair] * Math.hypot(heap[vel + 2 * b] - heap[vel + 2 * a], heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1]);
@@ -502,6 +536,36 @@ export class Thermal {
         }
     }
 
+    /**
+     * Enfriamiento del vapor por el aire que arrastra la pluma: `Q = λ m c_v (T − T_a)` con `λ = 2 α w / R`, `w` la
+     * velocidad de ascenso medida con el desplazamiento vertical del paso anterior (en el primer paso de una parcela, 0).
+     * No baja de `e_l`. Va a `stats.lost`.
+     */
+    loseSteam(total, dt) {
+        const { store } = this;
+        const pos = Box2D.getPointer(this.system.GetPositionBuffer()) >> 2;
+        const heap = Box2D.HEAPF32;
+        const Ta = this.ambient;
+        const cm = this.cVapor * this.mass[this.kindSteam];
+        const k = (2 * this.entrainment) / this.plumeRadius;
+        for (let i = 0; i < total; i++) {
+            const slot = this.slotOf[i];
+            if (slot < 0 || this.kindOf[i] !== this.kindSteam) continue;
+            const y = heap[pos + 2 * i + 1];
+            const fresh = this.altitudeGeneration[slot] !== store.generation[slot];
+            const w = fresh ? 0 : Math.max(0, (y - this.altitude[slot]) / dt);
+            this.altitude[slot] = y;
+            this.altitudeGeneration[slot] = store.generation[slot];
+            const e = store.enthalpy[slot];
+            const T = this.temperature(this.kindSteam, e);
+            let dE = k * w * cm * (T - Ta) * dt;
+            const limit = this.mass[this.kindSteam] * (e - this.eBoil);
+            if (dE <= 0) continue;
+            store.enthalpy[slot] = dE >= limit ? this.eBoil : e - dE / this.mass[this.kindSteam];
+            this.stats.lost += Math.min(dE, limit);
+        }
+    }
+
     /** Pérdida de la superficie de las columnas al aire, `h_a dx b (T − T_a)`, sin cruzar la temperatura ambiente. */
     loseSurface(dt) {
         const { water } = this;
@@ -553,12 +617,18 @@ export class Thermal {
                     stats.boiled++;
                     kind = this.kindSteam;
                 } else if (kind === this.kindSteam && e <= this.eBoil) {
+                    if (this.wet[i] === 0) {
+                        stats.lost += this.mass[kind] * e;
+                        stats.humidity++;
+                        store.destroy(i, SINK.HUMIDITY);
+                        continue;
+                    }
                     this.react(this.reactions.condense, slot, i, 0);
                     stats.condensed++;
                     kind = this.kindWater;
                 }
                 if (kind === this.kindWater) this.tintWater(slot, e / this.cWater, c);
-                else if (kind === this.kindSteam) this.paintSteam(slot, c);
+                else if (kind === this.kindSteam) this.paintSteam(slot, c, (e - this.eBoil) / (this.eVapor - this.eBoil));
                 continue;
             }
             const e = store.enthalpy[slot];
@@ -614,11 +684,12 @@ export class Thermal {
         }
     }
 
-    /** Color del vapor; deja `tinted` para que, al condensar, el agua recupere su tinte. */
-    paintSteam(slot, c) {
+    /** Color del vapor con título `x` (1 vapor, 0 niebla): de `THERMAL.fog` a `THERMAL.steam`; deja `tinted` para que, al condensar, el agua recupere su tinte. */
+    paintSteam(slot, c, x) {
         const heapU = Box2D.HEAPU8;
+        const t = Math.min(1, Math.max(0, x));
         this.tinted[slot] = 1;
-        for (let k = 0; k < 3; k++) heapU[c + k] = THERMAL.steam[k];
+        for (let k = 0; k < 3; k++) heapU[c + k] = Math.round(THERMAL.fog[k] + (THERMAL.steam[k] - THERMAL.fog[k]) * t);
     }
 
     /** Color de basalto a `T` °C por incandescencia; debajo de `glowFrom` el de la piedra fría. */
