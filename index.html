@@ -80,6 +80,7 @@
             import { Viscosity } from "./js/viscosity.js";
             import { Adhesion } from "./js/adhesion.js";
             import { Buoyancy } from "./js/buoyancy.js";
+            import { Debug } from "./js/debug.js";
             import { MATERIALS } from "./js/materials.js";
             import { Match } from "./js/round.js";
             import { Melee, MELEE } from "./js/melee.js";
@@ -338,6 +339,7 @@
             const viscosity = new Viscosity(particleSystem, store, thermal);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
+            const debug = new Debug();
             const adhesion = new Adhesion(particleSystem, store, wallContact);
             instances.push(adhesion);
             let pickups = new Pickups(world, damage, LEVEL.pickups);
@@ -460,6 +462,7 @@
                 viscosity.reset();
                 pickups.reset();
                 emitter.reset();
+                debug.resetVolume();
                 melee.reset();
                 damage.resetShots();
                 store.reset();
@@ -592,11 +595,44 @@
             let stepsLastFrame = 0;
             let lastTime = performance.now();
             let firstFrame = true;
+            let debugSteps = 0;
+            let debugSubsteps = 0;
+            let debugCfl = 1;
+            const FLUID_NAMES = Object.fromEntries(Object.entries(FLUID).map(([name, id]) => [id, name]));
+
+            /** Datos planos de este frame para `debug.frame` (solo con el monitor encendido). */
+            function datosDebug(frameDt) {
+                const count = particleSystem.GetParticleCount();
+                const particles = {};
+                for (const name of Object.keys(FLUID)) particles[name] = 0;
+                for (let i = 0; i < count; i++) {
+                    const slot = store.slotAt(i);
+                    if (slot < 0 || store.alive[slot] === 0) continue;
+                    const name = FLUID_NAMES[store.kind[slot]] ?? "OTRO";
+                    particles[name] = (particles[name] ?? 0) + 1;
+                }
+                const { steps, substeps } = water.stats;
+                if (steps > debugSteps) debugCfl = (substeps - debugSubsteps) / (steps - debugSteps);
+                debugSteps = steps;
+                debugSubsteps = substeps;
+                return {
+                    fps: 1 / Math.max(frameDt, 1e-6),
+                    ms: debug.laps,
+                    particles,
+                    contacts: wallContact.bodyContacts()?.count ?? 0,
+                    cflSubsteps: debugCfl,
+                    volume: { total: water.volume() },
+                    bots: [...bots].map(([k, bot]) => {
+                        const pos = players[k].torso.GetPosition();
+                        return { k, from: { x: pos.get_x(), y: pos.get_y() }, ...bot.debugState };
+                    }),
+                };
+            }
 
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    asignacion, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, arrancarPartida,
+                    asignacion, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -612,6 +648,8 @@
                 const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
                 bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
                 inputs = input.poll();
+                debug.toggle(input.debug);
+                debug.begin();
                 inputs.forEach((s, k) => {
                     const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
                     if (s.roll) jumpPending[k] = "roll";
@@ -684,6 +722,7 @@
                     );
                 });
 
+                debug.mark("control");
                 stepsLastFrame = 0;
                 while (accumulator >= STEP_SETTINGS.dt) {
                     stepsLastFrame++;
@@ -697,14 +736,21 @@
                     });
                     flood.step(match.roundTime, STEP_SETTINGS.dt);
                     buoyancy.apply(STEP_SETTINGS.dt);
+                    debug.mark("flotación");
                     stepWorld(world, instances);
                     platforms.update(now);
                     store.afterStep();
+                    debug.mark("física");
                     immersion.step(STEP_SETTINGS.dt);
+                    debug.mark("inmersión");
                     evaporation.step(STEP_SETTINGS.dt);
+                    debug.mark("evaporación");
                     thermal.step(STEP_SETTINGS.dt);
+                    debug.mark("térmica");
                     viscosity.step(STEP_SETTINGS.dt);
+                    debug.mark("viscosidad");
                     water.step(STEP_SETTINGS.dt);
+                    debug.mark("campo");
                     damage.process(
                         now,
                         match.hazardsActive ? wetSurface : -Infinity,
@@ -712,6 +758,7 @@
                     );
                     melee.resolve(players, now);
                     pickups.process(now);
+                    debug.mark("daño");
                     accumulator -= STEP_SETTINGS.dt;
                 }
                 sonarEventos(now);
@@ -721,6 +768,7 @@
                 }
                 limpiarParticulas();
                 store.trim(frameDt * 1000, frameDt);
+                debug.mark("limpieza");
 
                 const points = players.map((p) => {
                     const pos = p.torso.GetPosition();
@@ -756,7 +804,9 @@
                 drawLevel(ctx, climb ? climb.level : LEVEL, scale);
                 ctx.restore();
                 collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
+                debug.mark("dibujo");
                 drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
+                debug.mark("fluidos");
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                 });
@@ -769,6 +819,19 @@
                     drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
                 drawHits(pickupCtx, melee.hits, scale, now);
+                if (debug.active) {
+                    debug.frame(datosDebug(frameDt));
+                    debug.drawLayer(pickupCtx, scale, {
+                        particles: {
+                            heap: Box2D.HEAPF32,
+                            pos: Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2,
+                            vel: Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2,
+                            count: particleSystem.GetParticleCount(),
+                        },
+                        pieces: buoyancy.pieces,
+                        water,
+                    });
+                }
                 players.forEach((player, k) => {
                     const wheel = controls[k].wheel;
                     const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
@@ -802,6 +865,7 @@
                 if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
                     drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));
                 }
+                debug.drawPanel(hudCtx, hudCanvas.width, hudCanvas.height);
                 if (match.state === "title" && pantalla === "asignacion") drawControlsScreen(hudCtx, hudCanvas.width, hudCanvas.height, asignacion.view);
                 else if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
                 requestAnimationFrame(loop);

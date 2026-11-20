@@ -196,6 +196,22 @@ export class Bot {
         this.replanAt = 0;
     }
 
+    /**
+     * Solo lectura, para el monitor de `js/debug.js`: `goal` (plataforma a la que va) y `target` (plataforma del rival),
+     * cada una como punto `{ x, y }` en el mundo (centro y tope) o `null`, y `action` (lo que aprieta este frame).
+     */
+    get debugState() {
+        const point = (i) => {
+            const n = i === null ? undefined : this.nav.nodes[i];
+            return n ? { x: (n.minX + n.maxX) / 2, y: n.top + this.offsetY } : null;
+        };
+        const actions = [["disparar", PAD.fire], ["golpear", PAD.punch], ["bloquear", PAD.block], ["saltar", PAD.jump]]
+            .filter(([, button]) => this.pad.buttons[button].pressed)
+            .map(([name]) => name);
+        if (this.pad.axes[0] !== 0) actions.unshift("caminar");
+        return { goal: point(this.goal), target: point(this.foeNode), action: actions.join("+") || "quieto" };
+    }
+
     /** Olvida lo percibido y decidido (ronda nueva). */
     reset() {
         this.minTop = -Infinity;

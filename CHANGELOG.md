@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-11-20
+
+### Added
+- Monitor de física: F3 muestra un panel con FPS, milisegundos por subsistema, partículas por material, contactos partícula-cuerpo, subpasos del campo de agua, deriva del volumen de agua y el estado de cada bot, y F4 dibuja una capa con la velocidad de las partículas, el empuje y el arrastre de cada pieza de los robots, las columnas del campo de agua y la línea de cada bot a su meta. En gamepad: Select mantenido + LB el panel y Select mantenido + RB la capa; con Select apretado, LB no abre la rueda de armas.
+
 ## [0.42.12] - 2026-11-20
 
 ### Fixed
