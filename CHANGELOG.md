@@ -5,6 +5,17 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-20
+
+### Added
+- El agua hierve. La lava y la piedra caliente que tocan el agua ya no la dejan pasar de 100 °C: la partícula de agua que llega a la entalpía de vaporización pasa a vapor (`STEAM`) y las columnas del campo se quedan en 100 °C y guardan el excedente (`water.boiled`) hasta juntar el calor de un vapor, que sale como una partícula nueva sobre la superficie (una por columna y por paso, hasta 300 vivas). Bajo agua subenfriada no sale vapor: el calor queda en el agua.
+- Material `STEAM` (vapor, con la masa del agua de la que vino) y dos filas en `REACTIONS`, `boil` y `condense`. El vapor sube en el aire por el empuje y el arrastre cuadrático (velocidad terminal 0,95 m/s), el que toca el campo por debajo de 100 °C se absorbe con su entalpía y el que cae sobre una columna a 100 °C no condensa. El vapor que sale del mapa se destruye con `OUT`.
+- `MATERIALS.steam`, `MATERIALS.air` y `latentVaporization` y `boilingPoint` del agua. `thermal.boiledEnergy()` suma el excedente pendiente y entra al monitor de energía. `Thermal.dispose()` libera sus objetos nativos.
+- Tests (`tests/boil.test.js`, `tests/boil-invariants.test.js`): T3, T4, T5, B1, B2 y B3 de ebullición, y I1, I2b y la energía con vapor, ácido y lava en la escena del juego.
+
+### Changed
+- Los invariantes I1 e I2b cuentan el vapor como H2O y el paso del campo al vapor.
+
 ## [0.32.0] - 2026-11-20
 
 ### Added
