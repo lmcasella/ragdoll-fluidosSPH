@@ -387,11 +387,14 @@
             const STEP_MIN_SPEED = 1;
             let lastMatchState = match.state;
 
-            /** Pista de música según el estado de la partida; en la cuenta regresiva y el cartel de fin de ronda sigue la actual (`null`). */
+            /**
+             * Pista de música según el estado de la partida; en la cuenta regresiva y el cartel de fin de ronda sigue la actual (`null`).
+             * En Infinito el agua sube desde los primeros segundos: suena `suddenDeath` toda la ronda, sin cambio de pista (#224).
+             */
             function musicaActual() {
                 if (match.state === "title" || match.state === "matchOver") return "mainMenu";
                 if (match.state === "roundOver" || match.state === "countdown") return null;
-                return flood.active ? "suddenDeath" : "combat";
+                return climb || flood.active ? "suddenDeath" : "combat";
             }
 
             /** Traduce a sonido los eventos ya resueltos del frame; se llama después de todos los pasos, nunca desde un callback de Box2D. */
