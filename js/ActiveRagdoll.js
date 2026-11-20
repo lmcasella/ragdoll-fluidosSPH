@@ -47,6 +47,12 @@ export const ROLL = { duration: 0.8, clipSpeed: 1.5, speed: 4, cooldown: 0.5 };
  */
 const NO_INPUT = Object.freeze({});
 
+/**
+ * Caída con daño: `rest` (s) es el tiempo seguido que alguna pieza del robot debe estar apoyada en el mapa (o en el
+ * agua) para que `landHurt` pase a la levantada; cada despegue reinicia la cuenta.
+ */
+export const RECOVER = { rest: 0.5 };
+
 /** Largo (s) de los clips `jump_start` y de las reacciones al golpe. */
 const JUMP_START_TIME = 0.6;
 const REACT_TIME = 0.4;
@@ -121,6 +127,10 @@ export class ActiveRagdoll {
         /** Estado de la secuencia de caída con daño (`landHurt`, `getupFront`, `getupBack`) o `null`. */
         this.recoverState = null;
         this.recoverStart = -Infinity;
+        /** Instante (s) en que empezó el apoyo continuo de `landHurt`, o `null` si no está apoyado. */
+        this.restSince = null;
+        /** Verdadero si alguna pieza está bajo el agua; lo actualiza `damage.js` después de cada paso. */
+        this.inWater = false;
         /** Verdadero si el impacto de la caída alta en curso hizo daño (`markImpact` con `fallLatched`). */
         this.impactInFall = false;
         /** Verdadero desde que aterriza una caída alta (la que activa `fallHigh`) hasta que quien lo consume lo baja. */
@@ -374,6 +384,8 @@ export class ActiveRagdoll {
         this.fallLatched = old.fallLatched;
         this.recoverState = old.recoverState;
         this.recoverStart = old.recoverStart;
+        this.restSince = old.restSince;
+        this.inWater = old.inWater;
         this.impactInFall = old.impactInFall;
         this.jumpAt = old.jumpAt;
         this.jumpCuttable = old.jumpCuttable;
@@ -403,13 +415,41 @@ export class ActiveRagdoll {
     beginRecover(state, now) {
         this.recoverState = state;
         this.recoverStart = now;
+        this.restSince = null;
     }
 
-    /** Avanza la secuencia de caída con daño: de `landHurt` a la levantada según `chestDown()`, y de ahí al control normal. */
+    /**
+     * Apoyo del robot tirado: alguna pieza toca algo del mapa (cuerpo estático o cinemático, sin sensores; las
+     * plataformas atravesables que no son sólidas para él no generan contacto) o está en el agua. `grounded` no sirve
+     * acá porque solo mira los rayos de los pies.
+     */
+    resting() {
+        if (this.inWater) return true;
+        for (const body of this.rag.bodies.values()) {
+            for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+                const contact = edge.get_contact();
+                if (!contact.IsTouching() || contact.GetFixtureA().IsSensor() || contact.GetFixtureB().IsSensor()) continue;
+                if (edge.get_other().GetType() !== Box2D.b2_dynamicBody) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Avanza la secuencia de caída con daño: de `landHurt` a la levantada según `chestDown()`, y de ahí al control
+     * normal. `landHurt` dura al menos su clip y hasta `RECOVER.rest` s seguidos de apoyo (`resting()`).
+     */
     updateRecover(now) {
         if (this.recoverState === null) return;
         const length = this.rig.clipLengths?.[this.rig.clips[this.recoverState]] ?? 0;
-        if (now - this.recoverStart < length) return;
+        if (this.recoverState === "landHurt") {
+            if (this.resting()) this.restSince ??= now;
+            else this.restSince = null;
+            if (now - this.recoverStart < length) return;
+            if (this.restSince === null || now - this.restSince < RECOVER.rest) return;
+        } else if (now - this.recoverStart < length) {
+            return;
+        }
         if (this.recoverState === "landHurt") {
             this.beginRecover(this.chestDown() ? "getupFront" : "getupBack", now);
         } else {

@@ -179,11 +179,13 @@ export class DamageSystem {
             }
         }
 
-        if (waterLevel !== -Infinity) {
-            for (const player of this.players) {
-                if (player.dead) continue;
-                const level = typeof waterLevel === "function" ? waterLevel(player.torso.GetPosition().get_x()) : waterLevel;
-                if (level > -Infinity && player.lowestPoint() < level) player.soak();
+        for (const player of this.players) {
+            player.inWater = false;
+            if (player.dead || waterLevel === -Infinity) continue;
+            const level = typeof waterLevel === "function" ? waterLevel(player.torso.GetPosition().get_x()) : waterLevel;
+            if (level > -Infinity && player.lowestPoint() < level) {
+                player.inWater = true;
+                player.soak();
             }
         }
 
