@@ -136,7 +136,7 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 2. **Diseño corto:** la sesión principal (game designer, en Opus) decide y escribe el diseño en el brief de `developer`: qué hace, controles, valores y criterios medibles. Si cambia el GDD, lo edita ella misma con un cambio mínimo en `docs/design/`. No se lanzan `architect`, `chemist` ni `physics-analyst`, salvo que la tarea cree un módulo nuevo o rompa un patrón, y en ese caso una sola pasada acotada.
 3. **Implementar** con `developer`, un agente nuevo con brief corto. Cada punto de control es un commit convencional. Escribe también la entrada de `CHANGELOG.md` y lo mínimo de `README.md`.
 4. **Verificar:** `node --test tests/` en verde, sin regresiones de lo que funcionaba en `main`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
-5. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama.
+5. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama. Después del merge se comprueba con `gh issue view <n>` que el issue quedó cerrado. `Refs #<n>` solo para issues paraguas; si un issue queda abierto a propósito (arreglo parcial, falta la prueba del usuario), se avisa al usuario en ese momento y se anota en el issue.
 6. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`.
 
 **Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: la sesión principal crea el issue con `gh`.
