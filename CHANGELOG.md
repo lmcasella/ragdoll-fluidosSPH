@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.44.2] - 2026-11-20
+
+### Changed
+- Flujo de trabajo: después de cada merge se comprueba que el issue quedó cerrado, y `/next` revisa los PRs ya mergeados de un issue antes de recomendarlo. Sin cambios en el juego.
+
 ## [0.44.1] - 2026-11-20
 
 ### Fixed
