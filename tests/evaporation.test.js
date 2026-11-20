@@ -324,7 +324,7 @@ async function waterRun({ windowSeconds = 60, fireSeconds = 25 } = {}) {
         const destroyed = store.destroyed;
         const field = SIGMA_W * water.volume();
         const out = destroyed[SINK.OUT][FLUID.WATER] + destroyed[SINK.EVAPORATED][FLUID.WATER] + live;
-        const injected = store.created[FLUID.WATER] * mass;
+        const injected = store.created[FLUID.WATER] * mass + SIGMA_W * water.stats.sourced;
         const residual = (alive - live) * mass + field + out * mass - field0 - injected;
         const rel = Math.abs(residual) / (field0 + injected);
         if (rel > run.worst) {

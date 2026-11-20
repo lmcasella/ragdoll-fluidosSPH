@@ -226,6 +226,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
             out[n] = (store.destroyed[SINK.OUT][kind] + store.destroyed[SINK.EVAPORATED][kind] + evaporatedLive[k]) * mass[n];
             inj[n] = store.created[kind] * mass[n];
         });
+        inj.water += water.stats.sourced * SIGMA_W;
         P.stone = stoneAlive * mass.stone;
         out.stone = store.destroyed[SINK.OUT][FLUID.STONE] * mass.stone;
         inj.stone = store.created[FLUID.STONE] * mass.stone;

@@ -331,7 +331,7 @@
             const melee = new Melee(raycaster, damage);
             const match = new Match(players.length);
             const water = new ShallowWater();
-            let flood = new Flood(store, water);
+            let flood = new Flood(store, water, LEVEL, Number.isFinite(botSeed) ? botSeed : null);
             const immersion = new Immersion(particleSystem, store, water);
             const evaporation = new Evaporation(particleSystem, store);
             const thermal = new Thermal(particleSystem, store, water, immersion, { evaporation, ...THERMAL.game });
@@ -372,7 +372,7 @@
                     damage.killSensors = classic.killSensors;
                     pickups = new Pickups(world, damage, LEVEL.pickups);
                     water.setStart(null);
-                    flood = new Flood(store, water);
+                    flood = new Flood(store, water, LEVEL, Number.isFinite(botSeed) ? botSeed : null);
                     damage.drownSurface = null;
                     camera.setBounds(LEVEL.bounds);
                 }

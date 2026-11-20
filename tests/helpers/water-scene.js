@@ -229,7 +229,7 @@ export function floodRun({ seconds = 170, sample = 10, makeRecorder = null, stri
                 meanLevel: flood.meanLevel,
                 fieldLevel,
                 curveVolume: volume0 + waterArea(level),
-                emittedVolume: volume0 + flood.emitted * A_P,
+                emittedVolume: volume0 + flood.emitted * A_P + water.stats.sourced,
                 total,
                 field: water.volume(),
                 flying,
