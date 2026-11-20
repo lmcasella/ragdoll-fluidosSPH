@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.42.3] - 2026-11-20
+
+### Fixed
+- La rueda de armas ya no cancela si el stick vuelve al centro antes de soltar LB: elige el último sector apuntado, que queda resaltado. Solo se cierra sin cambiar el arma si nunca se apuntó.
+
 ## [0.42.2] - 2026-11-20
 
 ### Changed
