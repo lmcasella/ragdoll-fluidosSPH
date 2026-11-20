@@ -16,14 +16,36 @@ export const SIGMA_W = 12.0;
  * `evaporationScale` (solo el agua) es el factor de aceleración `F_evap` de la evaporación de agua detenida, una
  * aproximación nombrada: la tasa real es de milímetros por día y no se vería en una ronda (docs/design/14-agua.md
  * §14.7b); un material sin este dato no se evapora.
+ * Térmica (docs/design/14-agua.md §14.8, #75): `k` es la conductividad (W/(m·K)) y `temperature` la temperatura
+ * (°C) con que nace una partícula. La lava y la piedra son el mismo basalto en dos fases: `c` de la lava es el del
+ * líquido y el de la piedra el del sólido; `solidus` (°C) y `latentFusion` `L_f` (J/kg) los tiene la lava y
+ * `emissivity` ε las dos. `viscosity` de la lava es `μ(T) = mu0 · 10^((T0 − T)/deltaT)` (Pa·s, T en °C), acotada a
+ * `[min, max]`: una aproximación nombrada, la miel (#76) reutiliza el módulo. `heat` son los coeficientes de
+ * transferencia: `filmBoiling` `h_b` (basalto contra otro fluido, W/(m²·K)), `convection` `h_a` (al aire),
+ * `stefanBoltzmann` (W/(m²·K⁴)) y `shearCoefficient` `C_s` de la difusividad por cizalla entre fluidos iguales
+ * (sin calibrar, a la espera de #76: con 0 queda solo la conducción molecular).
  * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
-    water: { SG: 1.0, c: 4186, mu: 1.0e-3, sigmaE: 5e-3, miscible: true, species: { H2O: 1 }, evaporationScale: 3e5 },
-    acid: { SG: 1.05, c: 3850, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
-    honey: { SG: 1.42, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
-    lava: { SG: 2.6, Cd: 1.2, miscible: false, species: { basalt: 1 } },
+    water: { SG: 1.0, c: 4186, k: 0.6, temperature: 20, mu: 1.0e-3, sigmaE: 5e-3, miscible: true, species: { H2O: 1 }, evaporationScale: 3e5 },
+    acid: { SG: 1.05, c: 3850, k: 0.6, temperature: 20, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
+    honey: { SG: 1.42, c: 2400, k: 0.5, temperature: 20, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
+    lava: {
+        SG: 2.6,
+        c: 1200,
+        k: 1.5,
+        temperature: 1150,
+        solidus: 1000,
+        latentFusion: 4.0e5,
+        emissivity: 0.9,
+        viscosity: { mu0: 300, T0: 1150, deltaT: 80 / 3, min: 10, max: 1e6 },
+        Cd: 1.2,
+        miscible: false,
+        species: { basalt: 1 },
+    },
+    stone: { SG: 2.6, c: 1000, k: 1.5, temperature: 20, emissivity: 0.9, Cd: 1.2, miscible: false, species: { basalt: 1 } },
     drag: { box: 2.0, circle: 1.2 },
+    heat: { filmBoiling: 500, convection: 10, stefanBoltzmann: 5.670374e-8, shearCoefficient: 0 },
 };
 
 /**
@@ -33,8 +55,13 @@ export const MATERIALS = {
 export const K_MU = 4 * Math.PI;
 
 /**
- * Reacciones diseñadas, hoy ninguna. Cada fila es `{ id, from: { material: kg }, to: { material: kg } }` por kg
- * de avance, con `Σ from = Σ to` y cada especie conservada. Ningún código cambia el material de una masa si no es
- * ejecutando una fila de esta tabla.
+ * Reacciones diseñadas. Cada fila es `{ id, from: { material: kg }, to: { material: kg } }` por kg de avance, con
+ * `Σ from = Σ to` y cada especie conservada. Ningún código cambia el material de una masa si no es ejecutando una
+ * fila de esta tabla. Hoy son las dos de las fases del basalto (docs/design/14-agua.md §14.8, #75): `solidify`
+ * (la lava sin entalpía de fusión pasa a piedra) y `remelt` (la piedra que supera `solidus + L_f` vuelve a lava);
+ * las decide la entalpía de la partícula, en `js/thermal.js`.
  */
-export const REACTIONS = [];
+export const REACTIONS = [
+    { id: "solidify", from: { lava: 1 }, to: { stone: 1 } },
+    { id: "remelt", from: { stone: 1 }, to: { lava: 1 } },
+];

@@ -16,6 +16,7 @@ export const KIND_MATERIAL = {
     [FLUID.ACID]: { material: MATERIALS.acid, honey: 0 },
     [FLUID.HONEY]: { material: MATERIALS.honey, honey: 1 },
     [FLUID.LAVA]: { material: MATERIALS.lava, honey: 0 },
+    [FLUID.STONE]: { material: MATERIALS.stone, honey: 0 },
 };
 
 /**
@@ -33,8 +34,9 @@ export const KIND_MATERIAL = {
  * masa reducida, así que ninguna velocidad relativa se invierte.
  *
  * `submerged`, `columns` y `count` listan las inmersas (índice y celda) y valen hasta el próximo `stepWorld`.
- * `stats` suma lo absorbido (`absorbed`, `volume` en m²), el impulso vertical y los recortes por masa reducida
- * (`capped`).
+ * `stats` suma lo absorbido (`absorbed`, `volume` en m²), el impulso vertical, los recortes por masa reducida
+ * (`capped`) y el calor de la pérdida inelástica que se sumó a las columnas (`inelastic`, J). Con `store.thermal`
+ * (`js/thermal.js`) la energía que lleva la partícula es la de su entalpía propia, no la del agua ambiente.
  */
 export class Immersion {
     constructor(system, store, water, { gravity = 10 } = {}) {
@@ -56,7 +58,7 @@ export class Immersion {
     /** Vacía las listas y las estadísticas. */
     reset() {
         this.count = 0;
-        this.stats = { absorbed: 0, volume: 0, verticalImpulse: 0, capped: 0 };
+        this.stats = { absorbed: 0, volume: 0, verticalImpulse: 0, capped: 0, inelastic: 0 };
     }
 
     /** Absorbe las miscibles y aplica la inmersión a las inmiscibles. `dt` es el paso fijo. */
@@ -111,11 +113,15 @@ export class Immersion {
      */
     absorb(i, entry, x, vx, vy) {
         const { water } = this;
-        const keep = 1 - this.store.evaporated[this.store.slotAt(i)];
+        const slot = this.store.slotAt(i);
+        const keep = 1 - this.store.evaporated[slot];
         const area = this.area * keep;
         const sg = entry.material.SG;
         const momentum = sg * area * vx;
-        const energy = this.heat * area + this.inelasticLoss(x, area, momentum, sg, vx, vy);
+        const loss = this.inelasticLoss(x, area, momentum, sg, vx, vy);
+        const own = this.store.thermal ? sg * SIGMA_W * area * this.store.enthalpy[slot] : this.heat * area;
+        const energy = own + loss;
+        this.stats.inelastic += loss;
         const acid = sg * SIGMA_W * area * (entry.material.species.H2SO4 ?? 0);
         water.deposit(x, area, momentum, energy, entry.honey * area, acid);
         this.store.destroy(i, SINK.ABSORBED);

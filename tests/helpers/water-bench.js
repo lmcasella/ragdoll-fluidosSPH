@@ -67,7 +67,7 @@ export function addSolids(world, solids) {
  * temporal, que se destruye, y cada posición se crea de nuevo por `ParticleStore` (con slot, que el contorno
  * necesita para corregir). `CreateParticleGroup` solo crearía partículas sin slot.
  */
-function fillStore(world, system, store, x0, y0, x1, y1) {
+export function fillStore(world, system, store, x0, y0, x1, y1) {
     const groupDef = new Box2D.b2ParticleGroupDef();
     const shape = new Box2D.b2PolygonShape();
     const center = new Box2D.b2Vec2((x0 + x1) / 2, (y0 + y1) / 2);

@@ -6,7 +6,7 @@ import { SIGMA_W } from "./materials.js";
  * Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
  * la tabla. Ver docs/design/04-fluidos.md §4.1, docs/design/07-sph.md §7.5 y docs/design/14-agua.md §14.6.
  */
-export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4 };
+export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4, STONE: 5 };
 
 export const CONTACT_LISTENER_PARTICLE = PARTICLE.CONTACT_LISTENER;
 
