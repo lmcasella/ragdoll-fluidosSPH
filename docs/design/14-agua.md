@@ -445,7 +445,7 @@ Reemplaza el preset de #40 y #41 (`VISCOUS` + `STATIC_PRESSURE` + damping 1,0 en
 Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataformas, paredes, robots) se evaporan con una tasa proporcional a su superficie expuesta. Una gota suelta desaparece en segundos y un charco grande aguanta mucho más.
 
 - **Módulo nuevo `js/evaporation.js`.** Usa `js/contacts.js` (el buffer de contactos partícula↔partícula y también el de contactos partícula↔cuerpo, que el relevamiento ubicó a +58 palabras con 7 palabras por contacto; se busca y valida igual que el otro) y `ParticleStore`.
-- **A qué partículas aplica:** agua y ácido (el ácido diluido es casi todo agua) de cualquier origen, con `|v| < 1 m/s` ("agua detenida"). La lluvia y los chorros en vuelo no se evaporan: si lo hicieran, el caudal que llega al campo dejaría de ser el de la curva. La miel, la lava y la piedra no se evaporan.
+- **A qué partículas aplica:** agua de cualquier origen, con `|v| < 1 m/s` ("agua detenida"). La lluvia y los chorros en vuelo no se evaporan: si lo hicieran, el caudal que llega al campo dejaría de ser el de la curva. El ácido no se evapora en la ronda (el H₂SO₄ no es volátil, ficha 23) y persiste detenido. La miel, la lava y la piedra no se evaporan.
 - **Variable de estado:** `store.evaporated[slot]` = `φ` ∈ [0, 1], la fracción de la masa de la partícula que ya se evaporó.
 - **Fracción expuesta del contorno:** `f = clamp(1 − (W_pp + W_pb) / W_full, 0, 1)`. `W_pp` es la suma de pesos de sus contactos con otras partículas, `W_pb` la de sus contactos con cuerpos, y `W_full` la suma de pesos de una partícula interior en agua en reposo, que se mide una vez en el banco P3 y queda como dato. Una partícula rodeada tiene `f` ≈ 0; una gota sola sobre una plataforma tiene `f` < 1 por su apoyo.
 - **Ecuación:**
@@ -461,7 +461,7 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
 - **Energía:** el calor latente `L_v · m dφ` lo aporta el aire ambiente y se contabiliza en `E_perdida` con signo negativo. La partícula no se enfría por evaporar: el aire se toma como reservorio. Es una simplificación declarada. En los monitores, la energía de la partícula se cuenta como `m (1 − φ) e`, la que sale como vapor como `m φ e_v` (con `e_v = e + L_v`) y se mantiene `−L_v m φ` en `E_perdida`: el balance cierra por construcción, porque `m (1 − φ) e + m φ (e + L_v) − L_v m φ = m e`.
 - **Predicción para un charco:** al inicio, el tiempo de vida de un charco de N partículas es `τ_N = N A_p / (F_evap e_r P Σ f_i)`. Solo evaporan las partículas de la superficie y los bordes, así que `τ_N / τ_1 = N f_1 / Σ f_i` y crece con el espesor del charco. A medida que se evapora la capa de arriba, las de abajo quedan expuestas, y la predicción se toma como tasa inicial.
 - **Paso:** una vez por paso fijo, después de `immersion.step`. Costo: un recorrido de los contactos (ya medido en 0,05–0,2 ms) y uno de las partículas detenidas.
-- **Relación con D5:** reemplaza el vencimiento de 6 s para el agua y el ácido; desde #160 ya no hay vencimiento por tiempo ([14.18](#1418-decisiones-del-usuario)).
+- **Relación con D5:** reemplaza el vencimiento de 6 s para el agua; desde #160 ya no hay vencimiento por tiempo ([14.18](#1418-decisiones-del-usuario)).
 
 ## 14.8 Térmica y fases
 
