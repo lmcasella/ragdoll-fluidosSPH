@@ -161,16 +161,11 @@ export class Input {
 
     /**
      * Gamepad virtual del jugador `k` (un bot): un objeto con la forma de un `Gamepad` ({ axes, buttons: [{ pressed }] })
-     * que `poll` lee como a un gamepad real mientras no haya uno real conectado para ese jugador. `null` lo quita.
+     * que `poll` lee en lugar del gamepad real de ese índice: el jugador que se eligió como bot lo maneja el bot aunque
+     * haya otro mando conectado. `null` lo quita.
      */
     setVirtualPad(k, pad) {
         this.virtualPads[k] = pad;
-    }
-
-    /** Si hay un gamepad real conectado para el jugador `k` (los gamepads se asignan por orden de conexión). */
-    hasRealPad(k) {
-        const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter((p) => p && p.connected) : [];
-        return k < pads.length;
     }
 
     /**
@@ -221,7 +216,7 @@ export class Input {
             let stick = null;
             if (wasPressed(layout.nextWeapon)) state.weaponStep = 1;
 
-            const pad = pads[k] ?? this.virtualPads[k];
+            const pad = this.virtualPads[k] ?? pads[k];
             if (pad) {
                 const read = this.readPad(pad, k, state);
                 strongDown ||= read.strongDown;

@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.39.2] - 2026-11-20
+
+### Fixed
+- Los modos contra bot y bot contra bot funcionan aunque haya más de un gamepad conectado: el jugador elegido como bot lo maneja el bot, y ya no se queda quieto esperando a un mando.
+
 ## [0.39.1] - 2026-11-20
 
 ### Fixed
