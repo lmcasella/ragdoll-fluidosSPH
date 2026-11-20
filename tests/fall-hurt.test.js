@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { BUTTON } from "./helpers/duel.js";
+import { LEVEL } from "../js/level.js";
+import { RECOVER } from "../js/ActiveRagdoll.js";
 
 async function solo() {
     const game = await loadGame();
@@ -160,4 +162,80 @@ test("F5: un golpe durante la secuencia no cambia de clip y la muerte la corta",
     player.hp = 0;
     game.frame();
     assert.equal(player.clipState, "dead");
+});
+
+/** Corre `game.frame()` hasta que `player` empieza una levantada; devuelve `{ air, start }` o 
+ull` si no empieza en `limit` frames. */
+function untilGetup(game, player, limit, each = () => {}) {
+    let lastAir = -Infinity;
+    for (let f = 0; f < limit; f++) {
+        each(f);
+        game.frame();
+        if (player.recoverState === "landHurt" && !player.resting()) lastAir = player.now;
+        if (player.recoverState?.startsWith("getup")) return { lastAir, start: player.recoverStart };
+    }
+    return null;
+}
+
+test("F6: tirado en el piso, la levantada empieza al segundo del impacto", async (t) => {
+    const game = await solo();
+    const player = game.state.players[0];
+    lift(player, 7);
+    let hurtAt = null;
+    const result = untilGetup(game, player, 600, () => {
+        if (hurtAt === null && player.recoverState === "landHurt") hurtAt = player.recoverStart;
+    });
+    t.diagnostic(`F6: landHurt a los ${hurtAt?.toFixed(3)} s, levantada a los ${result?.start.toFixed(3)} s, duración ${(result.start - hurtAt).toFixed(3)} s`);
+    assert.ok(result);
+    assert.ok(Math.abs(result.start - hurtAt - Math.max(1, RECOVER.rest)) <= 0.1, `duración ${result.start - hurtAt}`);
+});
+
+test("F7: en el aire no se levanta; al apoyarse empieza entre RECOVER.rest y RECOVER.rest + 0,1 s después del último despegue", async (t) => {
+    const game = await solo();
+    const player = game.state.players[0];
+    lift(player, 7);
+    let lifted = false;
+    let airFrames = 0;
+    let early = false;
+    const result = untilGetup(game, player, 900, () => {
+        if (player.recoverState === "landHurt" && !lifted && player.now - player.recoverStart > 0.3) {
+            lift(player, 4);
+            lifted = true;
+        }
+        if (lifted && !player.resting() && player.recoverState === "landHurt") airFrames++;
+        if (lifted && airFrames > 0 && !player.resting() && player.recoverState?.startsWith("getup")) early = true;
+    });
+    assert.ok(result && lifted);
+    const wait = result.start - result.lastAir;
+    t.diagnostic(`F7: ${airFrames} frames en el aire en landHurt, espera tras el último despegue ${wait.toFixed(3)} s`);
+    assert.ok(airFrames > 20, `frames en el aire ${airFrames}`);
+    assert.ok(!early);
+    assert.ok(wait >= RECOVER.rest - 1e-6 && wait <= RECOVER.rest + 0.1, `espera ${wait}`);
+});
+
+test("F8: en el agua de la pileta y de Infinito también se levanta", async (t) => {
+    for (const map of ["classic", "infinite"]) {
+        globalThis.location = { search: "?seed=1" };
+        const game = await loadGame({ map });
+        game.setPad(0);
+        game.setPad(1);
+        const { players, match } = game.state;
+        match.roundTime = LEVEL.flood.start;
+        for (const p of players) Object.assign(p, { drown: () => {}, hurt: () => 0, burn: () => {}, takeDamage: () => {} });
+        let waterAt = -1;
+        for (let f = 0; f < 3600 && waterAt < 0; f++) {
+            game.frame();
+            if (players[0].inWater) waterAt = f;
+        }
+        assert.ok(waterAt >= 0, `${map}: el agua no llegó al robot`);
+        const hurtAt = players[0].now;
+        players[0].beginRecover("landHurt", hurtAt);
+        let wet = 0;
+        const result = untilGetup(game, players[0], 600, () => {
+            if (players[0].inWater) wet++;
+        });
+        globalThis.location = { search: "" };
+        t.diagnostic(`F8 ${map}: agua tras ${waterAt} frames, levantada tras ${result ? (result.start - hurtAt).toFixed(2) : "-"} s (estado ${match.state})`);
+        assert.ok(result, `${map}: no se levantó`);
+    }
 });
