@@ -10,8 +10,9 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   del nivel; `wallBelow`: cuánto bajo y = 0 llegan las paredes de la etapa 0;
  * - `branches`: generador por ramas: `thickness` de cada plataforma; `dy` [mín, máx] sobre la plataforma de apoyo y `overlap`
  *   horizontal mínimo con ella; `air` (m, de tope a tope) mínimo con otra que la cubra en x; `separation` horizontal mínima
- *   con otra a su altura (±`sameHeight`); `tract` (m) de altura con `density` [mín, máx] de plataformas por tramo;
- *   `tries` sorteos de posición por plataforma; `transition`: una plataforma a menos de esto bajo un cambio de etapa ya
+ *   con otra a su altura (±`sameHeight`); `gap` [mín, máx] (m) entre el tope de una plataforma y el de la anterior, que da
+ *   de 8 a 13 plataformas en cualquier ventana de 10 m;
+ *   `tries` sorteos de tope por plataforma; `transition`: una plataforma a menos de esto bajo un cambio de etapa ya
  *   usa el ancho de la etapa de arriba; `minWidth`; `tail`: con probabilidad `chance` el ancho se multiplica por `long` o
  *   por `short`; `window` (m) hacia abajo que se recuerda; `width`: rango de ancho en la etapa 0 y en la `stages`, lineal entre
  *   ellas; `base`: cantidad y tope de las plataformas anchas con que arranca la etapa 0;
@@ -43,8 +44,7 @@ export const CLIMB = {
         air: 1.8,
         separation: 1,
         sameHeight: 0.5,
-        tract: 10,
-        density: [3, 7],
+        gap: [0.8, 1.2],
         tries: 80,
         transition: 3.5,
         minWidth: 1.6,
@@ -78,6 +78,27 @@ const SUPPORT_SLACK = { x: 0.3, y: 0.35 };
 
 /** Tolerancia numérica (m) de las comparaciones de geometría. */
 const EPS = 1e-9;
+
+/** Holgura (m) con que `span` aparta una plataforma de las prohibidas, para que el borde no quede en un solape por redondeo. */
+const SPAN_PAD = 1e-6;
+
+/** Recorta cada intervalo de `list` a [`lo`, `hi`] y descarta los vacíos. */
+function intersect(list, lo, hi) {
+    return list.map(([a, b]) => [Math.max(a, lo), Math.min(b, hi)]).filter(([a, b]) => a <= b);
+}
+
+/** Quita (`lo`, `hi`) de cada intervalo de `list`. */
+function subtract(list, lo, hi) {
+    const out = [];
+    for (const [a, b] of list) {
+        if (hi <= a || lo >= b) out.push([a, b]);
+        else {
+            if (lo > a) out.push([a, lo]);
+            if (hi < b) out.push([hi, b]);
+        }
+    }
+    return out;
+}
 
 /** Número de etapa de la altura local `y` (m); la etapa `n` ocupa `y` ∈ [15n, 15n + 15). */
 export function stageOf(y, config = CLIMB) {
@@ -158,11 +179,11 @@ export function pickSpawns(platforms, random, config = CLIMB) {
 
 /**
  * Generador determinista por ramas (docs/design/16-ascenso.md §16.3). JS puro, sin `Box2D`. Una sola secuencia de
- * `seededRandom(seed)` consumida plataforma por plataforma: el mapa no depende de cuándo se genera cada una. Cada tramo de
- * `branches.tract` m recibe una cantidad al azar de `density` plataformas (la última alcanza el tramo siguiente); cada una
- * nace sobre una de apoyo con `dy` en `branches.dy` y solapamiento horizontal `overlap`, y se rechaza si pisa a otra, deja
- * menos de `air` de aire con una que la cubre en x, queda a menos de `separation` de otra a su altura o se sale de las
- * paredes.
+ * `seededRandom(seed)` consumida plataforma por plataforma: el mapa no depende de cuándo se genera cada una. Cada plataforma queda
+ * `branches.gap` m sobre la anterior; cada una nace sobre una de apoyo con `dy` en `branches.dy` y solapamiento horizontal
+ * `overlap`, y su x se restringe por construcción para no pisar a otra, dejar `air` de aire con las que la cubren en x,
+ * `separation` con las de su altura, quedar dentro de las paredes y ser alcanzable (regla `reach`) desde las plataformas
+ * que todavía no tienen una vecina arriba y se quedarían fuera de alcance.
  * `base` son las plataformas anchas de la etapa 0 `{ x, w, y }` (`y` es el tope) y `next()` devuelve
  * `{ index, x, w, y, stage, pickups: [{ x, y, weapon } | { x, y, kind: "repair" }] }`. `fallbacks` cuenta las veces que ninguna posición valió.
  */
@@ -176,13 +197,9 @@ export class ClimbGenerator {
         this.inStage = new Map();
         this.repairs = new Map();
         this.base = this.makeBase();
-        this.quotas = new Map([[0, Math.min(config.branches.density[1], this.base.length + 1)]]);
-        this.counts = new Map([[0, this.base.length]]);
-        this.open = 0;
-        this.reached = new Set();
         this.front = Math.max(...this.base.map((p) => p.y));
         this.relaxed = 0;
-        for (const p of this.base) this.items.push({ x: p.x, minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: p.y });
+        for (const p of this.base) this.items.push({ x: p.x, minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: p.y, above: false });
     }
 
     uniform([lo, hi]) {
@@ -212,33 +229,53 @@ export class ClimbGenerator {
         return list;
     }
 
-    /** Posición de una plataforma con tope `top` sobre el apoyo `s`: `{ x, w }`, o `null` si el sorteo no valió. */
-    place(s, top) {
-        const { centerX, branches } = this.config;
-        const { dy, overlap, tail, minWidth, transition } = branches;
-        const stage = stageOf(top, this.config);
+    /**
+     * Intervalos de x del centro de una plataforma de ancho `w` y tope `top` apoyada en `s` que cumplen paredes, solapamiento
+     * con el apoyo, alcance de las plataformas `urgent` (sin vecina arriba y a punto de quedar fuera de `reach.up.dy`),
+     * `air` y `separation`. Sale por construcción: se restringe x en vez de sortear y rechazar.
+     */
+    span(s, top, w, urgent) {
+        const { centerX, reach, branches } = this.config;
+        const { overlap, air, separation, sameHeight, transition, dy } = branches;
         const half = halfWidth(stageOf(top + transition, this.config), this.config);
         const soft = halfWidth(stageOf(top + transition + dy[1], this.config), this.config);
-        let w = this.uniform(this.widthRange(stage));
-        if (this.random() < tail.chance) w *= this.random() < 0.5 ? tail.long : tail.short;
-        w = Math.min(Math.max(w, minWidth), 2 * half);
-        const lo = Math.max(s.minX + overlap - w / 2, centerX - half + w / 2, centerX - soft + overlap - w / 2);
-        const hi = Math.min(s.maxX - overlap + w / 2, centerX + half - w / 2, centerX + soft - overlap + w / 2);
-        if (lo > hi) return null;
-        const x = lo + this.random() * (hi - lo);
-        return this.free(x - w / 2, x + w / 2, top) ? { x, w } : null;
+        let list = intersect([[Math.max(s.minX + overlap - w / 2, centerX - half + w / 2, centerX - soft + overlap - w / 2), Math.min(s.maxX - overlap + w / 2, centerX + half - w / 2, centerX + soft - overlap + w / 2)]], -Infinity, Infinity);
+        for (const p of urgent) list = intersect(list, p.minX - reach.up.gap - w / 2, p.maxX + reach.up.gap + w / 2);
+        for (const q of this.items) {
+            const apart = Math.abs(top - q.top);
+            if (apart >= air) continue;
+            const pad = apart <= sameHeight ? separation : 0;
+            list = subtract(list, q.minX - w / 2 - pad - SPAN_PAD, q.maxX + w / 2 + pad + SPAN_PAD);
+        }
+        return list;
     }
 
-    /** Verdadero si una plataforma de `minX` a `maxX` con tope `top` cumple `air` y `separation` con todas las recordadas. */
-    free(minX, maxX, top) {
-        const { air, separation, sameHeight } = this.config.branches;
-        for (const q of this.items) {
-            const shared = Math.min(maxX, q.maxX) - Math.max(minX, q.minX);
-            const apart = Math.abs(top - q.top);
-            if (shared > 0 && apart < air) return false;
-            if (shared <= 0 && apart <= sameHeight && -shared < separation) return false;
+    /** Posición de una plataforma con tope `top`: `{ x, w }`, o `null` si ningún apoyo y ancho sorteados deja lugar. */
+    place(top) {
+        const { branches, reach } = this.config;
+        const { dy, tail, minWidth, transition, gap } = branches;
+        const supports = this.items.filter((q) => top - q.top >= Math.max(dy[0], branches.air) - EPS && top - q.top <= dy[1] + EPS);
+        if (supports.length === 0) return null;
+        const half = halfWidth(stageOf(top + transition, this.config), this.config);
+        let w = this.uniform(this.widthRange(stageOf(top, this.config)));
+        if (this.random() < tail.chance) w *= this.random() < 0.5 ? tail.long : tail.short;
+        w = Math.min(Math.max(w, minWidth), 2 * half);
+        const urgent = this.items.filter((q) => !q.above && top + gap[1] - q.top > reach.up.dy && top - q.top <= reach.up.dy);
+        supports.sort((a, b) => Number(a.above) - Number(b.above) || a.top - b.top);
+        let list = [];
+        for (const width of [w, Math.min(minWidth, w)]) {
+            w = width;
+            for (let i = 0; i < supports.length && list.length === 0; i++) list = this.span(supports[i], top, w, urgent);
+            if (list.length > 0) break;
         }
-        return true;
+        if (list.length === 0) return null;
+        const total = list.reduce((sum, [lo, hi]) => sum + (hi - lo), 0);
+        let pick = this.random() * total;
+        for (const [lo, hi] of list) {
+            if (pick <= hi - lo) return { x: lo + pick, w };
+            pick -= hi - lo;
+        }
+        return { x: list[list.length - 1][1], w };
     }
 
     /** Última salida cuando ninguna posición valió: sobre la plataforma más alta, con su mismo centro. */
@@ -248,7 +285,6 @@ export class ClimbGenerator {
         this.fallbacks++;
         return { top: highest.top + (dy[0] + dy[1]) / 2, x: highest.x, w: Math.max(highest.maxX - highest.minX, this.config.branches.minWidth) };
     }
-
     /** Arma de la plataforma: una cada `period` plataformas de la etapa `stage ≥ 1`, sorteada por `weights`. */
     pickupsOf(x, top, stage) {
         if (stage < 1) return [];
@@ -283,96 +319,44 @@ export class ClimbGenerator {
     }
 
     /**
-     * Cupo de plataformas del tramo `k` (de `density`), sorteado la primera vez que se pide y nunca menor que lo que hace
-     * falta, con el desnivel medio de `dy`, para llegar desde la plataforma más alta hasta los últimos metros del tramo.
-     */
-    quota(k) {
-        if (!this.quotas.has(k)) {
-            const { density, dy, air, tract, separation } = this.config.branches;
-            const drawn = density[0] + Math.floor(this.random() * (density[1] - density[0] + 1));
-            const lead = dy[1] - separation;
-            const step = (dy[1] + Math.max(dy[0], air)) / 2;
-            const needed = Math.ceil(((k + 1) * tract - lead - this.front) / step);
-            this.quotas.set(k, Math.min(density[1], Math.max(drawn, needed)));
-        }
-        return this.quotas.get(k);
-    }
-
-    /** Verdadero si el tramo `k` ya tiene su cupo. */
-    full(k) {
-        return (this.counts.get(k) ?? 0) >= this.quota(k);
-    }
-
-    /**
-     * Verdadero si poner una plataforma con tope `top` en el tramo `k` deja alcanzable el tramo siguiente: si ninguna
-     * plataforma llegó todavía a los últimos metros del tramo, las que quedan del cupo tienen que poder llegar.
-     */
-    leaves(k, top) {
-        const { tract, dy, separation } = this.config.branches;
-        const lead = dy[1] - separation;
-        const near = (k + 1) * tract - lead;
-        if (top >= near || this.reached.has(k) || this.counts.has(k + 1)) return true;
-        const after = this.quota(k) - (this.counts.get(k) ?? 0) - 1;
-        return Math.max(this.front, top) + dy[1] * after >= near + (after > 0 ? lead : 0);
-    }
-
-    /** Sortea apoyo y altura: de dos apoyos al azar se elige el más bajo (se hacen crecer las ramas que se quedan atrás). */
-    draw() {
-        const a = this.items[Math.floor(this.random() * this.items.length)];
-        const b = this.items[Math.floor(this.random() * this.items.length)];
-        const s = a.top < b.top ? a : b;
-        return { s, top: s.top + this.uniform(this.config.branches.dy) };
-    }
-
-    /**
-     * Genera la plataforma siguiente. Si el tramo abierto ya tiene `density[0]` y ninguna posición vale (una sola rama
-     * angosta no admite más), lo cierra con las que tiene y sigue en el siguiente.
+     * Genera la plataforma siguiente: su tope es el frente más un `gap` al azar (tras `tries` sorteos sin lugar, el hueco máximo
+     * crece hacia `dy[1]` durante otros `tries`, y cuenta en `relaxed`). Si no hay lugar, `fallback`.
      */
     next() {
-        const { tract, tries, window, dy, separation, density } = this.config.branches;
+        const { tries, window, gap, dy } = this.config.branches;
         let top = 0;
         let spot = null;
-        for (let round = 0; round < 16 && spot === null; round++) {
-            while (this.full(this.open)) this.open++;
-            for (let t = 0; t < tries * 10 && spot === null; t++) {
-                const draw = this.draw();
-                if (Math.floor(draw.top / tract) === this.open && this.leaves(this.open, draw.top)) {
-                    spot = this.place(draw.s, draw.top);
-                    top = draw.top;
-                }
-            }
-            const count = this.counts.get(this.open) ?? 0;
-            if (spot !== null) break;
-            if (count >= density[0] && this.reached.has(this.open)) this.quotas.set(this.open, count);
-            else if (this.quota(this.open) < density[1]) this.quotas.set(this.open, this.quota(this.open) + 1);
-            else break;
-        }
-        for (let t = 0; t < tries * 10 && spot === null; t++) {
-            const draw = this.draw();
-            spot = this.place(draw.s, draw.top);
-            top = draw.top;
-            if (spot !== null) this.relaxed++;
+        for (let t = 0; t < 2 * tries && spot === null; t++) {
+            const hi = gap[1] + (dy[1] - gap[1]) * (Math.max(0, t - tries + 1) / tries);
+            top = this.front + this.uniform([gap[0], hi]);
+            spot = this.place(top);
+            if (spot !== null && top - this.front > gap[1]) this.relaxed++;
         }
         if (spot === null) {
             const f = this.fallback();
             top = f.top;
             spot = { x: f.x, w: f.w };
         }
-        const k = Math.floor(top / tract);
-        this.counts.set(k, (this.counts.get(k) ?? 0) + 1);
-        if (top >= (k + 1) * tract - (dy[1] - separation)) this.reached.add(k);
         this.front = Math.max(this.front, top);
         const stage = stageOf(top, this.config);
         const weapons = this.pickupsOf(spot.x, top, stage);
         const repairs = this.repairsOf(spot.x, top, stage);
         const pickups = repairs.length > 0 ? repairs : weapons;
-        this.items.push({ x: spot.x, minX: spot.x - spot.w / 2, maxX: spot.x + spot.w / 2, top });
-        const floor = Math.max(...this.items.map((v) => v.top)) - window;
-        this.items = this.items.filter((v) => v.top >= floor);
+        const item = { x: spot.x, minX: spot.x - spot.w / 2, maxX: spot.x + spot.w / 2, top, above: false };
+        for (const q of this.items) if (!q.above && this.reaches(q, item)) q.above = true;
+        this.items.push(item);
+        this.items = this.items.filter((v) => v.top >= this.front - window);
         return { index: this.index++, x: spot.x, w: spot.w, y: top, stage, pickups };
     }
-}
 
+    /** Verdadero si desde `a` se llega a `b` más arriba con el salto largo de `reach` (`up`, el de `buildNav`). */
+    reaches(a, b) {
+        const { up } = this.config.reach;
+        const gap = Math.max(0, b.minX - a.maxX, a.minX - b.maxX);
+        const dy = b.top - a.top;
+        return dy > 0 && dy <= up.dy && gap <= up.gap;
+    }
+}
 /**
  * Mundo del ascenso infinito (docs/design/16-ascenso.md §16.6). Todas las plataformas y paredes son fixtures de caja de un
  * solo cuerpo cinemático (fricción 0,8) que baja a `CLIMB.scroll` m/s; las plataformas se registran en `OneWayPlatforms`
