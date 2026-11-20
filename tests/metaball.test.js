@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 
 const {
+    DROP_STRETCH,
     METABALL_RADIUS,
     METABALL_THRESHOLD,
     metaballAlpha,
@@ -73,7 +74,7 @@ function fakeDoc() {
 
 function fakeSystem(kinds, colors) {
     const n = kinds.length;
-    const heap = new Float32Array(3 * n + 16);
+    const heap = new Float32Array(5 * n + 16);
     const u8 = new Uint8Array(heap.buffer);
     kinds.forEach((_, i) => {
         heap[i * 2] = 10 + i * 0.1;
@@ -81,7 +82,7 @@ function fakeSystem(kinds, colors) {
         u8.set(colors[i], n * 8 + i * 4);
     });
     return {
-        system: { GetPositionBuffer: () => 0, GetColorBuffer: () => n * 8, GetParticleCount: () => n },
+        system: { GetPositionBuffer: () => 0, GetColorBuffer: () => n * 8, GetVelocityBuffer: () => n * 12, GetParticleCount: () => n },
         box: { HEAPF32: heap, HEAPU8: u8, getPointer: (a) => a },
     };
 }
@@ -149,4 +150,15 @@ test("costo de drawParticles con 4.000 partículas y 5 materiales (diagnóstico,
         globalThis.Box2D = previous;
     }
     assert.ok(METABALL_RADIUS > 0);
+});
+
+test("#213: dos gotas del chorro de agua a 18 m/s y 0,18 m se funden en el punto medio solo con el estiramiento por velocidad", () => {
+    const radius = DRAW.radius * DRAW.kinds[4].radiusScale;
+    const peak = metaballPeak(radius);
+    const gap = 18 * 0.01;
+    const half = METABALL_RADIUS + Math.min(DROP_STRETCH.max, (18 * DROP_STRETCH.time) / 2);
+    const stretched = 2 * metaballAlpha(((gap / 2) * METABALL_RADIUS) / half, peak);
+    const round = 2 * metaballAlpha(gap / 2, peak);
+    assert.ok(round < METABALL_THRESHOLD, `sin estirar ${round.toFixed(3)}`);
+    assert.ok(stretched > METABALL_THRESHOLD, `estirado ${stretched.toFixed(3)}`);
 });
