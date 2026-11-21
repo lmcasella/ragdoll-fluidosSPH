@@ -20,8 +20,8 @@ export const KEYBOARD_LAYOUT = {
     weapons: ["Digit1", "Digit2", "Digit3", "Digit4"],
 };
 
-/** Teclas del monitor de física (`js/debug.js`): `panel` y `layer`. */
-export const DEBUG_KEYS = { panel: ["F3"], layer: ["F4"] };
+/** Teclas que abren y cierran el menú de debug (`js/debug.js`). */
+export const DEBUG_KEYS = ["F3"];
 
 /** Identificador del teclado y el mouse como dispositivo de `Input.assignment`. */
 export const KEYBOARD_DEVICE = "keyboard";
@@ -44,8 +44,6 @@ export const PAD = {
     select: 8,
     start: 9,
     weapons: [12, 15, 13, 14],
-    debugPanel: 4,
-    debugLayer: 5,
 };
 
 /**
@@ -99,8 +97,7 @@ export const TAP_MAX = 0.25;
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
  * `action` es el flanco de A, RT, la tecla de acción o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
- * `debug` (en la instancia, tras cada poll): `{ panel, layer }`, flancos del monitor de física: F3 y F4, o Select mantenido
- * más LB y RB de cualquier gamepad real. Con Select apretado, LB y RB no abren la rueda ni cambian de arma.
+ * `debug` (en la instancia, tras cada poll): flanco del botón del menú de debug, F3 o Select de cualquier gamepad real.
  * `menu` (en la instancia, tras cada poll) son las intenciones del menú, con `MENU_CONTROLS`: `x` e `y` (-1, 0 o +1, con
  * `y` positivo hacia abajo) valen distinto de cero solo en el frame del flanco y en las repeticiones de `MENU_REPEAT`;
  * `confirm` y `back` son flancos. Solo leen gamepads reales, no los virtuales de los bots.
@@ -123,14 +120,14 @@ export class Input {
         this.states = Array.from({ length: playerCount }, () => ({}));
         this.virtualPads = Array.from({ length: playerCount }, () => null);
         this.menu = { x: 0, y: 0, confirm: false, back: false };
-        this.debug = { panel: false, layer: false };
+        this.debug = false;
         this.debugPrev = {};
         this.devices = [];
         this.menuPrev = {};
         this.deviceX = {};
         this.menuRepeat = { x: { dir: 0, next: 0 }, y: { dir: 0, next: 0 } };
 
-        const gameCodes = new Set([...Object.values(KEYBOARD_LAYOUT).flat(), ...Object.values(DEBUG_KEYS).flat()]);
+        const gameCodes = new Set([...Object.values(KEYBOARD_LAYOUT).flat(), ...DEBUG_KEYS]);
 
         window.addEventListener("keydown", (e) => {
             if (gameCodes.has(e.code)) e.preventDefault();
@@ -368,21 +365,15 @@ export class Input {
         };
     }
 
-    /** Flancos `{ panel, layer }` del monitor de física de este poll: teclado y Select mantenido más LB o RB. */
+    /** Flanco del botón del menú de debug de este poll: F3 o Select de cualquier gamepad real. */
     readDebug(devicePads) {
-        const debug = {
-            panel: DEBUG_KEYS.panel.some((c) => this.pressed.has(c)),
-            layer: DEBUG_KEYS.layer.some((c) => this.pressed.has(c)),
-        };
+        let edge = DEBUG_KEYS.some((c) => this.pressed.has(c));
         for (const { pad, id } of devicePads) {
             const prev = this.debugPrev[id] ?? [];
-            const down = (i) => pad.buttons[i]?.pressed ?? false;
-            const chord = down(PAD.select);
-            debug.panel ||= chord && down(PAD.debugPanel) && !prev[PAD.debugPanel];
-            debug.layer ||= chord && down(PAD.debugLayer) && !prev[PAD.debugLayer];
+            edge ||= (pad.buttons[PAD.select]?.pressed ?? false) && !prev[PAD.select];
             this.debugPrev[id] = pad.buttons.map((b) => b.pressed);
         }
-        return debug;
+        return edge;
     }
 
     /** Devuelve `dir` en el flanco y en cada repetición con retardo; 0 en el resto. */
@@ -410,7 +401,6 @@ export class Input {
         const prev = this.prevButtons[id] ?? [];
         const down = (i) => pad.buttons[i]?.pressed ?? false;
         const edge = (i) => down(i) && !prev[i];
-        const chord = down(PAD.select);
         const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
 
         state.left ||= lx < -STICK_DEADZONE;
@@ -425,7 +415,7 @@ export class Input {
         state.grapple ||= down(PAD.grapple);
         state.block ||= down(PAD.block);
         state.punch ||= edge(PAD.punch);
-        if (edge(PAD.nextWeapon) && !chord) state.weaponStep = 1;
+        if (edge(PAD.nextWeapon)) state.weaponStep = 1;
         PAD.weapons.forEach((button, i) => {
             if (edge(button)) state.weapon = i + 1;
         });
@@ -433,6 +423,6 @@ export class Input {
         if (stick) state.aim = stick;
 
         this.prevButtons[id] = pad.buttons.map((b) => b.pressed);
-        return { strongDown: ly > DROP_THRESHOLD, prevHold: down(PAD.prevWeapon) && !chord, stick };
+        return { strongDown: ly > DROP_THRESHOLD, prevHold: down(PAD.prevWeapon), stick };
     }
 }

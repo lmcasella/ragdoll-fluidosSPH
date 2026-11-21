@@ -64,10 +64,10 @@ export async function loadGame(options = {}) {
         addEventListener: (type, fn) => (handlers[type] ??= []).push(fn),
     };
     const elements = new Map();
-    const spy = { hudTexts: [], laserMoves: 0 };
+    const spy = { hudTexts: [], laserMoves: 0, arcs: 0 };
     const spies = {
         hudCanvas: { clearRect: () => (spy.hudTexts.length = 0), fillText: (text) => spy.hudTexts.push(String(text)) },
-        pickupCanvas: { clearRect: () => (spy.laserMoves = 0), moveTo: () => spy.laserMoves++ },
+        pickupCanvas: { clearRect: () => ((spy.laserMoves = 0), (spy.arcs = 0)), moveTo: () => spy.laserMoves++, arc: () => spy.arcs++ },
     };
     globalThis.document = {
         getElementById: (id) => {
@@ -144,6 +144,10 @@ export async function loadGame(options = {}) {
         /** Trazos `moveTo` del canvas de la capa de mira (mira láser y golpes) en el último frame. */
         get laserMoves() {
             return spy.laserMoves;
+        },
+        /** Círculos `arc` del canvas de la capa de mira en el último frame (los puntos del debug). */
+        get arcs() {
+            return spy.arcs;
         },
         get now() {
             return clock / 1000;

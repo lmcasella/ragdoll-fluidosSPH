@@ -633,7 +633,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    asignacion, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, arrancarPartida,
+                    asignacion, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -641,16 +641,8 @@
                 };
             }
 
-            function loop(nowMs) {
-                const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
-                lastTime = nowMs;
-                const enTitulo = match.state === "title";
-                if (enTitulo && bots.size) quitarBots();
-                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
-                bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
-                inputs = input.poll();
-                debug.toggle(input.debug);
-                debug.begin();
+            /** Avanza la partida un frame: input, rondas, pasos de física y limpieza. Con el menú de debug abierto no se llama. */
+            function simular(frameDt, enTitulo) {
                 inputs.forEach((s, k) => {
                     const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
                     if (s.roll) jumpPending[k] = "roll";
@@ -775,6 +767,21 @@
                 limpiarParticulas();
                 store.trim(frameDt * 1000, frameDt);
                 debug.mark("limpieza");
+            }
+
+            function loop(nowMs) {
+                const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
+                lastTime = nowMs;
+                const enTitulo = match.state === "title";
+                if (enTitulo && bots.size) quitarBots();
+                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
+                bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
+                inputs = input.poll();
+                if (input.debug && !enTitulo) debug.toggleOpen();
+                debug.update(input.menu);
+                debug.begin();
+                if (!debug.open) simular(frameDt, enTitulo);
+                const now = simTime;
 
                 const points = players.map((p) => {
                     const pos = p.torso.GetPosition();
@@ -811,7 +818,11 @@
                 ctx.restore();
                 collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
                 debug.mark("dibujo");
-                drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
+                if (debug.metaballOn) drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
+                else {
+                    fluidLayers.begin();
+                    fluidLayers.end();
+                }
                 debug.mark("fluidos");
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
@@ -825,6 +836,16 @@
                     drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
                 });
                 drawHits(pickupCtx, melee.hits, scale, now);
+                if (debug.fluidMode !== "metaball") {
+                    debug.drawPoints(pickupCtx, {
+                        heap: Box2D.HEAPF32,
+                        bytes: Box2D.HEAPU8,
+                        pos: Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2,
+                        color: Box2D.getPointer(particleSystem.GetColorBuffer()),
+                        count: particleSystem.GetParticleCount(),
+                        radius: particleSystem.GetRadius(),
+                    });
+                }
                 if (debug.active) {
                     debug.frame(datosDebug(frameDt));
                     debug.drawLayer(pickupCtx, scale, {
