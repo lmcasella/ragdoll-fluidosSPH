@@ -579,7 +579,7 @@ El diseño de reacciones de #30 ([04-fluidos §4.4](04-fluidos.md#44-reacciones-
 
 ## 14.12 Herramientas de debug
 
-**Módulo nuevo `js/debug.js`**, que integra el panel de métricas de #29. Es una herramienta de desarrollo, no una mecánica: se conmuta con teclado (F3 el panel, F4 el modo de capa) y con L3 + R3 en el gamepad (juntos encienden y apagan el panel; mantenidos 1 s pasan a la capa siguiente). El atajo anterior, Select + LB, chocaba con la pausa y la rueda ([10.5](10-controles.md#105-debug)). No viola "gamepad primero" porque no es una mecánica.
+**Módulo nuevo `js/debug.js`**, que integra el panel de métricas de #29. Es una herramienta de desarrollo, no una mecánica: se abre con un solo botón (F3, o L3 + R3 juntos en el gamepad), que muestra un menú con las estadísticas, el modo de dibujo de los fluidos y cada capa de vectores por separado ([10.5](10-controles.md#105-debug)). No viola "gamepad primero" porque no es una mecánica.
 
 - **Panel:** partículas por material y por origen, slots libres y pendientes, offset del buffer de contactos, ms por subsistema (`flood`, `buoyancy`, `stepWorld`, `immersion`, `thermal`, `mixing`, `adhesion`, `water`, `damage` y el render de fluidos), subpasos CFL del campo y FPS.
 - **Monitores de conservación:** volumen de agua (columnas + partículas · `A_p (1 − φ)` + evaporado + vapor), pérdidas por fricción y por el `q` = 0 de las celdas secas, activaciones del tope de subpasos y repeticiones con `dt/2`, energía (`Σ m (1 − φ) e` + `Σ m φ e_v` + `Σ E` + `E_perdida`) y miel (`Σ m X` + `Σ ρ_miel M dx`), con su deriva desde el inicio de la ronda.

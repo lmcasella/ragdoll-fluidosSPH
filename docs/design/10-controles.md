@@ -26,7 +26,7 @@ El remapeo base y el gancho entran en la entrega (M4). El modo ragdoll y la paus
 | Arma directa | `weapon` (posición 1–4 en la tabla) | Cruceta: arriba 1, derecha 2, abajo 3, izquierda 4 | 1 / 2 / 3 / 4 | Num 1 / 2 / 3 / 4 | Sí |
 | Modo ragdoll | `ragdoll` (flanco) | Y (`buttons[3]`), reservado: #104 no lo usa | C | Num . | 🔨 M5 ([03 §3.6](03-robots.md#36-modo-ragdoll--m5)) |
 | Pausa consensuada | `pause` (flanco) | Select (`buttons[8]`) | Escape | Retroceso | 🔨 M5 ([10.4](#104-pausa-consensuada--m5)) |
-| Debug (desarrollo) | — (no es intención de juego) | L3 + R3 juntos (`buttons[10]` y `[11]`) | F3 panel / F4 capa | — | Con #29 |
+| Debug (desarrollo) | — (no es intención de juego) | L3 + R3 juntos (`buttons[10]` y `[11]`) | F3 | — | ✅ #258 |
 
 ## 10.2 Intenciones de `Input`
 
@@ -89,4 +89,11 @@ Diseño mínimo:
 
 ## 10.5 Debug
 
-El atajo anterior de #29 (Select + LB) choca con la pausa (Select) y con la rueda (LB). **Nuevo atajo:** L3 + R3 apretados a la vez (clic de los dos sticks; botones que el juego no usa y difíciles de apretar sin querer) encienden y apagan el panel. Mantenerlos 1 s pasa a la capa siguiente. En teclado: F3 (panel) y F4 (capa). Lo lee `debug.js` desde la raíz de composición; no es una intención de juego ([14.12](14-agua.md#1412-herramientas-de-debug)).
+**Un solo botón (#258):** L3 + R3 apretados a la vez (clic de los dos sticks; botones que el juego no usa y difíciles de apretar sin querer) o F3 abren y cierran el **menú de debug**. Select no se usa porque está reservado para la pausa consensuada, y LB no porque abre la rueda. En la pantalla de título el botón no hace nada.
+
+- **Filas:** Estadísticas (sí/no), Fluidos (metaball/puntos/ambos) y las capas Velocidades, Fuerzas, Columnas y Bots (sí/no cada una). Al empezar está todo apagado y los fluidos en metaball.
+- **Navegación:** con los controles del menú (`MENU_CONTROLS`): arriba/abajo elige la fila, izquierda/derecha o confirmar cambia el valor, y atrás o el mismo botón cierran.
+- **Pausa:** con el menú abierto la simulación no avanza ni lee el input de los jugadores, pero se sigue dibujando. Al cerrar, las opciones quedan activas. Las estadísticas se ven solo con el menú abierto.
+- **Puntos:** cada partícula es un círculo de su radio físico, del color de su material y sin el filtro `#goo`. Las capas de vectores van con trazo de 1 px y alfa 0,5.
+
+Lo lee `debug.js` desde la raíz de composición; no es una intención de juego ([14.12](14-agua.md#1412-herramientas-de-debug)).

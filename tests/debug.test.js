@@ -20,6 +20,7 @@ const { ParticleStore, ORIGIN } = await import("../js/particleStore.js");
 /** `performance.now` real: `loadGame` reemplaza el global por un reloj falso. */
 const realNow = performance.now.bind(performance);
 const key = (code) => ({ code, repeat: false, preventDefault() {} });
+const DEBUG_PAD = [10, 11];
 const SELECT = 8;
 const A = 0;
 const DPAD = { up: 12, down: 13, left: 14, right: 15 };
@@ -34,15 +35,15 @@ function tapKey(game, code) {
     game.frames(2);
 }
 
-/** Un toque del botón `button` del gamepad `k`. */
+/** Un toque del botón `button` (o de varios a la vez, si es un arreglo) del gamepad `k`. */
 function tapButton(game, k, button) {
-    game.setPad(k, { buttons: [button] });
+    game.setPad(k, { buttons: [].concat(button) });
     game.frames(2);
     game.setPad(k);
     game.frames(2);
 }
 
-test("D1 F3 y Select abren y cierran el menú sin recargar, y el menú dibuja sus seis filas", async () => {
+test("D1 F3 y L3 + R3 abren y cierran el menú sin recargar, y el menú dibuja sus seis filas", async () => {
     const game = await loadGame();
     const { debug } = game.state;
     game.setPad(0);
@@ -61,13 +62,17 @@ test("D1 F3 y Select abren y cierran el menú sin recargar, y el menú dibuja su
     assert.equal(hasMenu(game), false);
 
     tapButton(game, 0, SELECT);
+    tapButton(game, 0, 10);
+    tapButton(game, 0, 11);
+    assert.equal(debug.open, false, "Select, L3 o R3 solos no abren el menú");
+    tapButton(game, 0, DEBUG_PAD);
     assert.equal(debug.open, true);
-    tapButton(game, 1, SELECT);
-    assert.equal(debug.open, false, "Select de cualquier gamepad real");
-    tapButton(game, 0, SELECT);
+    tapButton(game, 1, DEBUG_PAD);
+    assert.equal(debug.open, false, "L3 + R3 de cualquier gamepad real");
+    tapButton(game, 0, DEBUG_PAD);
     tapKey(game, "Escape");
     assert.equal(debug.open, false, "atrás (Escape) cierra");
-    tapButton(game, 0, SELECT);
+    tapButton(game, 0, DEBUG_PAD);
     tapButton(game, 0, 1);
     assert.equal(debug.open, false, "atrás (B) cierra");
 });
@@ -153,11 +158,11 @@ test("D1 con el menú abierto la simulación está en pausa y la cruceta no camb
     assert.notEqual(players[0].weapon, first, "sin menú, la cruceta cambia de arma como siempre");
 });
 
-test("D1 en el título, Select no abre el menú de debug", async () => {
+test("D1 en el título, L3 + R3 no abren el menú de debug", async () => {
     const game = await loadGame({ intro: true });
     game.setPad(0);
     game.frames(2);
-    tapButton(game, 0, SELECT);
+    tapButton(game, 0, DEBUG_PAD);
     assert.equal(game.state.debug.open, false);
 });
 

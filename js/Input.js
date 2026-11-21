@@ -23,6 +23,9 @@ export const KEYBOARD_LAYOUT = {
 /** Teclas que abren y cierran el menú de debug (`js/debug.js`). */
 export const DEBUG_KEYS = ["F3"];
 
+/** Botones del gamepad que, apretados a la vez, abren y cierran el menú de debug: L3 y R3 (clic de los dos sticks). */
+export const DEBUG_PAD = [10, 11];
+
 /** Identificador del teclado y el mouse como dispositivo de `Input.assignment`. */
 export const KEYBOARD_DEVICE = "keyboard";
 
@@ -97,7 +100,7 @@ export const TAP_MAX = 0.25;
  * `padButton` (en la instancia, no por jugador) es verdadero si algún botón de algún gamepad está apretado en el poll.
  * `action` es el flanco de A, RT, la tecla de acción o el clic, para menús y revancha; `start` es el flanco de Start (botón 9) o Escape, para iniciar y volver al menú; `fire` es el disparo mantenido.
  * Las fuentes se combinan con O: ninguna escribe falso sobre otra.
- * `debug` (en la instancia, tras cada poll): flanco del botón del menú de debug, F3 o Select de cualquier gamepad real.
+ * `debug` (en la instancia, tras cada poll): flanco del menú de debug, F3 o L3 + R3 juntos en cualquier gamepad real.
  * `menu` (en la instancia, tras cada poll) son las intenciones del menú, con `MENU_CONTROLS`: `x` e `y` (-1, 0 o +1, con
  * `y` positivo hacia abajo) valen distinto de cero solo en el frame del flanco y en las repeticiones de `MENU_REPEAT`;
  * `confirm` y `back` son flancos. Solo leen gamepads reales, no los virtuales de los bots.
@@ -365,13 +368,16 @@ export class Input {
         };
     }
 
-    /** Flanco del botón del menú de debug de este poll: F3 o Select de cualquier gamepad real. */
+    /**
+     * Flanco del menú de debug de este poll: F3, o L3 + R3 juntos (`DEBUG_PAD`) en cualquier gamepad real. Select queda
+     * reservado para la pausa consensuada.
+     */
     readDebug(devicePads) {
         let edge = DEBUG_KEYS.some((c) => this.pressed.has(c));
         for (const { pad, id } of devicePads) {
-            const prev = this.debugPrev[id] ?? [];
-            edge ||= (pad.buttons[PAD.select]?.pressed ?? false) && !prev[PAD.select];
-            this.debugPrev[id] = pad.buttons.map((b) => b.pressed);
+            const both = DEBUG_PAD.every((b) => pad.buttons[b]?.pressed ?? false);
+            edge ||= both && !this.debugPrev[id];
+            this.debugPrev[id] = both;
         }
         return edge;
     }

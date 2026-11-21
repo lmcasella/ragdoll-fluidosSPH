@@ -8,7 +8,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [0.45.0] - 2026-11-20
 
 ### Added
-- Menú de debug con un solo botón: F3 (teclado) o Select (gamepad) lo abre y lo cierra. Mientras está abierto la partida queda en pausa y se recorre con arriba/abajo y izquierda/derecha. Filas: Estadísticas, Fluidos (metaball, puntos o ambos) y las capas de vectores Velocidades, Fuerzas, Columnas y Bots, cada una por separado y apagadas al empezar.
+- Menú de debug con un solo botón: F3 (teclado) o L3 + R3 juntos (gamepad) lo abre y lo cierra. Mientras está abierto la partida queda en pausa y se recorre con arriba/abajo y izquierda/derecha. Filas: Estadísticas, Fluidos (metaball, puntos o ambos) y las capas de vectores Velocidades, Fuerzas, Columnas y Bots, cada una por separado y apagadas al empezar.
 - Modo de fluidos en puntos: cada partícula se ve como un círculo del tamaño real y el color de su material, para mirar la simulación sin el efecto de gota.
 - Las flechas del debug son más finas y semitransparentes.
 
