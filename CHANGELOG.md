@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-21
+
+### Added
+- En Infinito, el agua persigue a los jugadores que se escapan: si el jugador vivo más bajo queda a más de 6 m sobre ella, sube más rápido (hasta 3 m/s extra) hasta quedar justo debajo de la pantalla, y desde ahí entra a la vista a su ritmo de siempre. Los saltos no la aceleran: cuenta la plataforma donde está parado cada jugador.
+
 ## [0.50.3] - 2026-11-21
 
 ### Changed

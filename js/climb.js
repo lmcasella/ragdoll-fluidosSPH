@@ -28,7 +28,8 @@ import { FLUID, refillTanks } from "./weapons.js";
  * - `repairPerStage`: ítems de reparación (#156) por etapa `n ≥ 1`, sobre la primera plataforma cuyo tope llega a la mitad
  *   de la etapa (fila central), que en ese caso no lleva arma;
  * - `flood`: `surface` (m) del agua al empezar, `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del
- *   fondo efectivo y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
+ *   fondo efectivo, `catchUp` (alcance: a la velocidad se suma `min(max, rate · max(0, d − gap))` m/s, con `d` la distancia
+ *   en m de la superficie a la altura de apoyo del robot vivo más bajo, sin contar saltos; `gap` en m, `rate` en 1/s, `max` en m/s) y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
  * - `ahead`: cuánto por encima de la cámara se genera;
  * - `loadout`: equipo inicial del mapa (el clásico usa `LOADOUT` de `js/weapons.js`): sin arma ni tanques, solo melee;
  * - `stagePrize`: premio del primer robot que se apoya en una plataforma de la etapa `n ≥ 1`, una vez por etapa y por
@@ -66,7 +67,7 @@ export const CLIMB = {
         { period: 3, weights: { ACID: 0.5, LAVA: 0.5 } },
     ],
     repairPerStage: 1,
-    flood: { surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 },
+    flood: { surface: 2, start: 5, speed: 0.25, perStage: 0.04, catchUp: { gap: 6, rate: 0.5, max: 3 }, depth: 6, sinkBelow: 5 },
     ahead: 30,
     loadout: { weapon: null, weapons: [] },
     stagePrize: { banner: 1.5, repair: "full", refill: true },

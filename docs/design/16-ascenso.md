@@ -29,7 +29,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `pickupLift` | 0.6 | Altura del ícono sobre el tope (m) |
 | `pickups` | `[{ period: 9, weights: { WATER: 1 } }, { period: 9, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } }, { period: 6, weights: { LAVA: 1 } }, { period: 3, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 3)` para la etapa `n ≥ 1`; una arma sobre una de cada `period` plataformas de la etapa. Claves = nombres de `FLUID` |
 | `repairPerStage` | `1` | Ítems de reparación por etapa `n ≥ 1` (16.4) |
-| `flood` | `{ surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
+| `flood` | `{ surface: 2, start: 5, speed: 0.25, perStage: 0.04, catchUp: { gap: 6, rate: 0.5, max: 3 }, depth: 6, sinkBelow: 5 }` | 16.5 y 16.6 |
 | `ahead` | 30 | Se genera hasta `top de cámara + ahead` (m, locales) |
 | `loadout` | `{ weapon: null, weapons: [] }` | Equipo inicial del mapa (16.10) |
 | `stagePrize` | `{ banner: 1.5, repair: "full", refill: true }` | Premio por etapa (16.10) |
@@ -61,7 +61,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, dt)`, `reset()`, `dispose()`) más el getter `floor`. JS puro: no crea partículas.
 
-- **Curva:** `η*` (mundo) = `flood.surface` (2 m) hasta `start`; después, en cada paso fijo, `η* += v · dt` con `v = speed + perStage · stageOf(η* − offsetY)` (`offsetY`: función que pasa la raíz; el mapa baja). `level` vale `η*` si `active`, si no `−Infinity` (como `Flood`).
+- **Curva:** `η*` (mundo) = `flood.surface` (2 m) hasta `start`; después, en cada paso fijo, `η* += v · dt` con `v = speed + perStage · stageOf(η* − offsetY) + alcance` (`offsetY`: función que pasa la raíz; el mapa baja). **Alcance** (#271): con `d = y_apoyo − η*` y `alcance = min(catchUp.max, catchUp.rate · max(0, d − catchUp.gap))`. `y_apoyo` (función que pasa la raíz; sin robots vivos, `−∞` y alcance 0) es el mínimo entre los robots vivos de su altura de apoyo: el punto más bajo del robot mientras está `grounded`; en el aire, `min(último apoyo, punto más bajo actual)`. Así un salto no acelera el agua y una caída cuenta enseguida. Cerca del agua la velocidad es la de siempre. Si los jugadores se escapan, el alcance trae el agua hasta ~`gap` = 6 m bajo sus pies, justo debajo del borde inferior de la cámara (`MARGIN_Y` = 4 m), y desde ahí entra a la vista a la velocidad base. Con `gap` = 6 m, bajar una o dos filas de plataformas (2,2 a 3,2 m cada una) no ahoga; con `gap` = 3 m los bots se ahogaban al bajar una fila. `level` vale `η*` si `active`, si no `−Infinity` (como `Flood`).
 - **`floor`** = `max(0, η* − depth)`: el fondo efectivo.
 - **`step`**, una vez por paso fijo y antes de `stepWorld` (mismo lugar que `flood.step`), en este orden:
   1. `water.setSpan(28 − half(stageOf(η* − offsetY)), 28 + half(stageOf(η* − offsetY)))`;
