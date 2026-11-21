@@ -5,6 +5,16 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-20
+
+### Added
+- Interfaz nueva en partida: un panel por jugador arriba (insignia, vida con marcas cada 25 y número grande, o el % de daño en Infinito, y el arma con su tanque o "VACÍO"), marcador "AL MEJOR DE 3" con rombos de victorias, ronda, reloj y aviso de inundación, y la cuenta regresiva, el fin de ronda y el fin de partida (con los botones Revancha y Menú bloqueados el primer segundo).
+- Cuando un robot recibe daño sale un número flotante sobre él ("−12", o "+12 %" en Infinito) que suma el daño seguido, una barrita de vida sobre la cabeza durante 1,5 s (solo en Clásico) y un tramo blanco en el panel con lo perdido.
+- Infinito: medidor de altura a la derecha, con una ficha por jugador que marca cuántos metros le saca al agua, rayas por etapa y zona roja en los últimos 4 m.
+
+### Changed
+- Se retiran de la partida los textos de salud, los puntitos de ronda, "Ronda N", el reloj y la banda negra de carteles: los reemplaza la interfaz nueva. El menú y la pantalla de asignación siguen como estaban.
+
 ## [0.45.3] - 2026-11-20
 
 ### Fixed

@@ -109,6 +109,11 @@ export class Match {
         return null;
     }
 
+    /** Segundos que faltan del bloqueo de botones del fin de partida; 0 fuera de `matchOver` o ya desbloqueado. */
+    get lockRemaining() {
+        return this.state === "matchOver" ? Math.max(0, this.timer) : 0;
+    }
+
     /** Los peligros que dañan por tiempo (inundación) solo actúan mientras se juega la ronda. */
     get hazardsActive() {
         return this.state === "playing";

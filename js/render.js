@@ -714,84 +714,24 @@ export function drawStageBanner(ctx, width, text, alpha = 1) {
     ctx.textAlign = "left";
 }
 
-const TANK_BAR = { width: 180, height: 10 };
-
-// HUD en pantalla (sin cámara): vida, arma, tanque y rondas ganadas por jugador; cartel central entre rondas.
-// `weapons` es la tabla de armas (id, name, color, tank).
-export function drawHud(ctx, width, height, players, match, colors, weapons, floodStart = Infinity) {
+/**
+ * Cartel del título (nombre del juego y ayuda del menú) en píxeles de pantalla, sobre una banda oscura. El HUD de la
+ * partida es HTML (`js/hud.js`).
+ */
+export function drawHud(ctx, width, height, match) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.font = "bold 24px Segoe UI";
+    const banner = match.state === "title" ? match.banner : null;
+    if (!banner) return;
     ctx.textBaseline = "alphabetic";
-    players.forEach((player, k) => {
-        const left = k === 0;
-        const x = left ? 20 : width - 20;
-        ctx.textAlign = left ? "left" : "right";
-        const weapon = weapons.find((w) => w.id === player.weapon);
-        const gun = weapon ? ` · ${weapon.name}` : "";
-        if (player.accumulates) {
-            ctx.fillStyle = colors[k];
-            ctx.fillText(`J${k + 1} ${Math.floor(player.damagePct)} %${gun}`, x, height - 30);
-        } else {
-            ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
-            ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}%${gun}`, x, height - 30);
-        }
-
-        if (weapon) {
-            const left0 = left ? x : x - TANK_BAR.width;
-            const top = height - 22;
-            const ratio = Math.max(0, Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank));
-            ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-            ctx.fillRect(left0, top, TANK_BAR.width, TANK_BAR.height);
-            ctx.fillStyle = `rgb(${weapon.color.join(", ")})`;
-            ctx.fillRect(left0, top, TANK_BAR.width * ratio, TANK_BAR.height);
-            if (ratio === 0) {
-                ctx.fillStyle = "#ff5555";
-                ctx.font = "bold 12px Segoe UI";
-                ctx.textAlign = "left";
-                ctx.fillText("VACÍO", left0 + 4, top + TANK_BAR.height - 1);
-                ctx.font = "bold 24px Segoe UI";
-                ctx.textAlign = left ? "left" : "right";
-            }
-        }
-        for (let w = 0; w < match.winsNeeded; w++) {
-            const cx = left ? x + 10 + w * 26 : x - 10 - w * 26;
-            ctx.beginPath();
-            ctx.arc(cx, height - 70, 9, 0, Math.PI * 2);
-            ctx.fillStyle = w < match.wins[k] ? colors[k] : "rgba(255, 255, 255, 0.15)";
-            ctx.fill();
-        }
-    });
-
     ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(10, 10, 16, 0.7)";
+    ctx.fillRect(0, height / 2 - 70, width, 130);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 48px Segoe UI";
+    ctx.fillText(banner.title, width / 2, height / 2);
+    ctx.font = "20px Segoe UI";
     ctx.fillStyle = "#cccccc";
-    ctx.font = "bold 18px Segoe UI";
-    if (match.state !== "title") {
-        ctx.fillText(`Ronda ${match.round}`, width / 2, 36);
-        const seconds = Math.floor(match.roundTime);
-        ctx.fillText(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, width / 2, 60);
-    }
-    if (match.state === "playing" && match.roundTime >= floodStart - 10) {
-        const flooding = match.roundTime >= floodStart;
-        ctx.fillStyle = flooding ? "#40dcff" : "#ffcc44";
-        ctx.font = "bold 22px Segoe UI";
-        ctx.fillText(
-            flooding ? "¡INUNDACIÓN!" : `Inundación en ${Math.ceil(floodStart - match.roundTime)}`,
-            width / 2,
-            88,
-        );
-    }
-
-    const banner = match.banner;
-    if (banner) {
-        ctx.fillStyle = "rgba(10, 10, 16, 0.7)";
-        ctx.fillRect(0, height / 2 - 70, width, 130);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 48px Segoe UI";
-        ctx.fillText(banner.title, width / 2, height / 2);
-        ctx.font = "20px Segoe UI";
-        ctx.fillStyle = "#cccccc";
-        ctx.fillText(banner.subtitle, width / 2, height / 2 + 40);
-    }
+    ctx.fillText(banner.subtitle, width / 2, height / 2 + 40);
     ctx.textAlign = "left";
 }
 

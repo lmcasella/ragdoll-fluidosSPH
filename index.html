@@ -35,6 +35,13 @@
                 z-index: 20;
             }
         </style>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Chakra+Petch:ital,wght@0,600;0,700;1,700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="./js/hud.css" />
         <script src="./vendor/pixi.min.js"></script>
         <script src="./vendor/liquidfun.js"></script>
     </head>
@@ -64,7 +71,7 @@
                 stepWorld,
                 STEP_SETTINGS,
             } from "./lib/ragimporter.js";
-            import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
+            import { ActiveRagdoll, KNOCKBACK } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
             import { Bot, botConfig } from "./js/bot.js";
             import { Menu, ControlsScreen } from "./js/menu.js";
@@ -82,7 +89,8 @@
             import { Buoyancy } from "./js/buoyancy.js";
             import { Debug } from "./js/debug.js";
             import { MATERIALS } from "./js/materials.js";
-            import { Match } from "./js/round.js";
+            import { Match, GO_TIME } from "./js/round.js";
+            import { Hud } from "./js/hud.js";
             import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip, withoutJointTracks } from "./js/clips.js";
@@ -197,6 +205,7 @@
             const hudCtx = hudCanvas.getContext("2d");
 
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
+            const hud = new Hud(document, document.getElementById("gameContainer"));
 
             function resize() {
                 for (const c of [canvas, pickupCanvas, hudCanvas]) {
@@ -633,7 +642,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    asignacion, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
+                    asignacion, hud, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -769,6 +778,53 @@
                 debug.mark("limpieza");
             }
 
+            const HEAD_BODY = "b_1";
+            const HEAD_RADIUS = robotRag.json.bodies.find((b) => b.id === HEAD_BODY).fixtures[0].shape.radius;
+            const WEAPON_ICONS = { [FLUID.WATER]: "agua", [FLUID.ACID]: "acido", [FLUID.LAVA]: "lava", [FLUID.HONEY]: "miel" };
+            const hudScreen = { x: 0, y: 0 };
+
+            /** Datos planos de este frame para `hud.update` (ver `js/hud.js`); la altura sobre el agua usa la misma superficie con la que `damage` decide el cortocircuito. */
+            function datosHud(frameDt) {
+                const infinite = climb !== null;
+                return {
+                    dt: frameDt,
+                    mode: infinite ? "infinite" : "classic",
+                    state: match.state,
+                    round: match.round,
+                    winsNeeded: match.winsNeeded,
+                    wins: match.wins,
+                    roundTime: match.roundTime,
+                    timer: match.timer,
+                    lock: match.lockRemaining,
+                    go: match.state === "playing" && match.roundTime < GO_TIME,
+                    roundWinner: match.roundWinner,
+                    matchWinner: match.matchWinner,
+                    floodStart: flood.config.start,
+                    maxPct: KNOCKBACK.maxPct,
+                    players: players.map((player) => {
+                        const weapon = WEAPONS.find((w) => w.id === player.weapon);
+                        const head = player.rag.bodies.get(HEAD_BODY).GetPosition();
+                        camera.toScreen(head.get_x(), head.get_y() + HEAD_RADIUS, hudScreen);
+                        let above = null;
+                        if (infinite) {
+                            const x = player.torso.GetPosition().get_x();
+                            const surface = drownSurface(x);
+                            above = damage.torsoTop(player) - (surface > -Infinity ? surface : flood.eta);
+                        }
+                        return {
+                            hp: player.hp,
+                            pct: player.damagePct,
+                            alive: !player.dead,
+                            weapon: weapon
+                                ? { icon: WEAPON_ICONS[weapon.id], name: weapon.name, ratio: (player.tanks.get(weapon.id) ?? 0) / weapon.tank }
+                                : null,
+                            head: { x: hudScreen.x, y: hudScreen.y },
+                            above,
+                        };
+                    }),
+                    gauge: infinite ? { level: flood.eta, stageHeight: CLIMB.stageHeight, offset: climb.offsetY } : null,
+                };
+            }
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
@@ -878,16 +934,8 @@
                     );
                 });
 
-                drawHud(
-                    hudCtx,
-                    hudCanvas.width,
-                    hudCanvas.height,
-                    players,
-                    match,
-                    PLAYER_COLORS,
-                    WEAPONS,
-                    flood.config.start,
-                );
+                drawHud(hudCtx, hudCanvas.width, hudCanvas.height, match);
+                hud.update(datosHud(frameDt));
                 const stageBanner = stagePrizes.banner;
                 if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
                     drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));

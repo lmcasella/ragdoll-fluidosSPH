@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waterbots UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Chakra+Petch:ital,wght@0,600;0,700;1,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --stage-bg: #1b1c26;
+  --stage-bg-2: #232533;
+  --platform: #2b2c38;
+  --platform-edge: #4a4c5c;
+  --water: #2350a0;
+  --water-deep: #18397a;
+  --water-surface: #9ad6ff;
+
+  --p1: #ff9933;
+  --p1-soft: rgba(255, 153, 51, .22);
+  --p1-ink: #1f1103;
+  --p2: #33b5ff;
+  --p2-soft: rgba(51, 181, 255, .22);
+  --p2-ink: #03182a;
+
+  --panel: rgba(11, 12, 19, .86);
+  --panel-2: #161824;
+  --panel-3: #1f2230;
+  --line: rgba(255, 255, 255, .10);
+  --line-2: rgba(255, 255, 255, .24);
+  --scrim: rgba(8, 9, 14, .62);
+
+  --text: #f3f5fa;
+  --text-2: #b4b8c8;
+  --text-3: #737889;
+
+  --focus: #ffd84a;
+  --focus-ink: #1d1600;
+  --danger: #ff4d5e;
+  --hazard: #ffcc44;
+  --flood: #40dcff;
+  --chip: #ffffff;
+
+  --w-agua: #5aaaff;
+  --w-acido: #32ff32;
+  --w-lava: #ff5014;
+  --w-miel: #ffc832;
+
+  --g-a: #6bd66b;
+  --g-b: #ff6060;
+  --g-x: #4fa8ff;
+  --g-y: #ffd84a;
+  --g-body: #1c1e29;
+
+  --font-display: "Chakra Petch", "Segoe UI", sans-serif;
+  --font-ui: "Barlow Semi Condensed", "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: #0d0e14;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
+.page h1 { font-family: var(--font-display); font-size: 22px; margin: 0 0 4px; letter-spacing: .04em; }
+.page .lede { color: var(--text-2); margin: 0 0 16px; font-size: 16px; }
+
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: thin; }
+.tabs button {
+  flex: 0 0 auto; font: 600 15px var(--font-ui); color: var(--text-2);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 12px; cursor: pointer;
+}
+.tabs button[aria-selected="true"] { color: var(--focus-ink); background: var(--focus); border-color: var(--focus); }
+.tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.view { display: none; }
+.view.on { display: block; }
+.notes { color: var(--text-2); font-size: 15px; line-height: 1.45; margin: 12px 2px 0; padding-left: 18px; }
+.notes b { color: var(--text); }
+
+.screen {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--stage-bg);
+}
+.stage { --u: calc(100cqw / 1920); position: absolute; inset: 0; font-size: calc(24 * var(--u)); }
+.abs { position: absolute; }
+.fill { position: absolute; inset: 0; }
+
+.bg { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 20%, var(--stage-bg-2), var(--stage-bg) 70%); }
+.plat { position: absolute; height: calc(30 * var(--u)); background: var(--platform); border: calc(2 * var(--u)) solid var(--platform-edge); }
+.ground { position: absolute; background: var(--platform); border-top: calc(2 * var(--u)) solid var(--platform-edge); }
+.water {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(var(--water), var(--water-deep));
+  border-top: calc(3 * var(--u)) solid var(--water-surface);
+}
+.robot { position: absolute; width: calc(70 * var(--u)); height: calc(105 * var(--u)); }
+.robot.p1 { color: var(--p1); }
+.robot.p2 { color: var(--p2); }
+.dim .robot, .dim .plat, .dim .ground { filter: saturate(.85); }
+
+.scrim { position: absolute; inset: 0; background: var(--scrim); }
+.vignette { position: absolute; inset: 0; background: radial-gradient(90% 80% at 50% 50%, transparent 40%, rgba(5, 6, 10, .75)); }
+
+.g {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 700; line-height: 1;
+  color: var(--text); background: var(--g-body);
+  border: calc(3 * var(--u)) solid var(--line-2);
+  height: calc(46 * var(--u)); min-width: calc(46 * var(--u));
+  font-size: calc(22 * var(--u)); flex: 0 0 auto;
+}
+.g-face { border-radius: 50%; width: calc(46 * var(--u)); }
+.g-a { color: var(--g-a); border-color: var(--g-a); }
+.g-b { color: var(--g-b); border-color: var(--g-b); }
+.g-x { color: var(--g-x); border-color: var(--g-x); }
+.g-y { color: var(--g-y); border-color: var(--g-y); }
+.g-sh { border-radius: calc(10 * var(--u)) calc(10 * var(--u)) calc(6 * var(--u)) calc(6 * var(--u)); padding: 0 calc(8 * var(--u)); min-width: calc(62 * var(--u)); font-size: calc(19 * var(--u)); }
+.g-tr { border-radius: calc(20 * var(--u)) calc(20 * var(--u)) calc(6 * var(--u)) calc(6 * var(--u)); padding: 0 calc(8 * var(--u)); min-width: calc(56 * var(--u)); height: calc(52 * var(--u)); font-size: calc(19 * var(--u)); }
+.g-st { border-radius: 50%; width: calc(46 * var(--u)); box-shadow: inset 0 0 0 calc(5 * var(--u)) var(--g-body), inset 0 0 0 calc(8 * var(--u)) var(--line-2); font-size: calc(18 * var(--u)); }
+.g-menu { border-radius: calc(23 * var(--u)); padding: 0 calc(12 * var(--u)); min-width: calc(64 * var(--u)); font-size: calc(17 * var(--u)); }
+.g svg { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+.g.sm svg { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+.g.sm { height: calc(36 * var(--u)); min-width: calc(36 * var(--u)); font-size: calc(17 * var(--u)); border-width: calc(2.5 * var(--u)); }
+.g-face.sm, .g-st.sm { width: calc(36 * var(--u)); }
+.plus { color: var(--text-3); font-weight: 700; margin: 0 calc(6 * var(--u)); }
+
+.k {
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 700 calc(19 * var(--u)) var(--font-ui); color: #12131a;
+  background: linear-gradient(#e9ebf2, #c9ccd8);
+  border-radius: calc(7 * var(--u)); border-bottom: calc(4 * var(--u)) solid #8d91a3;
+  height: calc(40 * var(--u)); min-width: calc(40 * var(--u)); padding: 0 calc(10 * var(--u));
+  flex: 0 0 auto;
+}
+.k.wide { min-width: calc(110 * var(--u)); }
+.k.mouse { background: linear-gradient(#e9ebf2, #c9ccd8); border-radius: calc(18 * var(--u)); padding: 0 calc(12 * var(--u)); }
+
+.hints {
+  position: absolute; left: 0; right: 0; bottom: calc(34 * var(--u));
+  display: flex; justify-content: center; gap: calc(44 * var(--u));
+}
+.hint { display: flex; align-items: center; gap: calc(12 * var(--u)); color: var(--text-2); font-size: calc(24 * var(--u)); font-weight: 600; }
+.hint .g { margin-right: calc(2 * var(--u)); }
+
+.wicon { width: calc(30 * var(--u)); height: calc(30 * var(--u)); flex: 0 0 auto; }
+.ic-agua { color: var(--w-agua); }
+.ic-acido { color: var(--w-acido); }
+.ic-lava { color: var(--w-lava); }
+.ic-miel { color: var(--w-miel); }
+
+.logo { font-family: var(--font-display); font-style: italic; font-weight: 700; letter-spacing: .02em; line-height: .9; }
+.logo .w { background: linear-gradient(180deg, #bfe6ff 0%, var(--w-agua) 55%, var(--water) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+.menu-col { position: absolute; left: calc(640 * var(--u)); width: calc(640 * var(--u)); top: calc(330 * var(--u)); display: flex; flex-direction: column; gap: calc(14 * var(--u)); }
+.sel {
+  position: relative; display: grid; grid-template-columns: calc(150 * var(--u)) 1fr; align-items: center;
+  min-height: calc(92 * var(--u)); padding: 0 calc(24 * var(--u));
+  background: var(--panel); border: calc(3 * var(--u)) solid var(--line); border-radius: calc(10 * var(--u));
+}
+.sel .lab { font-size: calc(22 * var(--u)); color: var(--text-3); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.sel .val { display: flex; align-items: center; justify-content: space-between; gap: calc(14 * var(--u)); }
+.sel .cur { flex: 1; text-align: center; }
+.sel .name { font-family: var(--font-display); font-weight: 700; font-size: calc(36 * var(--u)); color: var(--text); }
+.sel .pips { display: flex; justify-content: center; gap: calc(8 * var(--u)); margin-top: calc(6 * var(--u)); }
+.sel .pips i { width: calc(22 * var(--u)); height: calc(5 * var(--u)); border-radius: 3px; background: var(--line-2); }
+.sel .pips i.on { background: var(--text); }
+.sel .chev { width: calc(34 * var(--u)); height: calc(34 * var(--u)); color: var(--text-3); opacity: .45; }
+.sel .desc { grid-column: 1 / -1; color: var(--text-2); font-size: calc(21 * var(--u)); padding: 0 0 calc(14 * var(--u)); text-align: center; margin-left: calc(150 * var(--u)); }
+.sel.focus { border-color: var(--focus); background: linear-gradient(90deg, rgba(255, 216, 74, .12), rgba(11, 12, 19, .9) 60%); box-shadow: 0 0 0 calc(4 * var(--u)) rgba(255, 216, 74, .18), 0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, .5); }
+.sel.focus::before { content: ""; position: absolute; left: calc(-14 * var(--u)); top: 22%; bottom: 22%; width: calc(6 * var(--u)); border-radius: 3px; background: var(--focus); }
+.sel.focus .lab { color: var(--focus); }
+.sel.focus .chev { color: var(--focus); opacity: 1; }
+.sel.focus .pips i.on { background: var(--focus); }
+.sel .thumb { width: calc(72 * var(--u)); height: calc(46 * var(--u)); border-radius: calc(6 * var(--u)); border: calc(2 * var(--u)) solid var(--line-2); background: var(--stage-bg); flex: 0 0 auto; overflow: hidden; position: relative; }
+
+.btn-row { display: flex; align-items: center; justify-content: space-between; gap: calc(16 * var(--u)); padding: 0 calc(24 * var(--u)); min-height: calc(76 * var(--u)); background: var(--panel); border: calc(3 * var(--u)) solid var(--line); border-radius: calc(10 * var(--u)); }
+.btn-row .t { font-size: calc(28 * var(--u)); font-weight: 700; color: var(--text); display: flex; align-items: center; gap: calc(14 * var(--u)); }
+.btn-row .t svg { width: calc(34 * var(--u)); height: calc(34 * var(--u)); color: var(--text-2); }
+.btn-row .s { color: var(--text-3); font-size: calc(21 * var(--u)); }
+
+.primary {
+  display: flex; align-items: center; justify-content: center; gap: calc(18 * var(--u));
+  min-height: calc(104 * var(--u)); border-radius: calc(12 * var(--u));
+  font-family: var(--font-display); font-weight: 700; font-size: calc(46 * var(--u)); letter-spacing: .08em;
+  background: var(--panel-3); color: var(--text); border: calc(3 * var(--u)) solid var(--line-2);
+}
+.primary.focus { background: var(--focus); color: var(--focus-ink); border-color: var(--focus); box-shadow: 0 0 0 calc(6 * var(--u)) rgba(255, 216, 74, .22), 0 calc(14 * var(--u)) calc(40 * var(--u)) rgba(255, 216, 74, .25); }
+.primary .g { background: var(--focus-ink); }
+.secondary { background: var(--panel); color: var(--text); }
+
+.hdr { position: absolute; left: calc(120 * var(--u)); top: calc(56 * var(--u)); display: flex; align-items: baseline; gap: calc(24 * var(--u)); }
+.hdr .title { font-family: var(--font-display); font-weight: 700; font-size: calc(58 * var(--u)); letter-spacing: .06em; }
+.hdr .sub { color: var(--text-2); font-size: calc(24 * var(--u)); }
+.segs { position: absolute; right: calc(120 * var(--u)); top: calc(66 * var(--u)); display: flex; align-items: center; gap: calc(12 * var(--u)); }
+.seg { font-size: calc(24 * var(--u)); font-weight: 700; color: var(--text-2); padding: calc(10 * var(--u)) calc(22 * var(--u)); border-radius: calc(8 * var(--u)); border: calc(3 * var(--u)) solid var(--line); background: var(--panel); }
+.seg.on { color: var(--focus-ink); background: var(--focus); border-color: var(--focus); }
+
+.call { position: absolute; display: flex; align-items: center; gap: calc(16 * var(--u)); height: calc(52 * var(--u)); }
+.call.l { justify-content: flex-end; text-align: right; }
+.call .a { font-size: calc(28 * var(--u)); font-weight: 700; color: var(--text); line-height: 1.05; }
+.call .h { display: block; font-size: calc(20 * var(--u)); color: var(--text-3); font-weight: 600; }
+.call.off .a { color: var(--text-3); }
+.call.off .g { opacity: .4; }
+
+.combos { position: absolute; left: calc(130 * var(--u)); width: calc(1660 * var(--u)); top: calc(790 * var(--u)); display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(20 * var(--u)); }
+.combo { background: var(--panel); border: calc(2 * var(--u)) solid var(--line); border-radius: calc(10 * var(--u)); padding: calc(16 * var(--u)) calc(20 * var(--u)); }
+.combo .keys { display: flex; align-items: center; min-height: calc(52 * var(--u)); }
+.combo .a { font-size: calc(26 * var(--u)); font-weight: 700; margin-top: calc(8 * var(--u)); }
+.combo .h { font-size: calc(19 * var(--u)); color: var(--text-3); font-weight: 600; }
+.combos .cap { position: absolute; top: calc(-36 * var(--u)); left: 0; font-size: calc(20 * var(--u)); letter-spacing: .14em; color: var(--text-3); font-weight: 700; }
+
+.kb-cards { position: absolute; left: calc(120 * var(--u)); right: calc(120 * var(--u)); top: calc(170 * var(--u)); display: grid; grid-template-columns: 1fr 1fr; gap: calc(40 * var(--u)); }
+.kb { background: var(--panel); border: calc(2 * var(--u)) solid var(--line); border-radius: calc(12 * var(--u)); overflow: hidden; }
+.kb .top { display: flex; align-items: center; gap: calc(16 * var(--u)); padding: calc(16 * var(--u)) calc(24 * var(--u)); border-bottom: calc(2 * var(--u)) solid var(--line); }
+.kb.p1 .top { border-top: calc(6 * var(--u)) solid var(--p1); }
+.kb.p2 .top { border-top: calc(6 * var(--u)) solid var(--p2); }
+.kb .top .nm { font-size: calc(28 * var(--u)); font-weight: 700; }
+.kb .top .nt { color: var(--text-3); font-size: calc(20 * var(--u)); margin-left: auto; }
+.kb ul { list-style: none; margin: 0; padding: calc(6 * var(--u)) calc(24 * var(--u)) calc(14 * var(--u)); }
+.kb li { display: flex; align-items: center; justify-content: space-between; min-height: calc(46 * var(--u)); border-bottom: 1px solid var(--line); font-size: calc(23 * var(--u)); }
+.kb li:last-child { border-bottom: 0; }
+.kb li .ks { display: flex; align-items: center; gap: calc(6 * var(--u)); font-size: calc(19 * var(--u)); color: var(--text-3); }
+.kb li .k { height: calc(34 * var(--u)); min-width: calc(34 * var(--u)); font-size: calc(17 * var(--u)); }
+
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 700;
+  width: calc(88 * var(--u)); height: calc(88 * var(--u)); font-size: calc(42 * var(--u));
+  border-radius: calc(10 * var(--u)); flex: 0 0 auto;
+}
+.badge.p1 { background: var(--p1); color: var(--p1-ink); }
+.badge.p2 { background: var(--p2); color: var(--p2-ink); }
+.badge.sm { width: calc(48 * var(--u)); height: calc(48 * var(--u)); font-size: calc(24 * var(--u)); border-radius: calc(7 * var(--u)); }
+
+.assign { position: absolute; top: calc(210 * var(--u)); left: calc(170 * var(--u)); right: calc(170 * var(--u)); display: grid; grid-template-columns: 1fr calc(330 * var(--u)) 1fr; gap: calc(40 * var(--u)); height: calc(640 * var(--u)); }
+.slot { position: relative; background: var(--panel); border: calc(2 * var(--u)) solid var(--line); border-radius: calc(14 * var(--u)); overflow: hidden; display: flex; flex-direction: column; }
+.slot.p1 { border-top: calc(8 * var(--u)) solid var(--p1); background: linear-gradient(180deg, var(--p1-soft), var(--panel) 45%); }
+.slot.p2 { border-top: calc(8 * var(--u)) solid var(--p2); background: linear-gradient(180deg, var(--p2-soft), var(--panel) 45%); }
+.slot .head { display: flex; align-items: center; gap: calc(18 * var(--u)); padding: calc(22 * var(--u)) calc(26 * var(--u)); }
+.slot .head .nm { font-family: var(--font-display); font-weight: 700; font-size: calc(36 * var(--u)); letter-spacing: .05em; }
+.slot .head .st { margin-left: auto; font-size: calc(22 * var(--u)); font-weight: 700; padding: calc(6 * var(--u)) calc(14 * var(--u)); border-radius: calc(6 * var(--u)); }
+.st.ready { color: #0d1a0d; background: var(--g-a); }
+.st.bot { color: var(--text); background: var(--panel-3); border: calc(2 * var(--u)) solid var(--line-2); }
+.slot .ghost { position: absolute; right: calc(-20 * var(--u)); bottom: calc(-30 * var(--u)); width: calc(300 * var(--u)); height: calc(450 * var(--u)); opacity: .14; }
+.slot.p1 .ghost { color: var(--p1); }
+.slot.p2 .ghost { color: var(--p2); }
+.slot .list { display: flex; flex-direction: column; gap: calc(16 * var(--u)); padding: calc(6 * var(--u)) calc(26 * var(--u)); position: relative; }
+.tray { background: rgba(11, 12, 19, .55); border: calc(2 * var(--u)) dashed var(--line-2); border-radius: calc(14 * var(--u)); display: flex; flex-direction: column; align-items: stretch; }
+.tray .head { text-align: center; padding: calc(30 * var(--u)) 0 calc(18 * var(--u)); font-size: calc(22 * var(--u)); letter-spacing: .14em; color: var(--text-3); font-weight: 700; }
+.tray .list { padding: 0 calc(20 * var(--u)); display: flex; flex-direction: column; gap: calc(16 * var(--u)); }
+
+.dev {
+  position: relative; display: flex; align-items: center; gap: calc(16 * var(--u));
+  height: calc(88 * var(--u)); padding: 0 calc(18 * var(--u));
+  background: var(--panel-3); border: calc(3 * var(--u)) solid var(--line-2); border-radius: calc(10 * var(--u));
+}
+.dev .di { width: calc(46 * var(--u)); height: calc(46 * var(--u)); color: var(--text); flex: 0 0 auto; }
+.dev .dn { font-size: calc(27 * var(--u)); font-weight: 700; line-height: 1.05; }
+.dev .ds { display: block; font-size: calc(19 * var(--u)); color: var(--text-3); font-weight: 600; }
+.dev .mv { margin-left: auto; display: flex; gap: calc(6 * var(--u)); color: var(--text-3); }
+.dev .mv svg { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+.dev.on-p1 { border-color: var(--p1); box-shadow: inset calc(6 * var(--u)) 0 0 var(--p1); }
+.dev.on-p2 { border-color: var(--p2); box-shadow: inset calc(6 * var(--u)) 0 0 var(--p2); }
+.dev.idle { background: transparent; border-style: dashed; opacity: .78; }
+.dev.idle .di, .dev.idle .dn { color: var(--text-2); }
+.dev.tray-dev { flex-direction: column; justify-content: center; height: auto; padding: calc(18 * var(--u)); gap: calc(10 * var(--u)); text-align: center; }
+.dev .join { display: flex; align-items: center; gap: calc(8 * var(--u)); font-size: calc(20 * var(--u)); color: var(--text-2); font-weight: 700; animation: breathe 1.6s ease-in-out infinite; }
+.botcard { margin: calc(10 * var(--u)) calc(26 * var(--u)); padding: calc(26 * var(--u)); border-radius: calc(10 * var(--u)); border: calc(3 * var(--u)) dashed var(--line-2); text-align: center; color: var(--text-2); position: relative; }
+.botcard .big { font-family: var(--font-display); font-size: calc(44 * var(--u)); font-weight: 700; color: var(--text); letter-spacing: .1em; }
+.botcard .sm { font-size: calc(22 * var(--u)); }
+
+.pnl { position: absolute; top: calc(22 * var(--u)); width: calc(700 * var(--u)); height: calc(128 * var(--u)); display: flex; align-items: center; gap: calc(18 * var(--u)); padding: 0 calc(22 * var(--u)); background: var(--panel); }
+.pnl.l { left: calc(22 * var(--u)); clip-path: polygon(0 0, 100% 0, calc(100% - 44 * var(--u)) 100%, 0 100%); box-shadow: inset calc(6 * var(--u)) 0 0 var(--p1); padding-right: calc(60 * var(--u)); }
+.pnl.r { right: calc(22 * var(--u)); flex-direction: row-reverse; clip-path: polygon(0 0, 100% 0, 100% 100%, calc(44 * var(--u)) 100%); box-shadow: inset calc(-6 * var(--u)) 0 0 var(--p2); padding-left: calc(60 * var(--u)); }
+.pnl .main { flex: 1; display: flex; flex-direction: column; gap: calc(12 * var(--u)); }
+.pnl .row1 { display: flex; align-items: center; gap: calc(14 * var(--u)); }
+.pnl.r .row1, .pnl.r .row2 { flex-direction: row-reverse; }
+.pnl .num { font-family: var(--font-display); font-weight: 700; font-size: calc(58 * var(--u)); line-height: .9; min-width: calc(100 * var(--u)); text-align: right; font-variant-numeric: tabular-nums; }
+.pnl.r .num { text-align: left; }
+.pnl .num small { font-size: .5em; color: var(--text-2); margin-left: calc(2 * var(--u)); }
+.bar { position: relative; flex: 1; height: calc(30 * var(--u)); background: rgba(255, 255, 255, .07); border: calc(2 * var(--u)) solid var(--line-2); transform: skewX(-14deg); overflow: hidden; }
+.pnl.r .bar { transform: skewX(14deg); }
+.bar .chip, .bar .fillb { position: absolute; top: 0; bottom: 0; left: 0; }
+.pnl.r .bar .chip, .pnl.r .bar .fillb { left: auto; right: 0; }
+.bar .chip { background: var(--chip); }
+.bar .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2 * var(--u)), rgba(0, 0, 0, .55) calc(25% - 2 * var(--u)) 25%); }
+.p1c .fillb { background: linear-gradient(180deg, #ffc27f, var(--p1) 55%, #d9741a); }
+.p2c .fillb { background: linear-gradient(180deg, #9ddcff, var(--p2) 55%, #1a8fd1); }
+.bar.low .fillb { background: linear-gradient(180deg, #ff98a2, var(--danger) 55%, #c7283a); animation: lowpulse .8s ease-in-out infinite; }
+.num.low { color: var(--danger); }
+.hit .chip { animation: chipdrain 1.4s ease-in 0s infinite; }
+.pnl.shake { animation: shake 1.4s linear infinite; }
+.pnl .row2 { display: flex; align-items: center; gap: calc(12 * var(--u)); font-size: calc(22 * var(--u)); font-weight: 700; }
+.tank { width: calc(170 * var(--u)); height: calc(10 * var(--u)); background: rgba(255, 255, 255, .1); border-radius: 2px; overflow: hidden; }
+.tank i { display: block; height: 100%; }
+.row2 .tk { color: var(--text-3); font-size: calc(19 * var(--u)); font-variant-numeric: tabular-nums; }
+.row2 .none { color: var(--text-3); }
+.empty { color: var(--danger); font-size: calc(18 * var(--u)); letter-spacing: .1em; }
+
+.score { position: absolute; left: 50%; top: calc(18 * var(--u)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(6 * var(--u)); }
+.score .bo { font-size: calc(17 * var(--u)); letter-spacing: .22em; color: var(--text-2); font-weight: 700; }
+.score .sb { display: flex; align-items: center; gap: calc(18 * var(--u)); background: var(--panel); padding: calc(10 * var(--u)) calc(22 * var(--u)); border-radius: calc(10 * var(--u)); border: calc(2 * var(--u)) solid var(--line); }
+.pips2 { display: flex; gap: calc(10 * var(--u)); }
+.pip { width: calc(24 * var(--u)); height: calc(24 * var(--u)); transform: rotate(45deg); border: calc(3 * var(--u)) solid rgba(255, 255, 255, .28); border-radius: calc(3 * var(--u)); }
+.pip.p1 { background: var(--p1); border-color: var(--p1); box-shadow: 0 0 calc(12 * var(--u)) var(--p1); }
+.pip.p2 { background: var(--p2); border-color: var(--p2); box-shadow: 0 0 calc(12 * var(--u)) var(--p2); }
+.pip.new { animation: pippop .5s cubic-bezier(.2, 1.6, .4, 1) 0s infinite alternate; }
+.score .mid { text-align: center; min-width: calc(120 * var(--u)); }
+.score .rd { font-size: calc(18 * var(--u)); letter-spacing: .16em; color: var(--text-2); font-weight: 700; }
+.score .clk { font-family: var(--font-display); font-weight: 700; font-size: calc(36 * var(--u)); line-height: 1; font-variant-numeric: tabular-nums; }
+.warn { display: inline-flex; align-items: center; gap: calc(10 * var(--u)); margin-top: calc(4 * var(--u)); padding: calc(6 * var(--u)) calc(16 * var(--u)); border-radius: calc(6 * var(--u)); font-weight: 700; font-size: calc(22 * var(--u)); letter-spacing: .06em; }
+.warn.soon { color: #1f1700; background: repeating-linear-gradient(-45deg, var(--hazard) 0 calc(14 * var(--u)), #e3b232 calc(14 * var(--u)) calc(28 * var(--u))); }
+.warn.flood { color: #001a22; background: var(--flood); box-shadow: 0 0 calc(18 * var(--u)) rgba(64, 220, 255, .5); }
+.warn svg { width: calc(22 * var(--u)); height: calc(22 * var(--u)); }
+
+.dmg { position: absolute; font-family: var(--font-display); font-weight: 700; font-size: calc(46 * var(--u)); color: #fff; transform: translateX(-50%); -webkit-text-stroke: calc(2 * var(--u)) #2a0006; paint-order: stroke fill; text-shadow: 0 0 calc(14 * var(--u)) rgba(255, 77, 94, .9); animation: floatup 1.4s ease-out infinite; white-space: nowrap; }
+.dmg.pct { text-shadow: 0 0 calc(14 * var(--u)) rgba(255, 216, 74, .9); -webkit-text-stroke-color: #2a1d00; }
+.headbar { position: absolute; width: calc(96 * var(--u)); height: calc(12 * var(--u)); transform: translateX(-50%) skewX(-14deg); background: rgba(10, 10, 16, .8); border: calc(2 * var(--u)) solid rgba(255, 255, 255, .5); overflow: hidden; animation: headfade 1.4s ease-out infinite; }
+.headbar i { position: absolute; top: 0; bottom: 0; left: 0; }
+.flash { animation: flash 1.4s steps(1) infinite; }
+
+.gauge { position: absolute; right: calc(18 * var(--u)); top: calc(190 * var(--u)); width: calc(150 * var(--u)); height: calc(790 * var(--u)); }
+.gauge::before { content: ""; position: absolute; right: calc(-8 * var(--u)); top: calc(-16 * var(--u)); bottom: calc(-16 * var(--u)); width: calc(78 * var(--u)); border-radius: calc(10 * var(--u)); background: var(--panel); }
+.mk, .gauge .wl, .gauge .tl { white-space: nowrap; }
+.gauge .track { position: absolute; right: calc(42 * var(--u)); top: 0; bottom: 0; width: calc(14 * var(--u)); border-radius: calc(7 * var(--u)); background: rgba(10, 11, 18, .75); border: calc(2 * var(--u)) solid var(--line-2); overflow: hidden; }
+.gauge .wfill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(var(--w-agua), var(--water)); }
+.gauge .wfill::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-3 * var(--u)); height: calc(3 * var(--u)); background: var(--water-surface); }
+.gauge .dz { position: absolute; left: 0; right: 0; background: linear-gradient(0deg, rgba(255, 77, 94, .55), transparent); }
+.gauge .tick { position: absolute; right: calc(14 * var(--u)); width: calc(26 * var(--u)); height: calc(2 * var(--u)); background: var(--line-2); }
+.gauge .tl { position: absolute; right: 0; transform: translateY(-50%); font-size: calc(16 * var(--u)); font-weight: 700; color: var(--text-3); letter-spacing: .06em; }
+.mk { position: absolute; right: calc(64 * var(--u)); transform: translateY(-50%); display: flex; align-items: center; gap: calc(6 * var(--u)); height: calc(36 * var(--u)); padding: 0 calc(10 * var(--u)) 0 calc(4 * var(--u)); border-radius: calc(6 * var(--u)); font-weight: 700; font-size: calc(20 * var(--u)); font-variant-numeric: tabular-nums; }
+.mk::after { content: ""; position: absolute; right: calc(-12 * var(--u)); top: 50%; transform: translateY(-50%); border: calc(8 * var(--u)) solid transparent; border-left: calc(12 * var(--u)) solid currentColor; border-right: 0; }
+.mk b { display: inline-flex; align-items: center; justify-content: center; width: calc(28 * var(--u)); height: calc(28 * var(--u)); border-radius: calc(5 * var(--u)); font-family: var(--font-display); }
+.mk.p1 { background: var(--p1); color: var(--p1-ink); }
+.mk.p1::after { color: var(--p1); }
+.mk.p2 { background: var(--p2); color: var(--p2-ink); }
+.mk.p2::after { color: var(--p2); }
+.mk b { background: rgba(0, 0, 0, .25); color: inherit; }
+.mk.danger { animation: mkpulse .7s ease-in-out infinite; }
+.gauge .wl { position: absolute; right: calc(64 * var(--u)); font-size: calc(17 * var(--u)); font-weight: 700; color: var(--water-surface); letter-spacing: .08em; transform: translateY(-50%); display: flex; align-items: center; gap: calc(6 * var(--u)); }
+
+.stagechip { position: absolute; left: 50%; top: calc(200 * var(--u)); transform: translateX(-50%); display: flex; align-items: center; gap: calc(12 * var(--u)); padding: calc(8 * var(--u)) calc(18 * var(--u)) calc(8 * var(--u)) calc(8 * var(--u)); background: var(--panel); border-radius: calc(8 * var(--u)); border: calc(2 * var(--u)) solid var(--p1); font-weight: 700; font-size: calc(24 * var(--u)); letter-spacing: .08em; animation: chipin 2.4s ease-out infinite; }
+
+.pctnum { font-family: var(--font-display); font-weight: 700; font-size: calc(58 * var(--u)); line-height: .9; font-variant-numeric: tabular-nums; }
+.pctnum small { font-size: .5em; }
+.pctmeta { display: flex; align-items: center; gap: calc(10 * var(--u)); font-size: calc(19 * var(--u)); color: var(--text-2); font-weight: 700; }
+.pctbar { position: relative; flex: 1; height: calc(8 * var(--u)); background: rgba(255, 255, 255, .08); border-radius: 2px; overflow: hidden; }
+.pctbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #ffffff, var(--focus) 30%, var(--danger)); background-size: calc(400 * var(--u)) 100%; }
+.pnl.r .pctbar i { left: auto; right: 0; background: linear-gradient(270deg, #ffffff, var(--focus) 30%, var(--danger)); }
+.pctbar .tk5 { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(20% - 2 * var(--u)), rgba(0, 0, 0, .6) calc(20% - 2 * var(--u)) 20%); }
+
+.cd { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(300 * var(--u)); height: calc(300 * var(--u)); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.cd .ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--focus) 0 var(--p, 66%), rgba(255, 255, 255, .1) var(--p, 66%) 100%); -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%); mask: radial-gradient(circle, transparent 62%, #000 63%); animation: ring 1s linear infinite; }
+.cd .core { position: absolute; inset: calc(28 * var(--u)); border-radius: 50%; background: var(--panel); }
+.cd .n { position: relative; font-family: var(--font-display); font-weight: 700; font-size: calc(190 * var(--u)); line-height: 1; animation: cdpop 1s cubic-bezier(.2, 1.4, .4, 1) infinite; }
+.cd-label { position: absolute; left: 0; right: 0; text-align: center; font-size: calc(30 * var(--u)); letter-spacing: .3em; font-weight: 700; color: var(--text-2); }
+.ya { position: absolute; font-family: var(--font-display); font-style: italic; font-weight: 700; color: var(--focus); text-shadow: 0 0 calc(30 * var(--u)) rgba(255, 216, 74, .6); }
+
+.band { position: absolute; left: 0; right: 0; top: calc(380 * var(--u)); height: calc(290 * var(--u)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(8 * var(--u)); }
+.band.p2 { background: linear-gradient(90deg, rgba(8, 9, 14, 0) 0%, rgba(8, 9, 14, .82) 18%, rgba(8, 9, 14, .82) 82%, rgba(8, 9, 14, 0) 100%); }
+.band::before, .band::after { content: ""; position: absolute; left: 15%; right: 15%; height: calc(4 * var(--u)); }
+.band.p2::before, .band.p2::after { background: linear-gradient(90deg, transparent, var(--p2), transparent); }
+.band::before { top: 0; }
+.band::after { bottom: 0; }
+.band .k1 { font-size: calc(22 * var(--u)); letter-spacing: .3em; color: var(--text-2); font-weight: 700; }
+.band .big { font-family: var(--font-display); font-weight: 700; font-size: calc(92 * var(--u)); line-height: 1; letter-spacing: .03em; animation: slidein .45s cubic-bezier(.2, 1, .3, 1) both; }
+.band .row { display: flex; align-items: center; gap: calc(26 * var(--u)); font-size: calc(24 * var(--u)); color: var(--text-2); font-weight: 600; }
+.c1 { color: var(--p1); }
+.c2 { color: var(--p2); }
+
+.final { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(14 * var(--u)); }
+.final .lbl { font-size: calc(24 * var(--u)); letter-spacing: .3em; color: var(--text-2); font-weight: 700; }
+.final .who { display: flex; align-items: center; gap: calc(28 * var(--u)); }
+.final .who .badge { width: calc(150 * var(--u)); height: calc(150 * var(--u)); font-size: calc(76 * var(--u)); border-radius: calc(18 * var(--u)); box-shadow: 0 0 calc(60 * var(--u)) rgba(51, 181, 255, .55); }
+.final .who .t { font-family: var(--font-display); font-weight: 700; font-size: calc(92 * var(--u)); line-height: .95; letter-spacing: .03em; }
+.final .sc { font-family: var(--font-display); font-weight: 700; font-size: calc(110 * var(--u)); line-height: 1; display: flex; align-items: center; gap: calc(30 * var(--u)); margin: calc(10 * var(--u)) 0 calc(18 * var(--u)); font-variant-numeric: tabular-nums; }
+.final .sc .dash { color: var(--text-3); font-size: .6em; }
+.final .sc .lose { color: var(--text-3); }
+.final .btns { display: flex; gap: calc(24 * var(--u)); }
+.final .btns .primary { min-width: calc(360 * var(--u)); min-height: calc(92 * var(--u)); font-size: calc(36 * var(--u)); }
+.lock { position: relative; overflow: hidden; }
+.lock::after { content: ""; position: absolute; left: 0; bottom: 0; height: calc(6 * var(--u)); background: var(--focus-ink); opacity: .35; animation: unlock 1s linear forwards; }
+
+@keyframes breathe { 50% { opacity: .45; } }
+@keyframes lowpulse { 50% { filter: brightness(1.45); } }
+@keyframes chipdrain { 0%, 30% { width: 70%; } 65%, 100% { width: 58%; } }
+@keyframes shake { 0% { translate: 0 0; } 3% { translate: calc(6 * var(--u)) 0; } 6% { translate: calc(-5 * var(--u)) 0; } 9% { translate: calc(3 * var(--u)) 0; } 12%, 100% { translate: 0 0; } }
+@keyframes floatup { 0% { opacity: 0; translate: 0 calc(10 * var(--u)); scale: .6; } 10% { opacity: 1; scale: 1.25; } 22% { scale: 1; } 70% { opacity: 1; } 100% { opacity: 0; translate: 0 calc(-60 * var(--u)); } }
+@keyframes headfade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes flash { 0% { filter: brightness(3) saturate(0); } 8% { filter: none; } }
+@keyframes pippop { from { scale: .4; } to { scale: 1.15; } }
+@keyframes mkpulse { 50% { box-shadow: 0 0 0 calc(5 * var(--u)) rgba(255, 77, 94, .75); } }
+@keyframes chipin { 0% { opacity: 0; translate: 0 calc(-12 * var(--u)); } 10%, 85% { opacity: 1; translate: 0 0; } 100% { opacity: 0; } }
+@keyframes ring { from { --p: 100%; } to { --p: 0%; } }
+@keyframes cdpop { 0% { scale: 1.5; opacity: 0; } 18% { scale: 1; opacity: 1; } 85% { opacity: 1; } 100% { opacity: .2; scale: .9; } }
+@keyframes slidein { from { translate: calc(-60 * var(--u)) 0; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+@keyframes unlock { from { width: 100%; } to { width: 0; } }
+@property --p { syntax: "<percentage>"; inherits: false; initial-value: 66%; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="robot" viewBox="0 0 40 60">
+      <g fill="currentColor" stroke="rgba(255,255,255,.9)" stroke-width="1.4" stroke-linejoin="round">
+        <rect x="11" y="44" width="6" height="11" rx="2" transform="rotate(10 14 49)"/>
+        <rect x="23" y="44" width="6" height="11" rx="2" transform="rotate(-10 26 49)"/>
+        <circle cx="13" cy="56" r="3.6"/>
+        <circle cx="27" cy="56" r="3.6"/>
+        <rect x="11" y="20" width="18" height="24" rx="3"/>
+        <rect x="4" y="22" width="7" height="16" rx="2" transform="rotate(14 7 22)"/>
+        <rect x="29" y="22" width="7" height="16" rx="2" transform="rotate(-14 33 22)"/>
+        <circle cx="20" cy="11" r="8.5"/>
+        <rect x="14" y="8" width="12" height="4" rx="1.5" fill="rgba(0,0,0,.35)" stroke="none"/>
+      </g>
+    </symbol>
+    <symbol id="i-agua" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5C9 7 5.5 10.6 5.5 14.6a6.5 6.5 0 0 0 13 0C18.5 10.6 15 7 12 2.5z"/></symbol>
+    <symbol id="i-acido" viewBox="0 0 24 24"><path fill="currentColor" d="M10 3.5C7.6 7.2 4.8 10.1 4.8 13.4a5.2 5.2 0 0 0 10.4 0C15.2 10.1 12.4 7.2 10 3.5z"/><circle cx="18.5" cy="6.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="13" r="1.5" fill="currentColor"/><circle cx="16" cy="19.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-lava" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c1.2 3.6 5.8 6 5.8 11.2A5.8 5.8 0 0 1 6.2 13.2c0-2.3 1-3.8 2.4-5.2.2 2 1 3.2 2.3 3.6C10.4 8 11 4.8 12 2z"/></symbol>
+    <symbol id="i-miel" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5l7.5 4.3v8.6L15 18v3.5a1.5 1.5 0 0 1-3 0V19.7l-7.5-4.3V6.8z"/></symbol>
+    <symbol id="i-puno" viewBox="0 0 24 24"><path fill="currentColor" d="M6 9.5a2 2 0 0 1 2-2h8.5a2.5 2.5 0 0 1 2.5 2.5v4.5a6 6 0 0 1-6 6h-2A5 5 0 0 1 6 15.5zM8 5.5a1.5 1.5 0 0 1 3 0V7H8zm3.5-.5a1.5 1.5 0 0 1 3 0v2h-3zm3.5.5a1.5 1.5 0 0 1 3 0V7h-3z"/></symbol>
+    <symbol id="i-pad" viewBox="0 0 48 32"><path fill="currentColor" d="M13 3h22c6 0 9 4 10.6 10l2 8.4c1.2 5-2 8.6-5.6 8.6-3 0-4.6-2-6.4-5L34 23H14l-1.6 2c-1.8 3-3.4 5-6.4 5-3.6 0-6.8-3.6-5.6-8.6L2.4 13C4 7 7 3 13 3z"/><g fill="#161824"><rect x="9" y="12" width="9" height="3" rx="1"/><rect x="12" y="9" width="3" height="9" rx="1"/><circle cx="34" cy="10.5" r="2"/><circle cx="34" cy="17.5" r="2"/><circle cx="30.5" cy="14" r="2"/><circle cx="37.5" cy="14" r="2"/></g></symbol>
+    <symbol id="i-kb" viewBox="0 0 48 32"><rect x="1" y="5" width="46" height="22" rx="4" fill="currentColor"/><g fill="#161824"><rect x="5" y="9" width="5" height="4" rx="1"/><rect x="12" y="9" width="5" height="4" rx="1"/><rect x="19" y="9" width="5" height="4" rx="1"/><rect x="26" y="9" width="5" height="4" rx="1"/><rect x="33" y="9" width="5" height="4" rx="1"/><rect x="40" y="9" width="3" height="4" rx="1"/><rect x="5" y="15" width="8" height="4" rx="1"/><rect x="15" y="15" width="5" height="4" rx="1"/><rect x="22" y="15" width="5" height="4" rx="1"/><rect x="29" y="15" width="5" height="4" rx="1"/><rect x="36" y="15" width="7" height="4" rx="1"/><rect x="12" y="21" width="24" height="3" rx="1"/></g></symbol>
+    <symbol id="i-chevl" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-chevr" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4l7 8h-4.5v8h-5v-8H5z"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path fill="currentColor" d="M12 20l7-8h-4.5V4h-5v8H5z"/></symbol>
+    <symbol id="i-lr" viewBox="0 0 24 24"><path fill="currentColor" d="M2 12l6-6v4h8V6l6 6-6 6v-4H8v4z"/></symbol>
+    <symbol id="i-ud" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l6 6h-4v8h4l-6 6-6-6h4V8H6z"/></symbol>
+    <symbol id="i-dpad" viewBox="0 0 24 24"><path fill="currentColor" d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5.5C5.8 4 9 4 12 5.8 15 4 18.2 4 21 5.5V19c-2.8-1.4-6-1.4-9 .5-3-1.9-6.2-1.9-9-.5zm9 1.6V18c-2.2-1.1-4.6-1.3-7-.7V6.7c2.3-.7 4.8-.4 7 .4z"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path fill="currentColor" d="M2 14c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2v3c-2.5 0-2.5-2-5-2s-2.5 2-5 2-2.5-2-5-2-2.5 2-5 2zM12 3l4 5h-2.5v3h-3V8H8z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><path fill="currentColor" d="M11 2h2v3h4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3h4zM8.5 10a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm7 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM9 15.5h6v1.5H9zM1 10h2v5H1zm20 0h2v5h-2z"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <h1>Waterbots · maqueta de interfaz</h1>
+  <p class="lede">Cada pantalla es un lienzo 16:9 que escala entero, como el canvas del juego. Las animaciones corren en bucle solo para la demo.</p>
+
+  <nav class="tabs" role="tablist" aria-label="Pantallas">
+    <button role="tab" aria-selected="true" data-v="v1">1 · Menú</button>
+    <button role="tab" aria-selected="false" data-v="v2">2a · Controles: gamepad</button>
+    <button role="tab" aria-selected="false" data-v="v2b">2b · Controles: teclado</button>
+    <button role="tab" aria-selected="false" data-v="v3">3 · Asignación</button>
+    <button role="tab" aria-selected="false" data-v="v4">4 · HUD Clásico</button>
+    <button role="tab" aria-selected="false" data-v="v5">5 · HUD Infinito</button>
+    <button role="tab" aria-selected="false" data-v="v6">6 · Cuenta regresiva</button>
+    <button role="tab" aria-selected="false" data-v="v7">7 · Fin de ronda</button>
+    <button role="tab" aria-selected="false" data-v="v8">8 · Fin de partida</button>
+  </nav>
+
+  <!-- 1 MENÚ -->
+  <section class="view on" id="v1" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div>
+      <div class="plat" style="left:calc(240*var(--u));top:calc(660*var(--u));width:calc(250*var(--u))"></div>
+      <div class="plat" style="left:calc(1430*var(--u));top:calc(660*var(--u));width:calc(250*var(--u))"></div>
+      <div class="plat" style="left:calc(50*var(--u));top:calc(770*var(--u));width:calc(100*var(--u))"></div>
+      <div class="plat" style="left:calc(1770*var(--u));top:calc(770*var(--u));width:calc(100*var(--u))"></div>
+      <div class="ground" style="left:0;width:calc(520*var(--u));top:calc(880*var(--u));bottom:0"></div>
+      <div class="ground" style="right:0;width:calc(520*var(--u));top:calc(880*var(--u));bottom:0"></div>
+      <div class="water" style="left:calc(520*var(--u));right:calc(520*var(--u));top:calc(905*var(--u))"></div>
+      <svg class="robot p1" style="left:calc(150*var(--u));top:calc(775*var(--u))"><use href="#robot"/></svg>
+      <svg class="robot p2" style="left:calc(1700*var(--u));top:calc(775*var(--u))"><use href="#robot"/></svg>
+      <div class="scrim"></div><div class="vignette"></div>
+
+      <div class="abs logo" style="left:0;right:0;top:calc(110*var(--u));text-align:center;font-size:calc(140*var(--u))"><span class="w">WATER</span>BOTS</div>
+      <div class="abs" style="left:0;right:0;top:calc(250*var(--u));text-align:center;color:var(--text-2);font-size:calc(24*var(--u));letter-spacing:.22em;font-weight:700">ROBOTS · FLUIDOS · 1 CONTRA 1</div>
+
+      <div class="menu-col">
+        <div class="sel focus">
+          <span class="lab">Mapa</span>
+          <div class="val">
+            <svg class="chev"><use href="#i-chevl"/></svg>
+            <span class="thumb" aria-hidden="true">
+              <span class="abs" style="left:0;right:0;bottom:0;height:35%;background:var(--water)"></span>
+              <span class="abs" style="left:20%;width:30%;top:60%;height:6%;background:var(--platform-edge)"></span>
+              <span class="abs" style="left:52%;width:30%;top:35%;height:6%;background:var(--platform-edge)"></span>
+              <span class="abs" style="left:24%;width:28%;top:12%;height:6%;background:var(--platform-edge)"></span>
+              <svg class="abs" style="right:4%;top:20%;width:28%;height:60%;color:var(--water-surface)"><use href="#i-up"/></svg>
+            </span>
+            <div class="cur"><div class="name">Infinito</div><div class="pips"><i></i><i class="on"></i></div></div>
+            <svg class="chev"><use href="#i-chevr"/></svg>
+          </div>
+          <div class="desc">Subí antes que el agua · el daño suma % y empuje · solo el agua mata</div>
+        </div>
+        <div class="sel">
+          <span class="lab">Bot</span>
+          <div class="val">
+            <svg class="chev"><use href="#i-chevl"/></svg>
+            <div class="cur"><div class="name">Normal</div><div class="pips"><i></i><i class="on"></i><i></i><i></i></div></div>
+            <svg class="chev"><use href="#i-chevr"/></svg>
+          </div>
+        </div>
+        <div class="btn-row">
+          <span class="t"><svg><use href="#i-book"/></svg>Controles</span>
+          <span class="s">Botones del gamepad y teclado</span>
+        </div>
+        <div class="primary">JUGAR</div>
+      </div>
+
+      <div class="hints">
+        <span class="hint"><span class="g g-st sm">L</span><span class="g sm" style="border-radius:calc(8*var(--u))"><svg><use href="#i-dpad"/></svg></span>Elegir</span>
+        <span class="hint"><svg style="width:calc(34*var(--u));height:calc(34*var(--u));color:var(--text)"><use href="#i-lr"/></svg>Cambiar</span>
+        <span class="hint"><span class="g g-face g-a sm">A</span>Aceptar</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li><b>Una fila, una tarjeta:</b> etiqueta chica a la izquierda, valor grande al centro, flechas a los lados y puntitos que dicen cuántas opciones hay. La fila con foco tiene borde amarillo, una barra a la izquierda y la línea de descripción.</li>
+      <li><b>Mapa primero</b> (es la decisión más importante) con miniatura y una línea que dice qué cambia. "Dificultad" pasa a llamarse "Bot": solo importa si algún jugador queda sin control.</li>
+      <li><b>Los controles salen del menú</b> y van a su pantalla. Abajo solo queda la barra de botones con glifos.</li>
+    </ul>
+  </section>
+
+  <!-- 2a CONTROLES GAMEPAD -->
+  <section class="view" id="v2" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div><div class="scrim" style="background:rgba(8,9,14,.82)"></div>
+      <div class="hdr"><span class="title">CONTROLES</span></div>
+      <div class="segs"><span class="g g-sh sm">LB</span><span class="seg on">Gamepad</span><span class="seg">Teclado</span><span class="g g-sh sm">RB</span></div>
+
+      <svg class="fill" viewBox="0 0 1920 1080" aria-hidden="true">
+        <g fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2">
+          <polyline points="830,305 600,305 560,305"/>
+          <polyline points="830,345 760,370 560,370"/>
+          <polyline points="830,460 560,470"/>
+          <polyline points="890,550 760,570 560,570"/>
+          <polyline points="1090,305 1360,305"/>
+          <polyline points="1090,345 1160,370 1360,370"/>
+          <polyline points="1110,415 1300,430 1360,430"/>
+          <polyline points="1065,460 1080,490 1360,490"/>
+          <polyline points="1155,460 1300,550 1360,550"/>
+          <polyline points="1110,505 1250,610 1360,610"/>
+          <polyline points="1050,550 1180,670 1360,670"/>
+        </g>
+        <g transform="translate(660 290)">
+          <rect x="125" y="0" width="90" height="44" rx="16" fill="#262938" stroke="#5a5e72" stroke-width="3"/>
+          <rect x="385" y="0" width="90" height="44" rx="16" fill="#262938" stroke="#5a5e72" stroke-width="3"/>
+          <rect x="105" y="36" width="130" height="30" rx="12" fill="#2c2f40" stroke="#5a5e72" stroke-width="3"/>
+          <rect x="365" y="36" width="130" height="30" rx="12" fill="#2c2f40" stroke="#5a5e72" stroke-width="3"/>
+          <path d="M150,60 h300 c60,0 90,30 110,90 l40,150 c15,55 -20,90 -60,90 c-35,0 -55,-25 -75,-60 l-20,-35 h-290 l-20,35 c-20,35 -40,60 -75,60 c-40,0 -75,-35 -60,-90 l40,-150 c20,-60 50,-90 110,-90 z" fill="#1f2230" stroke="#5a5e72" stroke-width="3"/>
+          <circle cx="170" cy="170" r="42" fill="#15171f" stroke="#5a5e72" stroke-width="3"/><circle cx="170" cy="170" r="26" fill="#2c2f40"/>
+          <circle cx="390" cy="260" r="42" fill="#15171f" stroke="#5a5e72" stroke-width="3"/><circle cx="390" cy="260" r="26" fill="#2c2f40"/>
+          <path d="M218,236 h24 v12 h12 v24 h-12 v12 h-24 v-12 h-12 v-24 h12 z" transform="translate(-12 -8) scale(1.05)" fill="#2c2f40" stroke="#5a5e72" stroke-width="3"/>
+          <circle cx="450" cy="125" r="22" fill="#15171f" stroke="#ffd84a" stroke-width="3" opacity=".45"/>
+          <circle cx="405" cy="170" r="22" fill="#15171f" stroke="#4fa8ff" stroke-width="3"/>
+          <circle cx="495" cy="170" r="22" fill="#15171f" stroke="#ff6060" stroke-width="3"/>
+          <circle cx="450" cy="215" r="22" fill="#15171f" stroke="#6bd66b" stroke-width="3"/>
+          <g font-family="Chakra Petch" font-weight="700" font-size="22" text-anchor="middle">
+            <text x="450" y="133" fill="#ffd84a" opacity=".45">Y</text><text x="405" y="178" fill="#4fa8ff">X</text><text x="495" y="178" fill="#ff6060">B</text><text x="450" y="223" fill="#6bd66b">A</text>
+          </g>
+          <rect x="250" y="140" width="34" height="18" rx="9" fill="#2c2f40" stroke="#5a5e72" stroke-width="2"/>
+          <rect x="316" y="140" width="34" height="18" rx="9" fill="#2c2f40" stroke="#5a5e72" stroke-width="2"/>
+        </g>
+      </svg>
+
+      <div class="call l" style="left:calc(100*var(--u));width:calc(450*var(--u));top:calc(279*var(--u))"><span class="a">Bloquear<span class="h">mantener</span></span><span class="g g-tr">LT</span></div>
+      <div class="call l" style="left:calc(100*var(--u));width:calc(450*var(--u));top:calc(344*var(--u))"><span class="a">Arma anterior<span class="h">mantener: rueda de armas</span></span><span class="g g-sh">LB</span></div>
+      <div class="call l" style="left:calc(100*var(--u));width:calc(450*var(--u));top:calc(444*var(--u))"><span class="a">Moverse<span class="h">abajo + A: bajar de plataforma</span></span><span class="g g-st">L</span></div>
+      <div class="call l" style="left:calc(60*var(--u));width:calc(490*var(--u));top:calc(544*var(--u))">
+        <span class="a">Arma directa<span class="h" style="display:flex;gap:calc(10*var(--u));justify-content:flex-end;align-items:center;margin-top:calc(4*var(--u))">
+          <span style="display:inline-flex;align-items:center;gap:calc(2*var(--u))"><svg style="width:calc(16*var(--u));height:calc(16*var(--u))"><use href="#i-up"/></svg><svg class="wicon ic-agua" style="width:calc(22*var(--u));height:calc(22*var(--u))"><use href="#i-agua"/></svg></span>
+          <span style="display:inline-flex;align-items:center;gap:calc(2*var(--u))"><svg style="width:calc(16*var(--u));height:calc(16*var(--u));rotate:90deg"><use href="#i-up"/></svg><svg class="wicon ic-acido" style="width:calc(22*var(--u));height:calc(22*var(--u))"><use href="#i-acido"/></svg></span>
+          <span style="display:inline-flex;align-items:center;gap:calc(2*var(--u))"><svg style="width:calc(16*var(--u));height:calc(16*var(--u))"><use href="#i-down"/></svg><svg class="wicon ic-lava" style="width:calc(22*var(--u));height:calc(22*var(--u))"><use href="#i-lava"/></svg></span>
+          <span style="display:inline-flex;align-items:center;gap:calc(2*var(--u))"><svg style="width:calc(16*var(--u));height:calc(16*var(--u));rotate:-90deg"><use href="#i-up"/></svg><svg class="wicon ic-miel" style="width:calc(22*var(--u));height:calc(22*var(--u))"><use href="#i-miel"/></svg></span>
+        </span></span>
+        <span class="g" style="border-radius:calc(8*var(--u))"><svg><use href="#i-dpad"/></svg></span>
+      </div>
+
+      <div class="call" style="left:calc(1370*var(--u));top:calc(279*var(--u))"><span class="g g-tr">RT</span><span class="a">Disparar<span class="h">mantener · gasta el tanque</span></span></div>
+      <div class="call" style="left:calc(1370*var(--u));top:calc(344*var(--u))"><span class="g g-sh">RB</span><span class="a">Arma siguiente</span></div>
+      <div class="call off" style="left:calc(1370*var(--u));top:calc(404*var(--u))"><span class="g g-face g-y">Y</span><span class="a">Sin uso</span></div>
+      <div class="call" style="left:calc(1370*var(--u));top:calc(464*var(--u))"><span class="g g-face g-x">X</span><span class="a">Gancho<span class="h">mantener</span></span></div>
+      <div class="call" style="left:calc(1370*var(--u));top:calc(524*var(--u))"><span class="g g-face g-b">B</span><span class="a">Golpe<span class="h">repetir: combo</span></span></div>
+      <div class="call" style="left:calc(1370*var(--u));top:calc(584*var(--u))"><span class="g g-face g-a">A</span><span class="a">Saltar</span></div>
+      <div class="call" style="left:calc(1370*var(--u));top:calc(644*var(--u))"><span class="g g-st">R</span><span class="a">Apuntar</span></div>
+
+      <div class="combos">
+        <span class="cap">COMBINACIONES</span>
+        <div class="combo"><div class="keys"><span class="g g-tr sm">LT</span><span class="plus">+</span><span class="g g-face g-a sm">A</span></div><div class="a">Rodar</div><div class="h">hacia el stick izquierdo</div></div>
+        <div class="combo"><div class="keys"><span class="g g-st sm"><svg><use href="#i-down"/></svg></span><span class="plus">+</span><span class="g g-face g-a sm">A</span></div><div class="a">Bajar de plataforma</div><div class="h">stick izquierdo abajo</div></div>
+        <div class="combo"><div class="keys"><span class="g g-st sm"><svg><use href="#i-down"/></svg></span><span class="plus">+</span><span class="g g-face g-b sm">B</span></div><div class="a">Patada</div><div class="h">en el aire</div></div>
+        <div class="combo"><div class="keys"><span class="g g-face g-b sm">B</span><span class="g g-face g-b sm" style="margin-left:calc(6*var(--u))">B</span><span class="g g-face g-b sm" style="margin-left:calc(6*var(--u))">B</span></div><div class="a">Combo de golpes</div><div class="h">tocá B a tiempo</div></div>
+      </div>
+
+      <div class="hints">
+        <span class="hint"><span class="g g-sh sm">LB</span><span class="g g-sh sm">RB</span>Pestaña</span>
+        <span class="hint"><span class="g g-face g-b sm">B</span>Volver</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li><b>El gamepad dibujado es el mapa:</b> cada botón tiene una línea a su acción, con el mismo color y forma del glifo. Lo que se mantiene apretado lo dice abajo, en gris.</li>
+      <li>La cruceta muestra el arma de cada dirección con su ícono. Las combinaciones van en tarjetas aparte para que no se pierdan en la lista.</li>
+      <li>Y se muestra apagado ("sin uso") para que nadie lo pruebe esperando algo. Cuando entre el modo ragdoll se enciende.</li>
+    </ul>
+  </section>
+
+  <!-- 2b CONTROLES TECLADO -->
+  <section class="view" id="v2b" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div><div class="scrim" style="background:rgba(8,9,14,.82)"></div>
+      <div class="hdr"><span class="title">CONTROLES</span><span class="sub">El teclado es respaldo: nunca le gana al gamepad</span></div>
+      <div class="segs"><span class="g g-sh sm">LB</span><span class="seg">Gamepad</span><span class="seg on">Teclado</span><span class="g g-sh sm">RB</span></div>
+      <div class="kb-cards">
+        <div class="kb p1">
+          <div class="top"><span class="badge sm p1">J1</span><span class="nm">Teclado y mouse</span><span class="nt">lado izquierdo</span></div>
+          <ul>
+            <li>Moverse<span class="ks"><span class="k">A</span><span class="k">D</span></span></li>
+            <li>Saltar<span class="ks"><span class="k">W</span></span></li>
+            <li>Apuntar<span class="ks"><span class="k mouse">Mouse</span></span></li>
+            <li>Disparar<span class="ks"><span class="k wide">Espacio</span>o<span class="k mouse">Clic izq.</span></span></li>
+            <li>Golpe · combo<span class="ks"><span class="k">F</span></span></li>
+            <li>Bloquear<span class="ks"><span class="k">G</span></span></li>
+            <li>Gancho<span class="ks"><span class="k">E</span>o<span class="k mouse">Clic der.</span></span></li>
+            <li>Arma ant. · rueda<span class="ks"><span class="k">Q</span></span></li>
+            <li>Arma siguiente<span class="ks"><span class="k">R</span></span></li>
+            <li>Arma directa<span class="ks"><span class="k">1</span><span class="k">2</span><span class="k">3</span><span class="k">4</span></span></li>
+            <li>Rodar · Patada · Bajar<span class="ks"><span class="k">G</span>+<span class="k">W</span>&nbsp;<span class="k">S</span>+<span class="k">F</span>&nbsp;<span class="k">S</span>+<span class="k">W</span></span></li>
+          </ul>
+        </div>
+        <div class="kb p2">
+          <div class="top"><span class="badge sm p2">J2</span><span class="nm">Flechas y teclado numérico</span><span class="nt">lado derecho</span></div>
+          <ul>
+            <li>Moverse<span class="ks"><span class="k">←</span><span class="k">→</span></span></li>
+            <li>Saltar<span class="ks"><span class="k">↑</span></span></li>
+            <li>Apuntar<span class="ks">hacia donde camina</span></li>
+            <li>Disparar<span class="ks"><span class="k wide">Enter</span></span></li>
+            <li>Golpe · combo<span class="ks"><span class="k">Num 5</span></span></li>
+            <li>Bloquear<span class="ks"><span class="k">Num −</span></span></li>
+            <li>Gancho<span class="ks"><span class="k">Num 0</span></span></li>
+            <li>Arma ant. · rueda<span class="ks"><span class="k">Ctrl der.</span></span></li>
+            <li>Arma siguiente<span class="ks"><span class="k">Num +</span></span></li>
+            <li>Arma directa<span class="ks"><span class="k">Num 1</span>…<span class="k">Num 4</span></span></li>
+            <li>Rodar · Patada · Bajar<span class="ks"><span class="k">−</span>+<span class="k">↑</span>&nbsp;<span class="k">↓</span>+<span class="k">5</span>&nbsp;<span class="k">↓</span>+<span class="k">↑</span></span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="hints">
+        <span class="hint"><span class="g g-sh sm">LB</span><span class="g g-sh sm">RB</span>Pestaña</span>
+        <span class="hint"><span class="g g-face g-b sm">B</span><span class="k" style="height:calc(34*var(--u))">Esc</span>Volver</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li>Una tarjeta por jugador con su color, una acción por fila y teclas dibujadas como teclas. El orden de las filas es el mismo que en la pestaña del gamepad.</li>
+      <li>Se corrige un dato viejo del menú actual: el bloqueo del J1 es <b>G</b>, no Shift (GDD 10.1).</li>
+    </ul>
+  </section>
+
+  <!-- 3 ASIGNACIÓN -->
+  <section class="view" id="v3" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div><div class="scrim" style="background:rgba(8,9,14,.8)"></div>
+      <div class="abs" style="left:0;right:0;top:calc(62*var(--u));text-align:center">
+        <div style="font-family:var(--font-display);font-weight:700;font-size:calc(58*var(--u));letter-spacing:.06em">¿QUIÉN JUEGA?</div>
+        <div style="color:var(--text-2);font-size:calc(24*var(--u));margin-top:calc(6*var(--u))">Mové tu control hacia un jugador · Infinito · Bot Normal</div>
+      </div>
+      <div class="assign">
+        <div class="slot p1">
+          <svg class="ghost"><use href="#robot"/></svg>
+          <div class="head"><span class="badge p1">J1</span><span class="nm">JUGADOR 1</span><span class="st ready">LISTO</span></div>
+          <div class="list">
+            <div class="dev on-p1"><svg class="di"><use href="#i-pad"/></svg><span class="dn">Gamepad 1<span class="ds">sumado</span></span><span class="mv"><svg style="opacity:.25"><use href="#i-chevl"/></svg><svg><use href="#i-chevr"/></svg></span></div>
+            <div class="dev on-p1"><svg class="di"><use href="#i-kb"/></svg><span class="dn">Teclado y mouse<span class="ds">respaldo</span></span><span class="mv"><svg style="opacity:.25"><use href="#i-chevl"/></svg><svg><use href="#i-chevr"/></svg></span></div>
+          </div>
+        </div>
+        <div class="tray">
+          <div class="head">SIN JUGAR</div>
+          <div class="list">
+            <div class="dev idle tray-dev">
+              <svg class="di" style="width:calc(64*var(--u));height:calc(44*var(--u))"><use href="#i-pad"/></svg>
+              <span class="dn">Gamepad 2</span>
+              <span class="join"><span class="g g-face g-a sm">A</span>para sumarte</span>
+              <span class="mv" style="margin:0;justify-content:center;gap:calc(60*var(--u))"><svg><use href="#i-chevl"/></svg><svg><use href="#i-chevr"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="slot p2">
+          <svg class="ghost"><use href="#robot"/></svg>
+          <div class="head"><span class="badge p2">J2</span><span class="nm">JUGADOR 2</span><span class="st bot">BOT</span></div>
+          <div class="botcard">
+            <svg style="width:calc(72*var(--u));height:calc(72*var(--u));color:var(--text-2)"><use href="#i-bot"/></svg>
+            <div class="big">BOT</div>
+            <div class="sm">Sin control: lo maneja el bot · <b style="color:var(--text)">Normal</b></div>
+            <div class="sm" style="margin-top:calc(14*var(--u));color:var(--text-3)">Mové un control hasta acá para jugar vos</div>
+          </div>
+        </div>
+      </div>
+      <div class="hints">
+        <span class="hint"><span class="g g-st sm"><svg><use href="#i-lr"/></svg></span>Mover tu control</span>
+        <span class="hint"><span class="g g-face g-a sm">A</span>Sumarte</span>
+        <span class="hint"><span class="g g-menu sm">≡</span>Empezar</span>
+        <span class="hint"><span class="g g-face g-b sm">B</span>Volver</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li><b>Tres lugares, no tres palabras:</b> J1 y J2 son tarjetas grandes con su color; "Sin jugar" es una bandeja punteada en el medio. Cada control es una ficha con ícono (gamepad o teclado) que su dueño mueve con su propio stick.</li>
+      <li><b>Estados a la vista:</b> ficha sólida con el borde del jugador = sumada; punteada y "A para sumarte" = conectada pero sin sumar; jugador sin control = tarjeta "BOT" con la dificultad elegida en el menú.</li>
+      <li>Las flechas de cada ficha muestran hacia dónde se puede mover (la flecha hacia la pared se apaga).</li>
+    </ul>
+  </section>
+
+  <!-- 4 HUD CLÁSICO -->
+  <section class="view" id="v4" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div>
+      <div class="plat" style="left:calc(240*var(--u));top:calc(560*var(--u));width:calc(300*var(--u))"></div>
+      <div class="plat" style="left:calc(1380*var(--u));top:calc(560*var(--u));width:calc(300*var(--u))"></div>
+      <div class="plat" style="left:calc(760*var(--u));top:calc(420*var(--u));width:calc(400*var(--u))"></div>
+      <div class="plat" style="left:calc(810*var(--u));top:calc(700*var(--u));width:calc(300*var(--u))"></div>
+      <div class="ground" style="left:0;width:calc(520*var(--u));top:calc(860*var(--u));bottom:0"></div>
+      <div class="ground" style="right:0;width:calc(520*var(--u));top:calc(860*var(--u));bottom:0"></div>
+      <div class="water" style="left:calc(520*var(--u));right:calc(520*var(--u));top:calc(890*var(--u))"></div>
+      <svg class="robot p1" style="left:calc(380*var(--u));top:calc(455*var(--u))"><use href="#robot"/></svg>
+      <svg class="abs" style="left:calc(440*var(--u));top:calc(470*var(--u));width:calc(1000*var(--u));height:calc(80*var(--u))" viewBox="0 0 1000 80" aria-hidden="true">
+        <g fill="#32ff32" opacity=".9">
+          <circle cx="20" cy="22" r="7"/><circle cx="90" cy="20" r="8"/><circle cx="170" cy="21" r="7"/><circle cx="260" cy="24" r="8"/><circle cx="350" cy="28" r="7"/><circle cx="440" cy="33" r="8"/><circle cx="530" cy="38" r="7"/><circle cx="620" cy="44" r="8"/><circle cx="710" cy="50" r="7"/><circle cx="790" cy="54" r="8"/><circle cx="860" cy="58" r="9"/><circle cx="880" cy="48" r="6"/><circle cx="900" cy="62" r="7"/>
+        </g>
+      </svg>
+      <svg class="robot p2 flash" style="left:calc(1320*var(--u));top:calc(455*var(--u))"><use href="#robot"/></svg>
+      <div class="headbar" style="left:calc(1355*var(--u));top:calc(425*var(--u))"><i style="width:70%;background:var(--chip)"></i><i style="width:58%;background:var(--p2)"></i></div>
+      <div class="dmg" style="left:calc(1355*var(--u));top:calc(350*var(--u))">−12</div>
+
+      <div class="pnl l">
+        <span class="badge p1">J1</span>
+        <div class="main">
+          <div class="row1 p1c"><div class="bar low"><div class="fillb" style="width:24%"></div><div class="ticks"></div></div><span class="num low">24</span></div>
+          <div class="row2"><svg class="wicon ic-acido"><use href="#i-acido"/></svg><span>Ácido</span><span class="tank"><i style="width:62%;background:var(--w-acido)"></i></span></div>
+        </div>
+      </div>
+      <div class="pnl r shake">
+        <span class="badge p2">J2</span>
+        <div class="main">
+          <div class="row1 p2c"><div class="bar hit"><div class="chip" style="width:70%"></div><div class="fillb" style="width:58%"></div><div class="ticks"></div></div><span class="num">58</span></div>
+          <div class="row2"><svg class="wicon ic-lava"><use href="#i-lava"/></svg><span>Lava</span><span class="tank"><i style="width:0"></i></span><span class="empty">VACÍO</span></div>
+        </div>
+      </div>
+      <div class="score">
+        <span class="bo">AL MEJOR DE 3</span>
+        <div class="sb">
+          <span class="pips2"><span class="pip p1"></span><span class="pip"></span></span>
+          <div class="mid"><div class="rd">RONDA 2</div><div class="clk">0:53</div></div>
+          <span class="pips2"><span class="pip"></span><span class="pip"></span></span>
+        </div>
+        <span class="warn soon"><svg><use href="#i-wave"/></svg>INUNDACIÓN EN 7</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li><b>Arriba, con fondo propio:</b> los paneles de vida salen de las esquinas de abajo (donde está la pileta y después el agua) y van arriba sobre un fondo oscuro. Ya no compiten con el mapa.</li>
+      <li><b>Vida = barra del color del jugador + número grande.</b> Marcas cada 25. Con menos de 30 se pone roja y late; la insignia "J1" sigue naranja para no perder quién es.</li>
+      <li><b>Feedback de daño (J2):</b> el robot destella, sube un número "−12" sobre la cabeza, aparece una barrita sobre él y en el panel queda un tramo blanco con lo perdido, que se vacía enseguida. El panel tiembla apenas.</li>
+      <li><b>Marcador central "Al mejor de 3":</b> rombos de victorias de cada lado, ronda y reloj al medio, y abajo el aviso de inundación con franjas de peligro.</li>
+    </ul>
+  </section>
+
+  <!-- 5 HUD INFINITO -->
+  <section class="view" id="v5" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div>
+      <div class="plat" style="left:calc(210*var(--u));top:calc(250*var(--u));width:calc(620*var(--u))"></div>
+      <div class="plat" style="left:calc(990*var(--u));top:calc(260*var(--u));width:calc(600*var(--u))"></div>
+      <div class="plat" style="left:calc(1180*var(--u));top:calc(440*var(--u));width:calc(320*var(--u))"></div>
+      <div class="plat" style="left:calc(600*var(--u));top:calc(650*var(--u));width:calc(500*var(--u))"></div>
+      <div class="plat" style="left:calc(80*var(--u));top:calc(470*var(--u));width:calc(300*var(--u))"></div>
+      <div class="water" style="top:calc(860*var(--u))"></div>
+      <span class="abs" style="left:calc(530*var(--u));top:calc(205*var(--u));width:calc(36*var(--u));height:calc(36*var(--u));border-radius:50%;background:var(--w-agua);border:calc(3*var(--u)) solid #fff"></span>
+      <svg class="robot p1" style="left:calc(700*var(--u));top:calc(545*var(--u))"><use href="#robot"/></svg>
+      <svg class="robot p2 flash" style="left:calc(860*var(--u));top:calc(540*var(--u));rotate:-12deg"><use href="#robot"/></svg>
+      <div class="dmg pct" style="left:calc(895*var(--u));top:calc(460*var(--u))">+9 %</div>
+
+      <div class="pnl l">
+        <span class="badge p1">J1</span>
+        <div class="main">
+          <div class="row1"><span class="pctnum" style="color:#ffe9a0">87<small>%</small></span><div class="pctmeta" style="flex:1"><div class="pctbar"><i style="width:17.4%"></i><div class="tk5"></div></div><span>empuje ×1,9</span></div></div>
+          <div class="row2"><svg class="wicon ic-miel"><use href="#i-miel"/></svg><span>Miel</span><span class="tank"><i style="width:80%;background:var(--w-miel)"></i></span></div>
+        </div>
+      </div>
+      <div class="pnl r shake">
+        <span class="badge p2">J2</span>
+        <div class="main">
+          <div class="row1"><span class="pctnum" style="color:#ff8a6a">212<small>%</small></span><div class="pctmeta" style="flex:1;flex-direction:row-reverse"><div class="pctbar"><i style="width:42.4%"></i><div class="tk5"></div></div><span>empuje ×3,1</span></div></div>
+          <div class="row2"><svg class="wicon" style="color:var(--text-3)"><use href="#i-puno"/></svg><span class="none">Sin arma · solo golpe</span></div>
+        </div>
+      </div>
+      <div class="score">
+        <span class="bo">AL MEJOR DE 3</span>
+        <div class="sb">
+          <span class="pips2"><span class="pip"></span><span class="pip"></span></span>
+          <div class="mid"><div class="rd">RONDA 1</div><div class="clk">1:12</div></div>
+          <span class="pips2"><span class="pip p2"></span><span class="pip"></span></span>
+        </div>
+        <span class="warn flood"><svg><use href="#i-wave"/></svg>EL AGUA SUBE</span>
+      </div>
+      <div class="stagechip"><span class="badge sm p1">J1</span>ETAPA 3 · VIDA Y TANQUES</div>
+
+      <div class="gauge">
+        <div class="track">
+          <div class="dz" style="bottom:calc(60*var(--u));height:calc(56*var(--u))"></div>
+          <div class="wfill" style="height:calc(60*var(--u))"></div>
+        </div>
+        <span class="tick" style="top:calc(130*var(--u))"></span><span class="tl" style="top:calc(130*var(--u))">E4</span>
+        <span class="tick" style="top:calc(305*var(--u))"></span><span class="tl" style="top:calc(305*var(--u))">E3</span>
+        <span class="tick" style="top:calc(480*var(--u))"></span><span class="tl" style="top:calc(480*var(--u))">E2</span>
+        <span class="tick" style="top:calc(655*var(--u))"></span><span class="tl" style="top:calc(655*var(--u))">E1</span>
+        <span class="mk p1" style="top:calc(470*var(--u))"><b>1</b>20 m</span>
+        <span class="mk p2 danger" style="top:calc(690*var(--u))"><b>2</b>3 m</span>
+        <span class="wl" style="top:calc(745*var(--u))"><svg style="width:calc(18*var(--u));height:calc(18*var(--u))"><use href="#i-up"/></svg>AGUA</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li><b>Mismo esqueleto que Clásico</b>, con el % de daño en lugar de la vida. El número pasa de blanco a amarillo y a rojo a medida que sube; debajo, una barra fina hasta el tope de 500 % (marcas cada 100) y el empuje actual (1 + %/100). En el robot, el número flotante es "+9 %" en amarillo.</li>
+      <li><b>Medidor de altura a la derecha:</b> una ventana que sigue al agua (abajo siempre el agua, arriba ~60 m). Cada jugador es una ficha de su color con los metros que le saca al agua. Rayas por etapa. La zona roja son los últimos 4 m: la ficha que entra late.</li>
+      <li>Sin arma se dice en el panel ("Sin arma · solo golpe") en vez de dejar un hueco. El premio de etapa sale como ficha chica bajo el marcador, con la insignia de quien lo ganó.</li>
+    </ul>
+  </section>
+
+  <!-- 6 CUENTA REGRESIVA -->
+  <section class="view" id="v6" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div>
+      <div class="plat" style="left:calc(560*var(--u));top:calc(690*var(--u));width:calc(800*var(--u))"></div>
+      <div class="plat" style="left:0;top:calc(650*var(--u));width:calc(340*var(--u))"></div>
+      <div class="water" style="top:calc(860*var(--u))"></div>
+      <svg class="robot p1" style="left:calc(660*var(--u));top:calc(585*var(--u))"><use href="#robot"/></svg>
+      <svg class="robot p2" style="left:calc(1180*var(--u));top:calc(585*var(--u))"><use href="#robot"/></svg>
+      <div class="scrim" style="background:rgba(8,9,14,.35)"></div>
+      <div class="pnl l"><span class="badge p1">J1</span><div class="main"><div class="row1"><span class="pctnum">0<small>%</small></span><div class="pctmeta" style="flex:1"><div class="pctbar"><i style="width:0"></i><div class="tk5"></div></div><span>empuje ×1,0</span></div></div><div class="row2"><svg class="wicon" style="color:var(--text-3)"><use href="#i-puno"/></svg><span class="none">Sin arma · solo golpe</span></div></div></div>
+      <div class="pnl r"><span class="badge p2">J2</span><div class="main"><div class="row1"><span class="pctnum">0<small>%</small></span><div class="pctmeta" style="flex:1;flex-direction:row-reverse"><div class="pctbar"><i style="width:0"></i><div class="tk5"></div></div><span>empuje ×1,0</span></div></div><div class="row2"><svg class="wicon" style="color:var(--text-3)"><use href="#i-puno"/></svg><span class="none">Sin arma · solo golpe</span></div></div></div>
+      <div class="score"><span class="bo">AL MEJOR DE 3</span><div class="sb"><span class="pips2"><span class="pip"></span><span class="pip"></span></span><div class="mid"><div class="rd">RONDA 2</div><div class="clk">0:00</div></div><span class="pips2"><span class="pip p2"></span><span class="pip"></span></span></div></div>
+      <div class="cd-label" style="top:calc(330*var(--u))">RONDA 2</div>
+      <div class="cd"><div class="ring"></div><div class="core"></div><span class="n">2</span></div>
+      <div class="abs" style="right:calc(60*var(--u));bottom:calc(60*var(--u));width:calc(380*var(--u));height:calc(214*var(--u));border:calc(2*var(--u)) solid var(--line-2);border-radius:calc(10*var(--u));background:var(--stage-bg);overflow:hidden">
+        <span class="abs" style="left:calc(10*var(--u));top:calc(8*var(--u));font-size:calc(16*var(--u));color:var(--text-3);font-weight:700;letter-spacing:.1em">DESPUÉS DEL 1</span>
+        <span class="ya" style="left:0;right:0;top:calc(40*var(--u));text-align:center;font-size:calc(110*var(--u))">¡YA!</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li>En lugar de la banda oscura de lado a lado, un emblema circular al centro: el número grande y un anillo que se vacía en el segundo. Deja ver a los robots y el HUD de arriba ya está puesto.</li>
+      <li>"¡YA!" (recuadro de abajo a la derecha, solo de referencia) en amarillo y en itálica, entra grande y se va en 0,6 s.</li>
+    </ul>
+  </section>
+
+  <!-- 7 FIN DE RONDA -->
+  <section class="view" id="v7" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div>
+      <div class="plat" style="left:0;top:calc(710*var(--u));width:calc(420*var(--u))"></div>
+      <div class="plat" style="left:calc(680*var(--u));top:calc(730*var(--u));width:calc(640*var(--u))"></div>
+      <div class="water" style="top:calc(830*var(--u))"></div>
+      <svg class="robot p1" style="left:calc(560*var(--u));top:calc(800*var(--u));rotate:-70deg;opacity:.55"><use href="#robot"/></svg>
+      <svg class="robot p2" style="left:calc(1040*var(--u));top:calc(625*var(--u))"><use href="#robot"/></svg>
+      <div class="pnl l"><span class="badge p1">J1</span><div class="main"><div class="row1"><span class="pctnum" style="color:#ffb27a">164<small>%</small></span><div class="pctmeta" style="flex:1"><div class="pctbar"><i style="width:32.8%"></i><div class="tk5"></div></div><span>empuje ×2,6</span></div></div><div class="row2"><svg class="wicon ic-agua"><use href="#i-agua"/></svg><span>Agua</span><span class="tank"><i style="width:30%;background:var(--w-agua)"></i></span></div></div></div>
+      <div class="pnl r"><span class="badge p2">J2</span><div class="main"><div class="row1"><span class="pctnum" style="color:#ffe9a0">71<small>%</small></span><div class="pctmeta" style="flex:1;flex-direction:row-reverse"><div class="pctbar"><i style="width:14.2%"></i><div class="tk5"></div></div><span>empuje ×1,7</span></div></div><div class="row2"><svg class="wicon ic-acido"><use href="#i-acido"/></svg><span>Ácido</span><span class="tank"><i style="width:55%;background:var(--w-acido)"></i></span></div></div></div>
+      <div class="score"><span class="bo">AL MEJOR DE 3</span><div class="sb"><span class="pips2"><span class="pip"></span><span class="pip"></span></span><div class="mid"><div class="rd">RONDA 1</div><div class="clk">0:48</div></div><span class="pips2"><span class="pip p2 new"></span><span class="pip"></span></span></div></div>
+      <div class="band p2">
+        <span class="k1">RONDA 1</span>
+        <span class="big"><span class="c2">J2</span> GANA LA RONDA</span>
+        <span class="row"><span class="pips2"><span class="pip"></span><span class="pip"></span></span><span style="font-family:var(--font-display);font-size:calc(40*var(--u));color:var(--text)"><span class="c1">0</span> – <span class="c2">1</span></span><span class="pips2"><span class="pip p2 new"></span><span class="pip"></span></span></span>
+        <span class="row" style="font-size:calc(22*var(--u));color:var(--text-3)">J1 se ahogó · Ronda 2 en 2</span>
+      </div>
+    </div></div>
+    <ul class="notes">
+      <li>La banda es más baja, se desvanece hacia los costados y lleva líneas del color del ganador. El nombre del ganador va en su color.</li>
+      <li>El rombo nuevo aparece en el marcador de arriba y en la banda a la vez, con un pequeño rebote: así se aprende dónde mirar el marcador.</li>
+      <li>Debajo, por qué terminó (si el juego ya lo sabe) y cuándo empieza la siguiente. Empate: banda gris, "EMPATE", "nadie suma".</li>
+    </ul>
+  </section>
+
+  <!-- 8 FIN DE PARTIDA -->
+  <section class="view" id="v8" role="tabpanel">
+    <div class="screen"><div class="stage">
+      <div class="bg"></div>
+      <div class="plat" style="left:calc(90*var(--u));top:calc(170*var(--u));width:calc(570*var(--u))"></div>
+      <div class="plat" style="left:calc(820*var(--u));top:calc(160*var(--u));width:calc(1100*var(--u))"></div>
+      <div class="plat" style="left:calc(1400*var(--u));top:calc(770*var(--u));width:calc(420*var(--u))"></div>
+      <div class="water" style="top:calc(830*var(--u))"></div>
+      <svg class="robot p2" style="left:calc(1570*var(--u));top:calc(665*var(--u))"><use href="#robot"/></svg>
+      <div class="scrim" style="background:radial-gradient(60% 60% at 50% 50%, rgba(51,181,255,.16), rgba(8,9,14,.86) 70%)"></div>
+      <div class="final">
+        <span class="lbl">PARTIDA TERMINADA</span>
+        <div class="who"><span class="badge p2">J2</span><span class="t">GANA LA<br>PARTIDA</span></div>
+        <div class="sc"><span class="pips2"><span class="pip"></span><span class="pip"></span></span><span class="lose">0</span><span class="dash">–</span><span class="c2">2</span><span class="pips2"><span class="pip p2"></span><span class="pip p2"></span></span></div>
+        <div class="btns">
+          <div class="primary focus"><span class="g g-face g-a">A</span>REVANCHA</div>
+          <div class="primary secondary"><span class="g g-menu">≡</span>MENÚ</div>
+        </div>
+      </div>
+      <div class="abs" style="left:0;right:0;bottom:calc(40*var(--u));text-align:center;color:var(--text-3);font-size:calc(20*var(--u));font-weight:600">Teclado: Enter revancha · Esc menú</div>
+    </div></div>
+    <ul class="notes">
+      <li>Pantalla entera atenuada con un brillo del color del ganador. La insignia grande y el marcador con los dígitos en color dicen quién ganó sin leer.</li>
+      <li>Revancha y Menú son botones con su glifo, no una línea de texto. Durante el primer segundo los dos están bloqueados (atenuados, con una barrita que se vacía) para que nadie acepte sin querer.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.tabs button').forEach(function (x) { x.setAttribute('aria-selected', x.dataset.v === id ? 'true' : 'false'); });
+  document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('on', v.id === id); });
+}
+document.querySelectorAll('.tabs button').forEach(function (b) {
+  b.addEventListener('click', function () { show(b.dataset.v); history.replaceState(null, '', '#' + b.dataset.v); });
+});
+if (document.getElementById(location.hash.slice(1))) show(location.hash.slice(1));
+</script>
+</body>
+</html>
