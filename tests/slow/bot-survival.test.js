@@ -8,13 +8,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { runBots } from "./helpers/bot-run.js";
+import { runBots } from "../helpers/bot-run.js";
 
 const require = createRequire(import.meta.url);
-globalThis.Box2D = require("../vendor/liquidfun.js");
+globalThis.Box2D = require("../../vendor/liquidfun.js");
 
-const { BOT, buildNav, canReach, edgeInward, jumpMargin, landingNode, lungeFits, survivalMode } = await import("../js/bot.js");
-const { LEVEL } = await import("../js/level.js");
+const { BOT, buildNav, canReach, edgeInward, jumpMargin, landingNode, lungeFits, survivalMode } = await import("../../js/bot.js");
+const { LEVEL } = await import("../../js/level.js");
 
 const HARD_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const NORMAL_SEEDS = [1, 2, 3, 4, 5];

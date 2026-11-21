@@ -5,14 +5,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { loadGame } from "./helpers/game.js";
+import { loadGame } from "../helpers/game.js";
 
 const require = createRequire(import.meta.url);
-globalThis.Box2D = require("../vendor/liquidfun.js");
+globalThis.Box2D = require("../../vendor/liquidfun.js");
 
-const { Climb, CLIMB, stageOf } = await import("../js/climb.js");
-const { OneWayPlatforms } = await import("../js/platforms.js");
-const { Pickups } = await import("../js/pickups.js");
+const { Climb, CLIMB, stageOf } = await import("../../js/climb.js");
+const { OneWayPlatforms } = await import("../../js/platforms.js");
+const { Pickups } = await import("../../js/pickups.js");
 
 /**
  * Dirección donde dlmalloc ubica un bloque de 1 MiB: con el heap casi libre sale del tope, así que lo que se filtre

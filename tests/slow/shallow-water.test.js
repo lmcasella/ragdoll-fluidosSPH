@@ -1,11 +1,11 @@
 /** Campo de alturas ShallowWater (#70, docs/design/14-agua.md §14.3 y criterios W1-W10 de §14.16), Node puro. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ShallowWater, WATER_FIELD } from "../js/water.js";
-import { LEVEL } from "../js/level.js";
-import { SIGMA_W, MATERIALS } from "../js/materials.js";
-import { fieldColor, drawWater } from "../js/render.js";
-import { relativeError as rel } from "../js/debug.js";
+import { ShallowWater, WATER_FIELD } from "../../js/water.js";
+import { LEVEL } from "../../js/level.js";
+import { SIGMA_W, MATERIALS } from "../../js/materials.js";
+import { fieldColor, drawWater } from "../../js/render.js";
+import { relativeError as rel } from "../../js/debug.js";
 
 const G = 10;
 const DT = 1 / 60;

@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { damBreak, jetBench, restBench, plateBench, M_P } from "./helpers/water-bench.js";
-import { shotBench } from "./helpers/fluid-bench.js";
-import { loadGame } from "./helpers/game.js";
-import { fillField } from "./helpers/water-scene.js";
+import { damBreak, jetBench, restBench, plateBench, M_P } from "../helpers/water-bench.js";
+import { shotBench } from "../helpers/fluid-bench.js";
+import { loadGame } from "../helpers/game.js";
+import { fillField } from "../helpers/water-scene.js";
 
-const { WEAPONS, SHOT_SYSTEM, FLUID } = await import("../js/weapons.js");
-const { ORIGIN } = await import("../js/particleStore.js");
-const { LEVEL } = await import("../js/level.js");
+const { WEAPONS, SHOT_SYSTEM, FLUID } = await import("../../js/weapons.js");
+const { ORIGIN } = await import("../../js/particleStore.js");
+const { LEVEL } = await import("../../js/level.js");
 
 const fmt = (value) => JSON.stringify(value, (_, v) => (typeof v === "number" ? Number(v.toFixed(3)) : v));
 

@@ -4,12 +4,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeScene, fillField, floodRun, particle, A_P, DT } from "./helpers/water-scene.js";
-import { loadGame } from "./helpers/game.js";
+import { makeScene, fillField, floodRun, particle, A_P, DT } from "../helpers/water-scene.js";
+import { loadGame } from "../helpers/game.js";
 
-const { LEVEL } = await import("../js/level.js");
-const { floodLevel, waterArea, freeWidth, levelOfArea, Flood } = await import("../js/flood.js");
-const { FLUID, weaponById, particleFlags, CONTACT_LISTENER_PARTICLE } = await import("../js/weapons.js");
+const { LEVEL } = await import("../../js/level.js");
+const { floodLevel, waterArea, freeWidth, levelOfArea, Flood } = await import("../../js/flood.js");
+const { FLUID, weaponById, particleFlags, CONTACT_LISTENER_PARTICLE } = await import("../../js/weapons.js");
 
 const F = LEVEL.flood;
 const fmt = (n, digits = 3) => Number(n).toFixed(digits);

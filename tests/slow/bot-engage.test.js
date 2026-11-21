@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame } from "../helpers/game.js";
 
 const SEEDS = [1, 2, 3, 4, 5];
 const FRAMES = 60 * 60;

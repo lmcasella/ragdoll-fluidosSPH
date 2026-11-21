@@ -4,12 +4,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame } from "../helpers/game.js";
 
-const { LEVEL } = await import("../js/level.js");
-const { Bot, BOT, buildNav } = await import("../js/bot.js");
-const { MELEE } = await import("../js/melee.js");
-const { PAD } = await import("../js/Input.js");
+const { LEVEL } = await import("../../js/level.js");
+const { Bot, BOT, buildNav } = await import("../../js/bot.js");
+const { MELEE } = await import("../../js/melee.js");
+const { PAD } = await import("../../js/Input.js");
 
 const BUTTON_PUNCH = 1;
 const BUTTON_FIRE = 7;
