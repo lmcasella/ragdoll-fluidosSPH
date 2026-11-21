@@ -41,7 +41,9 @@
             href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Chakra+Petch:ital,wght@0,600;0,700;1,700&display=swap"
             rel="stylesheet"
         />
+        <link rel="stylesheet" href="./js/ui.css" />
         <link rel="stylesheet" href="./js/hud.css" />
+        <link rel="stylesheet" href="./js/screens.css" />
         <script src="./vendor/pixi.min.js"></script>
         <script src="./vendor/liquidfun.js"></script>
     </head>
@@ -74,7 +76,7 @@
             import { ActiveRagdoll, KNOCKBACK } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
             import { Bot, botConfig } from "./js/bot.js";
-            import { Menu, ControlsScreen } from "./js/menu.js";
+            import { Menu, ControlsScreen, HelpScreen } from "./js/menu.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
@@ -91,6 +93,7 @@
             import { MATERIALS } from "./js/materials.js";
             import { Match, GO_TIME } from "./js/round.js";
             import { Hud } from "./js/hud.js";
+            import { Screens } from "./js/screens.js";
             import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip, withoutJointTracks } from "./js/clips.js";
@@ -115,11 +118,7 @@
                 buildRenderItems,
                 drawAimLaser,
                 drawHits,
-                drawHud,
                 drawLevel,
-                drawMenu,
-                drawControlsScreen,
-                drawStageBanner,
                 drawParticles,
                 drawPickups,
                 drawWater,
@@ -206,6 +205,7 @@
 
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
             const hud = new Hud(document, document.getElementById("gameContainer"));
+            const screens = new Screens(document, document.getElementById("gameContainer"));
 
             function resize() {
                 for (const c of [canvas, pickupCanvas, hudCanvas]) {
@@ -298,7 +298,15 @@
             const urlBots = botParam === null ? null : botParam.split(",").map((n) => Number(n) - 1).filter((k) => k >= 0 && k < players.length);
             const menu = new Menu({ storage: menuStorage() });
             const asignacion = new ControlsScreen({ storage: menuStorage() });
+            const ayuda = new HelpScreen();
             let pantalla = "menu";
+            let uiNow = 0;
+            let uiDevice = "pad";
+            let uiScreen = null;
+            let knownDevices = null;
+
+            /** Pantalla de interfaz visible: `menu`, `controles`, `asignacion`, `final` (fin de partida) o `null` durante la partida. */
+            const pantallaActual = () => (match.state === "title" ? pantalla : match.state === "matchOver" ? "final" : null);
 
             /** `localStorage`, o `null` si el navegador lo bloquea (acceder a la propiedad puede lanzar). */
             function menuStorage() {
@@ -444,6 +452,48 @@
                         audio.play("death", k, now);
                     }
                 });
+            }
+
+            /**
+             * Sonido de la asignación de controles de este frame: `antes` es `ControlsScreen.view.devices` por `id` antes de
+             * aplicar las intenciones y `salida` lo que devolvió `update`. Sumar, quitar y mover una ficha suenan distinto,
+             * y empujar contra la pared suena como lo bloqueado.
+             */
+            function sonarAsignacion(antes, salida) {
+                const ahora = asignacion.view.devices;
+                let evento = null;
+                for (const d of ahora) {
+                    const previo = antes.get(d.id);
+                    if (!previo) continue;
+                    if (d.joined && !previo.joined) evento = "join";
+                    else if (d.column !== previo.column) evento ??= d.column === 1 ? "leave" : "move";
+                }
+                if (!evento) {
+                    const empujo = input.devices.some((d) => d.x && asignacion.ids.includes(d.id));
+                    if (empujo) evento = "denied";
+                }
+                if (!evento && salida === "back") evento = "back";
+                if (evento) audio.playUi(evento, uiNow);
+            }
+
+            let lastUiState = match.state;
+
+            /** Sonido de las transiciones de `Match`: empezar y revancha suenan como jugar, y volver al menú desde el fin de partida como volver. */
+            function sonarTransicion() {
+                if (match.state === lastUiState) return;
+                if (match.state === "countdown" && (lastUiState === "title" || lastUiState === "matchOver")) audio.playUi("play", uiNow);
+                else if (match.state === "title" && lastUiState === "matchOver") audio.playUi("back", uiNow);
+                lastUiState = match.state;
+            }
+
+            /** Sonido de conectar y desconectar gamepads: compara los dispositivos de este frame con los del anterior. */
+            function sonarDispositivos() {
+                const ids = new Set(input.devices.map((d) => d.id));
+                if (knownDevices) {
+                    if ([...ids].some((id) => !knownDevices.has(id))) audio.playUi("join", uiNow);
+                    else if ([...knownDevices].some((id) => !ids.has(id))) audio.playUi("leave", uiNow);
+                }
+                knownDevices = ids;
             }
 
             // Nueva ronda: se destruyen robots y disparos y se vuelve a aparecer en los puntos de inicio
@@ -642,7 +692,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    asignacion, hud, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
+                    asignacion, ayuda, screens, hud, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -664,21 +714,45 @@
                     const dispositivos = input.devices.map((d) => d.id);
                     if (pantalla === "asignacion") {
                         asignacion.sync(dispositivos);
+                        const antes = new Map(asignacion.view.devices.map((d) => [d.id, d]));
                         const salida = asignacion.update(input.devices);
+                        sonarAsignacion(antes, salida);
                         if (salida === "start") {
                             asignacion.save();
                             arrancarPartida();
                         } else if (salida === "back") pantalla = "menu";
-                    } else if (menu.update(input.menu) === "play") {
-                        asignacion.open(dispositivos);
-                        if (urlBots) arrancarPartida();
-                        else pantalla = "asignacion";
+                    } else if (pantalla === "controles") {
+                        const pestana = ayuda.tab;
+                        if (ayuda.update(input.menu) === "back") {
+                            pantalla = "menu";
+                            audio.playUi("back", uiNow);
+                        } else if (ayuda.tab !== pestana) audio.playUi("tab", uiNow);
+                    } else {
+                        const fila = menu.cursor;
+                        const valores = JSON.stringify(menu.choice);
+                        const salida = menu.update(input.menu);
+                        if (menu.cursor !== fila) audio.playUi("focus", uiNow);
+                        if (input.menu.x && menu.table.rows[menu.cursor].values.length) {
+                            audio.playUi(JSON.stringify(menu.choice) === valores ? "denied" : "value", uiNow);
+                        }
+                        if (salida) audio.playUi("confirm", uiNow);
+                        if (salida === "controls") {
+                            ayuda.open();
+                            pantalla = "controles";
+                        } else if (salida === "play") {
+                            asignacion.open(dispositivos);
+                            if (urlBots) arrancarPartida();
+                            else pantalla = "asignacion";
+                        }
                     }
                 }
                 const cualquiera = {
                     start: input.devices.some((d) => (d.kind === "keyboard" ? d.back : d.start)),
                     action: input.devices.some((d) => (d.kind === "keyboard" ? d.start : d.a)),
                 };
+                if (match.state === "matchOver" && match.lockRemaining > 0 && (cualquiera.start || cualquiera.action)) {
+                    audio.playUi("denied", uiNow);
+                }
                 if (match.update(players, [...inputs, cualquiera], frameDt) === "reset") {
                     reiniciarRonda();
                 }
@@ -686,6 +760,7 @@
                     menu.reset();
                     pantalla = "menu";
                 }
+                sonarTransicion();
                 controls = match.controlsActive ? inputs : inputs.map(neutro);
                 if (!match.controlsActive) jumpPending.fill(false);
                 if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
@@ -782,10 +857,13 @@
             const HEAD_RADIUS = robotRag.json.bodies.find((b) => b.id === HEAD_BODY).fixtures[0].shape.radius;
             const WEAPON_ICONS = { [FLUID.WATER]: "agua", [FLUID.ACID]: "acido", [FLUID.LAVA]: "lava", [FLUID.HONEY]: "miel" };
             const hudScreen = { x: 0, y: 0 };
+            const hudTorso = { x: 0, y: 0 };
+            const SCREEN_NAMES = { menu: "menu", controles: "help", asignacion: "assign" };
 
             /** Datos planos de este frame para `hud.update` (ver `js/hud.js`); la altura sobre el agua usa la misma superficie con la que `damage` decide el cortocircuito. */
-            function datosHud(frameDt) {
+            function datosHud(frameDt, now) {
                 const infinite = climb !== null;
+                const banner = stagePrizes.banner;
                 return {
                     dt: frameDt,
                     mode: infinite ? "infinite" : "classic",
@@ -801,10 +879,14 @@
                     matchWinner: match.matchWinner,
                     floodStart: flood.config.start,
                     maxPct: KNOCKBACK.maxPct,
+                    device: uiDevice,
+                    prize: infinite && banner ? { k: banner.k, left: banner.until - now } : null,
                     players: players.map((player) => {
                         const weapon = WEAPONS.find((w) => w.id === player.weapon);
                         const head = player.rag.bodies.get(HEAD_BODY).GetPosition();
                         camera.toScreen(head.get_x(), head.get_y() + HEAD_RADIUS, hudScreen);
+                        const torso = player.torso.GetPosition();
+                        camera.toScreen(torso.get_x(), torso.get_y(), hudTorso);
                         let above = null;
                         if (infinite) {
                             const x = player.torso.GetPosition().get_x();
@@ -816,9 +898,10 @@
                             pct: player.damagePct,
                             alive: !player.dead,
                             weapon: weapon
-                                ? { icon: WEAPON_ICONS[weapon.id], name: weapon.name, ratio: (player.tanks.get(weapon.id) ?? 0) / weapon.tank }
+                                ? { icon: WEAPON_ICONS[weapon.id], ratio: (player.tanks.get(weapon.id) ?? 0) / weapon.tank }
                                 : null,
                             head: { x: hudScreen.x, y: hudScreen.y },
+                            torso: { x: hudTorso.x, y: hudTorso.y },
                             above,
                         };
                     }),
@@ -828,12 +911,22 @@
             function loop(nowMs) {
                 const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
                 lastTime = nowMs;
+                uiNow = nowMs / 1000;
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
                 const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
                 bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
                 inputs = input.poll();
-                if (input.debug && !enTitulo) debug.toggleOpen();
+                sonarDispositivos();
+                if (pantallaActual() !== uiScreen) {
+                    uiScreen = pantallaActual();
+                    uiDevice = "pad";
+                }
+                uiDevice = input.menu.source ?? uiDevice;
+                if (input.debug && !enTitulo) {
+                    debug.toggleOpen();
+                    audio.playUi("pause", uiNow);
+                }
                 debug.update(input.menu);
                 debug.begin();
                 if (!debug.open) simular(frameDt, enTitulo);
@@ -934,15 +1027,20 @@
                     );
                 });
 
-                drawHud(hudCtx, hudCanvas.width, hudCanvas.height, match);
-                hud.update(datosHud(frameDt));
-                const stageBanner = stagePrizes.banner;
-                if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
-                    drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));
-                }
+                hud.update(datosHud(frameDt, now));
+                for (const event of hud.events) audio.playUi(event, uiNow);
+                hud.events.length = 0;
                 debug.drawPanel(hudCtx, hudCanvas.width, hudCanvas.height);
-                if (match.state === "title" && pantalla === "asignacion") drawControlsScreen(hudCtx, hudCanvas.width, hudCanvas.height, asignacion.view);
-                else if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
+                if (match.state === "title") {
+                    screens.update({
+                        screen: SCREEN_NAMES[pantalla],
+                        device: uiDevice,
+                        menu: menu.view,
+                        choice: menu.choice,
+                        helpView: ayuda.view,
+                        assignView: asignacion.view,
+                    });
+                } else screens.update({ screen: null });
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);

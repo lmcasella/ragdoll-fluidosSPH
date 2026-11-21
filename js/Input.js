@@ -55,7 +55,7 @@ export const PAD = {
  * Teclado de respaldo (KeyboardEvent.code): el gamepad gana siempre que empuja un eje.
  */
 export const MENU_CONTROLS = {
-    pad: { confirm: [0, 9], back: [1], up: 12, down: 13, left: 14, right: 15 },
+    pad: { confirm: [0, 9], back: [1], up: 12, down: 13, left: 14, right: 15, tabPrev: 4, tabNext: 5 },
     keys: {
         up: ["ArrowUp", "KeyW"],
         down: ["ArrowDown", "KeyS"],
@@ -103,7 +103,9 @@ export const TAP_MAX = 0.25;
  * `debug` (en la instancia, tras cada poll): flanco del menú de debug, F3 o L3 + R3 juntos en cualquier gamepad real.
  * `menu` (en la instancia, tras cada poll) son las intenciones del menú, con `MENU_CONTROLS`: `x` e `y` (-1, 0 o +1, con
  * `y` positivo hacia abajo) valen distinto de cero solo en el frame del flanco y en las repeticiones de `MENU_REPEAT`;
- * `confirm` y `back` son flancos. Solo leen gamepads reales, no los virtuales de los bots.
+ * `confirm` y `back` son flancos; `tab` es el flanco de LB (-1) o RB (+1), para cambiar de pestaña; `source` es
+ * "pad", "keyboard" o `null`: qué tipo de dispositivo produjo alguna intención de este poll. Solo leen gamepads reales,
+ * no los virtuales de los bots.
  * `devices` (en la instancia, tras cada poll) lista los dispositivos reales conectados, el teclado primero:
  * { id, kind: "keyboard" | "pad", x, select, a, start, back }, para la pantalla de asignación; `x` es el flanco de
  * izquierda (-1) o derecha (+1) con el stick, la cruceta o A/D y las flechas, y el resto son flancos de Select, A,
@@ -122,7 +124,7 @@ export class Input {
         this.wheelLast = Array.from({ length: playerCount }, () => null);
         this.states = Array.from({ length: playerCount }, () => ({}));
         this.virtualPads = Array.from({ length: playerCount }, () => null);
-        this.menu = { x: 0, y: 0, confirm: false, back: false };
+        this.menu = { x: 0, y: 0, confirm: false, back: false, tab: 0, source: null };
         this.debug = false;
         this.debugPrev = {};
         this.devices = [];
@@ -319,6 +321,8 @@ export class Input {
         const dir = { x: 0, y: 0 };
         let confirm = false;
         let back = false;
+        let tab = 0;
+        let padUsed = false;
         const held = (codes) => codes.some((c) => this.held.has(c));
         const tapped = (codes) => codes.some((c) => this.pressed.has(c));
         const keyX = (tapped(["ArrowRight", "KeyD"]) ? 1 : 0) - (tapped(["ArrowLeft", "KeyA"]) ? 1 : 0);
@@ -345,6 +349,8 @@ export class Input {
             dir.y ||= axis(buttons.up, buttons.down, ly);
             confirm ||= buttons.confirm.some(edge);
             back ||= buttons.back.some(edge);
+            tab ||= (edge(buttons.tabNext) ? 1 : 0) - (edge(buttons.tabPrev) ? 1 : 0);
+            padUsed ||= x !== 0 || axis(buttons.up, buttons.down, ly) !== 0 || pad.buttons.some((b, i) => b.pressed && !prev[i]);
             devices.push({
                 id,
                 kind: "pad",
@@ -360,11 +366,14 @@ export class Input {
         this.devices = devices;
         dir.x ||= (held(keys.right) ? 1 : 0) - (held(keys.left) ? 1 : 0);
         dir.y ||= (held(keys.down) ? 1 : 0) - (held(keys.up) ? 1 : 0);
+        const keyUsed = Object.values(keys).flat().some((c) => this.pressed.has(c));
         return {
             x: this.repeatMenu(this.menuRepeat.x, dir.x, now),
             y: this.repeatMenu(this.menuRepeat.y, dir.y, now),
             confirm: confirm || tapped(keys.confirm),
             back: back || tapped(keys.back),
+            tab,
+            source: padUsed ? "pad" : keyUsed ? "keyboard" : null,
         };
     }
 

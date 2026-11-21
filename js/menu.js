@@ -1,24 +1,15 @@
 /**
  * Menú principal (#154) como datos. Cada fila tiene `id`, `label` y sus `values` (`id`, `label`, y opcionalmente
- * `disabled` con su `note`); `default` es el `id` inicial. La fila `play` no tiene valores: al confirmarla se abre la
- * pantalla de asignación de controles (`ControlsScreen`).
+ * `disabled` con su `note`); `default` es el `id` inicial. Las filas `controls` y `play` no tienen valores: al
+ * confirmarlas se abren la pantalla de controles (`HelpScreen`) o la de asignación (`ControlsScreen`). Las filas van
+ * en el orden en que se dibujan (docs/design/18-interfaz.md §3.1); el `label` es el nombre de la fila para los datos y
+ * el menú dibuja íconos.
  * `storageKey` es la clave de `localStorage` donde se recuerda la última elección; se le sube la versión cuando cambia un default
  * que tiene que llegarle a todos (una elección guardada con la clave vieja se ignora una vez).
  */
 export const MENU = {
     storageKey: "ragdoll-fluidos.menu.v3",
     rows: [
-        {
-            id: "difficulty",
-            label: "Dificultad",
-            default: "normal",
-            values: [
-                { id: "easy", label: "Fácil" },
-                { id: "normal", label: "Normal" },
-                { id: "hard", label: "Difícil" },
-                { id: "dummy", label: "Muñeco" },
-            ],
-        },
         {
             id: "map",
             label: "Mapa",
@@ -28,6 +19,18 @@ export const MENU = {
                 { id: "infinite", label: "Infinito" },
             ],
         },
+        {
+            id: "difficulty",
+            label: "Bot",
+            default: "normal",
+            values: [
+                { id: "easy", label: "Fácil" },
+                { id: "normal", label: "Normal" },
+                { id: "hard", label: "Difícil" },
+                { id: "dummy", label: "Muñeco" },
+            ],
+        },
+        { id: "controls", label: "Controles", values: [] },
         { id: "play", label: "Jugar", values: [] },
     ],
 };
@@ -84,12 +87,14 @@ export class Menu {
         return { ...this.values };
     }
 
-    /** Filas listas para dibujar: `{ label, selected, values: [{ label, note, chosen, disabled }] }`. */
+    /** Filas listas para dibujar: `{ id, label, selected, values: [{ id, label, note, chosen, disabled }] }`. */
     get view() {
         return this.table.rows.map((row, i) => ({
+            id: row.id,
             label: row.label,
             selected: i === this.cursor,
             values: row.values.map((v) => ({
+                id: v.id,
                 label: v.label,
                 note: v.note ?? null,
                 chosen: v.id === this.values[row.id],
@@ -99,13 +104,15 @@ export class Menu {
     }
 
     /**
-     * Aplica las intenciones de un frame; devuelve "play" al confirmar sobre la fila de jugar y `null` en el resto.
+     * Aplica las intenciones de un frame; devuelve "play" o "controls" al confirmar sobre la fila de jugar o de
+     * controles, y `null` en el resto.
      * @param {{ x: number, y: number, confirm: boolean, back: boolean }} intent
      */
     update({ x = 0, y = 0, confirm = false }) {
         if (y) this.move(y);
         if (x) this.change(x);
-        return confirm && this.table.rows[this.cursor].id === "play" ? "play" : null;
+        const row = this.table.rows[this.cursor];
+        return confirm && row.values.length === 0 ? row.id : null;
     }
 
     /** Mueve el cursor a la fila siguiente en la dirección `dir`; en los extremos se queda. */
@@ -230,19 +237,105 @@ export class ControlsScreen {
     }
 
     /**
-     * Para dibujar: `{ columns, devices: [{ label, column, joined }], bots }`, con `bots` los jugadores (0 o 1) que
-     * maneja el bot.
+     * Para dibujar: `{ columns, devices: [{ id, kind, number, label, column, joined }], bots }`, con `kind`
+     * "keyboard" o "pad", `number` el número de gamepad (0 en el teclado) y `bots` los jugadores (0 o 1) que maneja el bot.
      */
     get view() {
         let pad = 0;
         return {
             columns: CONTROLS.columns,
-            devices: this.ids.map((id) => ({
-                label: id === "keyboard" ? "Teclado y mouse" : `Gamepad ${++pad}`,
-                column: this.column(id),
-                joined: this.joined.has(id),
-            })),
+            devices: this.ids.map((id) => {
+                const keyboard = id === "keyboard";
+                const number = keyboard ? 0 : ++pad;
+                return {
+                    id,
+                    kind: keyboard ? "keyboard" : "pad",
+                    number,
+                    label: keyboard ? "Teclado y mouse" : `Gamepad ${number}`,
+                    column: this.column(id),
+                    joined: this.joined.has(id),
+                };
+            }),
             bots: this.bots,
         };
+    }
+}
+
+/**
+ * Datos de la pantalla de controles (docs/design/18-interfaz.md §3.2, controles en docs/design/10-controles.md §10.1).
+ * `tabs` son las pestañas en orden. Gamepad: `left` y `right` son las llamadas de cada lado (`glyph` es el botón,
+ * `hold` si hay que mantenerlo, `word` la acción en una palabra, `weapon` "prev" o "next" para el cambio de arma con su
+ * ícono y `weapons` la cruceta con los cuatro íconos), y `combos` las tarjetas (`glyphs` encadenados, `air` si lleva el
+ * ícono de robot en el aire). Teclado y mouse (solo J1): `rows` son las acciones con sus `keys` y su `word` o `weapon`
+ * (`prev`, `next` o `direct`).
+ */
+export const HELP = {
+    tabs: ["pad", "keyboard"],
+    pad: {
+        left: [
+            { glyph: "LT", hold: true, word: "Bloquear" },
+            { glyph: "LB", hold: true, weapon: "prev" },
+            { glyph: "L", word: "Moverse" },
+            { glyph: "dpad", weapons: true },
+        ],
+        right: [
+            { glyph: "RT", hold: true, word: "Disparar" },
+            { glyph: "RB", weapon: "next" },
+            { glyph: "X", hold: true, word: "Gancho" },
+            { glyph: "B", word: "Golpe" },
+            { glyph: "A", word: "Saltar" },
+            { glyph: "R", word: "Apuntar" },
+        ],
+        combos: [
+            { glyphs: ["LT", "+", "A"], word: "Rodar" },
+            { glyphs: ["L↓", "+", "A"], word: "Bajar" },
+            { glyphs: ["L↓", "+", "B"], word: "Patada", air: true },
+            { glyphs: ["B", "B", "B"], word: "Combo" },
+        ],
+    },
+    keyboard: {
+        rows: [
+            { keys: ["A", "D"], word: "Moverse" },
+            { keys: ["W"], word: "Saltar" },
+            { keys: ["Espacio", "clic izq."], word: "Disparar" },
+            { keys: ["mouse"], word: "Apuntar" },
+            { keys: ["F"], word: "Golpe" },
+            { keys: ["G"], word: "Bloquear" },
+            { keys: ["E", "clic der."], word: "Gancho" },
+            { keys: ["G", "+", "W"], word: "Rodar" },
+            { keys: ["S", "+", "W"], word: "Bajar" },
+            { keys: ["S", "+", "F"], word: "Patada" },
+            { keys: ["F", "F", "F"], word: "Combo" },
+            { keys: ["Q"], weapon: "prev" },
+            { keys: ["R"], weapon: "next" },
+            { keys: ["1", "2", "3", "4"], weapon: "direct" },
+        ],
+    },
+};
+
+/**
+ * Estado de la pantalla de controles: la pestaña elegida. Consume `Input.menu`: `tab` (LB/RB) o `x` (izquierda y
+ * derecha, para el teclado) cambian de pestaña y `back` vuelve (devuelve "back"). Nunca lee dispositivos.
+ */
+export class HelpScreen {
+    constructor() {
+        this.tab = 0;
+    }
+
+    /** Abre la pantalla en la primera pestaña. */
+    open() {
+        this.tab = 0;
+    }
+
+    /** Aplica las intenciones de un frame; devuelve "back" al volver y `null` en el resto. */
+    update({ x = 0, tab = 0, back = false }) {
+        const dir = tab || x;
+        if (dir) this.tab = Math.max(0, Math.min(HELP.tabs.length - 1, this.tab + dir));
+        return back ? "back" : null;
+    }
+
+    /** Para dibujar: `{ tabs: [{ id, selected }], tab }`, con `tab` el id de la pestaña elegida. */
+    get view() {
+        return { tabs: HELP.tabs.map((id, i) => ({ id, selected: i === this.tab })), tab: HELP.tabs[this.tab] };
     }
 }

@@ -5,6 +5,23 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-20
+
+### Added
+- Menú principal nuevo, con íconos en vez de texto: Mapa (con la miniatura del Clásico o del Infinito), Bot (1, 2 o 3 puntos de dificultad, o el maniquí), Controles y Jugar. El foco se ve en amarillo y el valor entra deslizándose al cambiarlo.
+- Pantalla de controles propia, desde la fila Controles: el gamepad dibujado con cada botón y una palabra de acción, las combinaciones (rodar, bajar, patada, combo) y una pestaña con el teclado y mouse de J1. LB y RB cambian de pestaña y B vuelve.
+- Asignación de controles nueva: fichas de dispositivo que se deslizan entre J1, la bandeja del medio y J2, con un tilde en el jugador que ya tiene control y el bot en el que no.
+- Sonidos de interfaz para navegar el menú, cambiar valores y pestañas, sumar, mover y quitar dispositivos, conectar y desconectar un gamepad, empezar y la revancha, la cuenta regresiva, el "¡YA!", el aviso de inundación, el premio de etapa, el fin de ronda y la pausa. Suenan 6 dB más bajo que los golpes y de a uno por vez.
+- Los glifos de ayuda muestran los botones del gamepad o las teclas, según lo último que usaste en esa pantalla.
+
+### Changed
+- El panel de cada jugador es más chico (420 × 72, como máximo 1,8 veces el alto de un robot) y ya no tiene texto: sin arma muestra el puño, y con el tanque vacío el ícono del arma se apaga.
+- El marcador de arriba solo tiene los rombos de victorias y el reloj. El aviso de inundación muestra los segundos que faltan sobre franjas amarillas y después una ola que late. El fin de ronda es una banda con la insignia del ganador y el marcador, y el fin de partida tiene la corona y los botones de revancha y menú solo con íconos.
+- El daño se lee como algo malo: el número flotante sale del torso, sacude y cae en vez de subir, no lleva el signo "+" y va de blanco a rojo según el daño acumulado de Infinito o la vida perdida en Clásico (nunca amarillo ni dorado). Los paneles de Infinito usan la misma escala de colores, sin "empuje".
+- En Infinito el premio de etapa es una ficha con la insignia del ganador, un rayo y un tanque, y el medidor de altura no lleva texto: solo las fichas con los metros y la zona roja.
+
+### Fixed
+- El HUD de la partida ya no aparece encima del menú principal.
 ## [0.46.0] - 2026-11-20
 
 ### Added
