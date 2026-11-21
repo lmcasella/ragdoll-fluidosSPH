@@ -35,12 +35,14 @@ Requiere servidor HTTP (módulos ES):
 
 ```powershell
 npx http-server -c-1 .     # http://localhost:8080
-node --test tests/          # tests (Node 24, sin dependencias)
+node --test "tests/*.test.js"          # suite rápida (menos de 30 s), para el día a día
+node --test "tests/slow/*.test.js"     # solo los tests largos
+node --test "tests/**/*.test.js"       # suite completa: antes del PR y en CI (Node 24, sin dependencias)
 ```
 
-La suite incluye los invariantes de fluidos (`tests/invariants.test.js`): miden una ronda completa y suman unos 42 s por corrida. Algunos salen como `todo` esperados: son lo que hoy falla y tiene issue (ver `docs/design/14-agua.md`, §14.16 G); no hacen fallar la suite, y cuando un arreglo los resuelve hay que quitarles el `todo`.
+La suite completa incluye los invariantes de fluidos (`tests/slow/invariants.test.js`): miden una ronda completa y suman unos 42 s por corrida. Algunos salen como `todo` esperados: son lo que hoy falla y tiene issue (ver `docs/design/14-agua.md`, §14.16 G); no hacen fallar la suite, y cuando un arreglo los resuelve hay que quitarles el `todo`.
 
-La térmica (`tests/thermal.test.js`) simula la conducción real entre dos partículas de basalto (L2, unas 220 h simuladas con pasos de 5 s, solo la térmica) y suma unos 5 s por corrida. La ebullición (`tests/boil.test.js`) corre en segundos; `tests/boil-invariants.test.js` simula 45 s de ronda y suma unos 15 s.
+La térmica (`tests/thermal.test.js`) simula la conducción real entre dos partículas de basalto (L2, unas 220 h simuladas con pasos de 5 s, solo la térmica) y suma unos 5 s por corrida. La ebullición (`tests/boil.test.js`) corre en segundos; `tests/slow/boil-invariants.test.js` simula 45 s de ronda y suma unos 15 s.
 
 ## Deploy
 
