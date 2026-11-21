@@ -33,7 +33,7 @@ Propuesta para el robot, sin urgencia (no hace falta si el juego quita las pista
 
 ## 3.2 Golpe melee ✅ (✅ #104 lo reemplaza por el combo de [3.7.4](#374-ataques-melee-datos-en-melee))
 
-- **Acción:** X (gamepad; ✅ con el remapeo pasa a B), F (J1) o Shift derecho (J2; 🔨 #104 pasa a Numpad 5, [10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)). Reproduce el clip `punch`, que suelta los overrides de mira mientras dura.
+- **Acción:** X (gamepad; ✅ con el remapeo pasa a B), F (teclado de J1; [10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)). Reproduce el clip `punch`, que suelta los overrides de mira mientras dura.
 - **Ventana activa:** 0,3–0,5 s, cuando el clip extiende el brazo. Duración total 0,55 s; enfriamiento 0,6 s.
 - **Detección:** 3 rayos en abanico (±0,3 rad) desde el hombro en la dirección de la mira, alcance 1,1 m. El primer cuerpo rival que tocan recibe el golpe, una sola vez por golpe.
 - **Efecto:**
@@ -404,7 +404,7 @@ Leído en `lib/` (copia de ragassembler2d `d067775`), 19/11:
 | R16 | Quieto sin mira; quieto con RT o stick derecho | `idle`; `aim` |
 | R17 | `hp` a 0 | `dead` y overrides sueltos |
 | R18 | LT del gamepad apretado y G apretado y soltado; LT del gamepad + W | Sigue en `block`; `roll` (O entre fuentes, ninguna pisa) |
-| R18b | Teclado: G (J1) y Numpad − (J2) mantenidos; Numpad 5 en J2; ↓ + Numpad 5 en el aire en J2 | `block` en J1 y J2; `punch` en J2; `kick` en J2. Ningún respaldo usa Shift ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)) |
+| R18b | Teclado de J1: Shift (izquierdo o derecho) mantenido; S + F en el aire | `block` en J1; `kick` en J1 ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)) |
 | R19 | La mira cruza al otro lado a mitad del roll | El giro se aplica al terminar el roll; cantidad de joints igual a la de RagImporter |
 | R20 | 1.000 combos, bloqueos y rolls | Sin errores de heap; cantidad de objetos nativos estable |
 | R21 | Suite completa | `node --test tests/` pasa; los invariantes globales y la flotación (F4, F4b) sin cambio |
@@ -415,4 +415,4 @@ Leído en `lib/` (copia de ragassembler2d `d067775`), 19/11:
 - **Torque del roll:** el balance tiene 120 N·m; con el robot apoyado y la fricción de los pies, puede que no complete la vuelta en 0,8 s. R12 lo mide; si falla, se informa (no se suben torques del rig sin decisión).
 - **Pose en vuelo y salto:** `jump_start` y los clips de aire pueden bajar la subida medida. R2 lo controla.
 - **`walk` de 0,5 s:** cambia la cadencia y el aporte del clip a la velocidad. Se vuelve a medir `WALK_ANIM.refSpeed`.
-- **Teclas de respaldo con Shift en Windows (resuelto el 19/11):** cinco toques seguidos de Shift abren el aviso de "Teclas especiales" del sistema, y el combo de J2 con Shift derecho lo producía. El golpe de J2 pasa a Numpad 5 y el bloqueo de J1 a G; ningún respaldo usa Shift ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).
+- **Bloqueo de teclado:** es Shift, izquierdo o derecho (`KEYBOARD_LAYOUT`); el teclado es solo de J1 ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).

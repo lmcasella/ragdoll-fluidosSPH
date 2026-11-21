@@ -2,31 +2,33 @@
 
 **Gamepad primero:** el teclado y el mouse son respaldo y nunca pisan al gamepad. Los gamepads se asignan por orden de conexión (1.º → J1, 2.º → J2) y se combinan con el teclado del mismo jugador. Mapeo `standard` de la Gamepad API.
 
+El teclado y el mouse son solo de J1 (un solo `KEYBOARD_LAYOUT`): J2 juega con gamepad o es el bot.
+
 ## 10.1 Mapeo ✅ (remapeo pedido por el usuario el 18/11)
 
 El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego todavía (`Input` ya entrega `grapple`). El modo ragdoll es 🔨 M5; la pausa ya es un menú (§10.4).
 
-| Acción | Intención de `Input` | Gamepad | J1 teclado y mouse | J2 teclado | Entrega |
-|---|---|---|---|---|---|
-| Moverse | `left`, `right`, `up`, `down` (mantenidos) | Stick izquierdo, solo analógico (zona muerta 0,35) | A / D (W / S para arriba y abajo) | ← / → (↑ / ↓) | Sí |
-| Saltar | `jump` (flanco) | A (`buttons[0]`). Arriba ya no salta | W | ↑ | Sí |
-| Bajar de una plataforma atravesable | `drop` (flanco) | Stick abajo (`ly` > 0,6) + A | S + W | ↓ + ↑ | Sí (la intención; la plataforma atravesable es otro issue, [05](05-escenario.md#53-plataformas-atravesables-desde-abajo-)) |
-| Apuntar | `aim` / `pointer` | Stick derecho (conserva la dirección) | Mouse (solo si se movió después del último uso del stick) o hacia donde camina | Hacia donde camina | Sí. Sin stick derecho ni mouse como fuente, la mira (y el giro) sigue la dirección de caminar; durante un ataque no gira |
-| Disparar | `fire` (mantenido); `action` (flanco, menús y revancha) | RT (`buttons[7]`); `action` también con A | Espacio o botón izquierdo del mouse | Enter | Sí |
-| Golpe | `punch` (flanco) | B (`buttons[1]`) | F | Numpad 5 (🔨 #104; hoy Shift derecho) | Sí |
-| Combo melee ✅ #104 | `punch` (flanco) | B repetido: cada toque dentro de la ventana del golpe en curso encadena `punch_combo1` → `2` → `3`; sin toque vuelve a la locomoción | F repetido | Numpad 5 repetido | Sí ([03 §3.7.4](03-robots.md#374-ataques-melee-datos-en-melee)) |
-| Bloqueo ✅ #104 | `block` (mantenido) | LT mantenido (`buttons[6]`) | G | Numpad − | Sí ([03 §3.7.5](03-robots.md#375-bloqueo)) |
-| Roll ✅ #104 | `roll` (flanco) | LT + A: saltar mientras se bloquea rueda hacia el stick izquierdo, o hacia el lado de la mira si está al centro | G + W | Numpad − + ↑ | Sí ([03 §3.7.6](03-robots.md#376-roll)) |
-| Golpe en el aire ✅ #104 | `punch` (flanco) en el aire | B en el aire | F en el aire | Numpad 5 en el aire | Sí |
-| Patada en el aire ✅ #104 | `kick` (flanco) en el aire | Stick abajo (`ly` > 0,6) + B en el aire | S + F | ↓ + Numpad 5 | Sí |
-| Gancho | `grapple` (mantenido) | X (`buttons[2]`) | E o botón derecho del mouse | Numpad 0 | 🔨 ([03 §3.5](03-robots.md#35-gancho-)) |
-| Arma anterior | `weaponStep` = −1 | LB, toque corto (se suelta antes de 0,25 s) | Q, toque corto | Ctrl derecho, toque corto | Sí |
-| Arma siguiente | `weaponStep` = +1 | RB (flanco) | R | Numpad + | Sí |
-| Rueda de armas | `wheel` = `{ open, x, y }` y `wheelPick` | LB mantenido ≥ 0,25 s + stick derecho; se elige al soltar LB, y con el stick al centro se cancela | Q mantenido + W/A/S/D | Ctrl derecho mantenido + flechas | Sí (#15) |
-| Arma directa | `weapon` (posición 1–4 en la tabla) | Cruceta: arriba 1, derecha 2, abajo 3, izquierda 4 | 1 / 2 / 3 / 4 | Num 1 / 2 / 3 / 4 | Sí |
-| Modo ragdoll | `ragdoll` (flanco) | Y (`buttons[3]`), reservado: #104 no lo usa | C | Num . | 🔨 M5 ([03 §3.6](03-robots.md#36-modo-ragdoll--m5)) |
-| Pausa | `start` (flanco) | Start (`buttons[9]`) | Escape | Escape | ✅ #82 ([10.4](#104-pausa)) |
-| Debug (desarrollo) | — (no es intención de juego) | L3 + R3 juntos (`buttons[10]` y `[11]`) | F3 | — | ✅ #258 |
+| Acción | Intención de `Input` | Gamepad | Teclado y mouse (solo J1) | Entrega |
+|---|---|---|---|---|
+| Moverse | `left`, `right`, `up`, `down` (mantenidos) | Stick izquierdo, solo analógico (zona muerta 0,35) | A / D (W / S para arriba y abajo) | Sí |
+| Saltar | `jump` (flanco) | A (`buttons[0]`). Arriba ya no salta | W | Sí |
+| Bajar de una plataforma atravesable | `drop` (flanco) | Stick abajo (`ly` > 0,6) + A | S + W | Sí (la intención; la plataforma atravesable es otro issue, [05](05-escenario.md#53-plataformas-atravesables-desde-abajo-)) |
+| Apuntar | `aim` / `pointer` | Stick derecho (conserva la dirección) | Mouse (solo si se movió después del último uso del stick) o hacia donde camina | Sí. Sin stick derecho ni mouse como fuente, la mira (y el giro) sigue la dirección de caminar; durante un ataque no gira |
+| Disparar | `fire` (mantenido); `action` (flanco, menús y revancha) | RT (`buttons[7]`); `action` también con A | Espacio o botón izquierdo del mouse | Sí |
+| Golpe | `punch` (flanco) | B (`buttons[1]`) | F | Sí |
+| Combo melee ✅ #104 | `punch` (flanco) | B repetido: cada toque dentro de la ventana del golpe en curso encadena `punch_combo1` → `2` → `3`; sin toque vuelve a la locomoción | F repetido | Sí ([03 §3.7.4](03-robots.md#374-ataques-melee-datos-en-melee)) |
+| Bloqueo ✅ #104 | `block` (mantenido) | LT mantenido (`buttons[6]`) | Shift (izquierdo o derecho) | Sí ([03 §3.7.5](03-robots.md#375-bloqueo)) |
+| Roll ✅ #104 | `roll` (flanco) | LT + A: saltar mientras se bloquea rueda hacia el stick izquierdo, o hacia el lado de la mira si está al centro | Shift + W | Sí ([03 §3.7.6](03-robots.md#376-roll)) |
+| Golpe en el aire ✅ #104 | `punch` (flanco) en el aire | B en el aire | F en el aire | Sí |
+| Patada en el aire ✅ #104 | `kick` (flanco) en el aire | Stick abajo (`ly` > 0,6) + B en el aire | S + F | Sí |
+| Gancho | `grapple` (mantenido) | X (`buttons[2]`) | E o botón derecho del mouse | 🔨 ([03 §3.5](03-robots.md#35-gancho-)) |
+| Arma anterior | `weaponStep` = −1 | LB, toque corto (se suelta antes de 0,25 s) | Q, toque corto | Sí |
+| Arma siguiente | `weaponStep` = +1 | RB (flanco) | R | Sí |
+| Rueda de armas | `wheel` = `{ open, x, y }` y `wheelPick` | LB mantenido ≥ 0,25 s + stick derecho; se elige al soltar LB, y con el stick al centro se cancela | Q mantenido + W/A/S/D | Sí (#15) |
+| Arma directa | `weapon` (posición 1–4 en la tabla) | Cruceta: arriba 1, derecha 2, abajo 3, izquierda 4 | 1 / 2 / 3 / 4 | Sí |
+| Modo ragdoll | `ragdoll` (flanco) | Y (`buttons[3]`), reservado: #104 no lo usa | — | 🔨 M5 ([03 §3.6](03-robots.md#36-modo-ragdoll--m5)) |
+| Pausa | `start` (flanco) | Start (`buttons[9]`) | Escape | ✅ #82 ([10.4](#104-pausa)) |
+| Debug (desarrollo) | — (no es intención de juego) | L3 + R3 juntos (`buttons[10]` y `[11]`) | F3 | ✅ #258 |
 
 ## 10.2 Intenciones de `Input`
 
@@ -37,7 +39,7 @@ El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego toda
 | `left`, `right`, `up`, `down` | bool, mantenido | Stick izquierdo fuera de la zona muerta (0,35), o teclas de dirección. La cruceta ya no mueve |
 | `jump` | bool, flanco | A o tecla de salto, **salvo** que en el mismo `poll` haya `roll` o `drop` |
 | `drop` | bool, flanco | A (o salto de teclado) con abajo fuerte: `ly` > `DROP_THRESHOLD` (0,6), o tecla de abajo apretada, **salvo** que haya `roll`. El umbral es más alto que la zona muerta para que caminar en diagonal no baje sin querer. El juego lo trata como salto si el robot no está sobre una plataforma atravesable |
-| `block` ✅ #104 | bool, mantenido | LT (`buttons[6].pressed`), G (J1) o Numpad − (J2) |
+| `block` ✅ #104 | bool, mantenido | LT (`buttons[6].pressed`) o Shift (izquierdo o derecho, `KEYBOARD_LAYOUT`) |
 | `roll` ✅ #104 | bool, flanco | Flanco de salto (A o tecla) con `block` mantenido en el mismo `poll`, de cualquier fuente. Gana sobre `drop` y `jump`, que quedan en falso. La dirección no viaja en la intención: el juego la toma de `left`/`right` |
 | `kick` ✅ #104 | bool, flanco | Flanco de golpe (B o tecla) con abajo fuerte (el mismo criterio que `drop`). Deja `punch` en falso. El juego lo usa como patada en el aire y como `punch` en el piso |
 | `fire` | bool, mantenido | RT, tecla de disparo o botón izquierdo (J1) |
@@ -51,7 +53,7 @@ El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego toda
 | `aim` | `{ x, y }` o `null` | Stick derecho fuera de la zona muerta. **Mientras la rueda está abierta, vale `null`**: el stick elige arma y la mira conserva la dirección anterior |
 | `pointer` | `{ x, y }` o `null` (solo J1) | Mouse como fuente de mira |
 | `ragdoll` 🔨 M5 | bool, flanco | Y o tecla |
-| `pause` 🔨 M5 | bool, flanco | Select o tecla |
+| `pause` ✅ #82 | bool, flanco | Start o Escape (§10.4) |
 
 **Umbral del toque corto (`TAP_MAX`) = 0,25 s.** Un toque deliberado dura 0,1–0,2 s. Con 0,25 s, el arma anterior responde al soltar (como mucho 0,25 s de demora) y la rueda se abre sin una espera molesta. Es un dato exportado de `Input.js`.
 
@@ -64,7 +66,7 @@ El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego toda
 - ✅ #104: `block` es un O entre LT y la tecla; soltar la tecla no corta el bloqueo si LT sigue apretado. `roll` y `kick` se derivan después de combinar todas las fuentes, como `drop`: LT del gamepad + W del teclado también rueda.
 - ✅ #104: el flanco de `roll` se guarda hasta el próximo paso fijo con el mismo mecanismo que `jump` y `drop` (`jumpPending`), porque es movimiento ([03 §3.7.7](03-robots.md#377-ubicación-en-los-patrones)).
 
-**Conflictos revisados (#104):** LT (`buttons[6]`) no tenía uso. `KeyG`, `Numpad5` y `NumpadSubtract` no tienen otro uso en esta tabla ni en `KEYBOARD_LAYOUTS` (`js/Input.js`, leído el 19/11); Numpad 5 queda libre al lado de Num 1–4 (armas), Num 0 (gancho) y Num . (ragdoll, M5). Se lee por `KeyboardEvent.code`, así que `Numpad5` llega igual con Bloq Num apagado (ahí `key` vale `"Clear"`). S + F y ↓ + Numpad 5 no chocan con `drop` (S + W, ↓ + ↑); G + W es `roll` y gana sobre `jump`. Y queda reservado para el modo ragdoll (M5). **Sin Shift en el respaldo (decisión del 19/11):** en Windows, cinco toques seguidos de una tecla Shift abren el aviso de "Teclas especiales", y el combo los produce; por eso el golpe de J2 pasa de Shift derecho a Numpad 5 y el bloqueo de J1 usa G.
+**Conflictos revisados (#104):** LT (`buttons[6]`) no tenía uso. `ShiftLeft` y `ShiftRight` no tienen otro uso en esta tabla ni en `KEYBOARD_LAYOUT` (`js/Input.js`). S + F no choca con `drop` (S + W); Shift + W es `roll` y gana sobre `jump`. Y queda reservado para el modo ragdoll (M5). **Bloqueo en Shift:** el bloqueo de teclado es Shift, izquierdo o derecho (`KEYBOARD_LAYOUT` y `js/menu.js`).
 
 ## 10.3 Disparo mantenido ✅ #13
 
