@@ -1,9 +1,8 @@
 /**
  * Bots que se enfrentan en Infinito (#173): bot contra bot sobre la escena real con LiquidFun, semillas 1 a 5, 60 s o hasta
  * que termina la ronda. Cuenta golpes y líquido que recibe cada uno del otro, la distancia vertical entre torsos mientras
- * los dos viven y las muertes por agua: KO si el robot estaba noqueado o aturdido en el frame anterior a morir, o recibió un
- * golpe o líquido del rival en los `KO_WINDOW` s anteriores (un noqueo dura 5 s o más, así que lo cuenta el estado y no la
- * ventana); suicidio si no. Los suicidios solo se informan: llevarlos a 0 es #174.
+ * los dos viven y las muertes por agua: KO si el robot estuvo noqueado, aturdido o levantándose, o recibió un golpe o líquido
+ * del rival, en los `KO_WINDOW` s anteriores a morir; suicidio si no. Los suicidios tienen que ser 0 (#174).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -32,7 +31,7 @@ async function measure(seed) {
         return pushHit(...items);
     };
     const lastHurt = [-Infinity, -Infinity];
-    const disabled = [false, false];
+    const disabledAt = [-Infinity, -Infinity];
     const pushEvent = melee.events.push.bind(melee.events);
     melee.events.push = (...items) => {
         for (const e of items) if (e.kind === "hit" || e.kind === "blockBreak") lastHurt[e.victim] = frames / 60;
@@ -59,9 +58,11 @@ async function measure(seed) {
         players.forEach((p, k) => {
             if (!p.drowned || seen[k]) return;
             seen[k] = true;
-            kills.push({ k, ko: disabled[k] || frames / 60 - lastHurt[k] <= KO_WINDOW });
+            kills.push({ k, ko: frames / 60 - disabledAt[k] <= KO_WINDOW || frames / 60 - lastHurt[k] <= KO_WINDOW });
         });
-        players.forEach((p, k) => (disabled[k] = !p.drowned && (p.knockedOut || p.isStunned())));
+        players.forEach((p, k) => {
+            if (!p.drowned && (p.knockedOut || p.isStunned() || p.recovering())) disabledAt[k] = frames / 60;
+        });
         if (players.some((p) => p.dead)) continue;
         bothAlive++;
         const dy = Math.abs(players[0].torso.GetPosition().get_y() - players[1].torso.GetPosition().get_y());
@@ -91,5 +92,6 @@ test("bot contra bot en Infinito, semillas 1 a 5: se atacan y se mantienen a men
     const share = alive ? close / alive : 0;
     console.log(`distancia vertical <= ${MAX_DY} m: ${(share * 100).toFixed(1)} % del tiempo con los dos vivos; suicidios en total ${suicides}`);
     if (share < MIN_CLOSE_SHARE) failures.push(`cerca ${(share * 100).toFixed(1)} %`);
+    if (suicides > 0) failures.push(`${suicides} suicidios`);
     assert.deepEqual(failures, []);
 });

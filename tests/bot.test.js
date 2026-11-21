@@ -237,7 +237,7 @@ test("bot: con la inundación activa la ruta no pasa por plataformas bajo la lí
     const bot = new Bot({ k: 1, world: (await start({ bot: false })).state.world });
     const flood = { active: true, level: 3, config: { riseSpeed: 0.2 } };
     const line = bot.safeLine({ flood }, flood.level);
-    assert.equal(line, 3 + BOT.safeMargin + 0.2 * BOT.safeLead);
+    assert.equal(line, 3 + BOT.survival.climb.margin + 0.2 * BOT.survival.climb.lead);
     const low = nodeIndex(bot, 9, 4);
     bot.minTop = line;
     const dist = bot.distances(low);
