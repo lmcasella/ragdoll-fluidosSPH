@@ -477,12 +477,16 @@
             }
 
             let lastUiState = match.state;
+            /** Verdadero en el frame en que suena jugar: el "3" de la cuenta no suena encima. */
+            let cuentaMuda = false;
 
             /** Sonido de las transiciones de `Match`: empezar y revancha suenan como jugar, y volver al menú desde el fin de partida como volver. */
             function sonarTransicion() {
                 if (match.state === lastUiState) return;
-                if (match.state === "countdown" && (lastUiState === "title" || lastUiState === "matchOver")) audio.playUi("play", uiNow);
-                else if (match.state === "title" && lastUiState === "matchOver") audio.playUi("back", uiNow);
+                if (match.state === "countdown" && (lastUiState === "title" || lastUiState === "matchOver")) {
+                    audio.playUi("play", uiNow);
+                    cuentaMuda = true;
+                } else if (match.state === "title" && lastUiState === "matchOver") audio.playUi("back", uiNow);
                 lastUiState = match.state;
             }
 
@@ -1028,8 +1032,9 @@
                 });
 
                 hud.update(datosHud(frameDt, now));
-                for (const event of hud.events) audio.playUi(event, uiNow);
+                for (const event of hud.events) if (!(cuentaMuda && event === "count")) audio.playUi(event, uiNow);
                 hud.events.length = 0;
+                cuentaMuda = false;
                 debug.drawPanel(hudCtx, hudCanvas.width, hudCanvas.height);
                 if (match.state === "title") {
                     screens.update({

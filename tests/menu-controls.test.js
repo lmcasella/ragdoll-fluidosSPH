@@ -65,7 +65,8 @@ test("la pantalla de controles muestra las acciones del gamepad con una palabra 
         assert.ok(words.includes(row.word), `mismas palabras que el gamepad: ${row.word}`);
     }
     const bloquear = HELP.keyboard.rows.find((r) => r.word === "Bloquear");
-    assert.deepEqual(bloquear.keys, ["G"]);
+    assert.deepEqual(bloquear.keys, ["Shift"], "las teclas que usa KEYBOARD_LAYOUT");
+    assert.deepEqual(HELP.keyboard.rows.find((r) => r.word === "Saltar").keys, ["Espacio"]);
     const screen = new HelpScreen();
     assert.equal(screen.update({ x: 1 }), null);
     assert.equal(screen.view.tab, "keyboard", "el teclado cambia de pestaña con izquierda y derecha");

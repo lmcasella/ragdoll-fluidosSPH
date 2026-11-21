@@ -246,11 +246,10 @@ test("sonidos de la partida: cuenta, ¡YA!, aviso de inundación, banda de fin d
     game.state.arrancarPartida();
     fake.plays.length = 0;
     game.frames(1);
-    assert.deepEqual(names(fake), ["ui_play", "ui_countdown"], "empezar y el 3");
-    assert.ok(fake.plays[0].stopped, "el 3 corta al sonido de empezar");
+    assert.deepEqual(names(fake), ["ui_play"], "empezar suena entero: el 3 no suena encima");
     game.frames(60);
     game.frames(60);
-    assert.deepEqual(names(fake), ["ui_play", "ui_countdown", "ui_countdown", "ui_countdown"], "3, 2, 1");
+    assert.deepEqual(names(fake), ["ui_play", "ui_countdown", "ui_countdown"], "2, 1");
     fake.plays.length = 0;
     game.frames(70);
     assert.equal(match.state, "playing");
