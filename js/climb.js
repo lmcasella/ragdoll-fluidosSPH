@@ -11,9 +11,9 @@ import { FLUID, refillTanks } from "./weapons.js";
  * - `branches`: generador por filas: `thickness` de cada plataforma; `dy` [mín, máx] de la fila de respaldo;
  *`air` (m, de tope a tope) mínimo con otra que la cubra en x; `separation` horizontal mínima
  *   con otra a su altura (±`sameHeight`, el corrimiento máximo entre dos plataformas de una fila);
- *   `rows`: `spacing` [mín, máx] (m) entre una fila y la anterior, `counts` peso de cada cantidad de plataformas por fila,
- *   `shift` (m) de corrimiento vertical de cada plataforma a ± de la altura de su fila, `maxRun` filas seguidas con la misma
- *   cantidad como máximo, `singleWidth` [mín, máx] (m) de ancho de la plataforma de una fila de 1 en todas las etapas (un descanso
+ *   `rows`: `spacing` [mín, máx] (m) entre una fila y la anterior, `counts` peso de cada cantidad de plataformas por fila
+ *   (`first` en la etapa 0 y `last` desde la `width.stages`, lineal entre ellas; un peso 0 no se sortea), `shift` (m) de corrimiento vertical de cada plataforma a ± de la altura de su fila, `maxRun` filas seguidas con la misma
+ *   cantidad como máximo, `singleWidth` `{ first, last }` [mín, máx] (m) de ancho de la plataforma de una fila de 1, interpolado por etapa como `width` (un descanso
  *   que deja apoyar dos en la fila siguiente) con el alcance de salto de `reach` (`canReach` de `js/bot.js`) como regla de vecina;
  *   `tries` sorteos de fila; `transition`: una plataforma a menos de esto bajo un cambio de etapa ya
  *   usa el ancho de la etapa de arriba; `minWidth`; `tail`: con probabilidad `chance` el ancho se multiplica por `long` o
@@ -47,13 +47,19 @@ export const CLIMB = {
         air: 1.8,
         separation: 1,
         sameHeight: 0.8,
-        rows: { spacing: [2.2, 3.2], counts: { 1: 0.2, 2: 0.35, 3: 0.3, 4: 0.15 }, shift: 0.4, maxRun: 2, singleWidth: [4, 5.5] },
+        rows: {
+            spacing: [2.2, 3.2],
+            counts: { first: { 1: 0.35, 2: 0.5, 3: 0.15, 4: 0 }, last: { 1: 0.1, 2: 0.25, 3: 0.35, 4: 0.3 } },
+            shift: 0.4,
+            maxRun: 2,
+            singleWidth: { first: [10, 14], last: [4, 5.5] },
+        },
         tries: 300,
         transition: 3.5,
         minWidth: 1.6,
         tail: { chance: 0.1, long: 1.5, short: 0.6 },
         window: 12,
-        width: { first: [5, 9], last: [2, 4], stages: 5 },
+        width: { first: [8, 14], last: [2, 4], stages: 5 },
         base: { count: [3, 5], top: [4, 7] },
     },
     spawn: { distance: [4, 10], dy: 3, inset: 0.8, tries: 400, maxTop: 7 },
@@ -217,11 +223,22 @@ export class ClimbGenerator {
         return lo + this.random() * (hi - lo);
     }
 
+    /** Valor de la etapa `stage` entre `first` (etapa 0) y `last` (desde `width.stages`), lineal; sirve para números, arreglos y tablas de pesos. */
+    byStage(first, last, stage) {
+        const { stages } = this.config.branches.width;
+        const k = Math.min(stage, stages) / stages;
+        const mix = (a, b) => {
+            if (Array.isArray(a)) return a.map((v, i) => mix(v, b[i]));
+            if (typeof a === "object") return Object.fromEntries(Object.keys(a).map((n) => [n, mix(a[n], b[n])]));
+            return a + (b - a) * k;
+        };
+        return mix(first, last);
+    }
+
     /** Ancho de colocación (m) de las plataformas de la etapa `stage`: rango lineal entre `width.first` y `width.last`. */
     widthRange(stage) {
-        const { first, last, stages } = this.config.branches.width;
-        const k = Math.min(stage, stages) / stages;
-        return [first[0] + (last[0] - first[0]) * k, first[1] + (last[1] - first[1]) * k];
+        const { first, last } = this.config.branches.width;
+        return this.byStage(first, last, stage);
     }
 
     /** Plataformas anchas de la etapa 0, una por celda del ancho. */
@@ -244,7 +261,7 @@ export class ClimbGenerator {
     rowWidth(top, single) {
         const { tail, minWidth, transition, rows } = this.config.branches;
         const half = halfWidth(stageOf(top + transition, this.config), this.config);
-        if (single) return Math.min(this.uniform(rows.singleWidth), 2 * half);
+        if (single) return Math.min(this.uniform(this.byStage(rows.singleWidth.first, rows.singleWidth.last, stageOf(top, this.config))), 2 * half);
         let w = this.uniform(this.widthRange(stageOf(top, this.config)));
         if (this.random() < tail.chance) w *= this.random() < 0.5 ? tail.long : tail.short;
         return Math.min(Math.max(w, minWidth), 2 * half);
@@ -290,12 +307,17 @@ export class ClimbGenerator {
         return [{ x, y: top + pickupLift, kind: "repair" }];
     }
 
-    /** Cantidad de plataformas de la fila siguiente: sorteo por `rows.counts`, sin una cantidad que ya llevan las últimas `rows.maxRun` filas. */
-    pickCount() {
+    /**
+     * Cantidad de plataformas de la fila de altura base `base`: sorteo por los `rows.counts` de su etapa (un peso 0 no sale),
+     * sin una cantidad que ya llevan las últimas `rows.maxRun` filas, salvo que sea la única con peso.
+     */
+    pickCount(base) {
         const { counts, maxRun } = this.config.branches.rows;
         const recent = this.counts.slice(-maxRun);
-        const banned = recent.length === maxRun && recent.every((c) => c === recent[0]) ? recent[0] : null;
-        const entries = Object.entries(counts).filter(([n]) => Number(n) !== banned);
+        const run = recent.length === maxRun && recent.every((c) => c === recent[0]) ? recent[0] : null;
+        const weights = Object.entries(this.byStage(counts.first, counts.last, stageOf(base, this.config))).filter(([, w]) => w > 0);
+        const allowed = weights.filter(([n]) => Number(n) !== run);
+        const entries = allowed.length > 0 ? allowed : weights;
         let roll = this.random() * entries.reduce((sum, [, w]) => sum + w, 0);
         for (const [n, w] of entries) {
             roll -= w;
@@ -404,7 +426,7 @@ export class ClimbGenerator {
         const before = this.items;
         this.items = before.slice();
         const base = this.rowTop + this.uniform(this.config.branches.rows.spacing);
-        const row = this.drawRow(this.pickCount(), base);
+        const row = this.drawRow(this.pickCount(base), base);
         if (row !== null && this.rowReaches(row, base)) return { row, base };
         this.items = before;
         return null;
