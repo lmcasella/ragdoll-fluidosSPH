@@ -60,8 +60,10 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
     game.frames(90);
     assert.equal(game.state.particleSystem.GetParticleCount(), 0);
     assert.equal(game.laserMoves, 0, "ninguna mira láser");
-    assert.ok(game.hudTexts.some((t) => t.startsWith("J1 0 %") && !t.includes("·")), `HUD: ${game.hudTexts}`);
-    assert.ok(!game.hudTexts.includes("VACÍO"));
+    const panel = game.state.hud.panels[0];
+    assert.equal(panel.bigValue.textContent, "0");
+    assert.ok(!panel.none.classes.has("off"), "dice que no hay arma");
+    assert.ok(panel.empty.classes.has("off"), "sin arma no hay VACÍO");
 });
 
 test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) equipada con el tanque lleno y vuelve la mira", async () => {

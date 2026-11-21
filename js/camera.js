@@ -88,6 +88,14 @@ export class Camera {
         ctx.setTransform(s, 0, 0, -s, this.viewW / 2 - this.x * s, this.viewH / 2 + this.y * s);
     }
 
+    /** Píxeles de pantalla `{ x, y }` (Y hacia abajo) de un punto del mundo en metros; inversa de `toWorld`. */
+    toScreen(worldX, worldY, out = { x: 0, y: 0 }) {
+        const s = this.scale;
+        out.x = this.viewW / 2 + (worldX - this.x) * s;
+        out.y = this.viewH / 2 - (worldY - this.y) * s;
+        return out;
+    }
+
     toWorld(screenX, screenY) {
         const s = this.scale;
         return {

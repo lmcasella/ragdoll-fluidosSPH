@@ -68,12 +68,15 @@ test("Infinito: el HUD muestra el % de daño en lugar de la salud, y Clásico si
     const game = await infinite();
     game.state.players[0].damagePct = 47.9;
     game.frames(2);
-    assert.ok(game.hudTexts.includes("J1 47 %"), `HUD: ${game.hudTexts}`);
-    assert.ok(!game.hudTexts.some((t) => t.includes("Salud")));
+    const panel = game.state.hud.panels[0];
+    assert.ok(panel.el.classes.has("infinite") && !panel.el.classes.has("classic"));
+    assert.equal(panel.bigValue.textContent, "47");
     globalThis.location = { search: "" };
     const classic = await loadGame();
     classic.frames(2);
-    assert.ok(classic.hudTexts.some((t) => t.startsWith("J1 Salud: 100%")), `HUD: ${classic.hudTexts}`);
+    const classicPanel = classic.state.hud.panels[0];
+    assert.ok(classicPanel.el.classes.has("classic") && !classicPanel.el.classes.has("infinite"));
+    assert.equal(classicPanel.num.textContent, "100");
 });
 
 test("Clásico: la vida sigue siendo 100 y el daño mata", async () => {

@@ -7,21 +7,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { WEAPONS } from "../../js/weapons.js";
+import { inert } from "./inert.js";
+import { FakeElement } from "./fake-dom.js";
 
 const root = new URL("../../", import.meta.url);
 const require = createRequire(import.meta.url);
-
-// Objeto que acepta cualquier llamada y propiedad sin hacer nada (canvas, contexto 2D, nodos del DOM)
-function inert(stored = {}) {
-    const noop = () => undefined;
-    return new Proxy(noop, {
-        get: (_, prop) => (prop in stored ? stored[prop] : noop),
-        set: (_, prop, value) => {
-            stored[prop] = value;
-            return true;
-        },
-    });
-}
 
 export const FRAME_MS = 1000 / 60;
 
@@ -77,7 +67,10 @@ export async function loadGame(options = {}) {
             }
             return elements.get(id);
         },
-        createElement: () => inert({ width: 0, height: 0, style: {}, getContext: () => inert({ createRadialGradient: () => inert() }) }),
+        createElement: (tag) =>
+            tag === "canvas"
+                ? inert({ width: 0, height: 0, style: {}, getContext: () => inert({ createRadialGradient: () => inert() }) })
+                : new FakeElement(tag),
     };
 
     if (options.storage) globalThis.localStorage = options.storage;
