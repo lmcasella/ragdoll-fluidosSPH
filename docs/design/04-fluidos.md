@@ -184,7 +184,7 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 **El viento como impulso:** LiquidFun no tiene "fuerza de viento". La ráfaga es un grupo de partículas sin gravedad cuya velocidad se escribe en cada paso (*verificado*: escribir el buffer de velocidad persiste). Al tocar un cuerpo le transfieren cantidad de movimiento, y como las partículas se ven, el empuje se entiende.
 
-## 4.2 Recogida e inventario 🔨
+## 4.2 Recogida e inventario ✅
 
 - **Arranque** ✅ #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `js/weapons.js`):
   - **#13** ✅: todas las armas de la tabla con tanque lleno; arranca equipada la primera fila. Es provisorio, para poder probar.
@@ -194,11 +194,11 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 - **Puntos de aparición** ✅ #14 (`LEVEL.pickups`, `js/pickups.js`): las armas están en puntos fijos del mapa, definidos como datos del nivel. Al tocar un arma (sensor de Box2D), se suma al inventario con el tanque lleno; si ya estaba, se rellena. Reaparece en su punto a los 15 s. **El agua también aparece como recogible**: es su única recarga dentro de la ronda (ver 12.1). Puntos (m, centro del ícono, 0,6 m sobre la plataforma): ácido (28; 14,2), lava (13; 10,9) y (43; 10,9), miel (4,5; 7,6) y (51,5; 7,6), agua (26; 8,4). Sensor de radio 0,5 m; al empezar cada ronda todos están disponibles.
 - **Ítem de reparación** ✅ #156 (`kind: "repair"` en `LEVEL.pickups`, `REPAIR` en `js/pickups.js`): suma `REPAIR.hp` = 35 de salud, con tope en la salud máxima (`MAX_HP`). Con la salud llena no se recoge y sigue activo. Reaparece a los `REPAIR.respawn` = 20 s de juego (las armas, a los 15 s). Ícono: tuerca hexagonal gris con borde verde. Punto del clásico: (30; 8,4), en la plataforma central de la pileta. El bot con menos de `BOT.repairHp` = 40 de salud lo busca si la ruta tiene `pickupReach` aristas o menos. Suena `pickup_5`.
 - **Rueda de armas** ✅ #15 (revisada con el remapeo del 18/11; controles en [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)):
-  - mantener LB ≥ 0,25 s (`TAP_MAX`; Q o Ctrl derecho de respaldo) abre un círculo con las armas del inventario, repartidas en sectores iguales desde arriba en sentido horario;
-  - se elige con el **stick derecho** (W/A/S/D o flechas de respaldo) y se equipa al **soltar LB**; con el stick al centro se cancela;
+  - mantener LB ≥ 0,25 s (`TAP_MAX`; Q de respaldo) abre un círculo con las armas del inventario, repartidas en sectores iguales desde arriba en sentido horario;
+  - se elige con el **stick derecho** (W/A/S/D de respaldo) y se equipa al **soltar LB**; con el stick al centro se cancela;
   - mientras está abierta, el stick no apunta (la mira conserva la dirección) y el juego sigue corriendo;
   - un toque corto de LB (< 0,25 s) es arma anterior y RB es arma siguiente;
-  - **ya no reemplaza** a la elección directa: la cruceta (y 1–4 / Num 1–4) sigue eligiendo por posición en la tabla;
+  - **ya no reemplaza** a la elección directa: la cruceta (y 1–4) sigue eligiendo por posición en la tabla;
   - `Input` entrega `wheel` y `wheelPick`; el sector lo calcula la raíz de composición, que conoce el inventario.
 
 ## 4.3 Peligros del mapa

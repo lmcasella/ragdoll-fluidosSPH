@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.50.3] - 2026-11-21
+
+### Changed
+- La documentación del juego queda al día: el README explica el combate, la pausa y los tiempos de nocaut, e incluye el enlace para jugar.
+- El diseño marca como hecho lo que ya está en el juego (combos, bloqueo, plataformas atravesables, armas recogibles, agua física).
+
 ## [0.50.2] - 2026-11-21
 
 ### Changed

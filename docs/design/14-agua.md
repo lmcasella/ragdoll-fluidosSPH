@@ -1,8 +1,8 @@
-# 14. Agua física: campo de alturas, disparos e intercambios 🔨 #62
+# 14. Agua física: campo de alturas, disparos e intercambios ✅ #62 (🔨 #76)
 
 Rediseño de los fluidos para que **se simulen** con su física y no se imiten con reglas de juego (pedido del usuario, 18/11). La dirección la eligió el usuario y no se reabre: campo de alturas con Saint-Venant 1D para el agua del nivel, partículas chicas de agua pura para los disparos, absorción de partículas en el campo, flotación de Arquímedes por pieza, térmica con fases, mezcla por concentración, adherencia, arranque asentado y herramientas de debug.
 
-- **Estado:** todo 🔨. Lo que está en `main` sigue descripto en [07-sph](07-sph.md) hasta que cada sub-issue se mergee.
+- **Estado:** ✅ en `main`: campo de alturas e inundación (#70, #71), flotación (#72), evaporación (#73), térmica y fases (#75), adherencia (#77), debug (estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos; #29) y los arreglos #98, #100 y #110. 🔨 sin hacer: mezcla por concentración (#76, no existe `js/mixing.js`), las capas de debug de temperatura, concentración y contactos (#78) y, de la reacción de los cuerpos sobre el agua (#74), la reacción vertical y la presión de casco.
 - **Relevamiento medido** (18/11, no versionado): scripts, tablas y videos en el scratchpad del issue. Acá se citan los números usados.
 - **Restricciones:** `lib/` no se toca (`stepWorld` sigue con 8 subpasos para los ragdolls); render en Canvas2D, sin WebGL propio; el código no se comenta (solo JSDoc).
 - **Cada parte** tiene variables con unidades, ecuaciones, módulo, qué reemplaza y criterios físicos ([14.16](#1416-criterios-de-aceptación)). `physics-analyst` aprueba el diseño antes de implementar y valida cada resultado sobre video.
@@ -778,7 +778,7 @@ Para `physics-analyst`. Cada criterio tiene referencia, valor esperado y toleran
 | F9 | Arrastre de presión por arista: caja y círculo arrastrados a velocidad fija en agua quieta (sin campo de velocidad) | `F = ½ ρ C_d D_proy v² b` con `C_d` caja 2,0 y círculo 1,2 | Según datos | ±10 % |
 | F7 | `world.GetAutoClearForces()` es `true` | Supuesto de impulsos | `true` | — |
 
-### B. Reacción de los cuerpos sobre el agua (#74, recortable)
+### B. Reacción de los cuerpos sobre el agua (#74, recortable) 🔨 parcial: están la reacción horizontal del arrastre y las salpicaduras; faltan la reacción vertical y la presión de casco
 
 | Id | Criterio | Referencia | Esperado | Tolerancia |
 |---|---|---|---|---|
@@ -905,7 +905,7 @@ Son los criterios A1–A5 del issue, con otra letra porque A es la adherencia (#
 | E3 | Volumen total con evaporación, 60 s | Conservación: `Σ m (1 − φ)` + campo + evaporado = inicial | Constante | < 10⁻⁶ |
 | E4 | Lluvia y chorros en vuelo (\|v\| ≥ 1 m/s) | Regla de aplicación | `φ` no aumenta mientras \|v\| ≥ 1 m/s (dφ = 0 en vuelo); la lluvia y los chorros que llegan al campo sin haberse detenido llegan con `φ` = 0 | 0 partículas con dφ > 0 en vuelo |
 
-### D. Debug (#29 y #78)
+### D. Debug (#29 ✅ y #78 🔨: estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos ✅; capas de temperatura, concentración y contactos 🔨 #78)
 
 | Id | Criterio | Esperado |
 |---|---|---|
@@ -1033,11 +1033,11 @@ Las letras del primer borrador (A, B, C, D1, D2, F, K1, E, G, H, I, J, K2) queda
 | #72 | Flotación de Arquímedes por pieza | #71 | M3 | Sí |
 | #29 | Debug básico (panel, columnas, conservación, empuje) | #71 | M3 | No (recomendado) |
 | #73 | Evaporación de agua detenida (D7) y lector de contactos `contacts.js` | #68, #71 | M4 | No (si no llega, D5 vence a los 6 s todos los disparos en plataformas) |
-| #74 | Reacción de los cuerpos sobre el agua | #72 | M4 | No (recortable a M5) |
+| #74 🔨 | Reacción de los cuerpos sobre el agua (parcial: reacción horizontal del arrastre y salpicaduras ✅; reacción vertical y presión de casco 🔨) | #72 | M4 | No (recortable a M5) |
 | #75 | Térmica y fases | #73 | M4 | No (recortable a M5) |
 | #76 | Mezcla por concentración y viscosidad | #75 | M5 | No |
 | #77 | Adherencia con reacción (retira `STICKY`) | #76, #72 | M5 | No |
-| #78 | Debug completo (temperatura, concentración, contactos, vectores) | #75 | M5 | No |
+| #78 🔨 | Debug completo (vectores ✅; temperatura, concentración y contactos 🔨) | #75 | M5 | No |
 
 **Alcance de #69:** `SHOT_SYSTEM` nuevo (radio 0,12 m, `density` 12,0, damping 0,5, presión 0,1, sin tensiones, `maxCount` 3.000, `destroyByAge` `false`, flags 0 en agua, ácido y lava); en `WEAPONS`, los caudales y tanques de D2 con las velocidades actuales, sin `TENSILE`; emisión en un carril con la regla `rate ≤ speed/(1,5 r)` verificada por test; criterios P1–P6. El agua del nivel y su `STATIC_PRESSURE` **no** se tocan en #69: se borran en #71.
 

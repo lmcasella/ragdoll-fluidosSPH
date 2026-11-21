@@ -33,7 +33,7 @@ Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
   - ✅ #39: **ya no se eliminan.** El puente detecta los disparos dentro del agua (pileta, inundación o charcos) y los frena y los hace flotar o hundirse según el fluido ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)).
 - **Inundación:** la lluvia de la muerte súbita cae sobre la pileta y la hace subir (#22, [02-partida](02-partida.md#21-inundación--22)).
 
-## 5.3 Plataformas atravesables desde abajo 🔨 (#149)
+## 5.3 Plataformas atravesables desde abajo ✅ (#149)
 
 Pedido del usuario (remapeo del 18/11; issue #149, requisito del ascenso infinito #25). Un robot atraviesa una plataforma atravesable al subir desde abajo, y la atraviesa hacia abajo con `drop` (abajo + A, [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)). El usuario pidió un **sistema estándar y genérico**, reutilizable por otros sistemas (ascenso infinito, plataformas cinemáticas #33) y fácil de ajustar.
 

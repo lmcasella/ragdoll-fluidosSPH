@@ -14,13 +14,13 @@
 | M4 – Cierre de entrega | 24/11 | Render metaball (#26), balance (#27), documentación (#28). **El lunes 23 se congelan las funcionalidades** | 🔨 |
 | M5 – Pulido y defensa | 1/12 | Métricas (#29), reacciones (#30), arco (#31), explosión (#32), plataformas cinemáticas (#33), sprites (#34), sonido (#35), apuntado exacto (#8) | 🔨 |
 
-**Rediseño del agua (#62)** 🔨, sub-issues en [14.17](14-agua.md#1417-división-en-sub-issues-y-prioridades):
+**Rediseño del agua (#62)** ✅ salvo la mezcla (#76, 🔨), sub-issues en [14.17](14-agua.md#1417-división-en-sub-issues-y-prioridades):
 - **M2:** grabador de escenarios (#67), identidad estable de partículas (#68), disparos con agua pura (#69) y módulo `ShallowWater` (#70);
 - **M3:** pileta e inundación como campo de alturas con absorción (#71), flotación por pieza (#72) y debug básico (#29);
 - **M4:** evaporación de agua detenida (#73, D7), reacción de los cuerpos sobre el agua (#74) y térmica y fases (#75);
 - **M5:** mezcla (#76), adherencia (#77) y debug completo (#78).
 
-**Remapeo del gamepad y gancho** 🔨 (pedido del usuario, 18/11): el remapeo base va con #14, la rueda de armas (#15) después de #72 y el gancho después de la rueda; los tres entran en la entrega. El modo ragdoll y la menú de pausa son M5. Las plataformas atravesables no tienen issue todavía.
+**Remapeo del gamepad ✅ y gancho 🔨** (pedido del usuario, 18/11): el remapeo base va con #14, la rueda de armas (#15) después de #72 y el gancho después de la rueda; los tres entran en la entrega. El modo ragdoll y la menú de pausa son M5. Las plataformas atravesables no tienen issue todavía.
 
 Los sub-issues son #67 (A), #68 (B), #69 (C), #70 (D1), #71 (D2), #72 (F), #29 (K1), #73 (E), #74 (G), #75 (H), #76 (I), #77 (J) y #78 (K2). El mínimo de #62 para entregar es #67, #68, #69, #70, #71 y #72.
 
