@@ -179,5 +179,7 @@ Con `prefers-reduced-motion: reduce`: sin temblor, sin latidos ni rebotes; el n�
 6. "Muñeco" lleva la descripción "no pelea".
 7. En Infinito se muestra solo el %, sin "empuje ×N".
 8. Sin destello blanco del robot: alcanzan el número flotante y la barrita.
+9. Ningún texto visible de la interfaz usa palabras de muerte biológica ("ahogar", "ahogo", "se ahogó"): los robots no se ahogan. Cuando un robot cae al agua se dice "cortocircuito"; la zona roja del medidor de Infinito se llama "CORTOCIRCUITO" o "PELIGRO". Los identificadores del código (`drown…`) no cambian: esto vale solo para el texto.
+10. El teclado es solo de J1 y un solo jugador puede usar teclado y mouse a la vez: no hay teclado de J2. La pantalla de controles de teclado (`#v2b` de la maqueta) lleva una sola tarjeta (fase 2 de #216).
 
 La maqueta de referencia está en `docs/design/interfaz/maqueta.html`.
