@@ -11,7 +11,7 @@ El remapeo base y el gancho entran en la entrega (M4). El modo ragdoll es 🔨 M
 | Moverse | `left`, `right`, `up`, `down` (mantenidos) | Stick izquierdo, solo analógico (zona muerta 0,35) | A / D (W / S para arriba y abajo) | ← / → (↑ / ↓) | Sí |
 | Saltar | `jump` (flanco) | A (`buttons[0]`). Arriba ya no salta | W | ↑ | Sí |
 | Bajar de una plataforma atravesable | `drop` (flanco) | Stick abajo (`ly` > 0,6) + A | S + W | ↓ + ↑ | Sí (la intención; la plataforma atravesable es otro issue, [05](05-escenario.md#53-plataformas-atravesables-desde-abajo-)) |
-| Apuntar | `aim` / `pointer` | Stick derecho (conserva la dirección) | Mouse (solo si se movió después del último uso del stick) o hacia donde camina | Hacia donde camina | Sí |
+| Apuntar | `aim` / `pointer` | Stick derecho (conserva la dirección) | Mouse (solo si se movió después del último uso del stick) o hacia donde camina | Hacia donde camina | Sí. Sin stick derecho ni mouse como fuente, la mira (y el giro) sigue la dirección de caminar; durante un ataque no gira |
 | Disparar | `fire` (mantenido); `action` (flanco, menús y revancha) | RT (`buttons[7]`); `action` también con A | Espacio o botón izquierdo del mouse | Enter | Sí |
 | Golpe | `punch` (flanco) | B (`buttons[1]`) | F | Numpad 5 (🔨 #104; hoy Shift derecho) | Sí |
 | Combo melee 🔨 #104 | `punch` (flanco) | B repetido: cada toque dentro de la ventana del golpe en curso encadena `punch_combo1` → `2` → `3`; sin toque vuelve a la locomoción | F repetido | Numpad 5 repetido | Sí ([03 §3.7.4](03-robots.md#374-ataques-melee-datos-en-melee)) |
