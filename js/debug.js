@@ -18,7 +18,8 @@ export const DEBUG = {
     materials: { ACID: "ácido", LAVA: "lava", HONEY: "miel", WATER: "agua", STONE: "piedra", STEAM: "vapor" },
 };
 
-const PANEL = { x: 8, y: 8, width: 360, line: 15, pad: 6, font: "12px monospace" };
+/** Panel del menú de debug en px; `below` es la fracción del alto bajo la que empieza, para quedar debajo del HUD de partida (128 de 1080). */
+const PANEL = { x: 8, y: 8, below: 0.13, width: 360, line: 15, pad: 6, font: "12px monospace" };
 
 const GRAVITY = 10;
 
@@ -206,10 +207,11 @@ export class Debug {
         ctx.font = PANEL.font;
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
+        const top = Math.max(PANEL.y, PANEL.below * height);
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-        ctx.fillRect(PANEL.x, PANEL.y, PANEL.width, lines.length * PANEL.line + 2 * PANEL.pad);
+        ctx.fillRect(PANEL.x, top, PANEL.width, lines.length * PANEL.line + 2 * PANEL.pad);
         ctx.fillStyle = "#e8ffe8";
-        lines.forEach((text, i) => ctx.fillText(text, PANEL.x + PANEL.pad, PANEL.y + PANEL.pad + i * PANEL.line));
+        lines.forEach((text, i) => ctx.fillText(text, PANEL.x + PANEL.pad, top + PANEL.pad + i * PANEL.line));
     }
 
     /**

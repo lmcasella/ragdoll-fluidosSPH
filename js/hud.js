@@ -320,7 +320,7 @@ export class Hud {
 
         f.players.forEach((p, k) => {
             this.updatePanel(k, p);
-            if (live) this.detect(k, p, infinite);
+            if (live) this.detect(k, p);
         });
         this.updateScore(f);
         this.updatePrize(f);
@@ -492,17 +492,17 @@ export class Hud {
     }
 
     /** Daño de este frame de la víctima `k`: compara la vida con la del frame anterior; solo cuenta lo que baja la vida. */
-    detect(k, p, infinite) {
+    detect(k, p) {
         const value = p.hp;
         const previous = this.last[k];
         this.last[k] = value;
         if (previous === null) return;
         const lost = previous - value;
-        if (lost > 1e-6) this.damage(k, lost, previous / 100, infinite, heatOfHp(value));
-        else if (!infinite && lost < 0) this.headbars[k].chipRatio = Math.min(1, value / 100);
+        if (lost > 1e-6) this.damage(k, lost, previous / 100, heatOfHp(value));
+        else if (lost < 0) this.headbars[k].chipRatio = Math.min(1, value / 100);
     }
 
-    damage(k, amount, previousRatio, infinite, heat) {
+    damage(k, amount, previousRatio, heat) {
         let f = this.attached[k];
         if (f && f.active && f.since <= HUD.floater.release && f.age < HUD.floater.life) {
             f.sum += amount;
@@ -528,14 +528,12 @@ export class Hud {
             f.shook = true;
             restart(this.panels[k].el, "shake");
         }
-        if (!infinite) {
-            const bar = this.headbars[k];
-            bar.chipRatio = Math.max(bar.chipRatio, previousRatio);
-            bar.hold = HUD.headbar.chipHold;
-            bar.timer = HUD.headbar.show;
-            flag(bar.el, "off", false);
-            flag(bar.el, "fade", false);
-        }
+        const bar = this.headbars[k];
+        bar.chipRatio = Math.max(bar.chipRatio, previousRatio);
+        bar.hold = HUD.headbar.chipHold;
+        bar.timer = HUD.headbar.show;
+        flag(bar.el, "off", false);
+        flag(bar.el, "fade", false);
     }
 
     updateFeedback(f, live) {
