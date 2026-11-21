@@ -4,7 +4,8 @@
  * partícula-cuerpo, y cada buffer es un `b2GrowableBuffer { data*, count, capacity, allocator* }` dentro del sistema.
  *
  * Los offsets no se fijan: la primera vez que hay contactos se buscan en las primeras `SEARCH_WORDS` palabras
- * del sistema y se validan con los primeros contactos (índices en rango, `0 < peso ≤ 1`). Esperados: +54 palabras
+ * del sistema y se validan con los primeros contactos (índices en rango; `0 < peso ≤ 1` en partícula-partícula y
+ * `peso > 0` finito en partícula-cuerpo, donde una partícula dentro del cuerpo pesa más que 1). Esperados: +54 palabras
  * y 6 por contacto (`indexA`, `indexB`, `weight`, `nx`, `ny`, `flags`) para partícula-partícula, y +58 y 7 por
  * contacto (`index`, `body*`, `fixture*`, `weight`, `nx`, `ny`, `mass`) para partícula-cuerpo. Si un offset
  * hallado difiere del esperado se avisa una vez con `console.warn`; si no se encuentra, `failed` queda en
@@ -248,7 +249,7 @@ export class Contacts {
         for (let c = 0; c < checked; c++) {
             const w = words + c * BODY_CONTACT_WORDS;
             const weight = heapF[w + 3];
-            if (!(heapI[w] >= 0 && heapI[w] < n && heapI[w + 1] > 0 && weight > 0 && weight <= 1)) return false;
+            if (!(heapI[w] >= 0 && heapI[w] < n && heapI[w + 1] > 0 && weight > 0 && weight < Infinity)) return false;
         }
         return true;
     }
