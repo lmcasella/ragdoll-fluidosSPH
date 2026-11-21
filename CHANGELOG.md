@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-21
+
+### Added
+- En Infinito, el agua acelera cuando alguien se queda muy atrás: cuanto más lejos queda del jugador vivo más bajo, más rápido sube (hasta 4 m/s extra), y se mantiene a unos 2 m de sus pies si no sigue subiendo.
+
 ## [0.50.3] - 2026-11-21
 
 ### Changed
