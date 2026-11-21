@@ -87,7 +87,7 @@ Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, 
 
 - En Infinito no hay sensor de pileta: `damage.killSensors` queda vacío.
 - **`DamageSystem.drownSurface`:** función `(x) => η` o `null` (Clásico). En `process`, antes del mojado, para cada robot vivo: si el tope del torso (máximo `GetAABB(0).get_upperBound().get_y()` de las fixtures de `player.torso`) está por debajo de `drownSurface(x del torso)`, se aplica `player.drown(now)`.
-- La raíz pasa `(x) => water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : −Infinity`, que vale siempre, también antes de los 10 s: la pileta ahoga igual que hoy.
+- La raíz pasa `(x) => water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : −Infinity`, que vale siempre, también antes de los 5 s: la pileta ahoga igual que hoy.
 
 ## 16.6 Generar y liberar (`Climb`, `js/climb.js`)
 

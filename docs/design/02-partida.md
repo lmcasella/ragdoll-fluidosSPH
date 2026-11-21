@@ -39,7 +39,7 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
 
 Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj de ronda en `Match` (`js/round.js`).
 
-> **Solo en el mapa Clásico.** En Infinito no llueve: el agua sube desde los 10 s, sin techo, con `RisingFlood`, y el robot con el torso bajo la superficie se ahoga ([16.5](16-ascenso.md#165-agua)).
+> **Solo en el mapa Clásico.** En Infinito no llueve: el agua sube desde los 5 s, sin techo, con `RisingFlood`, y el robot con el torso bajo la superficie se ahoga ([16.5](16-ascenso.md#165-agua)).
 
 > **✅ #71 (0.15.0), lo que sigue de esta sección sobre el agua en partículas es historia:** la lluvia pasa al sistema líquido y se absorbe en un campo de alturas. El emisor deja de controlar el nivel: el caudal sale de `riseSpeed` y el nivel resulta de la conservación de la masa. Se borran el escurrido y la calibración de `density` ([14.7](14-agua.md#147-inundación-con-lluvia-absorbida)).
 

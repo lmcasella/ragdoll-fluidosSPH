@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.45.2] - 2026-11-20
+
+### Changed
+- Diseño del juego: página nueva de balance con los valores con los que se juega hoy (vida, golpes, armas, tiempos de la partida e Infinito), y corrección de los números viejos que no coincidían con el juego. Sin cambios en el juego.
+
 ## [0.45.1] - 2026-11-20
 
 ### Fixed
