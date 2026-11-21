@@ -50,6 +50,8 @@ Con chorro continuo, el daño se define como **daño por segundo con el chorro e
 
 #### Tabla de armas (datos en `WEAPONS`, `js/weapons.js`)
 
+> **Caudales y tanques de esta tabla son históricos.** Los valores actuales están en [17-balance](17-balance.md#armas).
+
 El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas numéricas. `weapon` en el jugador es el `id`, que coincide con `FLUID`.
 
 | Arma | `id` (`FLUID`) | Flags | Color | Caudal (p/s) | Velocidad (m/s) | Dispersión | Tanque (p) | Dura | DPS esperado | Por partícula | Se consume | Estado |
@@ -112,6 +114,8 @@ La regla tiene tres partes, cada una en el sistema que le corresponde: **detecci
 - **Costo esperado:** una lectura de color por partícula (≤ 1.500) y, por partícula de miel (≤ ~375), dos comparaciones de caja por robot más las de sus fixtures si entra en la caja que las une. Del orden de decenas de miles de comparaciones en JS por paso: bastante menos de 0,1 ms. Se mide en el test de gameplay y se anota en [09](09-arquitectura.md#92-rendimiento-medido).
 
 #### 2. Efecto: estado `pegado` en `ActiveRagdoll`
+
+> **Retirado.** `STICKY` ya no existe: la miel frena por física, con adherencia viscosa ([14-agua](14-agua.md)). Lo que sigue es historia.
 
 Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `move()` (3 m/s, salto 3, fricción 0,95). Los valores son datos: `STICKY`, exportado desde `js/ActiveRagdoll.js` junto a las demás constantes de estado.
 
