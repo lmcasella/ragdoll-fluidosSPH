@@ -24,6 +24,8 @@ Todos empujan al rival y lo dejan aturdido un momento. El bloqueo (LT) frena tod
 | Golpe en el aire | 8 | 0,4 s |
 | Patada en el aire | 12 | 0,6 s |
 
+El 2.º y el 3.er golpe del combo hacen avanzar al atacante 2,5 m/s durante su ventana activa (`lunge`).
+
 Los datos de cada golpe están en `MELEE` (`js/melee.js:16-84`).
 
 ## Armas

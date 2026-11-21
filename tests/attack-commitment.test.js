@@ -4,19 +4,27 @@ import { BUTTON, AIM_RIGHT, startDuel, run } from "./helpers/duel.js";
 
 const COMBO_FRAMES = [0, 15, 39];
 
-test("#230: ningún golpe del combo aplica velocidad al atacante", async () => {
-    const game = await startDuel(0.8);
+test("#279: combo2 y combo3 avanzan al atacante a 2,5 m/s durante la ventana activa y combo1 no", async () => {
+    const game = await startDuel(3);
     const [p1] = game.state.players;
-    let calls = 0;
+    const rows = new Map();
     const original = p1.setVelocity.bind(p1);
-    p1.setVelocity = (...args) => {
-        if (p1.attack !== null) calls++;
-        return original(...args);
+    p1.setVelocity = (vx, vy) => {
+        if (p1.attack !== null) {
+            const list = rows.get(p1.attack) ?? [];
+            list.push(vx);
+            rows.set(p1.attack, list);
+        }
+        return original(vx, vy);
     };
     run(game, 140, (f) => game.setPad(0, { buttons: COMBO_FRAMES.includes(f) ? [BUTTON.B] : [], axes: AIM_RIGHT }));
-    assert.equal(calls, 0);
+    assert.equal(p1.rig.melee.attacks.combo1.lunge, undefined);
+    assert.equal(rows.has("combo1"), false);
+    for (const name of ["combo2", "combo3"]) {
+        const lunging = (rows.get(name) ?? []).filter((v) => Math.abs(v - 2.5) < 1e-9);
+        assert.ok(lunging.length > 0, `${name} sin avance`);
+    }
 });
-
 test("#225: en medio de un golpe el stick al lado contrario no gira al robot, y gira al terminar", async () => {
     const game = await startDuel(3);
     const [p1] = game.state.players;
