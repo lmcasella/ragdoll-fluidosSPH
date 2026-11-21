@@ -48,7 +48,7 @@ Regla: el color de un jugador siempre va con su insignia "J1"/"J2" o con su lado
 | Logo | 120 itálica |
 | Número de cuenta regresiva | 120 |
 | "¡YA!" | 130 itálica |
-| Número de vida / % en el panel | 36 |
+| Número de vida en el panel | 36 |
 | Reloj del marcador | 28 |
 | Número flotante de daño | 32 |
 | Acción en controles | 28 |
@@ -161,8 +161,9 @@ Todo el HUD de partida queda por encima de y 128, salvo el medidor de Infinito y
 - `hp < 30`: relleno y número `--danger`, latido de brillo 0,8 s. La insignia mantiene el color del jugador.
 - Número: `Math.ceil(hp)`, sin "%".
 
-### 3.6 Infinito: % de daño y medidor de altura
-- Número `Math.floor(damagePct)` + "%" a la mitad de tamaño, coloreado con la **rampa de calor** (§3.7). Debajo, barra 300 × 6 hasta `KNOCKBACK.maxPct` (500), marcas cada 100, relleno con la misma rampa. Sin "empuje ×N".
+### 3.6 Infinito: nocaut y medidor de altura
+- El panel muestra la barra y el número de vida igual que en el Clásico (§3.5).
+- **Contador del nocaut:** mientras el robot está inconsciente, sobre su cabeza se ve el entero de segundos que faltan (de 15 a 1), con el estilo del número flotante (§3.7), en blanco y sin rampa ni animación de golpe.
 - **Medidor vertical** a la derecha: x 1810–1904, y 128–968, fondo `--panel` (56 de ancho detrás de la pista, radio 8).
   - Pista 10 de ancho. Ventana de 60 m que sigue al agua: abajo = superficie − 5 m, arriba = superficie + 55 m.
   - Agua: relleno desde abajo hasta la superficie, línea `#9ad6ff` de 3 e `i-wave` 18 `#9ad6ff` al lado. Zona de peligro: 0–4 m sobre el agua, degradado `--danger` 55 % → 0. Sin texto.
@@ -173,10 +174,9 @@ Todo el HUD de partida queda por encima de y 128, salvo el medidor de Infinito y
 **Número flotante + barrita sobre la cabeza + tramo blanco en el panel**, los tres a la vez. El daño se lee como algo malo en los dos mapas: misma forma, misma rampa de calor, nunca amarillo de foco ni brillo dorado.
 
 - **Rampa de calor** (`--heat-0..3`), interpolada en RGB:
-  - Infinito: `t = damagePct` de la víctima **después** del golpe; 0 % blanco → 100 % durazno → 250 % naranja rojizo → 500 % rojo.
-  - Clásico: `t = (100 − hp) × 5` (el mismo recorrido de blanco a rojo entre vida llena y vida 0).
-  - La usan el número flotante y el número y la barra del panel en Infinito.
-- **Número flotante** en el torso, **32**, Chakra Petch 700, color de la rampa, contorno 2 `#2a0006`, sombra dura `0 2 0 rgba(0,0,0,.6)`. **Sin brillo.** Texto: Clásico "−12"; Infinito "12%" (**sin "+"**: el signo más se lee como premio).
+  - `t = (100 − hp) × 5` en los dos mapas (el mismo recorrido de blanco a rojo entre vida llena y vida 0).
+  - La usa el número flotante.
+- **Número flotante** en el torso, **32**, Chakra Petch 700, color de la rampa, contorno 2 `#2a0006`, sombra dura `0 2 0 rgba(0,0,0,.6)`. **Sin brillo.** Texto: "−12" en los dos mapas.
 - **Movimiento de golpe, no de premio:** entra en escala 1,3 → 1 en 0,08 s (sin rebote), **sacudón** horizontal ±4 px de 3 ciclos en 0,18 s, queda quieto y **cae** 16 mientras se desvanece en los últimos 0,4 s. Vida total 1 s. No sube.
 - **Se agrupa por víctima:** el daño que llega mientras el número está visible se suma al mismo número, se recolorea con el `t` nuevo y repite el sacudón (sin escalar). Sin daño nuevo durante 0,6 s, se suelta y el próximo crea otro.
 - **Barrita sobre la cabeza** (solo Clásico): **64 × 8**, sesgada, 28 sobre la cabeza; color del jugador + tramo blanco de lo perdido. Visible 1,5 s desde el último daño; se va en 0,3 s. En metros del mundo convertidos con la cámara.
@@ -262,7 +262,7 @@ Con `prefers-reduced-motion: reduce`: sin temblor, sacudón, latidos ni rebotes;
 4. Menú: "Dificultad" pasa a llamarse "Bot", Mapa va primero y se suma la fila "Controles".
 5. Fin de ronda sin línea de causa.
 6. "Muñeco" se muestra solo con el ícono de maniquí, sin descripción.
-7. En Infinito se muestra solo el %, sin "empuje ×N".
+7. En Infinito el panel muestra la vida como en el Clásico y, en nocaut, el contador de segundos sobre el robot.
 8. Sin destello blanco del robot: alcanzan el número flotante y la barrita.
 9. Ningún texto visible de la interfaz usa palabras de muerte biológica ("ahogar", "ahogo", "se ahogó"): los robots no se ahogan. Cuando un robot cae al agua se dice "cortocircuito"; la zona roja del medidor de Infinito no lleva texto, solo el degradado rojo. Los identificadores del código (`drown…`) no cambian: esto vale solo para el texto.
 10. El teclado es solo de J1 y un solo jugador puede usar teclado y mouse a la vez: no hay teclado de J2. La pantalla de controles de teclado lleva una sola tarjeta.

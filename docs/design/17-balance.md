@@ -55,6 +55,6 @@ El vapor y la piedra que salen de las reacciones no dañan. Los valores están e
 
 | Qué | Valor | Dónde está |
 |---|---|---|
-| Daño | no baja la vida: suma un porcentaje (hasta 500 %) que hace que cada golpe empuje más; solo el agua mata | `js/ActiveRagdoll.js:12` |
+| Nocaut | con la vida en 0 el robot queda 15 s inconsciente y se levanta con 50 de vida; solo el agua mata | `js/ActiveRagdoll.js:5-9` |
 | Agua que sube | arranca a los 5 s, a 0,25 m/s, y va 0,04 m/s más rápido por etapa | `js/climb.js:69` |
-| Reparación | baja 35 puntos de porcentaje, sin bajar de 0 | `js/ActiveRagdoll.js:201-202` |
+| Reparación | deja la vida en 100 y levanta al robot en nocaut (en el Clásico suma 35) | `js/ActiveRagdoll.js` (`repair`) |

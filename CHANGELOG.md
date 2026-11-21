@@ -5,6 +5,16 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-20
+
+### Changed
+- En Infinito la vida vuelve a ser la de 100 del Clásico, con las mismas fuentes de daño. Se quitan el daño acumulado en % y el empuje creciente: los golpes y los chorros empujan siempre igual.
+- La tuerca de reparación en Infinito deja la vida en 100 (en el Clásico sigue sumando 35). El premio por etapa también.
+- El panel de Infinito muestra la barra y el número de vida como el Clásico, y el número flotante de daño es "−N" con la misma rampa de calor.
+
+### Added
+- Nocaut en Infinito: con la vida en 0 el robot no muere, queda inconsciente 15 s con la animación de caída dolorida, sin responder a ningún control (el bot tampoco lo maneja) mientras los golpes y los fluidos lo siguen empujando, y se levanta con 50 de vida. Más daño en nocaut no alarga el tiempo. Una tuerca lo levanta en el acto con 100 de vida. Solo el agua saca al robot de la partida, también en nocaut. Sobre el robot inconsciente se ve el contador de segundos que faltan.
+
 ## [0.48.0] - 2026-11-20
 
 ### Added

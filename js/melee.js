@@ -1,5 +1,3 @@
-import { KNOCKBACK, extraScale } from "./ActiveRagdoll.js";
-
 /**
  * Ataques melee y combo (docs/design/03-robots.md §3.7.4). `duration` y `active` (ventana en la que los rayos pueden
  * conectar) en s desde el inicio del ataque; `origin` es la articulación cuya ancla emite los rayos; `base` es la
@@ -145,7 +143,6 @@ export class Melee {
     connect(attacker, owner, row, dx, dy, hit, now) {
         const victim = owner.player;
         const guarded = victim.blocking && dx * victim.side < 0;
-        const factor = victim.knockbackFactor ?? 1;
         const body = victim.rag.bodies.get(owner.bodyId);
         this.point.set_x(hit.x);
         this.point.set_y(hit.y);
@@ -154,12 +151,10 @@ export class Melee {
         if (guarded && row.breaksGuard) {
             victim.stun(this.config.guardBreakStun, now);
             body.ApplyLinearImpulse(this.impulse, this.point, true);
-            this.extraImpulse(body, dx, dy, factor);
             victim.hit(row.reaction, now);
             this.events.push({ kind: "blockBreak", victim: owner.index });
         } else if (guarded) {
             body.ApplyLinearImpulse(this.impulse, this.point, true);
-            this.extraImpulse(body, dx, dy, factor);
             victim.blocked(now);
             this.events.push({ kind: "block", victim: owner.index });
         } else {
@@ -167,29 +162,11 @@ export class Melee {
             if (dealt > 0) this.events.push({ kind: "hit", victim: owner.index });
             victim.stun(row.stun, now);
             body.ApplyLinearImpulse(this.impulse, this.point, true);
-            victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1], factor);
-            this.extraImpulse(body, dx, dy, factor);
+            victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
             victim.hit(row.reaction, now);
         }
         attacker.markConnected();
         this.hits.push({ x: hit.x, y: hit.y, time: now, kind: guarded ? (row.breaksGuard ? "blockBreak" : "block") : "hit" });
-    }
-
-    /**
-     * Suma al impulso del golpe `(factor − 1)` veces su valor en la dirección `(dx, dy)`, recortado para que `body` no
-     * pase de `KNOCKBACK.maxSpeed` por causa del extra.
-     */
-    extraImpulse(body, dx, dy, factor) {
-        const extra = factor - 1;
-        if (extra <= 0) return;
-        const ix = dx * this.config.impulse * extra;
-        const iy = dy * this.config.impulse * extra;
-        const mass = body.GetMass();
-        const v = body.GetLinearVelocity();
-        const t = extraScale(v.get_x(), v.get_y(), ix / mass, iy / mass, KNOCKBACK.maxSpeed);
-        this.impulse.set_x(ix * t);
-        this.impulse.set_y(iy * t);
-        body.ApplyLinearImpulse(this.impulse, this.point, true);
     }
 
     /**

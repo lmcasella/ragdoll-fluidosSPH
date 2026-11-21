@@ -7,7 +7,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 ## 16.1 Qué es
 
 - Mapa **Infinito** en la fila Mapa del menú: habilitado y default. **Clásico** no cambia y queda como mapa de testing. Rondas y partida sin cambios ([02](02-partida.md)).
-- **Daño acumulado (#162):** en Infinito la vida es un % que arranca en 0 y satura en `KNOCKBACK.maxPct` = 500 (#228); todo daño suma %. El empuje de golpes y chorros se multiplica por `1 + KNOCKBACK.scale · %/100` (`scale` 1), y el extra se recorta para que ninguna pieza pase de `KNOCKBACK.maxSpeed` = 25 m/s. El daño no mata: se muere ahogado. La reparación y el premio por etapa restan %. El HUD muestra el %.
+- **Nocaut (#275):** la vida es la misma que en el Clásico (100, mismas fuentes y valores de daño). Con la vida en 0 el robot no muere: queda inconsciente `KNOCKOUT.time` = 15 s con el clip `land_hurt`, sin responder a ningún control (moverse, saltar, rodar, disparar, golpear, bloquear; el bot tampoco lo maneja), pero los golpes y los fluidos lo siguen empujando. Más daño en nocaut no reinicia ni alarga el contador. Al terminar se levanta con `getup_front` o `getup_back` (según cómo quedó el torso) y con `KNOCKOUT.reviveHp` = 50 de vida. La tuerca (y el premio por etapa) dejan la vida en 100 y, si el robot está en nocaut, lo levantan en el acto. Solo el agua saca al robot de la partida, también en nocaut. El HUD muestra la barra y el número de vida como en el Clásico y el contador de segundos del nocaut sobre el robot ([18](18-interfaz.md) §3.6).
 - **Sin mapa sólido abajo:** no hay islas, pileta, piso ni plataformas del clásico. Solo hay paredes a los costados y plataformas atravesables en el medio. El agua del campo arranca en y = 2 m sobre todo el ancho, con lecho plano en 0.
 - **Etapas** de 15 m (etapa `n` = altura local `y` ∈ [15n, 15n + 15)) con paredes propias y plataformas atravesables generadas con semilla, **por ramas**: altura, ancho e irregularidad variables y sin justicia entre lados.
 - **Aparición cercana:** cada jugador arranca sobre una plataforma al azar de la etapa 0, a 4–10 m del otro.
@@ -53,7 +53,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 - Armas por etapa: etapa 0, ninguna (ni los puntos de `LEVEL.pickups` del clásico ni plataformas generadas de 10 a 15 m locales); etapa 1, agua; etapa 2, agua y miel con lava ocasional; etapa 3, lava; etapa 4 en adelante, ácido y lava.
 - Etapa `n ≥ 1`: una plataforma lleva un arma si `índice de la plataforma dentro de su etapa % period === 0`, en `(x de la plataforma, tope + 0,6)` (un sorteo con `weights`).
-- Reparación ✅ #156: un ítem por etapa `n ≥ 1` (`repairPerStage`), sobre la primera plataforma generada de la etapa cuyo tope llega a la mitad de la etapa (fila central), en `(x, tope + 0,6)`; esa plataforma no lleva arma. Resta 35 % de daño acumulado (nunca baja de 0 %, #162) y reaparece a los 20 s (`docs/design/04-fluidos.md` §4.2).
+- Reparación ✅ #156: un ítem por etapa `n ≥ 1` (`repairPerStage`), sobre la primera plataforma generada de la etapa cuyo tope llega a la mitad de la etapa (fila central), en `(x, tope + 0,6)`; esa plataforma no lleva arma. Deja la vida en 100 (en el Clásico suma 35) y levanta al robot en nocaut (#275); reaparece a los 20 s (`docs/design/04-fluidos.md` §4.2).
 
 ## 16.5 Agua
 

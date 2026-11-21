@@ -53,10 +53,6 @@
 .hud .pnl.r .row2 {
     flex-direction: row-reverse;
 }
-.hud .pnl.classic .m-inf,
-.hud .pnl.infinite .m-cls {
-    display: none;
-}
 .hud .pnl .num {
     font-family: var(--font-display);
     font-weight: 700;
@@ -166,54 +162,6 @@
 }
 .hud .tank i.w-miel {
     background: var(--w-miel);
-}
-
-.hud .pctcol {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: calc(36 * var(--u));
-}
-.hud .pnl.l .pctcol {
-    align-items: flex-end;
-}
-.hud .pnl.r .pctcol {
-    align-items: flex-start;
-}
-.hud .pctnum {
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: calc(36 * var(--u));
-    line-height: calc(28 * var(--u));
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-.hud .pctnum small {
-    font-size: 0.5em;
-}
-.hud .pctbar {
-    position: relative;
-    align-self: stretch;
-    height: calc(6 * var(--u));
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: calc(2 * var(--u));
-    overflow: hidden;
-}
-.hud .pctbar i {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-}
-.hud .pnl.r .pctbar i {
-    left: auto;
-    right: 0;
-}
-.hud .pctbar .tk5 {
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(90deg, transparent 0 calc(20% - 2 * var(--u)), rgba(0, 0, 0, 0.7) calc(20% - 2 * var(--u)) 20%);
 }
 
 .hud .score {
@@ -337,6 +285,9 @@
 }
 .hud .dmg .n.shake {
     animation: ui-nshake 0.18s linear;
+}
+.hud .dmg.ko {
+    margin-top: calc(-36 * var(--u));
 }
 .hud .headbar {
     position: absolute;

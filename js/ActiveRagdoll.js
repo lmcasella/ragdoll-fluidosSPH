@@ -5,25 +5,10 @@ import { MATERIALS } from "./materials.js";
 export const MAX_HP = 100;
 
 /**
- * Empuje por daño acumulado (#162, solo Infinito): todo impulso de golpe o chorro que recibe un robot se multiplica por
- * `1 + scale · daño% / 100`; con `scale` = 1, 100 % de daño duplica el empuje. `maxPct` (%) es el tope del daño
- * acumulado (#228); `maxSpeed` (m/s) es la velocidad que ninguna pieza supera por causa del impulso extra del empuje.
+ * Nocaut (#275, solo Infinito): con la vida en 0 el robot no muere, queda inconsciente `time` s (con `land_hurt`, sin
+ * responder al control) y se levanta con `reviveHp` de vida. Solo el agua lo saca de la partida.
  */
-export const KNOCKBACK = { scale: 1, maxPct: 500, maxSpeed: 25 };
-
-/**
- * Mayor fracción `t` de [0, 1] con la que se puede sumar el cambio de velocidad `(dx, dy)` a la velocidad `(vx, vy)` sin
- * que la rapidez pase de `max(limit, |v|)`: una pieza ya más rápida que `limit` no gana rapidez por el extra.
- */
-export function extraScale(vx, vy, dx, dy, limit) {
-    const a = dx * dx + dy * dy;
-    if (a === 0) return 1;
-    const b = 2 * (vx * dx + vy * dy);
-    const speed2 = vx * vx + vy * vy;
-    const c = speed2 - Math.max(limit * limit, speed2);
-    const t = (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a);
-    return Math.min(1, Math.max(0, t));
-}
+export const KNOCKOUT = { time: 15, reviveHp: 50 };
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
@@ -131,9 +116,11 @@ export class ActiveRagdoll {
 
         // Estados del jugador
         this.hp = MAX_HP;
-        /** Verdadero en Infinito: la vida es el daño acumulado `damagePct` (%, con tope `KNOCKBACK.maxPct`) y solo el agua mata. */
-        this.accumulates = false;
-        this.damagePct = 0;
+        /** Verdadero en Infinito: la vida en 0 deja al robot en nocaut (`KNOCKOUT`) y solo el agua mata. */
+        this.knocksOut = false;
+        /** Verdadero durante el nocaut; `knockoutEnd` es el instante (s) en que se levanta. */
+        this.knockedOut = false;
+        this.knockoutEnd = 0;
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
@@ -179,34 +166,44 @@ export class ActiveRagdoll {
     }
 
     get dead() {
-        return this.accumulates ? this.drowned : this.hp <= 0;
+        return this.knocksOut ? this.drowned : this.hp <= 0;
     }
 
-    /** Multiplicador de todo impulso que recibe el robot por golpes y chorros; 1 fuera de Infinito. */
-    get knockbackFactor() {
-        return this.accumulates ? 1 + (KNOCKBACK.scale * this.damagePct) / 100 : 1;
-    }
-
-    /** Salud equivalente en [0, `MAX_HP`] para decidir (bot): más daño acumulado, menos salud. */
-    get vitality() {
-        return this.accumulates ? Math.max(0, MAX_HP - this.damagePct) : this.hp;
-    }
-
-    /** Verdadero si no hay nada que reparar: salud llena, o 0 % de daño en Infinito. */
+    /** Verdadero si no hay nada que reparar: salud llena. */
     get intact() {
-        return this.accumulates ? this.damagePct <= 0 : this.hp >= MAX_HP;
+        return this.hp >= MAX_HP;
     }
 
-    /** Repara `amount` (salud o %), sin pasar de la salud máxima ni bajar de 0 % de daño. */
+    /** Segundos que faltan para que el robot en nocaut se levante; 0 fuera del nocaut. */
+    knockoutLeft(now = this.now) {
+        return this.knockedOut ? Math.max(0, this.knockoutEnd - now) : 0;
+    }
+
+    /**
+     * Repara `amount` de salud, sin pasar de la salud máxima. En Infinito deja la salud en el máximo y, si el robot está
+     * en nocaut, lo levanta en el acto.
+     */
     repair(amount) {
-        if (this.accumulates) this.damagePct = Math.max(0, this.damagePct - amount);
-        else this.hp = Math.min(MAX_HP, this.hp + amount);
+        if (this.knocksOut) {
+            this.hp = MAX_HP;
+            if (this.knockedOut) this.wake(MAX_HP);
+        } else {
+            this.hp = Math.min(MAX_HP, this.hp + amount);
+        }
+    }
+
+    /** Termina el nocaut con `hp` de vida y empieza la levantada que corresponde a cómo quedó el torso. */
+    wake(hp, now = this.now) {
+        this.knockedOut = false;
+        this.hp = hp;
+        this.beginRecover(this.chestDown() ? "getupFront" : "getupBack", now);
     }
 
     // Cayó a la pileta: cortocircuito total
     drown(now = this.now) {
         if (this.dead) return;
         this.drowned = true;
+        this.knockedOut = false;
         this.hp = 0;
         for (const id of this.rag.bodies.keys()) this.flashes.set(id, now);
     }
@@ -382,23 +379,11 @@ export class ActiveRagdoll {
 
     // Empuje del robot entero: suma la misma velocidad a todas sus piezas (como el salto). Un impulso
     // sobre una sola pieza de 1 kg apenas mueve a un robot de 13 piezas.
-    /**
-     * Suma `(vx, vy)` m/s a todas las piezas y, con `factor` > 1, además `(factor − 1)` veces ese cambio, recortado por
-     * pieza para que ninguna supere `KNOCKBACK.maxSpeed` por causa del extra.
-     */
-    knockback(vx, vy, factor = 1) {
-        const extra = factor - 1;
+    knockback(vx, vy) {
         for (const body of this.rag.bodies.values()) {
             const v = body.GetLinearVelocity();
-            let x = v.get_x() + vx;
-            let y = v.get_y() + vy;
-            if (extra > 0) {
-                const t = extraScale(x, y, vx * extra, vy * extra, KNOCKBACK.maxSpeed);
-                x += vx * extra * t;
-                y += vy * extra * t;
-            }
-            this.scratch.set_x(x);
-            this.scratch.set_y(y);
+            this.scratch.set_x(v.get_x() + vx);
+            this.scratch.set_y(v.get_y() + vy);
             body.SetLinearVelocity(this.scratch);
         }
     }
@@ -418,8 +403,9 @@ export class ActiveRagdoll {
      */
     copyStateFrom(old) {
         this.hp = old.hp;
-        this.accumulates = old.accumulates;
-        this.damagePct = old.damagePct;
+        this.knocksOut = old.knocksOut;
+        this.knockedOut = old.knockedOut;
+        this.knockoutEnd = old.knockoutEnd;
         this.weapon = old.weapon;
         this.tanks = old.tanks;
         this.framesGrounded = old.framesGrounded;
@@ -502,7 +488,7 @@ export class ActiveRagdoll {
      * normal. `landHurt` dura al menos su clip y hasta `RECOVER.rest` s seguidos de apoyo (`resting()`).
      */
     updateRecover(now) {
-        if (this.recoverState === null) return;
+        if (this.recoverState === null || this.knockedOut) return;
         const length = this.rig.clipLengths?.[this.rig.clips[this.recoverState]] ?? 0;
         if (this.recoverState === "landHurt") {
             if (this.resting()) this.restSince ??= now;
@@ -519,13 +505,14 @@ export class ActiveRagdoll {
         }
     }
 
-    takeDamage(amount) {
-        if (this.accumulates) {
-            this.damagePct = Math.min(KNOCKBACK.maxPct, this.damagePct + amount);
-            return;
-        }
+    /** Resta vida; en Infinito, al llegar a 0 empieza el nocaut (más daño estando en nocaut no lo reinicia). */
+    takeDamage(amount, now = this.now) {
         this.hp -= amount;
         if (this.hp < 0) this.hp = 0;
+        if (this.knocksOut && this.hp <= 0 && !this.knockedOut && !this.drowned) {
+            this.knockedOut = true;
+            this.knockoutEnd = now + KNOCKOUT.time;
+        }
     }
 
     // Daño a una parte del cuerpo: aplica su multiplicador y la pone roja
@@ -533,7 +520,7 @@ export class ActiveRagdoll {
         if (this.dead) return 0;
         const multiplier = this.rig.damage?.[bodyId] ?? this.rig.defaultDamage ?? 1;
         const dealt = amount * multiplier;
-        this.takeDamage(dealt);
+        this.takeDamage(dealt, now);
         this.flashes.set(bodyId, now);
         return dealt;
     }
@@ -809,6 +796,16 @@ export class ActiveRagdoll {
             if (this.clipState !== "dead") this.rag.clearAllOverrides();
             this.enterState("dead");
             return;
+        }
+        if (this.knockedOut) {
+            if (now >= this.knockoutEnd) {
+                this.wake(KNOCKOUT.reviveHp, now);
+            } else if (this.recoverState !== "landHurt") {
+                this.attack = null;
+                this.nextAttack = null;
+                this.rollStart = -Infinity;
+                this.beginRecover("landHurt", now);
+            }
         }
         this.blockHeld = input.block ?? this.blockHeld;
 

@@ -62,7 +62,7 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
     assert.equal(game.state.particleSystem.GetParticleCount(), 0);
     assert.equal(game.laserMoves, 0, "ninguna mira láser");
     const panel = game.state.hud.panels[0];
-    assert.equal(panel.bigValue.textContent, "0");
+    assert.equal(panel.num.textContent, "100");
     assert.ok(panel.row2.classes.has("none"), "sin arma: el puño y sin tanque");
     assert.ok(panel.iconHolder.innerHTML.includes("ic-puno"));
     assert.ok(!/VAC[ÍI]O|Sin arma/i.test(panel.el.allText), "sin texto de arma");
@@ -117,7 +117,7 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 baja el daño a 0 
     const [first, second] = bareOfStage(game, 1);
     assert.ok(first && second, "hay dos plataformas sin arma en la etapa 1");
     for (const player of players) {
-        player.damagePct = 60;
+        player.hp = 40;
         player.weapon = FLUID.WATER;
         player.tanks.set(FLUID.WATER, 0);
         player.tanks.set(FLUID.HONEY, 3);
@@ -125,7 +125,7 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 baja el daño a 0 
 
     standOn(game, 0, first);
     game.frames(40);
-    assert.equal(players[0].damagePct, 0);
+    assert.equal(players[0].hp, 100);
     assert.equal(players[0].tanks.get(FLUID.WATER), tankOf(FLUID.WATER));
     assert.equal(players[0].tanks.get(FLUID.HONEY), tankOf(FLUID.HONEY));
     assert.equal(stagePrizes.banner.text, "ETAPA 1 · J1");
@@ -134,23 +134,23 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 baja el daño a 0 
 
     standOn(game, 1, second);
     game.frames(40);
-    assert.equal(players[1].damagePct, 60, "el segundo no recibe nada");
+    assert.equal(players[1].hp, 40, "el segundo no recibe nada");
     assert.equal(players[1].tanks.get(FLUID.WATER), 0);
 
-    players[0].damagePct = 50;
+    players[0].hp = 50;
     standOn(game, 0, second);
     game.frames(5);
     standOn(game, 0, first);
     game.frames(40);
-    assert.equal(players[0].damagePct, 50, "no se repite en la misma ronda");
+    assert.equal(players[0].hp, 50, "no se repite en la misma ronda");
 
     game.state.arrancarPartida();
     game.state.match.state = "playing";
     const again = bareOfStage(game, 1)[0];
-    players[0].damagePct = 30;
+    players[0].hp = 30;
     standOn(game, 0, again);
     game.frames(40);
-    assert.equal(game.state.players[0].damagePct, 0, "en la ronda nueva vuelve a estar disponible");
+    assert.equal(game.state.players[0].hp, 100, "en la ronda nueva vuelve a estar disponible");
 });
 
 test("Premio por etapa: el cartel desaparece al cumplirse el tiempo de la tabla", async () => {
