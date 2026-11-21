@@ -250,17 +250,20 @@ export class Flood {
 /**
  * Inundación del ascenso infinito (docs/design/16-ascenso.md §16.5): el agua sube sin techo, solo en el campo de alturas
  * (JS puro, no crea partículas ni llueve). La curva `η*` (mundo) vale `flood.surface` hasta `flood.start` y después sube
- * `v = speed + perStage · etapa` m/s, con la etapa de la altura local `η* − offsetY()` (el mapa baja). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
+ * `v = speed + perStage · etapa + alcance` m/s, con la etapa de la altura local `η* − offsetY()` (el mapa baja) y
+ * `alcance = min(catchUp.max, catchUp.rate · max(0, d − catchUp.gap))`, con `d` la distancia de `η*` al punto más bajo del
+ * robot vivo más bajo (`lowestPlayer()`, mismas coordenadas del mundo; `-Infinity` sin robots vivos: alcance 0). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
  * al ancho de la etapa, sube el fondo efectivo (`floor`, a `depth` m bajo `η*`) y suma `v · dt` a las columnas bajo `η*`.
  * Misma interfaz que `Flood`: `active`, `level`, `config.start`, `step`, `reset` y `dispose`.
  */
 export class RisingFlood {
-    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0) {
+    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0, lowestPlayer = () => -Infinity) {
         this.water = water;
         this.data = level;
         this.climb = climb;
         this.config = climb.flood;
         this.offsetY = offsetY;
+        this.lowestPlayer = lowestPlayer;
         this.eta = climb.flood.surface;
         this.roundTime = 0;
         this.speed = 0;
@@ -280,9 +283,12 @@ export class RisingFlood {
         return Math.max(0, this.eta - this.config.depth);
     }
 
-    /** Velocidad de subida (m/s) a la altura actual. */
+    /** Velocidad de subida (m/s) a la altura actual: la de la etapa más el alcance (0 sin robots vivos o a menos de `gap`). */
     get riseSpeed() {
-        return this.config.speed + this.config.perStage * stageOf(this.eta - this.offsetY(), this.climb);
+        const { catchUp } = this.config;
+        const distance = this.lowestPlayer() - this.eta;
+        const reach = distance > catchUp.gap ? Math.min(catchUp.max, catchUp.rate * (distance - catchUp.gap)) : 0;
+        return this.config.speed + this.config.perStage * stageOf(this.eta - this.offsetY(), this.climb) + reach;
     }
 
     /** Avanza la curva y el campo un paso fijo `dt`. */

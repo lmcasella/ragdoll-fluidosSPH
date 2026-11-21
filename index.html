@@ -375,6 +375,19 @@
             /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
             const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
 
+            /** Punto más bajo (m, mundo) del robot vivo más bajo; -Infinity sin robots vivos. */
+            function lowestAlive() {
+                let low = -Infinity;
+                let found = false;
+                for (const player of players) {
+                    if (player.dead) continue;
+                    const y = player.lowestPoint();
+                    if (!found || y < low) low = y;
+                    found = true;
+                }
+                return low;
+            }
+
             /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
             function aplicarMapa(map) {
                 if (map === currentMap) return;
@@ -386,7 +399,7 @@
                     pickups.dispose();
                     pickups = new Pickups(world, damage, []);
                     water.setStart({ surface: CLIMB.flood.surface });
-                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY);
+                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY, lowestAlive);
                     climb = new Climb({ world, platforms, pickups });
                     damage.drownSurface = drownSurface;
                 } else {
