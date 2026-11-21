@@ -74,7 +74,7 @@ export const CLIMB = {
     ahead: 30,
     loadout: { weapon: null, weapons: [] },
     stagePrize: { banner: 1.5, repair: "full", refill: true },
-    breakable: { fromStage: 1, chance: 0.25, time: 1.5 },
+    breakable: { fromStage: 2, chance: 0.2, time: 3 },
 };
 
 /** Salud máxima de un robot (la inicial de `ActiveRagdoll`). */
@@ -190,6 +190,7 @@ export class ClimbGenerator {
     constructor(seed, config = CLIMB) {
         this.config = config;
         this.random = seededRandom(seed);
+        this.breakableRandom = seededRandom((seed ^ 0x517cc1b7) >>> 0);
         this.index = 0;
         this.fallbacks = 0;
         this.items = [];
@@ -436,10 +437,7 @@ export class ClimbGenerator {
         this.front = Math.max(this.front, top);
         const stage = stageOf(top, this.config);
         const brk = this.config.breakable;
-        const breakable =
-            brk && stage >= brk.fromStage && this.random() < brk.chance
-                ? brk.time
-                : false;
+        const breakable = brk && stage >= brk.fromStage && this.breakableRandom() < brk.chance ? brk.time : false;
         const pickups = this.pickupsOf(spot.x, top, stage);
         this.items.push({
             x: spot.x,

@@ -215,12 +215,7 @@
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [
-                    canvas,
-                    fluidCanvas,
-                    pickupCanvas,
-                    hudCanvas,
-                ]) {
+                for (const c of [canvas, fluidCanvas, pickupCanvas, hudCanvas]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }

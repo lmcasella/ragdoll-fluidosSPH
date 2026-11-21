@@ -77,7 +77,7 @@ export const BOT = {
     reserveRange: 3,
     evade: 0.5,
     stuck: { time: 1, radius: 0.4 },
-    breakable: { fleeCrack: 0.35, penalty: 2 },
+    breakable: { fleeCrack: 0.65, penalty: 0 },
 };
 
 /**
@@ -493,21 +493,15 @@ export class Bot {
     fleeBreakable(me, cur) {
         if (cur === null) return false;
         const solid = this.nav.nodes[cur].solid;
-        if (
-            !solid?.breakable ||
-            (solid.crack ?? 0) < this.config.breakable.fleeCrack
-        )
-            return false;
+        if (!solid?.breakable || (solid.crack ?? 0) < this.config.breakable.fleeCrack) return false;
         const { nodes, edges } = this.nav;
+        const curTop = nodes[cur].top;
         let best = null;
         let bestScore = -Infinity;
         for (const to of edges[cur]) {
             const n = nodes[to];
             if (n.solid?.broken) continue;
-            const score =
-                (n.top >= this.minTop ? 100 : 0) +
-                (n.solid?.breakable ? 0 : 10) +
-                n.top;
+            const score = (n.top >= this.minTop ? 100 : 0) + (n.top > curTop ? 50 : 0) + (n.solid?.breakable ? 0 : 10) + n.top;
             if (score > bestScore) {
                 bestScore = score;
                 best = to;
