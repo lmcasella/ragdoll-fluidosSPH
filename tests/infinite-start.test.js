@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { WEAPONS, FLUID } from "../js/weapons.js";
+import { HUD } from "../js/hud.js";
 import { CLIMB, StagePrizes } from "../js/climb.js";
 
 const FIRE = 7;
@@ -62,8 +63,9 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
     assert.equal(game.laserMoves, 0, "ninguna mira láser");
     const panel = game.state.hud.panels[0];
     assert.equal(panel.bigValue.textContent, "0");
-    assert.ok(!panel.none.classes.has("off"), "dice que no hay arma");
-    assert.ok(panel.empty.classes.has("off"), "sin arma no hay VACÍO");
+    assert.ok(panel.row2.classes.has("none"), "sin arma: el puño y sin tanque");
+    assert.ok(panel.iconHolder.innerHTML.includes("ic-puno"));
+    assert.ok(!/VAC[ÍI]O|Sin arma/i.test(panel.el.allText), "sin texto de arma");
 });
 
 test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) equipada con el tanque lleno y vuelve la mira", async () => {
@@ -127,7 +129,8 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 baja el daño a 0 
     assert.equal(players[0].tanks.get(FLUID.WATER), tankOf(FLUID.WATER));
     assert.equal(players[0].tanks.get(FLUID.HONEY), tankOf(FLUID.HONEY));
     assert.equal(stagePrizes.banner.text, "ETAPA 1 · J1");
-    assert.ok(game.hudTexts.includes("ETAPA 1 · J1"), `HUD: ${game.hudTexts}`);
+    assert.ok(!game.state.hud.prize.el.hidden, "ficha del premio en el HUD");
+    assert.equal(game.state.hud.prize.badge.textContent, "J1");
 
     standOn(game, 1, second);
     game.frames(40);
@@ -155,9 +158,9 @@ test("Premio por etapa: el cartel desaparece al cumplirse el tiempo de la tabla"
     const [platform] = bareOfStage(game, 1);
     standOn(game, 0, platform);
     game.frames(40);
-    assert.ok(game.hudTexts.includes("ETAPA 1 · J1"));
-    game.frames(Math.ceil(CLIMB.stagePrize.banner * 60) + 10);
-    assert.ok(!game.hudTexts.includes("ETAPA 1 · J1"), `HUD: ${game.hudTexts}`);
+    assert.ok(!game.state.hud.prize.el.hidden);
+    game.frames(Math.ceil((CLIMB.stagePrize.banner + HUD.prize.leave) * 60) + 10);
+    assert.ok(game.state.hud.prize.el.hidden, "la ficha sale al cumplirse el tiempo de la tabla");
 });
 
 test("StagePrizes: apply es el único lugar que aplica el evento, con los valores de la tabla", () => {
@@ -168,6 +171,6 @@ test("StagePrizes: apply es el único lugar que aplica el evento, con los valore
     assert.deepEqual(applied, [{ k: 0, stage: 3 }]);
     assert.equal(player.repaired, true);
     assert.equal(player.tanks.get(FLUID.WATER), 0, "sin refill no se llenan los tanques");
-    assert.deepEqual(prizes.banner, { text: "ETAPA 3 · J1", until: 12 });
+    assert.deepEqual(prizes.banner, { text: "ETAPA 3 · J1", k: 0, until: 12 });
     assert.equal(prizes.events.length, 0);
 });

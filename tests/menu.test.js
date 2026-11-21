@@ -14,7 +14,7 @@ const B = 1;
 const SELECT = 8;
 const START = 9;
 const DPAD = { up: 12, down: 13, left: 14, right: 15 };
-const ROW = { difficulty: 0, map: 1, play: 2 };
+const ROW = { map: 0, difficulty: 1, controls: 2, play: 3 };
 
 /**
  * Abre el título con `pads` gamepads sueltos (0, 1 o 2). Con `search` se simula la URL y con `storage` el
@@ -51,7 +51,7 @@ function memory(initial = {}) {
     return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, String(v)) };
 }
 
-const onScreen = (game) => game.hudTexts.includes("Sin jugar");
+const onScreen = (game) => !game.state.screens.assign.el.hidden;
 
 /** Confirma Jugar con el gamepad 0 y deja la pantalla de asignación abierta. */
 function openScreen(game) {
@@ -67,10 +67,10 @@ test("menu: se recorre entera y se arranca la partida solo con gamepad (stick, c
     const { menu, match } = game.state;
     assert.equal(match.state, "title");
     assert.equal(menu.cursor, ROW.play);
-    assert.deepEqual(MENU.rows.map((r) => r.id), ["difficulty", "map", "play"], "ya no hay fila de modo");
+    assert.deepEqual(MENU.rows.map((r) => r.id), ["map", "difficulty", "controls", "play"], "Mapa primero, fila de controles y sin fila de modo");
 
     tap(game, stick(0, -1));
-    assert.equal(menu.cursor, ROW.map);
+    assert.equal(menu.cursor, ROW.controls);
     tap(game, stick(0, -1));
     assert.equal(menu.cursor, ROW.difficulty);
     tap(game, stick(1, 0));
@@ -79,7 +79,7 @@ test("menu: se recorre entera y se arranca la partida solo con gamepad (stick, c
     tap(game, { buttons: [DPAD.left] });
     assert.equal(menu.choice.difficulty, "easy");
     tap(game, { buttons: [DPAD.down] });
-    assert.equal(menu.cursor, ROW.map);
+    assert.equal(menu.cursor, ROW.controls);
     tap(game, { buttons: [DPAD.down] });
     assert.equal(menu.cursor, ROW.play);
     tap(game, button(DPAD.down));
@@ -145,7 +145,7 @@ test("asignación: cada dispositivo se mueve con su propio stick o cruceta, y lo
     key(game, "KeyD");
     assert.equal(column(game, "keyboard"), 1);
     assert.deepEqual(game.state.asignacion.bots, [0, 1], "sin dispositivos, los dos son bots");
-    assert.ok(game.hudTexts.some((t) => t.includes("Maneja el bot")));
+    assert.ok(game.state.screens.assign.columns.every((c) => c.el.classes.has("bot")), "las dos columnas sin dispositivo muestran al bot");
 
     key(game, "ArrowRight");
     assert.equal(column(game, "keyboard"), 2);
@@ -227,7 +227,7 @@ test("asignación: conectar o desconectar un gamepad actualiza la pantalla", asy
     game.frames(2);
     assert.deepEqual(game.state.asignacion.ids, ["keyboard", "pad:0"]);
     assert.deepEqual(game.state.asignacion.bots, []);
-    assert.ok(game.hudTexts.includes("Gamepad 1"));
+    assert.ok(game.state.screens.assign.tokens.has("pad:0"), "el gamepad conectado aparece como ficha");
     game.setPad(1);
     game.frames(2);
     assert.deepEqual(game.state.asignacion.assignment, { keyboard: 0, "pad:0": 0, "pad:1": 1 });
@@ -289,8 +289,7 @@ test("menu: Infinito es el mapa por defecto, habilitado, y Clásico se puede ele
 
     const game = await title();
     const { menu } = game.state;
-    tap(game, stick(0, -1));
-    assert.equal(menu.cursor, ROW.map);
+    menu.cursor = ROW.map;
     tap(game, stick(-1, 0));
     assert.equal(menu.choice.map, "classic");
     tap(game, stick(1, 0));
@@ -306,10 +305,10 @@ test("menu: una elección guardada con la clave anterior se ignora y llega el de
 test("menu: Clásico elegido se guarda y se arranca como mapa clásico", async () => {
     const storage = memory();
     const game = await title({ storage });
-    tap(game, stick(0, -1));
+    game.state.menu.cursor = ROW.map;
     tap(game, stick(-1, 0));
     assert.equal(JSON.parse(storage.data.get(MENU.storageKey)).map, "classic");
-    tap(game, stick(0, 1));
+    game.state.menu.cursor = ROW.play;
     openScreen(game);
     tap(game, button(START));
     assert.equal(game.state.match.state, "countdown");
@@ -321,7 +320,7 @@ test("menu: el teclado navega como respaldo (flechas, WASD, Enter)", async () =>
     const game = await title();
     const { menu, match } = game.state;
     key(game, "ArrowUp");
-    assert.equal(menu.cursor, ROW.map);
+    assert.equal(menu.cursor, ROW.controls);
     key(game, "KeyW");
     assert.equal(menu.cursor, ROW.difficulty);
     key(game, "ArrowRight");
@@ -344,7 +343,7 @@ test("menu: con el gamepad empujando, el teclado no lo pisa", async () => {
     game.emit("keydown", { code: "KeyS", preventDefault() {} });
     game.setPad(0, stick(0, -1));
     game.frames(1);
-    assert.equal(menu.cursor, ROW.map, "el stick arriba gana sobre abajo del teclado");
+    assert.equal(menu.cursor, ROW.controls, "el stick arriba gana sobre abajo del teclado");
     game.setPad(0);
     game.emit("keyup", { code: "KeyS" });
     game.frames(2);
@@ -366,10 +365,10 @@ test("menu: mantener el stick no saltea filas (retardo y repetición)", async ()
     menu.cursor = ROW.play;
     game.setPad(0, stick(0, -1));
     game.frames(12);
-    assert.equal(menu.cursor, ROW.map, "0,2 s mantenido mueve una sola fila");
+    assert.equal(menu.cursor, ROW.controls, "0,2 s mantenido mueve una sola fila");
     game.frames(48);
     console.log(`tras 1 s mantenido el cursor está en la fila ${menu.cursor}`);
-    assert.equal(menu.cursor, ROW.difficulty);
+    assert.equal(menu.cursor, ROW.map, "llega al tope sin pasarse");
     game.setPad(0);
 });
 
@@ -380,8 +379,7 @@ test("menu: sin localStorage, con almacenamiento que falla o con datos rotos arr
     const broken = { getItem: () => { throw new Error("bloqueado"); }, setItem: () => { throw new Error("bloqueado"); } };
     const game = await title({ storage: broken });
     assert.deepEqual(game.state.menu.choice, defaults);
-    tap(game, stick(0, -1));
-    tap(game, stick(0, -1));
+    game.state.menu.cursor = ROW.difficulty;
     tap(game, stick(1, 0));
     assert.equal(game.state.menu.choice.difficulty, "hard");
 
@@ -392,10 +390,9 @@ test("menu: sin localStorage, con almacenamiento que falla o con datos rotos arr
 test("menu: recuerda la última elección", async () => {
     const storage = memory();
     const first = await title({ storage });
-    tap(first, stick(0, -1));
-    tap(first, stick(0, -1));
+    first.state.menu.cursor = ROW.difficulty;
     tap(first, stick(1, 0));
-    tap(first, stick(0, 1));
+    tap(first, stick(0, -1));
     tap(first, stick(-1, 0));
     assert.deepEqual(JSON.parse(storage.data.get(MENU.storageKey)), { difficulty: "hard", map: "classic" });
 

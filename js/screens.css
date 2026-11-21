@@ -1,0 +1,597 @@
+.screens {
+    z-index: 40;
+}
+.screens .scr {
+    position: absolute;
+    inset: 0;
+}
+.screens .veil {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(90% 90% at 50% 50%, var(--scrim), rgba(4, 5, 9, 0.85));
+}
+.screens .veil.dark {
+    background: radial-gradient(90% 90% at 50% 50%, rgba(8, 9, 14, 0.82), rgba(4, 5, 9, 0.92));
+}
+.screens .refbox {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(1920 * var(--u));
+    height: calc(1080 * var(--u));
+    translate: -50% -50%;
+}
+
+.screens .logo {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(150 * var(--u));
+    translate: 0 -50%;
+    text-align: center;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: calc(120 * var(--u));
+    line-height: 1;
+    letter-spacing: 0.02em;
+    text-shadow: 0 calc(6 * var(--u)) 0 rgba(0, 0, 0, 0.5);
+}
+.screens .mcol {
+    position: absolute;
+    left: 50%;
+    top: calc(340 * var(--u));
+    translate: -50% 0;
+    width: calc(560 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: calc(14 * var(--u));
+}
+.screens .mrow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: calc(14 * var(--u));
+    padding: 0 calc(20 * var(--u));
+    background: var(--panel);
+    border: calc(3 * var(--u)) solid var(--line);
+    border-radius: calc(12 * var(--u));
+    transition: border-color 0.12s ease-out, box-shadow 0.12s ease-out, background-color 0.12s ease-out;
+}
+.screens .m-map {
+    height: calc(120 * var(--u));
+}
+.screens .m-bot {
+    height: calc(88 * var(--u));
+}
+.screens .m-controls {
+    height: calc(76 * var(--u));
+    justify-content: center;
+}
+.screens .m-play {
+    height: calc(104 * var(--u));
+    justify-content: center;
+    background: var(--panel-3);
+    border-color: var(--line-2);
+}
+.screens .mrow .ricon {
+    display: inline-flex;
+    gap: calc(10 * var(--u));
+    color: var(--text-3);
+}
+.screens .mrow .ricon .ic {
+    width: calc(40 * var(--u));
+    height: calc(40 * var(--u));
+}
+.screens .m-play .ricon .ic {
+    width: calc(48 * var(--u));
+    height: calc(48 * var(--u));
+    color: var(--text);
+}
+.screens .mrow.focus {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 calc(4 * var(--u)) rgba(255, 216, 74, 0.18);
+}
+.screens .mrow.focus::before {
+    content: "";
+    position: absolute;
+    left: calc(-3 * var(--u));
+    top: 22%;
+    height: 56%;
+    width: calc(6 * var(--u));
+    border-radius: calc(3 * var(--u));
+    background: var(--focus);
+}
+.screens .mrow.focus .ricon {
+    color: var(--focus);
+}
+.screens .m-play.focus {
+    background: var(--focus);
+}
+.screens .m-play.focus .ricon .ic {
+    color: var(--focus-ink);
+}
+.screens .m-play.focus {
+    box-shadow: 0 0 0 calc(6 * var(--u)) rgba(255, 216, 74, 0.22);
+}
+.screens .mrow .val {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.screens .mrow .val.dim {
+    opacity: 0.4;
+}
+.screens .mrow .val.sl-r {
+    animation: ui-vslide-r 0.15s ease-out;
+}
+.screens .mrow .val.sl-l {
+    animation: ui-vslide-l 0.15s ease-out;
+}
+.screens .arrow {
+    width: 0;
+    height: 0;
+    border-top: calc(12 * var(--u)) solid transparent;
+    border-bottom: calc(12 * var(--u)) solid transparent;
+    opacity: 0.45;
+}
+.screens .arrow.l {
+    border-right: calc(16 * var(--u)) solid var(--text);
+}
+.screens .arrow.r {
+    border-left: calc(16 * var(--u)) solid var(--text);
+}
+.screens .mrow.focus .arrow.l {
+    border-right-color: var(--focus);
+}
+.screens .mrow.focus .arrow.r {
+    border-left-color: var(--focus);
+}
+.screens .arrow.dim {
+    opacity: 0.12;
+}
+.screens .thumb {
+    display: inline-flex;
+}
+.screens .m-map .thumb svg {
+    width: calc(160 * var(--u));
+    height: calc(90 * var(--u));
+    border-radius: calc(6 * var(--u));
+    border: calc(2 * var(--u)) solid var(--line-2);
+}
+.screens .pips3 {
+    display: inline-flex;
+    gap: calc(10 * var(--u));
+}
+.screens .pips3 .ic {
+    width: calc(24 * var(--u));
+    height: calc(24 * var(--u));
+}
+.screens .ic.on {
+    color: var(--text);
+}
+.screens .ic.empty {
+    color: var(--line-2);
+}
+.screens .ic.big {
+    width: calc(36 * var(--u));
+    height: calc(36 * var(--u));
+    color: var(--text);
+}
+
+.screens .tabs {
+    position: absolute;
+    left: 50%;
+    top: calc(60 * var(--u));
+    translate: -50% 0;
+    display: flex;
+    align-items: center;
+    gap: calc(16 * var(--u));
+}
+.screens .tabglyph {
+    display: inline-flex;
+}
+.screens .seg {
+    width: calc(120 * var(--u));
+    height: calc(64 * var(--u));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    border: calc(3 * var(--u)) solid var(--line);
+    border-radius: calc(10 * var(--u));
+    color: var(--text-2);
+}
+.screens .seg .ic {
+    width: calc(36 * var(--u));
+    height: calc(36 * var(--u));
+}
+.screens .seg.on {
+    background: var(--focus);
+    border-color: var(--focus);
+    color: var(--focus-ink);
+}
+.screens .padbody,
+.screens .kbbody {
+    position: absolute;
+    inset: 0;
+}
+.screens .padsvg {
+    position: absolute;
+    inset: 0;
+}
+.screens .padsvg svg {
+    width: 100%;
+    height: 100%;
+}
+.screens .padsvg .lines line {
+    stroke: rgba(255, 255, 255, 0.28);
+    stroke-width: 2;
+}
+.screens .call {
+    position: absolute;
+    top: calc(var(--y) * var(--u));
+    translate: 0 -50%;
+    height: calc(52 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(14 * var(--u));
+    z-index: 1;
+}
+.screens .call.left {
+    right: calc(1370 * var(--u));
+}
+.screens .call.right {
+    left: calc(1370 * var(--u));
+}
+.screens .word {
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: calc(28 * var(--u));
+    color: var(--text);
+    white-space: nowrap;
+}
+.screens .hold {
+    position: relative;
+    display: inline-flex;
+}
+.screens .hold .ic {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    width: calc(66 * var(--u));
+    height: calc(66 * var(--u));
+    color: var(--text-2);
+}
+.screens .wp {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(6 * var(--u));
+}
+.screens .wp b {
+    font-size: calc(22 * var(--u));
+    color: var(--text-2);
+}
+.screens .wp .ic {
+    width: calc(30 * var(--u));
+    height: calc(30 * var(--u));
+}
+.screens .cross {
+    position: relative;
+    display: inline-block;
+    width: calc(96 * var(--u));
+    height: calc(96 * var(--u));
+}
+.screens .cross .g-dpad {
+    position: absolute;
+    left: calc(25 * var(--u));
+    top: calc(25 * var(--u));
+}
+.screens .cross span:not(.g) {
+    position: absolute;
+    display: inline-flex;
+}
+.screens .cross .ic {
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+}
+.screens .cross .cu {
+    left: calc(37 * var(--u));
+    top: 0;
+}
+.screens .cross .cd {
+    left: calc(37 * var(--u));
+    bottom: 0;
+}
+.screens .cross .cl {
+    left: 0;
+    top: calc(37 * var(--u));
+}
+.screens .cross .cr {
+    right: 0;
+    top: calc(37 * var(--u));
+}
+.screens .combos {
+    position: absolute;
+    left: calc(210 * var(--u));
+    top: calc(760 * var(--u));
+    width: calc(1500 * var(--u));
+    height: calc(96 * var(--u));
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: calc(20 * var(--u));
+}
+.screens .combo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(4 * var(--u));
+    background: var(--panel);
+    border: calc(3 * var(--u)) solid var(--line);
+    border-radius: calc(10 * var(--u));
+    --gs: 36;
+}
+.screens .combo .chain {
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+}
+.screens .combo .word {
+    font-size: calc(24 * var(--u));
+}
+.screens .plus {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(24 * var(--u));
+    color: var(--text-2);
+}
+.screens .combo .air {
+    width: calc(24 * var(--u));
+    height: calc(24 * var(--u));
+    color: var(--text-2);
+}
+.screens .kcard {
+    position: absolute;
+    left: 50%;
+    top: calc(150 * var(--u));
+    translate: -50% 0;
+    width: calc(900 * var(--u));
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: calc(16 * var(--u)) calc(28 * var(--u)) calc(16 * var(--u));
+    background: var(--panel);
+    border-top: calc(8 * var(--u)) solid var(--p1);
+    border-radius: 0 0 calc(12 * var(--u)) calc(12 * var(--u));
+}
+.screens .kcard .badge {
+    width: calc(52 * var(--u));
+    height: calc(52 * var(--u));
+    font-size: calc(26 * var(--u));
+    border-radius: calc(6 * var(--u));
+    margin-bottom: calc(6 * var(--u));
+}
+.screens .krow {
+    display: flex;
+    align-items: center;
+    height: calc(46 * var(--u));
+    --ks: 34;
+}
+.screens .krow .keys {
+    width: calc(260 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+}
+
+.screens .recall {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(50 * var(--u));
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: calc(16 * var(--u));
+    opacity: 0.7;
+}
+.screens .recall .thumb svg {
+    width: calc(96 * var(--u));
+    height: calc(54 * var(--u));
+    border-radius: calc(4 * var(--u));
+    border: calc(2 * var(--u)) solid var(--line-2);
+}
+.screens .recall .rbot {
+    display: inline-flex;
+    color: var(--text);
+}
+.screens .recall .rbot .ic {
+    width: calc(40 * var(--u));
+    height: calc(40 * var(--u));
+}
+.screens .recall .rval {
+    display: inline-flex;
+    align-items: center;
+}
+.screens .recall .pips3 .ic {
+    width: calc(20 * var(--u));
+    height: calc(20 * var(--u));
+}
+.screens .agrid {
+    position: absolute;
+    left: calc(170 * var(--u));
+    top: calc(150 * var(--u));
+    width: calc(1580 * var(--u));
+    height: calc(700 * var(--u));
+    display: grid;
+    grid-template-columns: 1fr calc(300 * var(--u)) 1fr;
+    gap: calc(40 * var(--u));
+}
+.screens .pcol {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: calc(20 * var(--u));
+    border-top: calc(8 * var(--u)) solid var(--c);
+    background: linear-gradient(180deg, var(--soft), transparent 70%);
+}
+.screens .pcol.p1 {
+    --c: var(--p1);
+    --soft: var(--p1-soft);
+}
+.screens .pcol.p2 {
+    --c: var(--p2);
+    --soft: var(--p2-soft);
+}
+.screens .pcol.bot {
+    border: calc(3 * var(--u)) dashed var(--line-2);
+    border-top: calc(8 * var(--u)) dashed var(--c);
+}
+.screens .pcol .ghost {
+    display: none;
+    position: absolute;
+    left: 50%;
+    bottom: calc(40 * var(--u));
+    translate: -50% 0;
+    opacity: 0.14;
+}
+.screens .pcol.bot .ghost {
+    display: inline-flex;
+}
+.screens .pcol .ghost .ic {
+    width: calc(260 * var(--u));
+    height: calc(260 * var(--u));
+}
+.screens .phead {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+.screens .status {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    translate: calc(16 * var(--u)) -50%;
+    display: inline-flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+}
+.screens .status .ic {
+    width: calc(40 * var(--u));
+    height: calc(40 * var(--u));
+    color: var(--text);
+}
+.screens .status .okay {
+    color: var(--g-a);
+}
+.screens .status .pips3 .ic {
+    width: calc(14 * var(--u));
+    height: calc(14 * var(--u));
+}
+.screens .tray {
+    border: calc(3 * var(--u)) dashed var(--line-2);
+    border-radius: calc(12 * var(--u));
+}
+.screens .tok {
+    position: absolute;
+    left: calc(var(--x, 0) * var(--u));
+    top: calc(var(--y, 0) * var(--u));
+    width: calc(240 * var(--u));
+    height: calc(88 * var(--u));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 calc(14 * var(--u));
+    background: var(--panel-3);
+    border: calc(3 * var(--u)) solid var(--line-2);
+    border-radius: calc(12 * var(--u));
+    transition: left 0.18s ease-out, top 0.18s ease-out;
+}
+.screens .tok.p1 {
+    border-color: var(--p1);
+    box-shadow: inset calc(6 * var(--u)) 0 0 var(--p1);
+}
+.screens .tok.p2 {
+    border-color: var(--p2);
+    box-shadow: inset calc(6 * var(--u)) 0 0 var(--p2);
+}
+.screens .tok:not(.joined) {
+    border-style: dashed;
+    opacity: 0.78;
+}
+.screens .tok .tbody {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(10 * var(--u));
+}
+.screens .tok .tbody .ic {
+    width: calc(40 * var(--u));
+    height: calc(40 * var(--u));
+}
+.screens .tok .tbody b {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(36 * var(--u));
+}
+.screens .tarrow {
+    width: 0;
+    height: 0;
+    border-top: calc(10 * var(--u)) solid transparent;
+    border-bottom: calc(10 * var(--u)) solid transparent;
+}
+.screens .tarrow.l {
+    border-right: calc(14 * var(--u)) solid var(--text);
+}
+.screens .tarrow.r {
+    border-left: calc(14 * var(--u)) solid var(--text);
+}
+.screens .tarrow.dim {
+    opacity: 0.25;
+}
+.screens .invite {
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    translate: -50% calc(8 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    --gs: 36;
+    animation: ui-breathe 1.6s ease-in-out infinite;
+}
+.screens .invite .ic {
+    width: calc(28 * var(--u));
+    height: calc(28 * var(--u));
+    color: var(--text);
+}
+
+@keyframes ui-vslide-r {
+    from {
+        translate: calc(20 * var(--u)) 0;
+        opacity: 0.4;
+    }
+    to {
+        translate: 0 0;
+        opacity: 1;
+    }
+}
+@keyframes ui-vslide-l {
+    from {
+        translate: calc(-20 * var(--u)) 0;
+        opacity: 0.4;
+    }
+    to {
+        translate: 0 0;
+        opacity: 1;
+    }
+}
+@keyframes ui-breathe {
+    50% {
+        opacity: 0.45;
+        scale: 0.94;
+    }
+}

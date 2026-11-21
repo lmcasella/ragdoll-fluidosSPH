@@ -28,8 +28,7 @@ test("hudCanvas tiene el z-index más alto y no captura el mouse", () => {
     assert.ok(html.indexOf('id="hudCanvas"') > html.indexOf('id="pickupCanvas"'));
 });
 
-test("drawHud, drawAimLaser y drawHits reciben el contexto de la capa correcta", () => {
-    assert.equal(firstArg("drawHud"), "hudCtx");
+test("drawAimLaser y drawHits reciben el contexto de la capa correcta", () => {
     assert.equal(firstArg("drawAimLaser"), "pickupCtx");
     assert.equal(firstArg("drawHits"), "pickupCtx");
     assert.match(html, /hudCtx\s*=\s*hudCanvas\.getContext/);

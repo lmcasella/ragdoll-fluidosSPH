@@ -22,6 +22,33 @@ export const SOUNDS = {
     roundEnd: { files: ["round_end"], volume: 1 },
 };
 
+/** Volumen de los sonidos de interfaz respecto de los golpes: -6 dB (docs/design/18-interfaz.md §4). */
+export const UI_VOLUME = 10 ** (-6 / 20);
+
+/**
+ * Sonidos de interfaz por evento (docs/design/18-interfaz.md §4). `file` es el archivo de `audio/sfx/*.ogg` sin
+ * extensión; `cooldown` (opcional) son los s mínimos entre dos disparos del evento: la navegación con repetición suena
+ * como mucho cada 70 ms. Los `ui_submitN` marcados como provisorios en el diseño se reemplazan al llegar los definitivos.
+ */
+export const UI_SOUNDS = {
+    focus: { file: "ui_select", cooldown: 0.07 },
+    value: { file: "ui_submit1", cooldown: 0.07 },
+    tab: { file: "ui_submit2", cooldown: 0.07 },
+    confirm: { file: "ui_confirm" },
+    back: { file: "ui_back" },
+    play: { file: "ui_play" },
+    join: { file: "ui_player_join" },
+    leave: { file: "ui_player_leave" },
+    move: { file: "ui_player_select" },
+    count: { file: "ui_countdown" },
+    go: { file: "ui_submit3" },
+    pause: { file: "ui_pause" },
+    flood: { file: "ui_submit4" },
+    prize: { file: "ui_submit5" },
+    band: { file: "ui_submit6" },
+    denied: { file: "ui_submit7" },
+};
+
 /** Pistas de música por nombre (archivos de `audio/music/*.ogg` sin extensión). */
 export const MUSIC = {
     combat: "mu_combat",
@@ -51,6 +78,7 @@ export class GameAudio {
         this.wanted = null;
         this.current = null;
         this.leaving = [];
+        this.uiSource = null;
         if (!Context) return;
         try {
             this.context = new Context();
@@ -77,6 +105,7 @@ export class GameAudio {
         if (!this.context) return;
         const urls = new Set([
             ...Object.values(SOUNDS).flatMap((row) => row.files.map(sfxUrl)),
+            ...Object.values(UI_SOUNDS).map((row) => sfxUrl(row.file)),
             ...Object.values(MUSIC).map(musicUrl),
         ]);
         await Promise.all([...urls].map((url) => this.loadBuffer(url)));
@@ -133,6 +162,34 @@ export class GameAudio {
         gain.connect(this.sfxGain);
         source.onended = () => gain.disconnect();
         source.start();
+        return true;
+    }
+
+    /**
+     * Reproduce un sonido de interfaz a `UI_VOLUME`: uno solo a la vez, el nuevo corta al anterior, y sin variación de
+     * `playbackRate`.
+     * @param {string} event Clave de `UI_SOUNDS`.
+     * @param {number} [now] Reloj en s con el que se mide el `cooldown`.
+     * @returns {boolean} Si sonó.
+     */
+    playUi(event, now = 0) {
+        const row = UI_SOUNDS[event];
+        if (!row || !this.running) return false;
+        if (row.cooldown && now - (this.lastPlayed.get(`ui:${event}`) ?? -Infinity) < row.cooldown) return false;
+        const buffer = this.buffers.get(sfxUrl(row.file));
+        if (!buffer) return false;
+        this.lastPlayed.set(`ui:${event}`, now);
+        this.uiSource?.stop();
+        const context = this.context;
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        const gain = context.createGain();
+        gain.gain.value = UI_VOLUME;
+        source.connect(gain);
+        gain.connect(this.sfxGain);
+        source.onended = () => gain.disconnect();
+        source.start();
+        this.uiSource = source;
         return true;
     }
 

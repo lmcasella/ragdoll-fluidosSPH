@@ -644,7 +644,7 @@ export class Climb {
  * Premio por etapa del ascenso: el primer robot que se apoya en una plataforma de la etapa `n ≥ 1` lo gana, una vez por
  * etapa y por ronda. `detect` solo anota eventos `{ k, stage }` (se llama después de `stepWorld`, nunca en un callback) y
  * `apply` es el único lugar que los aplica (vida y tanques según `config.stagePrize`) y arma el cartel `banner`
- * `{ text, until }` (reloj de simulación).
+ * `{ text, k, until }` con el jugador que lo ganó (reloj de simulación).
  */
 export class StagePrizes {
     constructor(config = CLIMB) {
@@ -699,7 +699,7 @@ export class StagePrizes {
             const player = players[k];
             if (prize.repair === "full") player.repair(Infinity);
             if (prize.refill) refillTanks(player);
-            this.banner = { text: `ETAPA ${stage} · J${k + 1}`, until: now + prize.banner };
+            this.banner = { text: `ETAPA ${stage} · J${k + 1}`, k, until: now + prize.banner };
         }
         return applied;
     }

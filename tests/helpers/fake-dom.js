@@ -57,6 +57,12 @@ export class FakeElement {
         return inert({ createRadialGradient: () => inert(), createLinearGradient: () => inert() });
     }
 
+    remove() {
+        if (!this.parent) return;
+        this.parent.children = this.parent.children.filter((c) => c !== this);
+        this.parent = null;
+    }
+
     addEventListener() {}
 
     setAttribute() {}
