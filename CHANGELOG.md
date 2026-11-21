@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.50.1] - 2026-11-21
+
+### Changed
+- En Infinito el primer nocaut de la ronda dura 5 s y cada uno siguiente 5 s más, hasta 20 s (antes, siempre 15 s).
+
 ## [0.50.0] - 2026-11-21
 
 ### Changed

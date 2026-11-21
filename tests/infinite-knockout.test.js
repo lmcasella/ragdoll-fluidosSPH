@@ -62,6 +62,21 @@ test("Infinito: con la vida en 0 el robot no muere, queda en nocaut con land_hur
     assert.ok(Math.abs(p1.knockoutLeft() - KNOCKOUT.time) < 0.2, `faltan ${p1.knockoutLeft()} s`);
 });
 
+test("Infinito: cada nocaut de la ronda dura KNOCKOUT.step s más que el anterior, hasta maxTime", async () => {
+    const game = await infinite();
+    freezeFlood(game);
+    const [p1] = game.state.players;
+    const expected = [5, 10, 15, 20, 20];
+    for (const seconds of expected) {
+        p1.hurt("b_1", 300);
+        game.frames(3);
+        assert.equal(p1.knockedOut, true);
+        assert.ok(Math.abs(p1.knockoutLeft() - seconds) < 0.2, `esperaba ${seconds} s, faltan ${p1.knockoutLeft()} s`);
+        p1.wake(KNOCKOUT.reviveHp);
+        game.frames(2);
+    }
+});
+
 test("Infinito: en nocaut no responde a ningún control durante 15 s y después se levanta con 50 de vida", { timeout: 300000 }, async (t) => {
     const game = await infinite();
     freezeFlood(game);

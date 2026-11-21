@@ -5,10 +5,11 @@ import { MATERIALS } from "./materials.js";
 export const MAX_HP = 100;
 
 /**
- * Nocaut (#275, solo Infinito): con la vida en 0 el robot no muere, queda inconsciente `time` s (con `land_hurt`, sin
- * responder al control) y se levanta con `reviveHp` de vida. Solo el agua lo saca de la partida.
+ * Nocaut (#275, solo Infinito): con la vida en 0 el robot no muere, queda inconsciente (con `land_hurt`, sin responder
+ * al control) y se levanta con `reviveHp` de vida. El primer nocaut de la ronda dura `time` s y cada uno siguiente
+ * `step` s más, hasta `maxTime`. Solo el agua lo saca de la partida.
  */
-export const KNOCKOUT = { time: 15, reviveHp: 50 };
+export const KNOCKOUT = { time: 5, step: 5, maxTime: 20, reviveHp: 50 };
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
@@ -121,6 +122,8 @@ export class ActiveRagdoll {
         /** Verdadero durante el nocaut; `knockoutEnd` es el instante (s) en que se levanta. */
         this.knockedOut = false;
         this.knockoutEnd = 0;
+        /** Nocauts de este robot en la ronda: alarga el siguiente (`KNOCKOUT.step`). */
+        this.knockouts = 0;
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
@@ -418,6 +421,7 @@ export class ActiveRagdoll {
         this.knocksOut = old.knocksOut;
         this.knockedOut = old.knockedOut;
         this.knockoutEnd = old.knockoutEnd;
+        this.knockouts = old.knockouts;
         this.weapon = old.weapon;
         this.tanks = old.tanks;
         this.framesGrounded = old.framesGrounded;
@@ -523,7 +527,8 @@ export class ActiveRagdoll {
         if (this.hp < 0) this.hp = 0;
         if (this.knocksOut && this.hp <= 0 && !this.knockedOut && !this.drowned) {
             this.knockedOut = true;
-            this.knockoutEnd = now + KNOCKOUT.time;
+            this.knockoutEnd = now + Math.min(KNOCKOUT.maxTime, KNOCKOUT.time + KNOCKOUT.step * this.knockouts);
+            this.knockouts++;
         }
     }
 
