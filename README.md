@@ -40,6 +40,8 @@ node --test "tests/slow/*.test.js"     # solo los tests largos
 node --test "tests/**/*.test.js"       # suite completa: antes del PR y en CI (Node 24, sin dependencias)
 ```
 
+Los tests de costo miden tiempo real y solo exigen su tope en corrida aislada con `PERF=1` (en PowerShell, `$env:PERF="1"; node --test tests/adhesion.test.js`); en la suite lo informan como diagnóstico.
+
 La suite completa incluye los invariantes de fluidos (`tests/slow/invariants.test.js`): miden una ronda completa y suman unos 42 s por corrida. Algunos salen como `todo` esperados: son lo que hoy falla y tiene issue (ver `docs/design/14-agua.md`, §14.16 G); no hacen fallar la suite, y cuando un arreglo los resuelve hay que quitarles el `todo`.
 
 La térmica (`tests/thermal.test.js`) simula la conducción real entre dos partículas de basalto (L2, unas 220 h simuladas con pasos de 5 s, solo la térmica) y suma unos 5 s por corrida. La ebullición (`tests/boil.test.js`) corre en segundos; `tests/slow/boil-invariants.test.js` simula 45 s de ronda y suma unos 15 s.

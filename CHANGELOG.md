@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.52.3] - 2026-11-21
+
+### Fixed
+- El deploy vuelve a publicarse: los topes de tiempo de la adherencia, la flotación y el panel de debug solo se exigen con `PERF=1` en corrida aislada, como los demás tests de costo. Corridos en paralelo con la suite medían la carga de la máquina y dejaban el CI en rojo.
+
 ## [0.52.2] - 2026-11-21
 
 ### Changed
