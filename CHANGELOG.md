@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.45.3] - 2026-11-20
+
+### Fixed
+- La miel vuelve a pegarse a los robots en el juego publicado: cuando las primeras gotas entraban en el cuerpo del robot, el juego dejaba de leer los contactos y la adherencia (junto con el calor y la evaporación por contacto) quedaba apagada toda la partida.
+
 ## [0.45.2] - 2026-11-20
 
 ### Changed
