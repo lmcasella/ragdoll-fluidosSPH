@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.50.2] - 2026-11-21
+
+### Changed
+- El nocaut de Infinito sube 3 s por cada nocaut siguiente, hasta 18 s.
+
 ## [0.50.1] - 2026-11-21
 
 ### Changed

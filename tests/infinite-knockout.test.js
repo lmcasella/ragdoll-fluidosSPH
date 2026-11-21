@@ -66,7 +66,7 @@ test("Infinito: cada nocaut de la ronda dura KNOCKOUT.step s más que el anterio
     const game = await infinite();
     freezeFlood(game);
     const [p1] = game.state.players;
-    const expected = [5, 10, 15, 20, 20];
+    const expected = [5, 8, 11, 14, 17, 18];
     for (const seconds of expected) {
         p1.hurt("b_1", 300);
         game.frames(3);
