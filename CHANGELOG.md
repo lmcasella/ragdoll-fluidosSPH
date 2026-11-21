@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.45.1] - 2026-11-20
+
+### Fixed
+- Los líquidos ya no desaparecen apenas salen del arma cuando el juego corre a menos de 50 fps. El recorte de partículas por rendimiento solo actúa con más de 1000 partículas vivas.
+
 ## [0.45.0] - 2026-11-20
 
 ### Added
