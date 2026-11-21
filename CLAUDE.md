@@ -162,11 +162,12 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 | `developer` | agente | Implementa un issue con sus tests y verificación. |
 | `doc-writer` | agente | Mantiene `CHANGELOG.md`, `README.md` y el estado del GDD. |
 | `chemist` | agente | Informa cómo interactúan de verdad las sustancias (reacciones, mezcla, cambios de fase, calor, productos, color), con referencias. No decide jugabilidad. |
+| `ui-ux-designer` | agente | Revisa y diseña la interfaz (menús, HUD, carteles, selector de controles) con criterios de videojuegos y entrega una maqueta HTML + CSS con su especificación. Toda interfaz nueva o rehecha pasa por él antes de implementarse. |
 | `physics-analyst` | agente | Modela los fenómenos que decide el game designer y valida el resultado contra la física, los invariantes globales y los escenarios del usuario; su aprobación es obligatoria para mergear cambios de simulación. |
 | `/next` | skill | Elige el próximo issue y crea su rama. |
 | `/code-review`, `/simplify` | skills incluidos | Revisar un diff; limpiar después de una funcionalidad. |
 
-**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `chemist`, `physics-analyst`); `sonnet` para los que ejecutan lo ya decidido (`developer`, `doc-writer`, `github-clerk`); `haiku` para la lectura (`scout`).
+**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `chemist`, `physics-analyst`, `ui-ux-designer`); `sonnet` para los que ejecutan lo ya decidido (`developer`, `doc-writer`, `github-clerk`); `haiku` para la lectura (`scout`).
 
 **Solo Opus decide.** Los agentes en `sonnet` y `haiku` no eligen entre alternativas ni completan lo que falta: si algo no está especificado, se detienen e informan la pregunta. Para no leer archivos enteros ni listados largos en Opus, la búsqueda se delega a `scout`.
 
