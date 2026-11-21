@@ -191,7 +191,7 @@ export class Debug {
         lines.push(`subpasos CFL ${fixed(avg.cflSubsteps, 1)}`);
         lines.push(`volumen de agua: deriva ${(avg.drift * 100).toExponential(2)} %`);
         for (const bot of this.bots) {
-            lines.push(`bot J${bot.k + 1}: meta ${point(bot.goal)} · objetivo ${point(bot.target)} · ${bot.action}`);
+            lines.push(`bot J${bot.k + 1}: meta ${point(bot.goal)} · objetivo ${point(bot.target)} · ${bot.action}${bot.mode ? ` · ${bot.mode}` : ""}`);
         }
         return lines;
     }

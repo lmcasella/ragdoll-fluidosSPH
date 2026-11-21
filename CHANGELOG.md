@@ -5,6 +5,16 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-11-21
+
+### Fixed
+- Los bots de Infinito ya no se suicidan: con el agua cerca dejan de pelear y suben, y si estar quieto es peligroso entran en pánico y van a la plataforma alcanzable más cercana. Antes se quedaban bloqueando o golpeando bajo la línea segura, o parados sin plataforma a la vista, hasta que el agua los alcanzaba. Pasa igual en fácil, normal y difícil.
+- Los bots eligen saltos con margen: evitan los que están justo al límite de lo que alcanzan y las caídas de más de 6 m, y en el aire corrigen hacia la plataforma más alta que quede sobre el agua en vez de la más cercana.
+- Los bots no pelean al borde de una plataforma: no arrancan un golpe si el paso adelante los saca, se apartan del borde tras un golpe y no se tiran al vacío con el stick en cero.
+- El bot de J2 en Infinito con la semilla 8 llega vivo a los 180 s en lugar de ahogarse a los 29 m.
+- Los bots saltan lejos del rival que está justo encima y se zafan de las plataformas donde quedan encajados empujando hacia el centro.
+- El monitor de debug (F3) muestra el modo de supervivencia de cada bot.
+
 ## [0.52.0] - 2026-11-21
 
 ### Changed

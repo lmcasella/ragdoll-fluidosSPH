@@ -97,7 +97,7 @@ test("bot contra bot armados desde el arranque, semillas 1 a 3: disparan en ráf
     assert.deepEqual(failures, []);
 });
 
-test("bot contra bot desde el arranque de Infinito, semillas 1 a 3: el que va adelante sube al menos 30 m de altura local", { timeout: 900000, todo: "#174: las rondas terminan antes por ahogos tras recibir golpes" }, async () => {
+test("bot contra bot desde el arranque de Infinito, semillas 1 a 3: el que va adelante sube al menos 30 m de altura local", { timeout: 900000 }, async () => {
     const failures = [];
     for (const seed of SEEDS) {
         const m = await measure(seed, false);

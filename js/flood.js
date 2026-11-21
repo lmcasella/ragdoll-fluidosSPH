@@ -292,12 +292,17 @@ export class RisingFlood {
         return Math.max(0, this.eta - this.config.depth);
     }
 
+    /** Velocidad base de subida (m/s) a la altura actual: la de la etapa, sin el alcance. */
+    get baseRiseSpeed() {
+        return this.config.speed + this.config.perStage * stageOf(this.eta - this.offsetY(), this.climb);
+    }
+
     /** Velocidad de subida (m/s) a la altura actual: la de la etapa más el alcance (0 sin robots vivos o a menos de `gap`). */
     get riseSpeed() {
         const { catchUp } = this.config;
         const distance = this.lowestPlayer() - this.eta;
         const reach = distance > catchUp.gap ? Math.min(catchUp.max, catchUp.rate * (distance - catchUp.gap)) : 0;
-        return this.config.speed + this.config.perStage * stageOf(this.eta - this.offsetY(), this.climb) + reach;
+        return this.baseRiseSpeed + reach;
     }
 
     /** Avanza la curva y el campo un paso fijo `dt`. */
