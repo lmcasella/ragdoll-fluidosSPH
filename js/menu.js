@@ -36,6 +36,20 @@ export const MENU = {
 };
 
 /**
+ * Menú de pausa (#82) como datos, con la misma forma que `MENU`: ninguna fila tiene valores, así que al confirmar
+ * devuelven su `id` ("resume", "controls" o "quit"). `start` es el índice de la fila donde empieza el cursor.
+ */
+export const PAUSE = {
+    storageKey: "ragdoll-fluidos.pause.v1",
+    start: 0,
+    rows: [
+        { id: "resume", label: "Continuar", values: [] },
+        { id: "controls", label: "Controles", values: [] },
+        { id: "quit", label: "Menú", values: [] },
+    ],
+};
+
+/**
  * Estado del menú principal: fila elegida y valor de cada opción. Consume las intenciones de `Input.menu`
  * (`x`, `y`, `confirm`, `back`) y nunca lee dispositivos. `back` no hace nada: este es el menú raíz.
  * La elección se guarda en `storage` (algo con `getItem` y `setItem`, o `null`) con try/catch: si falla, se usan los
@@ -77,9 +91,9 @@ export class Menu {
         }
     }
 
-    /** Vuelve el cursor a la fila de jugar (al entrar al título). */
+    /** Vuelve el cursor a la fila inicial de la tabla (`start`, o la última: jugar) al entrar al menú. */
     reset() {
-        this.cursor = this.table.rows.length - 1;
+        this.cursor = this.table.start ?? this.table.rows.length - 1;
     }
 
     /** Elección actual: un `id` por opción. */

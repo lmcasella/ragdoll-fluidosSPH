@@ -27,6 +27,11 @@ const HINTS = {
         { pad: ["L"], kb: ["←", "→"], icon: "swap" },
         { pad: ["A"], kb: ["Enter"], icon: "ok" },
     ],
+    pause: [
+        { pad: ["dpad"], kb: ["↑", "↓"], icon: "updown" },
+        { pad: ["A"], kb: ["Enter"], icon: "ok" },
+        { pad: ["B"], kb: ["Esc"], icon: "back" },
+    ],
     help: [
         { pad: ["LB", "RB"], kb: ["←", "→"], icon: "swap" },
         { pad: ["B"], kb: ["Esc"], icon: "back" },
@@ -99,6 +104,27 @@ export class Screens {
         this.menu = this.buildMenu();
         this.help = this.buildHelp();
         this.assign = this.buildAssign();
+        this.pause = this.buildPause();
+    }
+
+    buildPause() {
+        const doc = this.doc;
+        const el = make(doc, "div", "scr pause off", this.stage);
+        make(doc, "div", "veil", el);
+        make(doc, "div", "pmark", el).innerHTML = icon("pause");
+        const col = make(doc, "div", "mcol", el);
+        const rows = {};
+        const add = (id, className, iconNames, word) => {
+            const row = make(doc, "div", `mrow ${className}`, col);
+            make(doc, "span", "ricon", row).innerHTML = iconNames.map((n) => icon(n)).join("");
+            make(doc, "span", "word", row, word);
+            rows[id] = { el: row };
+        };
+        add("resume", "m-pause", ["play"], "Continuar");
+        add("controls", "m-pause", ["pad", "kb"], "Controles");
+        add("quit", "m-pause", ["home"], "Menú");
+        const hints = make(doc, "div", "hintbar", el);
+        return { el, rows, hints };
     }
 
     buildMenu() {
@@ -181,16 +207,19 @@ export class Screens {
 
     /**
      * Actualiza la capa con el estado de este frame:
-     * - `screen`: "menu", "help", "assign" o `null` (fuera del título: toda la capa con `display: none`);
+     * - `screen`: "menu", "help", "assign", "pause" o `null` (en la partida: toda la capa con `display: none`);
      * - `device`: "pad" o "keyboard", los glifos que se muestran (el último dispositivo usado en la pantalla);
-     * - `menu`: `Menu.view`, `choice`: `Menu.choice`, `helpView`: `HelpScreen.view` y `assignView`: `ControlsScreen.view`.
+     * - `menu`: `Menu.view`, `choice`: `Menu.choice`, `helpView`: `HelpScreen.view`, `assignView`: `ControlsScreen.view`
+     *   y `pauseView`: `Menu.view` del menú de pausa.
      */
-    update({ screen, device, menu, choice, helpView, assignView }) {
+    update({ screen, device, menu, choice, helpView, assignView, pauseView }) {
         flag(this.root, "off", screen === null);
         flag(this.menu.el, "off", screen !== "menu");
         flag(this.help.el, "off", screen !== "help");
         flag(this.assign.el, "off", screen !== "assign");
-        if (screen === "menu") this.updateMenu(menu, device);
+        flag(this.pause.el, "off", screen !== "pause");
+        if (screen === "pause") this.updatePause(pauseView, device);
+        else if (screen === "menu") this.updateMenu(menu, device);
         else if (screen === "help") this.updateHelp(helpView, device);
         else if (screen === "assign") this.updateAssign(assignView, choice, device);
     }
@@ -213,6 +242,11 @@ export class Screens {
             r.index = index;
         }
         html(this.menu.hints, hintsHtml(HINTS.menu, device));
+    }
+
+    updatePause(rows, device) {
+        for (const row of rows) flag(this.pause.rows[row.id].el, "focus", row.selected);
+        html(this.pause.hints, hintsHtml(HINTS.pause, device));
     }
 
     updateHelp(view, device) {

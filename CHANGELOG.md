@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-20
+
+### Added
+- Menú de pausa: cualquier jugador lo abre con Start o Escape durante la cuenta regresiva o la partida. Mientras está abierto no avanzan la física, el reloj de ronda ni los bots, y el HUD sigue visible. Tiene Continuar (también Start, Escape o B), Controles (B vuelve a la pausa) y Menú, que vuelve al título.
+
 ## [0.47.1] - 2026-11-20
 
 ### Changed

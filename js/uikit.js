@@ -25,7 +25,8 @@ export const ICONS = `<svg width="0" height="0" style="position:absolute" aria-h
 <symbol id="i-pad" viewBox="0 0 24 24"><path ${STROKE} d="M7 8h10a4 4 0 0 1 4 4.3l-.8 4.2a2 2 0 0 1-3.4 1L15 16H9l-1.8 1.5a2 2 0 0 1-3.4-1L3 12.3A4 4 0 0 1 7 8zM8 10.5v3M6.5 12h3"/><circle cx="16" cy="11" r="1" fill="currentColor"/><circle cx="18" cy="13" r="1" fill="currentColor"/></symbol>
 <symbol id="i-kb" viewBox="0 0 24 24"><path ${STROKE} d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M7 4.5l13 7.5-13 7.5z"/></symbol>
-<symbol id="i-back" viewBox="0 0 24 24"><path ${STROKE} d="M9 6L4 11l5 5M4 11h10a6 6 0 0 1 6 6v1"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></symbol>
+<symbol id="i-back"viewBox="0 0 24 24"><path ${STROKE} d="M9 6L4 11l5 5M4 11h10a6 6 0 0 1 6 6v1"/></symbol>
 <symbol id="i-ok" viewBox="0 0 24 24"><path ${STROKE} d="M4.5 12.5l5 5 10-11"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path ${STROKE} d="M12 5v14M5 12h14"/></symbol>
 <symbol id="i-swap" viewBox="0 0 24 24"><path ${STROKE} d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></symbol>

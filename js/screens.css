@@ -68,6 +68,29 @@
     height: calc(76 * var(--u));
     justify-content: center;
 }
+.screens .pmark {
+    position: absolute;
+    left: 50%;
+    top: calc(250 * var(--u));
+    translate: -50% -50%;
+    color: var(--text);
+}
+.screens .pmark .ic {
+    width: calc(120 * var(--u));
+    height: calc(120 * var(--u));
+}
+.screens .pause .mcol {
+    top: calc(380 * var(--u));
+}
+.screens .m-pause {
+    height: calc(88 * var(--u));
+}
+.screens .m-pause .word {
+    font-size: calc(32 * var(--u));
+}
+.screens .m-pause.focus .word {
+    color: var(--focus);
+}
 .screens .m-play {
     height: calc(104 * var(--u));
     justify-content: center;

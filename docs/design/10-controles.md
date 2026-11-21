@@ -4,7 +4,7 @@
 
 ## 10.1 Mapeo 🔨 (remapeo pedido por el usuario el 18/11)
 
-El remapeo base y el gancho entran en la entrega (M4). El modo ragdoll y la pausa consensuada son 🔨 M5.
+El remapeo base y el gancho entran en la entrega (M4). El modo ragdoll es 🔨 M5; la pausa ya es un menú (§10.4).
 
 | Acción | Intención de `Input` | Gamepad | J1 teclado y mouse | J2 teclado | Entrega |
 |---|---|---|---|---|---|
@@ -25,7 +25,7 @@ El remapeo base y el gancho entran en la entrega (M4). El modo ragdoll y la paus
 | Rueda de armas | `wheel` = `{ open, x, y }` y `wheelPick` | LB mantenido ≥ 0,25 s + stick derecho; se elige al soltar LB, y con el stick al centro se cancela | Q mantenido + W/A/S/D | Ctrl derecho mantenido + flechas | Sí (#15) |
 | Arma directa | `weapon` (posición 1–4 en la tabla) | Cruceta: arriba 1, derecha 2, abajo 3, izquierda 4 | 1 / 2 / 3 / 4 | Num 1 / 2 / 3 / 4 | Sí |
 | Modo ragdoll | `ragdoll` (flanco) | Y (`buttons[3]`), reservado: #104 no lo usa | C | Num . | 🔨 M5 ([03 §3.6](03-robots.md#36-modo-ragdoll--m5)) |
-| Pausa consensuada | `pause` (flanco) | Select (`buttons[8]`) | Escape | Retroceso | 🔨 M5 ([10.4](#104-pausa-consensuada--m5)) |
+| Pausa | `start` (flanco) | Start (`buttons[9]`) | Escape | Escape | ✅ #82 ([10.4](#104-pausa)) |
 | Debug (desarrollo) | — (no es intención de juego) | L3 + R3 juntos (`buttons[10]` y `[11]`) | F3 | — | ✅ #258 |
 
 ## 10.2 Intenciones de `Input`
@@ -79,17 +79,16 @@ El remapeo base y el gancho entran en la entrega (M4). El modo ragdoll y la paus
 - **Revancha e inicio de ronda:** siguen con `action` (flanco). Para que el mismo botón no empiece a vaciar el tanque al arrancar, el emisor exige un frame con `fire` en falso después de cada reinicio ([04-fluidos](04-fluidos.md#disparo-continuo-con-tanque--13)).
 - **Arma directa:** `state.weapon` es la **posición en la tabla** de armas (1 = primera fila), no el `id`. La raíz de composición la convierte en `WEAPONS[n−1].id` si esa arma está en el inventario.
 
-## 10.4 Pausa consensuada 🔨 M5
+## 10.4 Pausa ✅ #82
 
-Diseño mínimo:
-- Un jugador aprieta Select: se abre un pedido de pausa con un cartel ("J1 pide pausa"). El juego sigue corriendo.
-- El otro jugador acepta con Select en menos de `PAUSE.window` (10 s): `Match` pasa al estado `paused` (escala de tiempo 0) con el menú de ajustes. Cualquiera de los dos reanuda con Select.
-- Si el otro no responde (por ejemplo, está ausente), el pedido vence y se ignora. Quien lo pidió puede cancelarlo con otro Select.
-- Va en la máquina de estados de `Match` (estados `playing` → `pauseRequested` → `paused`), con las transiciones en un solo lugar.
+La pausa es un menú que abre cualquier jugador con Start (cualquier gamepad real) o Escape durante `countdown` o `playing`. La pausa consensuada (pedido y aceptación del otro jugador) queda descartada.
+- `Match` pasa al estado `paused` y guarda el de origen (`resumeState`); `resume` vuelve exactamente a él y `quit` lleva al título como el Start del fin de partida.
+- Mientras está en pausa no avanzan los pasos de física, el reloj de ronda, el input de los jugadores ni los bots; el juego se sigue dibujando con el HUD debajo del velo.
+- Filas (con `Input.menu`): Continuar (también Start, Escape o B), Controles (abre la pantalla de controles; B vuelve a la pausa) y Menú (salir al título).
 
 ## 10.5 Debug
 
-**Un solo botón (#258):** L3 + R3 apretados a la vez (clic de los dos sticks; botones que el juego no usa y difíciles de apretar sin querer) o F3 abren y cierran el **menú de debug**. Select no se usa porque está reservado para la pausa consensuada, y LB no porque abre la rueda. En la pantalla de título el botón no hace nada.
+**Un solo botón (#258):** L3 + R3 apretados a la vez (clic de los dos sticks; botones que el juego no usa y difíciles de apretar sin querer) o F3 abren y cierran el **menú de debug**. Select no se usa para no confundirlo con los menús, y LB no porque abre la rueda. En la pantalla de título el botón no hace nada.
 
 - **Filas:** Estadísticas (sí/no), Fluidos (metaball/puntos/ambos) y las capas Velocidades, Fuerzas, Columnas y Bots (sí/no cada una). Al empezar está todo apagado y los fluidos en metaball.
 - **Navegación:** con los controles del menú (`MENU_CONTROLS`): arriba/abajo elige la fila, izquierda/derecha o confirmar cambia el valor, y atrás o el mismo botón cierran.
