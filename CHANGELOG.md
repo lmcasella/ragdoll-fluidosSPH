@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-11-20
+
+### Changed
+- La pantalla de controles del gamepad es una tabla como la del teclado, en lugar del dibujo del gamepad.
+
 ## [0.47.0] - 2026-11-20
 
 ### Added

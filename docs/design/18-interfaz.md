@@ -267,3 +267,4 @@ Con `prefers-reduced-motion: reduce`: sin temblor, sacudón, latidos ni rebotes;
 9. Ningún texto visible de la interfaz usa palabras de muerte biológica ("ahogar", "ahogo", "se ahogó"): los robots no se ahogan. Cuando un robot cae al agua se dice "cortocircuito"; la zona roja del medidor de Infinito no lleva texto, solo el degradado rojo. Los identificadores del código (`drown…`) no cambian: esto vale solo para el texto.
 10. El teclado es solo de J1 y un solo jugador puede usar teclado y mouse a la vez: no hay teclado de J2. La pantalla de controles de teclado lleva una sola tarjeta.
 11. La especificación manda sobre la maqueta, que no se actualiza. "¡YA!" queda como texto. Revancha y menú van solo con íconos (↻ y casita).
+12. Los controles del gamepad van en una tabla igual a la del teclado (glifo y acción por fila, combinaciones al final), sin dibujo del gamepad.
