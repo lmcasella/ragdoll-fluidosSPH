@@ -63,10 +63,18 @@ export const CLIMB = {
         { period: 1, weights: { ACID: 0.5, LAVA: 0.5 } },
     ],
     repair: { perStage: 1, item: null },
-    flood: { surface: 2, start: 5, speed: 0.25, perStage: 0.04, depth: 6, sinkBelow: 5 },
+    flood: {
+        surface: 2,
+        start: 5,
+        speed: 0.25,
+        perStage: 0.04,
+        depth: 6,
+        sinkBelow: 5,
+    },
     ahead: 30,
     loadout: { weapon: null, weapons: [] },
     stagePrize: { banner: 1.5, repair: "full", refill: true },
+    breakable: { fromStage: 1, chance: 0.25, time: 1.5 },
 };
 
 /** Salud máxima de un robot (la inicial de `ActiveRagdoll`). */
@@ -102,7 +110,13 @@ export function stageWalls(n, config = CLIMB, base = LEVEL) {
     return [
         [minX, config.centerX - half],
         [config.centerX + half, maxX],
-    ].map(([xa, xb]) => ({ x: (xa + xb) / 2, y: (y0 + y1) / 2, w: xb - xa, h: y1 - y0, kind: "wall" }));
+    ].map(([xa, xb]) => ({
+        x: (xa + xb) / 2,
+        y: (y0 + y1) / 2,
+        w: xb - xa,
+        h: y1 - y0,
+        kind: "wall",
+    }));
 }
 
 /**
@@ -118,7 +132,11 @@ export function pickSpawns(platforms, random, config = CLIMB) {
     };
     const penalty = (xa, a, xb, b) => {
         const d = Math.abs(xa - xb);
-        return Math.max(0, distance[0] - d) + Math.max(0, d - distance[1]) + Math.max(0, Math.abs(a.y - b.y) - dy);
+        return (
+            Math.max(0, distance[0] - d) +
+            Math.max(0, d - distance[1]) +
+            Math.max(0, Math.abs(a.y - b.y) - dy)
+        );
     };
     let best = null;
     for (let t = 0; t < tries; t++) {
@@ -135,7 +153,10 @@ export function pickSpawns(platforms, random, config = CLIMB) {
         const step = 0.5;
         const spots = (p) => {
             const room = Math.max(0, p.w / 2 - inset);
-            return Array.from({ length: Math.floor((2 * room) / step) + 1 }, (_, i) => p.x - room + i * step);
+            return Array.from(
+                { length: Math.floor((2 * room) / step) + 1 },
+                (_, i) => p.x - room + i * step,
+            );
         };
         for (const a of platforms) {
             for (const b of platforms) {
@@ -174,13 +195,21 @@ export class ClimbGenerator {
         this.items = [];
         this.inStage = new Map();
         this.base = this.makeBase();
-        this.quotas = new Map([[0, Math.min(config.branches.density[1], this.base.length + 1)]]);
+        this.quotas = new Map([
+            [0, Math.min(config.branches.density[1], this.base.length + 1)],
+        ]);
         this.counts = new Map([[0, this.base.length]]);
         this.open = 0;
         this.reached = new Set();
         this.front = Math.max(...this.base.map((p) => p.y));
         this.relaxed = 0;
-        for (const p of this.base) this.items.push({ x: p.x, minX: p.x - p.w / 2, maxX: p.x + p.w / 2, top: p.y });
+        for (const p of this.base)
+            this.items.push({
+                x: p.x,
+                minX: p.x - p.w / 2,
+                maxX: p.x + p.w / 2,
+                top: p.y,
+            });
     }
 
     uniform([lo, hi]) {
@@ -191,21 +220,33 @@ export class ClimbGenerator {
     widthRange(stage) {
         const { first, last, stages } = this.config.branches.width;
         const k = Math.min(stage, stages) / stages;
-        return [first[0] + (last[0] - first[0]) * k, first[1] + (last[1] - first[1]) * k];
+        return [
+            first[0] + (last[0] - first[0]) * k,
+            first[1] + (last[1] - first[1]) * k,
+        ];
     }
 
     /** Plataformas anchas de la etapa 0, una por celda del ancho. */
     makeBase() {
         const { centerX, branches } = this.config;
         const { base, separation } = branches;
-        const count = base.count[0] + Math.floor(this.random() * (base.count[1] - base.count[0] + 1));
+        const count =
+            base.count[0] +
+            Math.floor(this.random() * (base.count[1] - base.count[0] + 1));
         const half = halfWidth(0, this.config);
         const cell = (2 * half) / count;
         const list = [];
         for (let i = 0; i < count; i++) {
             const lo = centerX - half + i * cell + separation / 2;
-            const w = Math.min(this.uniform(this.widthRange(0)), cell - separation);
-            list.push({ x: this.uniform([lo + w / 2, lo + cell - separation - w / 2]), w, y: this.uniform(base.top) });
+            const w = Math.min(
+                this.uniform(this.widthRange(0)),
+                cell - separation,
+            );
+            list.push({
+                x: this.uniform([lo + w / 2, lo + cell - separation - w / 2]),
+                w,
+                y: this.uniform(base.top),
+            });
         }
         return list;
     }
@@ -215,13 +256,33 @@ export class ClimbGenerator {
         const { centerX, branches } = this.config;
         const { dy, overlap, tail, minWidth, transition } = branches;
         const stage = stageOf(top, this.config);
-        const half = halfWidth(stageOf(top + transition, this.config), this.config);
-        const soft = halfWidth(stageOf(top + transition + dy[1], this.config), this.config);
+        const brk = this.config.breakable;
+        const breakable =
+            stage >= brk.fromStage && this.random() < brk.chance
+                ? brk.time
+                : false;
+        const half = halfWidth(
+            stageOf(top + transition, this.config),
+            this.config,
+        );
+        const soft = halfWidth(
+            stageOf(top + transition + dy[1], this.config),
+            this.config,
+        );
         let w = this.uniform(this.widthRange(stage));
-        if (this.random() < tail.chance) w *= this.random() < 0.5 ? tail.long : tail.short;
+        if (this.random() < tail.chance)
+            w *= this.random() < 0.5 ? tail.long : tail.short;
         w = Math.min(Math.max(w, minWidth), 2 * half);
-        const lo = Math.max(s.minX + overlap - w / 2, centerX - half + w / 2, centerX - soft + overlap - w / 2);
-        const hi = Math.min(s.maxX - overlap + w / 2, centerX + half - w / 2, centerX + soft - overlap + w / 2);
+        const lo = Math.max(
+            s.minX + overlap - w / 2,
+            centerX - half + w / 2,
+            centerX - soft + overlap - w / 2,
+        );
+        const hi = Math.min(
+            s.maxX - overlap + w / 2,
+            centerX + half - w / 2,
+            centerX + soft - overlap + w / 2,
+        );
         if (lo > hi) return null;
         const x = lo + this.random() * (hi - lo);
         return this.free(x - w / 2, x + w / 2, top) ? { x, w } : null;
@@ -234,7 +295,8 @@ export class ClimbGenerator {
             const shared = Math.min(maxX, q.maxX) - Math.max(minX, q.minX);
             const apart = Math.abs(top - q.top);
             if (shared > 0 && apart < air) return false;
-            if (shared <= 0 && apart <= sameHeight && -shared < separation) return false;
+            if (shared <= 0 && apart <= sameHeight && -shared < separation)
+                return false;
         }
         return true;
     }
@@ -244,13 +306,23 @@ export class ClimbGenerator {
         const { dy } = this.config.branches;
         const highest = this.items.reduce((a, b) => (b.top > a.top ? b : a));
         this.fallbacks++;
-        return { top: highest.top + (dy[0] + dy[1]) / 2, x: highest.x, w: Math.max(highest.maxX - highest.minX, this.config.branches.minWidth) };
+        return {
+            top: highest.top + (dy[0] + dy[1]) / 2,
+            x: highest.x,
+            w: Math.max(
+                highest.maxX - highest.minX,
+                this.config.branches.minWidth,
+            ),
+        };
     }
 
     /** Arma de la plataforma: una cada `period` plataformas de la etapa `stage ≥ 1`, sorteada por `weights`. */
     pickupsOf(x, top, stage) {
         if (stage < 1) return [];
-        const entry = this.config.pickups[Math.min(stage - 1, this.config.pickups.length - 1)];
+        const entry =
+            this.config.pickups[
+                Math.min(stage - 1, this.config.pickups.length - 1)
+            ];
         const n = this.inStage.get(stage) ?? 0;
         this.inStage.set(stage, n + 1);
         if (n % entry.period !== 0) return [];
@@ -273,11 +345,16 @@ export class ClimbGenerator {
      */
     quota(k) {
         if (!this.quotas.has(k)) {
-            const { density, dy, air, tract, separation } = this.config.branches;
-            const drawn = density[0] + Math.floor(this.random() * (density[1] - density[0] + 1));
+            const { density, dy, air, tract, separation } =
+                this.config.branches;
+            const drawn =
+                density[0] +
+                Math.floor(this.random() * (density[1] - density[0] + 1));
             const lead = dy[1] - separation;
             const step = (dy[1] + Math.max(dy[0], air)) / 2;
-            const needed = Math.ceil(((k + 1) * tract - lead - this.front) / step);
+            const needed = Math.ceil(
+                ((k + 1) * tract - lead - this.front) / step,
+            );
             this.quotas.set(k, Math.min(density[1], Math.max(drawn, needed)));
         }
         return this.quotas.get(k);
@@ -296,9 +373,13 @@ export class ClimbGenerator {
         const { tract, dy, separation } = this.config.branches;
         const lead = dy[1] - separation;
         const near = (k + 1) * tract - lead;
-        if (top >= near || this.reached.has(k) || this.counts.has(k + 1)) return true;
+        if (top >= near || this.reached.has(k) || this.counts.has(k + 1))
+            return true;
         const after = this.quota(k) - (this.counts.get(k) ?? 0) - 1;
-        return Math.max(this.front, top) + dy[1] * after >= near + (after > 0 ? lead : 0);
+        return (
+            Math.max(this.front, top) + dy[1] * after >=
+            near + (after > 0 ? lead : 0)
+        );
     }
 
     /** Sortea apoyo y altura: de dos apoyos al azar se elige el más bajo (se hacen crecer las ramas que se quedan atrás). */
@@ -314,22 +395,28 @@ export class ClimbGenerator {
      * angosta no admite más), lo cierra con las que tiene y sigue en el siguiente.
      */
     next() {
-        const { tract, tries, window, dy, separation, density } = this.config.branches;
+        const { tract, tries, window, dy, separation, density } =
+            this.config.branches;
         let top = 0;
         let spot = null;
         for (let round = 0; round < 16 && spot === null; round++) {
             while (this.full(this.open)) this.open++;
             for (let t = 0; t < tries * 10 && spot === null; t++) {
                 const draw = this.draw();
-                if (Math.floor(draw.top / tract) === this.open && this.leaves(this.open, draw.top)) {
+                if (
+                    Math.floor(draw.top / tract) === this.open &&
+                    this.leaves(this.open, draw.top)
+                ) {
                     spot = this.place(draw.s, draw.top);
                     top = draw.top;
                 }
             }
             const count = this.counts.get(this.open) ?? 0;
             if (spot !== null) break;
-            if (count >= density[0] && this.reached.has(this.open)) this.quotas.set(this.open, count);
-            else if (this.quota(this.open) < density[1]) this.quotas.set(this.open, this.quota(this.open) + 1);
+            if (count >= density[0] && this.reached.has(this.open))
+                this.quotas.set(this.open, count);
+            else if (this.quota(this.open) < density[1])
+                this.quotas.set(this.open, this.quota(this.open) + 1);
             else break;
         }
         for (let t = 0; t < tries * 10 && spot === null; t++) {
@@ -348,11 +435,29 @@ export class ClimbGenerator {
         if (top >= (k + 1) * tract - (dy[1] - separation)) this.reached.add(k);
         this.front = Math.max(this.front, top);
         const stage = stageOf(top, this.config);
+        const brk = this.config.breakable;
+        const breakable =
+            brk && stage >= brk.fromStage && this.random() < brk.chance
+                ? brk.time
+                : false;
         const pickups = this.pickupsOf(spot.x, top, stage);
-        this.items.push({ x: spot.x, minX: spot.x - spot.w / 2, maxX: spot.x + spot.w / 2, top });
+        this.items.push({
+            x: spot.x,
+            minX: spot.x - spot.w / 2,
+            maxX: spot.x + spot.w / 2,
+            top,
+        });
         const floor = Math.max(...this.items.map((v) => v.top)) - window;
         this.items = this.items.filter((v) => v.top >= floor);
-        return { index: this.index++, x: spot.x, w: spot.w, y: top, stage, pickups };
+        return {
+            index: this.index++,
+            x: spot.x,
+            w: spot.w,
+            y: top,
+            stage,
+            pickups,
+            breakable,
+        };
     }
 }
 
@@ -368,7 +473,14 @@ export class ClimbGenerator {
  * callback. Después de destruir, quien llama invalida `wallContact` y rehace el grafo del bot con `level`.
  */
 export class Climb {
-    constructor({ world, platforms, pickups, config = CLIMB, base = LEVEL }) {
+    constructor({
+        world,
+        platforms,
+        pickups,
+        config = CLIMB,
+        base = LEVEL,
+        breakable = null,
+    }) {
         this.world = world;
         this.platforms = platforms;
         this.pickups = pickups;
@@ -391,6 +503,7 @@ export class Climb {
         this.stageReached = 0;
         /** Aparición de los jugadores `[{ x, y, flipX }, ...]` en el mundo, sorteada en `reset`. */
         this.spawns = [];
+        this.breakable = breakable;
     }
 
     /** Desplazamiento (m) del cuerpo del mapa: lo que hay que sumar a una altura local para tener la del mundo. */
@@ -411,8 +524,16 @@ export class Climb {
 
     /** Límites de la cámara a la altura de mundo `y`: el ancho de la etapa de esa altura local y sin techo. */
     cameraBounds(y) {
-        const half = halfWidth(stageOf(y - this.offsetY, this.config), this.config);
-        return { minX: this.config.centerX - half, maxX: this.config.centerX + half, minY: 0, maxY: Infinity };
+        const half = halfWidth(
+            stageOf(y - this.offsetY, this.config),
+            this.config,
+        );
+        return {
+            minX: this.config.centerX - half,
+            maxX: this.config.centerX + half,
+            minY: 0,
+            maxY: Infinity,
+        };
     }
 
     applyScroll() {
@@ -433,11 +554,24 @@ export class Climb {
         for (const p of this.generator.base) this.addPlatform(p);
         this.generate(60);
         const random = seededRandom((seed ^ 0x9e3779b9) >>> 0);
-        const all = this.items.filter((item) => item.kind === "platform").map((item) => ({ x: item.solid.x, w: item.solid.w, y: item.top }));
+        const all = this.items
+            .filter((item) => item.kind === "platform")
+            .map((item) => ({ x: item.solid.x, w: item.solid.w, y: item.top }));
         const { dy, overlap } = this.config.branches;
         const climbable = (p) =>
-            all.some((q) => q.y - p.y > 0 && q.y - p.y <= dy[1] && Math.min(p.x + p.w / 2, q.x + q.w / 2) - Math.max(p.x - p.w / 2, q.x - q.w / 2) >= overlap);
-        this.spawns = pickSpawns(all.filter((p) => p.y < this.config.stageHeight && climbable(p)), random, this.config);
+            all.some(
+                (q) =>
+                    q.y - p.y > 0 &&
+                    q.y - p.y <= dy[1] &&
+                    Math.min(p.x + p.w / 2, q.x + q.w / 2) -
+                        Math.max(p.x - p.w / 2, q.x - q.w / 2) >=
+                        overlap,
+            );
+        this.spawns = pickSpawns(
+            all.filter((p) => p.y < this.config.stageHeight && climbable(p)),
+            random,
+            this.config,
+        );
     }
 
     /**
@@ -461,7 +595,9 @@ export class Climb {
             const gone = new Set(sunk);
             this.items = this.items.filter((item) => !gone.has(item));
             const solids = new Set(sunk.map((item) => item.solid));
-            this.data.solids = this.data.solids.filter((solid) => !solids.has(solid));
+            this.data.solids = this.data.solids.filter(
+                (solid) => !solids.has(solid),
+            );
         }
         const sunkPoints = this.points.filter((point) => point.y < limit);
         for (const point of sunkPoints) this.pickups.remove(point);
@@ -475,12 +611,18 @@ export class Climb {
         while (this.generator.front < limit) {
             const p = this.generator.next();
             this.addPlatform(p);
-            for (const point of p.pickups) this.points.push(this.pickups.add(point));
+            for (const point of p.pickups)
+                this.points.push(this.pickups.add(point));
         }
         const needed = stageOf(limit, this.config);
         while (this.stagesBuilt < needed) {
             this.stagesBuilt++;
-            for (const w of stageWalls(this.stagesBuilt, this.config, this.base)) this.addBox(w.x, w.y, w.w, w.h, "wall", false);
+            for (const w of stageWalls(
+                this.stagesBuilt,
+                this.config,
+                this.base,
+            ))
+                this.addBox(w.x, w.y, w.w, w.h, "wall", false);
         }
         return this.items.length + this.points.length - before;
     }
@@ -488,22 +630,44 @@ export class Climb {
     /** Plataforma `{ x, w, y }` (`y` el tope) como caja atravesable de alto `branches.thickness`. */
     addPlatform(p) {
         const { thickness } = this.config.branches;
-        this.addBox(p.x, p.y - thickness / 2, p.w, thickness, "platform", true);
+        this.addBox(
+            p.x,
+            p.y - thickness / 2,
+            p.w,
+            thickness,
+            "platform",
+            true,
+            p.breakable,
+        );
     }
 
-    addBox(x, y, w, h, kind, oneWay) {
+    addBox(x, y, w, h, kind, oneWay, breakable = false) {
         this.vector.Set(x, y);
         this.shape.SetAsBox(w / 2, h / 2, this.vector, 0);
         const fixture = this.body.CreateFixture(this.shape, 0);
         fixture.SetFriction(0.8);
         if (oneWay) this.platforms.addPlatform(fixture, { moving: true });
-        const solid = oneWay ? { x, y, w, h, kind, oneWay } : { x, y, w, h, kind };
-        this.items.push({ fixture, oneWay, kind, top: y + h / 2, solid });
+        const solid = oneWay
+            ? { x, y, w, h, kind, oneWay }
+            : { x, y, w, h, kind };
+        if (breakable) {
+            solid.breakable = breakable;
+            this.breakable?.add(fixture, solid);
+        }
+        this.items.push({
+            fixture,
+            oneWay,
+            breakable: !!breakable,
+            kind,
+            top: y + h / 2,
+            solid,
+        });
         this.data.solids.push(solid);
     }
 
     destroyItem(item) {
         if (item.oneWay) this.platforms.removePlatform(item.fixture);
+        if (item.breakable) this.breakable?.remove(item.fixture);
         this.body.DestroyFixture(item.fixture);
     }
 
@@ -557,7 +721,11 @@ export class StagePrizes {
         for (const s of solids) {
             if (s.kind !== "platform") continue;
             const top = s.y + s.h / 2;
-            if (Math.abs(x - s.x) > s.w / 2 + SUPPORT_SLACK.x || Math.abs(low - top - offsetY) > SUPPORT_SLACK.y) continue;
+            if (
+                Math.abs(x - s.x) > s.w / 2 + SUPPORT_SLACK.x ||
+                Math.abs(low - top - offsetY) > SUPPORT_SLACK.y
+            )
+                continue;
             if (best === null || top > best) best = top;
         }
         return best;
@@ -584,7 +752,10 @@ export class StagePrizes {
             const player = players[k];
             if (prize.repair === "full") player.hp = FULL_HP;
             if (prize.refill) refillTanks(player);
-            this.banner = { text: `ETAPA ${stage} · J${k + 1}`, until: now + prize.banner };
+            this.banner = {
+                text: `ETAPA ${stage} · J${k + 1}`,
+                until: now + prize.banner,
+            };
         }
         return applied;
     }

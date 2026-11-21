@@ -14,9 +14,33 @@ export const LEVEL = {
         { x: 56.5, y: 16, w: 1, h: 32, kind: "wall" },
         { x: 4.5, y: 6.8, w: 3, h: 0.4, kind: "platform", oneWay: true },
         { x: 13, y: 10.1, w: 8, h: 0.4, kind: "platform", oneWay: true },
-        { x: 21, y: 5.6, w: 2, h: 0.4, kind: "platform", oneWay: true },
-        { x: 28, y: 7.6, w: 8, h: 0.4, kind: "platform", oneWay: true },
-        { x: 35, y: 5.6, w: 2, h: 0.4, kind: "platform", oneWay: true },
+        {
+            x: 21,
+            y: 5.6,
+            w: 2,
+            h: 0.4,
+            kind: "platform",
+            oneWay: true,
+            breakable: 0.5,
+        },
+        {
+            x: 28,
+            y: 7.6,
+            w: 8,
+            h: 0.4,
+            kind: "platform",
+            oneWay: true,
+            breakable: 1.5,
+        },
+        {
+            x: 35,
+            y: 5.6,
+            w: 2,
+            h: 0.4,
+            kind: "platform",
+            oneWay: true,
+            breakable: 0.5,
+        },
         { x: 28, y: 13.4, w: 12, h: 0.4, kind: "platform", oneWay: true },
         { x: 43, y: 10.1, w: 8, h: 0.4, kind: "platform", oneWay: true },
         { x: 51.5, y: 6.8, w: 3, h: 0.4, kind: "platform", oneWay: true },
@@ -41,7 +65,10 @@ export const LEVEL = {
         maxRate: 1200,
     },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
-    spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
+    spawns: [
+        { x: 7.5, flipX: false },
+        { x: 48.5, flipX: true },
+    ],
     /** Puntos de aparición de armas: centro del ícono (0,6 m sobre la cara superior de la plataforma) y `weapon` = id de `FLUID`. */
     pickups: [
         { x: 28, y: 14.2, weapon: FLUID.ACID },
@@ -67,20 +94,27 @@ export function buildLevel(world, level = LEVEL) {
         return ground.CreateFixture(shape, 0);
     };
     const oneWayFixtures = [];
+    const breakableFixtures = [];
     for (const s of level.solids) {
         const fixture = box(s.x, s.y, s.w, s.h);
         fixture.SetFriction(0.8);
         if (s.oneWay) oneWayFixtures.push(fixture);
+        if (s.breakable) breakableFixtures.push({ fixture, solid: s });
     }
 
     const killSensors = new Set();
     if (level.pool) {
         const { x1, x2, bottom, killY } = level.pool;
-        const sensor = box((x1 + x2) / 2, (bottom + killY) / 2, x2 - x1, killY - bottom);
+        const sensor = box(
+            (x1 + x2) / 2,
+            (bottom + killY) / 2,
+            x2 - x1,
+            killY - bottom,
+        );
         sensor.SetSensor(true);
         killSensors.add(Box2D.getPointer(sensor));
     }
     Box2D.destroy(center);
     Box2D.destroy(shape);
-    return { ground, killSensors, oneWayFixtures };
+    return { ground, killSensors, oneWayFixtures, breakableFixtures };
 }

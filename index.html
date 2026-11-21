@@ -78,6 +78,7 @@
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
+            import { BreakablePlatforms } from "./js/breakable.js";
             import { Flood, RisingFlood } from "./js/flood.js";
             import { CLIMB, Climb, StagePrizes } from "./js/climb.js";
             import { ShallowWater } from "./js/water.js";
@@ -90,7 +91,10 @@
             import { Match } from "./js/round.js";
             import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
-            import { withReversedClip, withoutJointTracks } from "./js/clips.js";
+            import {
+                withReversedClip,
+                withoutJointTracks,
+            } from "./js/clips.js";
             import { DamageSystem } from "./js/damage.js";
             import { createParticleSystem } from "./js/particles.js";
             import { ParticleStore, SINK } from "./js/particleStore.js";
@@ -141,11 +145,22 @@
 
             const AIM_JOINTS = ["back_shoulder", "front_shoulder"];
             const AIM_HOLD = ["back_elbow", "front_elbow"];
-            const AIM_FREE_CLIPS = ["jump_start", "air", "air_forward", "air_backward", "fall_high", "idle", "aim"];
+            const AIM_FREE_CLIPS = [
+                "jump_start",
+                "air",
+                "air_forward",
+                "air_backward",
+                "fall_high",
+                "idle",
+                "aim",
+            ];
             const robotRag = await loadRag("./assets/robot.rag.json", (json) =>
                 withReversedClip(
                     withReversedClip(
-                        withoutJointTracks(json, AIM_FREE_CLIPS, [...AIM_JOINTS, ...AIM_HOLD]),
+                        withoutJointTracks(json, AIM_FREE_CLIPS, [
+                            ...AIM_JOINTS,
+                            ...AIM_HOLD,
+                        ]),
                         "walk",
                         "walk_back",
                     ),
@@ -200,7 +215,12 @@
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 
             function resize() {
-                for (const c of [canvas, fluidCanvas, pickupCanvas, hudCanvas]) {
+                for (const c of [
+                    canvas,
+                    fluidCanvas,
+                    pickupCanvas,
+                    hudCanvas,
+                ]) {
                     c.width = window.innerWidth;
                     c.height = window.innerHeight;
                 }
@@ -216,7 +236,13 @@
             let climb = null;
             let currentMap = "classic";
             const platforms = new OneWayPlatforms(world);
-            classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+            classic.oneWayFixtures.forEach((fixture) =>
+                platforms.addPlatform(fixture),
+            );
+            const breakable = new BreakablePlatforms();
+            classic.breakableFixtures.forEach(({ fixture, solid }) =>
+                breakable.add(fixture, solid),
+            );
             const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
@@ -241,7 +267,15 @@
              * el tope (`top`) de la plataforma sorteada ya es el dato.
              */
             function spawnOnGround(def, x, top) {
-                const hit = top === undefined ? raycaster.cast(x, LEVEL.bounds.maxY, x, LEVEL.bounds.minY) : null;
+                const hit =
+                    top === undefined
+                        ? raycaster.cast(
+                              x,
+                              LEVEL.bounds.maxY,
+                              x,
+                              LEVEL.bounds.minY,
+                          )
+                        : null;
                 const surface = top ?? (hit ? hit.y : LEVEL.bounds.minY);
                 const probe = def.spawn(world, { x, y: 0 });
                 const lift = surface + 0.02 - lowestPoint(probe);
@@ -278,14 +312,24 @@
 
             const players = LEVEL.spawns.map(spawnRobot);
             const instances = players.map((p) => p.rag);
-            players.forEach((p, k) => platforms.addOwner(k, p.rag.bodies.values()));
+            players.forEach((p, k) =>
+                platforms.addOwner(k, p.rag.bodies.values()),
+            );
             const input = new Input(players.length);
             let inputs = input.poll();
             let controls = inputs;
             const jumpPending = players.map(() => false);
             const bots = new Map();
-            const botParam = new URLSearchParams(globalThis.location?.search ?? "").get("bot");
-            const urlBots = botParam === null ? null : botParam.split(",").map((n) => Number(n) - 1).filter((k) => k >= 0 && k < players.length);
+            const botParam = new URLSearchParams(
+                globalThis.location?.search ?? "",
+            ).get("bot");
+            const urlBots =
+                botParam === null
+                    ? null
+                    : botParam
+                          .split(",")
+                          .map((n) => Number(n) - 1)
+                          .filter((k) => k >= 0 && k < players.length);
             const menu = new Menu({ storage: menuStorage(), bots: urlBots });
 
             /** `localStorage`, o `null` si el navegador lo bloquea (acceder a la propiedad puede lanzar). */
@@ -304,22 +348,42 @@
             }
 
             /** Semilla de los bots: `?seed=N` en la URL la fija para reproducir una partida; si no, es aleatoria. */
-            const botSeed = Number.parseInt(new URLSearchParams(globalThis.location?.search ?? "").get("seed") ?? "", 10);
+            const botSeed = Number.parseInt(
+                new URLSearchParams(globalThis.location?.search ?? "").get(
+                    "seed",
+                ) ?? "",
+                10,
+            );
 
             /** Deja los bots que pide la elección del menú, con el preset de su dificultad. */
             function ponerBots({ bots: ks, difficulty }) {
                 quitarBots();
                 const config = botConfig(difficulty);
                 for (const k of ks) {
-                    const seed = Number.isFinite(botSeed) ? botSeed + k : (Math.random() * 2 ** 32) >>> 0;
-                    bots.set(k, new Bot({ k, world, config, seed, level: climb ? climb.level : LEVEL }));
+                    const seed = Number.isFinite(botSeed)
+                        ? botSeed + k
+                        : (Math.random() * 2 ** 32) >>> 0;
+                    bots.set(
+                        k,
+                        new Bot({
+                            k,
+                            world,
+                            config,
+                            seed,
+                            level: climb ? climb.level : LEVEL,
+                        }),
+                    );
                 }
             }
 
             const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
             const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
-            const wallContact = new WallContact(particleSystem, store, SHOT_SYSTEM);
+            const wallContact = new WallContact(
+                particleSystem,
+                store,
+                SHOT_SYSTEM,
+            );
             instances.push(wallContact);
 
             const damage = new DamageSystem(world, store);
@@ -332,7 +396,13 @@
             let flood = new Flood(store, water);
             const immersion = new Immersion(particleSystem, store, water);
             const evaporation = new Evaporation(particleSystem, store);
-            const thermal = new Thermal(particleSystem, store, water, immersion, { evaporation });
+            const thermal = new Thermal(
+                particleSystem,
+                store,
+                water,
+                immersion,
+                { evaporation },
+            );
             const viscosity = new Viscosity(particleSystem, store, thermal);
             const buoyancy = new Buoyancy(water, MATERIALS);
             buoyancy.register(players);
@@ -340,31 +410,50 @@
             const stagePrizes = new StagePrizes();
 
             /** Superficie del agua bajo la cual se ahoga un robot en Infinito: la del campo donde hay agua, ninguna donde no. */
-            const drownSurface = (x) => (water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity);
+            const drownSurface = (x) =>
+                water.depthAt(x) > water.config.hDry
+                    ? water.surfaceAt(x)
+                    : -Infinity;
 
             /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
-            const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
+            const mapSeed = () =>
+                Number.isFinite(botSeed)
+                    ? botSeed
+                    : (Math.random() * 2 ** 32) >>> 0;
 
             /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
             function aplicarMapa(map) {
                 if (map === currentMap) return;
                 flood.dispose();
+                breakable.clear();
                 if (map === "infinite") {
-                    classic.oneWayFixtures.forEach((fixture) => platforms.removePlatform(fixture));
+                    classic.oneWayFixtures.forEach((fixture) =>
+                        platforms.removePlatform(fixture),
+                    );
                     world.DestroyBody(classic.ground);
                     damage.killSensors.clear();
                     pickups.dispose();
                     pickups = new Pickups(world, damage, []);
                     water.setStart({ surface: CLIMB.flood.surface });
-                    flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY);
-                    climb = new Climb({ world, platforms, pickups });
+                    flood = new RisingFlood(
+                        water,
+                        LEVEL,
+                        CLIMB,
+                        () => climb.offsetY,
+                    );
+                    climb = new Climb({ world, platforms, pickups, breakable });
                     damage.drownSurface = drownSurface;
                 } else {
                     climb.dispose();
                     climb = null;
                     pickups.dispose();
                     classic = buildLevel(world);
-                    classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+                    classic.oneWayFixtures.forEach((fixture) =>
+                        platforms.addPlatform(fixture),
+                    );
+                    classic.breakableFixtures.forEach(({ fixture, solid }) =>
+                        breakable.add(fixture, solid),
+                    );
                     damage.killSensors = classic.killSensors;
                     pickups = new Pickups(world, damage, LEVEL.pickups);
                     water.setStart(null);
@@ -385,8 +474,10 @@
 
             /** Pista de música según el estado de la partida; en la cuenta regresiva y el cartel de fin de ronda sigue la actual (`null`). */
             function musicaActual() {
-                if (match.state === "title" || match.state === "matchOver") return "mainMenu";
-                if (match.state === "roundOver" || match.state === "countdown") return null;
+                if (match.state === "title" || match.state === "matchOver")
+                    return "mainMenu";
+                if (match.state === "roundOver" || match.state === "countdown")
+                    return null;
                 return flood.active ? "suddenDeath" : "combat";
             }
 
@@ -394,9 +485,28 @@
             /** Estado de input sin intención de control: los robots quedan quietos fuera de `controlsActive`; solo la mira sigue. */
             function neutro(s) {
                 return {
-                    left: false, right: false, up: false, down: false, jump: false, jumpHeld: false, strongDown: false, drop: false, roll: false,
-                    action: false, start: false, fire: false, grapple: false, block: false, punch: false, kick: false,
-                    weapon: null, weaponStep: 0, aim: s.aim, pointer: s.pointer, wheel: null, wheelPick: null,
+                    left: false,
+                    right: false,
+                    up: false,
+                    down: false,
+                    jump: false,
+                    jumpHeld: false,
+                    strongDown: false,
+                    drop: false,
+                    roll: false,
+                    action: false,
+                    start: false,
+                    fire: false,
+                    grapple: false,
+                    block: false,
+                    punch: false,
+                    kick: false,
+                    weapon: null,
+                    weaponStep: 0,
+                    aim: s.aim,
+                    pointer: s.pointer,
+                    wheel: null,
+                    wheelPick: null,
                 };
             }
 
@@ -410,12 +520,19 @@
                     }
                 }
                 melee.events.length = 0;
-                for (const e of pickups.events) audio.play("pickup", e.weapon, now);
+                for (const e of pickups.events)
+                    audio.play("pickup", e.weapon, now);
                 pickups.events.length = 0;
                 for (const { player, index } of damage.footfalls) {
-                    const walking = player.clipState === "walk" || player.clipState === "walkBack";
+                    const walking =
+                        player.clipState === "walk" ||
+                        player.clipState === "walkBack";
                     if (player.dead || !player.grounded || !walking) continue;
-                    if (Math.abs(player.torso.GetLinearVelocity().get_x()) > STEP_MIN_SPEED) audio.play("step", index, now);
+                    if (
+                        Math.abs(player.torso.GetLinearVelocity().get_x()) >
+                        STEP_MIN_SPEED
+                    )
+                        audio.play("step", index, now);
                 }
                 damage.footfalls.length = 0;
                 players.forEach((player, k) => {
@@ -436,7 +553,9 @@
                 }
                 players.forEach((player, k) => {
                     player.destroy();
-                    players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);
+                    players[k] = spawnRobot(
+                        climb ? climb.spawns[k] : LEVEL.spawns[k],
+                    );
                     instances[k] = players[k].rag;
                     platforms.removeOwner(k);
                     platforms.addOwner(k, players[k].rag.bodies.values());
@@ -456,6 +575,7 @@
                 melee.reset();
                 damage.resetShots();
                 store.reset();
+                breakable.reset();
                 accumulator = 0;
                 firstFrame = true;
             }
@@ -481,7 +601,9 @@
                 const m = camera.toWorld(dir.pointer.x, dir.pointer.y);
                 const dx = m.x - pos.get_x();
                 const dy = m.y - pos.get_y();
-                return Math.hypot(dx, dy) < WHEEL_RADII.inner ? { x: 0, y: 0 } : { x: dx, y: dy };
+                return Math.hypot(dx, dy) < WHEEL_RADII.inner
+                    ? { x: 0, y: 0 }
+                    : { x: dx, y: dy };
             }
 
             function actualizarMira(player, state, k, now) {
@@ -492,19 +614,33 @@
                     player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
                 } else if (state.aim) {
                     const len = Math.hypot(state.aim.x, state.aim.y);
-                    player.aimDir = { x: state.aim.x / len, y: state.aim.y / len };
+                    player.aimDir = {
+                        x: state.aim.x / len,
+                        y: state.aim.y / len,
+                    };
                 } else if (state.pointer) {
                     const m = camera.toWorld(state.pointer.x, state.pointer.y);
                     const len = Math.hypot(m.x - x, m.y - y) || 1;
                     player.aimDir = { x: (m.x - x) / len, y: (m.y - y) / len };
                 } else if (state.left || state.right || state.down) {
-                    const dx = state.left && !state.right ? -1 : state.right && !state.left ? 1 : player.flipX ? -1 : 1;
+                    const dx =
+                        state.left && !state.right
+                            ? -1
+                            : state.right && !state.left
+                              ? 1
+                              : player.flipX
+                                ? -1
+                                : 1;
                     player.aimDir = state.down
                         ? { x: dx * Math.SQRT1_2, y: -Math.SQRT1_2 }
                         : { x: dx, y: 0 };
                 }
                 player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
-                player.aim(x + player.aimDir.x * 5, y + player.aimDir.y * 5, now);
+                player.aim(
+                    x + player.aimDir.x * 5,
+                    y + player.aimDir.y * 5,
+                    now,
+                );
             }
 
             // Gira al robot volviendo a generarlo espejado; conserva posición, velocidades y estado
@@ -521,7 +657,8 @@
                     (b) => b.id === robotRag.json.ragdoll.rootBody,
                 );
                 const mirror = wantsFlipX ? -1 : 1;
-                const baseX = torsoPos.get_x() - rootBodyJson.position[0] * mirror;
+                const baseX =
+                    torsoPos.get_x() - rootBodyJson.position[0] * mirror;
                 const baseY = torsoPos.get_y() - rootBodyJson.position[1];
 
                 player.destroy();
@@ -564,7 +701,8 @@
              */
             function limpiarParticulas() {
                 const count = particleSystem.GetParticleCount();
-                const pos = Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
+                const pos =
+                    Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2;
                 const { minX, maxX } = LEVEL.bounds;
                 const minY = climb ? flood.floor : LEVEL.bounds.minY;
                 for (let i = 0; i < count; i++) {
@@ -572,14 +710,17 @@
                     if (slot < 0 || store.alive[slot] === 0) continue;
                     const x = Box2D.HEAPF32[pos + i * 2];
                     const y = Box2D.HEAPF32[pos + i * 2 + 1];
-                    if (y < minY - 1 || x < minX - 1 || x > maxX + 1) store.destroy(i, SINK.OUT);
+                    if (y < minY - 1 || x < minX - 1 || x > maxX + 1)
+                        store.destroy(i, SINK.OUT);
                 }
             }
 
             // El desenfoque del filtro goo va en píxeles: se escala con el zoom para que el
             // contorno de los fluidos mida lo mismo en metros a cualquier distancia de cámara
             const wetSurface = (x) =>
-                flood.active && water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity;
+                flood.active && water.depthAt(x) > water.config.hDry
+                    ? water.surfaceAt(x)
+                    : -Infinity;
             const gooBlur = document.getElementById("gooBlur");
             let gooSigma = 0;
             function ajustarGoo(scale) {
@@ -600,11 +741,40 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, melee, audio, bots, input, menu, arrancarPartida,
-                    get flood() { return flood; },
-                    get pickups() { return pickups; },
-                    get climb() { return climb; },
-                    get map() { return currentMap; },
+                    world,
+                    platforms,
+                    players,
+                    particleSystem,
+                    water,
+                    store,
+                    stagePrizes,
+                    wallContact,
+                    damage,
+                    emitter,
+                    match,
+                    immersion,
+                    evaporation,
+                    thermal,
+                    viscosity,
+                    buoyancy,
+                    melee,
+                    audio,
+                    bots,
+                    input,
+                    menu,
+                    arrancarPartida,
+                    get flood() {
+                        return flood;
+                    },
+                    get pickups() {
+                        return pickups;
+                    },
+                    get climb() {
+                        return climb;
+                    },
+                    get map() {
+                        return currentMap;
+                    },
                 };
             }
 
@@ -613,25 +783,55 @@
                 lastTime = nowMs;
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
-                const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
-                bots.forEach((bot, k) => input.setVirtualPad(k, input.hasRealPad(k) ? null : bot.update(botGame, simTime)));
+                const botGame = {
+                    players,
+                    match,
+                    flood,
+                    water,
+                    pickups: pickups.points,
+                    climbing: climb !== null,
+                    offsetY: climb ? climb.offsetY : 0,
+                };
+                bots.forEach((bot, k) =>
+                    input.setVirtualPad(
+                        k,
+                        input.hasRealPad(k)
+                            ? null
+                            : bot.update(botGame, simTime),
+                    ),
+                );
                 inputs = input.poll();
                 inputs.forEach((s, k) => {
-                    const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
+                    const bajando =
+                        !s.roll &&
+                        s.drop &&
+                        match.controlsActive &&
+                        !players[k].dead &&
+                        platforms.drop(k);
                     if (s.roll) jumpPending[k] = "roll";
-                    else if (!bajando && (s.jump || s.drop) && jumpPending[k] !== "roll") jumpPending[k] = "jump";
+                    else if (
+                        !bajando &&
+                        (s.jump || s.drop) &&
+                        jumpPending[k] !== "roll"
+                    )
+                        jumpPending[k] = "jump";
                 });
                 raycaster.count = 0;
                 if (input.padButton) audio.unlock();
 
-                if (enTitulo && menu.update(input.menu) === "play") arrancarPartida();
+                if (enTitulo && menu.update(input.menu) === "play")
+                    arrancarPartida();
                 if (match.update(players, inputs, frameDt) === "reset") {
                     reiniciarRonda();
                 }
                 if (!enTitulo && match.state === "title") menu.reset();
                 controls = match.controlsActive ? inputs : inputs.map(neutro);
                 if (!match.controlsActive) jumpPending.fill(false);
-                if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
+                if (
+                    match.state === "roundOver" &&
+                    lastMatchState !== "roundOver"
+                )
+                    audio.play("roundEnd");
                 lastMatchState = match.state;
                 audio.playMusic(musicaActual());
                 accumulator += frameDt * match.timeScale;
@@ -643,8 +843,17 @@
                     player.guard(state.block);
                     actualizarMira(player, state, k, now);
 
-                    const wantsFlipX = player.aimDir.x < -0.05 ? true : player.aimDir.x > 0.05 ? false : player.flipX;
-                    if (!player.dead && !player.rolling(now) && player.flipX !== wantsFlipX) {
+                    const wantsFlipX =
+                        player.aimDir.x < -0.05
+                            ? true
+                            : player.aimDir.x > 0.05
+                              ? false
+                              : player.flipX;
+                    if (
+                        !player.dead &&
+                        !player.rolling(now) &&
+                        player.flipX !== wantsFlipX
+                    ) {
                         girar(k, wantsFlipX);
                         actualizarMira(players[k], state, k, now);
                     }
@@ -665,7 +874,9 @@
                     emitter.fire(
                         k,
                         player,
-                        state.fire && match.state === "playing" && !player.armsBusy,
+                        state.fire &&
+                            match.state === "playing" &&
+                            !player.armsBusy,
                         stepsLastFrame * STEP_SETTINGS.dt,
                         now,
                     );
@@ -686,6 +897,7 @@
                     buoyancy.apply(STEP_SETTINGS.dt);
                     stepWorld(world, instances);
                     platforms.update(now);
+                    breakable.update(players, STEP_SETTINGS.dt, now);
                     store.afterStep();
                     immersion.step(STEP_SETTINGS.dt);
                     evaporation.step(STEP_SETTINGS.dt);
@@ -702,8 +914,13 @@
                 }
                 sonarEventos(now);
                 if (climb && match.state === "playing") {
-                    stagePrizes.detect(players, climb.level.solids, climb.offsetY);
-                    for (const { k } of stagePrizes.apply(players, now)) audio.play("pickup", k, now);
+                    stagePrizes.detect(
+                        players,
+                        climb.level.solids,
+                        climb.offsetY,
+                    );
+                    for (const { k } of stagePrizes.apply(players, now))
+                        audio.play("pickup", k, now);
                 }
                 limpiarParticulas();
                 store.trim(frameDt * 1000, frameDt);
@@ -712,7 +929,10 @@
                     const pos = p.torso.GetPosition();
                     return { x: pos.get_x(), y: pos.get_y() };
                 });
-                if (climb) camera.setBounds(climb.cameraBounds(Math.min(...points.map((p) => p.y))));
+                if (climb)
+                    camera.setBounds(
+                        climb.cameraBounds(Math.min(...points.map((p) => p.y))),
+                    );
                 camera.update(points, frameDt, firstFrame);
                 firstFrame = false;
                 if (climb) {
@@ -722,7 +942,8 @@
                         reached: Math.max(...points.map((p) => p.y)),
                     });
                     if (destroyed > 0) wallContact.invalidate();
-                    if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
+                    if (created > 0 || destroyed > 0)
+                        bots.forEach((bot) => bot.setNav(climb.level));
                 }
                 const scale = camera.scale;
                 const bottom = camera.y - camera.viewH / (2 * scale);
@@ -733,7 +954,12 @@
                 fluidCtx.setTransform(1, 0, 0, 1, 0, 0);
                 fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
                 pickupCtx.setTransform(1, 0, 0, 1, 0, 0);
-                pickupCtx.clearRect(0, 0, pickupCanvas.width, pickupCanvas.height);
+                pickupCtx.clearRect(
+                    0,
+                    0,
+                    pickupCanvas.width,
+                    pickupCanvas.height,
+                );
                 hudCtx.setTransform(1, 0, 0, 1, 0, 0);
                 hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
 
@@ -743,20 +969,41 @@
                 const offsetY = climb ? climb.offsetY : 0;
                 ctx.save();
                 ctx.translate(0, offsetY);
-                drawLevel(ctx, climb ? climb.level : LEVEL, scale);
+                drawLevel(ctx, climb ? climb.level : LEVEL, scale, now);
                 ctx.restore();
-                collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
-                drawParticles(fluidCtx, particleSystem, SHOT_DRAW.radius, SHOT_DRAW, store);
+                collectSurfaces(
+                    players,
+                    (climb ? climb.level : LEVEL).solids,
+                    SHOT_DRAW.snapReach,
+                    offsetY,
+                );
+                drawParticles(
+                    fluidCtx,
+                    particleSystem,
+                    SHOT_DRAW.radius,
+                    SHOT_DRAW,
+                    store,
+                );
                 players.forEach((player, k) => {
                     drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
                 });
-                drawWater(ctx, water, scale, climb ? { floor: flood.floor, bottom } : null);
+                drawWater(
+                    ctx,
+                    water,
+                    scale,
+                    climb ? { floor: flood.floor, bottom } : null,
+                );
                 pickupCtx.save();
                 pickupCtx.translate(0, pickups.offsetY);
                 drawPickups(pickupCtx, pickups.points, WEAPONS);
                 pickupCtx.restore();
                 players.forEach((player, k) => {
-                    drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
+                    drawAimLaser(
+                        pickupCtx,
+                        laserDe(player),
+                        PLAYER_COLORS[k],
+                        scale,
+                    );
                 });
                 drawHits(pickupCtx, melee.hits, scale, now);
                 players.forEach((player, k) => {
@@ -774,7 +1021,9 @@
                             fill: player.tanks.get(w.id) / w.tank,
                             equipped: w.id === player.weapon,
                         })),
-                        ((d) => wheelSector(d.x, d.y, owned.length))(direccionRueda(wheel, player)),
+                        ((d) => wheelSector(d.x, d.y, owned.length))(
+                            direccionRueda(wheel, player),
+                        ),
                     );
                 });
 
@@ -789,10 +1038,26 @@
                     flood.config.start,
                 );
                 const stageBanner = stagePrizes.banner;
-                if (climb && stageBanner && match.state === "playing" && now < stageBanner.until) {
-                    drawStageBanner(hudCtx, hudCanvas.width, stageBanner.text, Math.min(1, (stageBanner.until - now) / 0.3));
+                if (
+                    climb &&
+                    stageBanner &&
+                    match.state === "playing" &&
+                    now < stageBanner.until
+                ) {
+                    drawStageBanner(
+                        hudCtx,
+                        hudCanvas.width,
+                        stageBanner.text,
+                        Math.min(1, (stageBanner.until - now) / 0.3),
+                    );
                 }
-                if (match.state === "title") drawMenu(hudCtx, hudCanvas.width, hudCanvas.height, menu.view);
+                if (match.state === "title")
+                    drawMenu(
+                        hudCtx,
+                        hudCanvas.width,
+                        hudCanvas.height,
+                        menu.view,
+                    );
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);

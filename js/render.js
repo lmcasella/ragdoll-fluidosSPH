@@ -84,13 +84,33 @@ function mix(base, k, wet = 0, sticky = 0) {
 /** Radio del ícono de un arma recogible, en metros (el sensor mide 0,5 m). */
 const PICKUP_ICON_RADIUS = 0.4;
 
-export function drawLevel(ctx, level, scale) {
-    ctx.fillStyle = "#2b2b38";
-    ctx.strokeStyle = "#555566";
+export function drawLevel(ctx, level, scale, now = 0) {
     ctx.lineWidth = 2 / scale;
     for (const s of level.solids) {
-        ctx.fillRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
-        ctx.strokeRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+        if (s.broken) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+            ctx.setLineDash([0.25, 0.2]);
+            ctx.strokeRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+            ctx.restore();
+            continue;
+        }
+        const crack = s.crack ?? 0;
+        const amp = crack * 0.09;
+        const ox = amp > 0 ? Math.sin(now * 65 + s.x) * amp : 0;
+        const oy = amp > 0 ? Math.cos(now * 80 + s.y) * amp * 0.5 : 0;
+        if (s.breakable) {
+            const r = Math.round(74 + crack * 150);
+            const g = Math.round(58 - crack * 20);
+            const b = Math.round(48 - crack * 20);
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.strokeStyle = crack > 0 ? "#ff9944" : "#8c6d56";
+        } else {
+            ctx.fillStyle = "#2b2b38";
+            ctx.strokeStyle = "#555566";
+        }
+        ctx.fillRect(s.x - s.w / 2 + ox, s.y - s.h / 2 + oy, s.w, s.h);
+        ctx.strokeRect(s.x - s.w / 2 + ox, s.y - s.h / 2 + oy, s.w, s.h);
     }
 }
 
@@ -627,8 +647,10 @@ function buildGrid(reach) {
 // los rigs actuales no los usan.
 export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
     surfaceCount = 0;
-    for (const s of solids)
+    for (const s of solids) {
+        if (s.broken) continue;
         addSurface(0, s.x, s.y + offsetY, 0, s.w / 2, s.h / 2, 0);
+    }
     for (const player of players) {
         for (const item of player.renderItems) {
             if (item.type === "polygon") continue;
