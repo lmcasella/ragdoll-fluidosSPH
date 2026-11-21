@@ -80,7 +80,7 @@
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
-            import { Flood, RisingFlood } from "./js/flood.js";
+            import { Flood, RisingFlood, supportHeight } from "./js/flood.js";
             import { CLIMB, Climb, StagePrizes } from "./js/climb.js";
             import { ShallowWater } from "./js/water.js";
             import { Immersion } from "./js/immersion.js";
@@ -375,17 +375,18 @@
             /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
             const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
 
-            /** Punto más bajo (m, mundo) del robot vivo más bajo; -Infinity sin robots vivos. */
+            const lastSupport = new WeakMap();
+
+            /** Altura de apoyo (m, mundo) más baja entre los robots vivos (un salto no cuenta, una caída sí); -Infinity sin robots vivos. */
             function lowestAlive() {
-                let low = -Infinity;
-                let found = false;
+                let low = Infinity;
                 for (const player of players) {
                     if (player.dead) continue;
-                    const y = player.lowestPoint();
-                    if (!found || y < low) low = y;
-                    found = true;
+                    const y = supportHeight(player.grounded, player.lowestPoint(), lastSupport.get(player));
+                    lastSupport.set(player, y);
+                    if (y < low) low = y;
                 }
-                return low;
+                return low === Infinity ? -Infinity : low;
             }
 
             /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */

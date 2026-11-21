@@ -248,11 +248,20 @@ export class Flood {
 }
 
 /**
+ * Altura de apoyo (m) de un robot para el alcance de la inundación: con los pies apoyados (`grounded`) es `lowest`, su punto más bajo;
+ * en el aire es `min(last, lowest)` (un salto no cuenta, una caída sí). Sin apoyo previo (`last` no finito) usa `lowest`.
+ */
+export function supportHeight(grounded, lowest, last) {
+    if (grounded || !Number.isFinite(last)) return lowest;
+    return Math.min(last, lowest);
+}
+
+/**
  * Inundación del ascenso infinito (docs/design/16-ascenso.md §16.5): el agua sube sin techo, solo en el campo de alturas
  * (JS puro, no crea partículas ni llueve). La curva `η*` (mundo) vale `flood.surface` hasta `flood.start` y después sube
  * `v = speed + perStage · etapa + alcance` m/s, con la etapa de la altura local `η* − offsetY()` (el mapa baja) y
  * `alcance = min(catchUp.max, catchUp.rate · max(0, d − catchUp.gap))`, con `d` la distancia de `η*` al punto más bajo del
- * robot vivo más bajo (`lowestPlayer()`, mismas coordenadas del mundo; `-Infinity` sin robots vivos: alcance 0). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
+ * robot vivo más bajo según su altura de apoyo (`lowestPlayer()`, mismas coordenadas del mundo; `-Infinity` sin robots vivos: alcance 0). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
  * al ancho de la etapa, sube el fondo efectivo (`floor`, a `depth` m bajo `η*`) y suma `v · dt` a las columnas bajo `η*`.
  * Misma interfaz que `Flood`: `active`, `level`, `config.start`, `step`, `reset` y `dispose`.
  */

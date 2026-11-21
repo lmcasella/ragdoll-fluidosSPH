@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RisingFlood } from "../js/flood.js";
+import { RisingFlood, supportHeight } from "../js/flood.js";
 import { CLIMB, stageOf } from "../js/climb.js";
 import { loadGame } from "./helpers/game.js";
 
@@ -43,26 +43,54 @@ test("alcance: sin robots vivos la velocidad es la de siempre", () => {
 test("alcance: crece con la distancia y se corta en max", () => {
     const base = CLIMB.flood.speed + CLIMB.flood.perStage * stageOf(CLIMB.flood.surface);
     const at = (d) => new RisingFlood(fakeWater(), undefined, undefined, () => 0, () => CLIMB.flood.surface + d).riseSpeed;
-    assert.ok(Math.abs(at(3) - (base + catchUp.rate)) < 1e-9);
+    assert.ok(Math.abs(at(catchUp.gap + 2) - (base + catchUp.rate * 2)) < 1e-9);
     assert.ok(Math.abs(at(1000) - (base + catchUp.max)) < 1e-9);
 });
 
-test("alcance: con un robot fijo 40 m sobre el agua, queda a <= 2,5 m de sus pies en <= 20 s de ronda y nunca lo pasa", () => {
+test("alcance: con un robot fijo 40 m sobre el agua, queda a <= gap + 0,5 m de sus pies en <= 20 s de ronda y nunca lo pasa", () => {
     const top = CLIMB.flood.surface + 40;
     const flood = new RisingFlood(fakeWater(), undefined, undefined, () => 0, () => top);
     const d = run(flood, 20, () => top);
     console.log(`robot fijo: a los 20 s de ronda el agua queda a ${d.toFixed(2)} m de sus pies`);
-    assert.ok(d <= 2.5, `distancia ${d}`);
+    assert.ok(d <= catchUp.gap + 0.5, `distancia ${d}`);
     assert.ok(d > 0);
 });
 
-test("alcance: con un robot que sube a 1 m/s, a los 30 s la distancia queda entre 2 y 4 m", () => {
+test("alcance: con un robot que sube a 1 m/s, a los 30 s la distancia queda entre gap y gap + 2 m", () => {
     const start = CLIMB.flood.surface + 10;
     const lowest = (time) => start + time;
     const flood = new RisingFlood(fakeWater(), undefined, undefined, () => 0, () => lowest(flood.roundTime));
     const d = run(flood, 30, lowest);
     console.log(`robot a 1 m/s: a los 30 s la distancia es ${d.toFixed(2)} m`);
-    assert.ok(d >= 2 && d <= 4, `distancia ${d}`);
+    assert.ok(d >= catchUp.gap && d <= catchUp.gap + 2, `distancia ${d}`);
+});
+
+test("altura de apoyo: apoyado es su punto más bajo; en el aire, un salto no cuenta y una caída sí", () => {
+    assert.equal(supportHeight(true, 10, 4), 10);
+    assert.equal(supportHeight(false, 12, 10), 10);
+    assert.equal(supportHeight(false, 8, 10), 8);
+    assert.equal(supportHeight(false, 7, undefined), 7);
+});
+
+test("altura de apoyo: un robot que salta no acelera el agua; uno que cae actualiza el apoyo en el mismo paso", () => {
+    const base = CLIMB.flood.surface + 10;
+    const robot = { grounded: true, low: base, last: undefined };
+    const lowest = () => {
+        robot.last = supportHeight(robot.grounded, robot.low, robot.last);
+        return robot.last;
+    };
+    const flood = new RisingFlood(fakeWater(), undefined, undefined, () => 0, lowest);
+    const speedAt = (low, grounded) => {
+        robot.low = low;
+        robot.grounded = grounded;
+        return flood.riseSpeed;
+    };
+    const grounded = speedAt(base, true);
+    const jumping = speedAt(base + 4, false);
+    assert.equal(jumping, grounded);
+    const falling = speedAt(base - 4, false);
+    assert.equal(robot.last, base - 4);
+    assert.ok(falling < grounded);
 });
 
 test("Infinito con LiquidFun real: el campo sube a 4 m/s varios segundos y queda estable", async () => {
