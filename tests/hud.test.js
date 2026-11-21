@@ -115,7 +115,7 @@ test("la rampa de calor interpola de blanco a rojo y nunca usa amarillo", () => 
     }
 });
 
-test("la barrita sobre la cabeza dura 1,5 s y solo en Clásico", () => {
+test("la barrita sobre la cabeza dura 1,5 s, en Clásico y en Infinito", () => {
     const hud = setup();
     const f = frame();
     f.players[1].hp = 70;
@@ -131,7 +131,7 @@ test("la barrita sobre la cabeza dura 1,5 s y solo en Clásico", () => {
     inf.players[0].hp = 88;
     hud.update(inf);
     assert.equal(visible(hud, "dmg")[0].find("n").textContent, "−12");
-    assert.equal(hud.headbars[0].el.hidden, true);
+    assert.equal(hud.headbars[0].el.hidden, false, "Infinito también muestra la barrita");
 });
 
 test("curar no muestra daño y el cambio de ronda no cuenta como daño", () => {

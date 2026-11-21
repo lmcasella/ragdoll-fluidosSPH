@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.49.1] - 2026-11-21
+
+### Fixed
+- En Infinito también aparece la barrita de vida sobre el robot al recibir daño.
+- El menú de debug queda por encima de la interfaz y debajo del panel de J1.
+
 ## [0.49.0] - 2026-11-20
 
 ### Changed
