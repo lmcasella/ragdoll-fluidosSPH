@@ -4,8 +4,8 @@ import { WEAPONS } from "./weapons.js";
 export const PICKUP_RESPAWN = 15;
 
 /**
- * Ítem de reparación (#156): `hp` que suma al recogerse (con tope en la salud máxima; en Infinito resta esos % de daño,
- * sin bajar de 0) y `respawn` s de juego hasta que reaparece.
+ * Ítem de reparación (#156): `hp` que suma al recogerse (con tope en la salud máxima; en Infinito deja la salud en el máximo y
+ * levanta al robot en nocaut) y `respawn` s de juego hasta que reaparece.
  */
 export const REPAIR = { hp: 35, respawn: 20 };
 

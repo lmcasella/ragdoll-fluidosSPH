@@ -4,16 +4,9 @@
 //  - La miel no usa contactos: la adherencia por cercanía vive en js/adhesion.js.
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
-import { FLUID, WEAPONS, SHOT_SYSTEM, particleDamage } from "./weapons.js";
+import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
 import { SINK } from "./particleStore.js";
 import { MATERIALS } from "./materials.js";
-import { KNOCKBACK, extraScale } from "./ActiveRagdoll.js";
-
-/**
- * Masa (kg) de una partícula de disparo, `σ · (2r)²`: con ella se estima el impulso de contacto que LiquidFun ya le dio
- * al cuerpo (la masa por la velocidad de acercamiento sobre la normal) y se le suma `(factor − 1)` veces ese impulso.
- */
-const PARTICLE_MASS = SHOT_SYSTEM.density * (2 * SHOT_SYSTEM.radius) ** 2;
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -28,7 +21,6 @@ export class DamageSystem {
         this.particleDamage = new Map(weapons.map((w) => [w.id, particleDamage(w)]));
         this.world = world;
         this.store = store;
-        this.particleSystem = store.system;
         this.particleSystemPtr = Box2D.getPointer(store.system);
         this.players = [];
         this.owners = new Map(); // puntero de cuerpo → { player, index, bodyId }
@@ -48,7 +40,6 @@ export class DamageSystem {
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };
         this.manifold = new Box2D.b2WorldManifold();
-        this.pushImpulse = new Box2D.b2Vec2(0, 0);
 
         const listener = new Box2D.JSContactListener();
         listener.BeginContact = (contactPtr) => this.onBeginContact(contactPtr);
@@ -160,23 +151,7 @@ export class DamageSystem {
         const shot = this.shots.get(store.shot[slot]);
         const kind = store.kind[slot];
         if (!kind) return;
-        const hit = { owner, index, shot, kind, jx: 0, jy: 0 };
-        const factor = owner.player.knockbackFactor;
-        if (factor > 1) {
-            const vel = (Box2D.getPointer(this.particleSystem.GetVelocityBuffer()) >> 2) + 2 * index;
-            const normal = contact.get_normal();
-            const nx = normal.get_x();
-            const ny = normal.get_y();
-            const body = contact.get_body();
-            const vb = body.GetLinearVelocity();
-            const rx = Box2D.HEAPF32[vel] - vb.get_x();
-            const ry = Box2D.HEAPF32[vel + 1] - vb.get_y();
-            const along = rx * nx + ry * ny;
-            const j = PARTICLE_MASS * Math.max(0, along) * (factor - 1);
-            hit.jx = j * nx;
-            hit.jy = j * ny;
-        }
-        this.fluidHits.push(hit);
+        this.fluidHits.push({ owner, index, shot, kind });
     }
 
     /** Altura (m) del punto más alto del torso: el máximo del AABB de sus fixtures. */
@@ -226,17 +201,8 @@ export class DamageSystem {
         }
 
         const consumed = new Set();
-        for (const { owner, index, shot, kind, jx, jy } of this.fluidHits) {
+        for (const { owner, index, shot, kind } of this.fluidHits) {
             this.stats.fluidContacts++;
-            if ((jx || jy) && !owner.player.dead) {
-                const body = owner.player.rag.bodies.get(owner.bodyId);
-                const mass = body.GetMass();
-                const v = body.GetLinearVelocity();
-                const t = extraScale(v.get_x(), v.get_y(), jx / mass, jy / mass, KNOCKBACK.maxSpeed);
-                this.pushImpulse.set_x(jx * t);
-                this.pushImpulse.set_y(jy * t);
-                body.ApplyLinearImpulse(this.pushImpulse, body.GetWorldCenter(), true);
-            }
             if (consumed.has(index)) continue;
             if (shot && shot.owner === owner.index && now - shot.time < SELF_IMMUNITY) continue;
             if (kind === FLUID.WATER) {

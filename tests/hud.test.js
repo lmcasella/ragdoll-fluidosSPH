@@ -6,7 +6,7 @@ import { fakeDocument } from "./helpers/fake-dom.js";
 
 const player = (over = {}) => ({
     hp: 100,
-    pct: 0,
+    knockout: 0,
     alive: true,
     weapon: null,
     head: { x: 400, y: 300 },
@@ -30,7 +30,6 @@ function frame(over = {}) {
         roundWinner: null,
         matchWinner: null,
         floodStart: 60,
-        maxPct: 500,
         device: "pad",
         prize: null,
         players: [player(), player()],
@@ -69,7 +68,7 @@ test("daño seguido: se suma en un solo número y desaparece pasada la ventana",
     assert.equal(visible(hud, "dmg").length, 0);
 });
 
-test("el número flotante sale del torso y su color sigue la rampa de calor: Clásico por vida, Infinito por %", () => {
+test("el número flotante sale del torso y su color sigue la rampa de calor de la vida, en Clásico y en Infinito", () => {
     const hud = setup();
     const f = frame();
     f.players[1].hp = 58;
@@ -85,17 +84,15 @@ test("el número flotante sale del torso y su color sigue la rampa de calor: Cl�
 
     const inf = frame({ mode: "infinite" });
     hud.update(inf);
-    inf.players[0].pct = 120;
+    inf.players[0].hp = 80;
     hud.update(inf);
-    const [number] = visible(hud, "dmg").filter((el) => el.find("n").textContent.endsWith("%"));
-    assert.equal(number.find("n").textContent, "120%");
-    assert.ok(!/\+/.test(number.find("n").textContent), "sin signo más: se lee como premio");
-    assert.equal(number.find("n").style.color, heatColor(120));
-    inf.players[0].pct = 260;
+    const [number] = visible(hud, "dmg").filter((el) => el.find("n").textContent === "−20");
+    assert.ok(number, "en Infinito el número flotante es −N");
+    assert.equal(number.find("n").style.color, heatColor(heatOfHp(80)));
+    inf.players[0].hp = 20;
     hud.update(inf);
-    assert.equal(number.find("n").textContent, "260%", "el daño agrupado se suma en el mismo número");
-    assert.equal(number.find("n").style.color, heatColor(260), "y se recolorea con el valor nuevo");
-});
+    assert.equal(number.find("n").textContent, "−80", "el daño agrupado se suma en el mismo número");
+    assert.equal(number.find("n").style.color, heatColor(heatOfHp(20)), "y se recolorea con el valor nuevo");});
 
 test("la rampa de calor interpola de blanco a rojo y nunca usa amarillo", () => {
     assert.equal(heatColor(0), "rgb(255, 255, 255)");
@@ -131,9 +128,9 @@ test("la barrita sobre la cabeza dura 1,5 s y solo en Clásico", () => {
 
     const inf = frame({ mode: "infinite" });
     hud.update(inf);
-    inf.players[0].pct = 12;
+    inf.players[0].hp = 88;
     hud.update(inf);
-    assert.equal(visible(hud, "dmg")[0].find("n").textContent, "12%");
+    assert.equal(visible(hud, "dmg")[0].find("n").textContent, "−12");
     assert.equal(hud.headbars[0].el.hidden, true);
 });
 
@@ -165,24 +162,33 @@ test("con vida menor que 30 el panel recibe la clase de peligro", () => {
     assert.ok(!hud.panels[1].bar.classes.has("low"));
 });
 
-test("Clásico muestra la barra y el número; Infinito, el % sin '+' y con la rampa de calor", () => {
+test("Clásico e Infinito muestran la barra y el número de vida; el contador del nocaut sale solo con segundos", () => {
     const hud = setup();
-    assert.ok(hud.panels[0].el.classes.has("classic"));
-    assert.ok(!hud.panels[0].el.classes.has("infinite"));
     assert.equal(hud.panels[0].num.textContent, "100");
     const f = frame({ mode: "infinite" });
-    f.players[0].pct = 87.9;
-    f.players[1].pct = 400;
+    f.players[0].hp = 87.2;
+    f.players[1].hp = 0;
     hud.update(f);
-    assert.ok(hud.panels[0].el.classes.has("infinite"));
-    assert.ok(!hud.panels[0].el.classes.has("classic"));
-    assert.equal(hud.panels[0].bigValue.textContent, "87");
-    assert.ok(!hud.panels[0].big.allText.includes("+"));
-    assert.equal(hud.panels[0].pctFill.style.width, "17.6%");
-    assert.equal(hud.panels[0].big.style.color, heatColor(87.9));
-    assert.equal(hud.panels[0].pctFill.style.backgroundColor, heatColor(87.9));
-    assert.equal(hud.panels[1].big.style.color, heatColor(400));
-    assert.notEqual(hud.panels[0].big.style.color, hud.panels[1].big.style.color);
+    assert.equal(hud.panels[0].num.textContent, "88");
+    assert.equal(hud.panels[0].fill.style.width, "87.2%");
+    assert.equal(hud.panels[1].fill.style.width, "0.0%");
+    assert.ok(hud.knockouts.every((ko) => ko.el.hidden), "sin nocaut no hay contador");
+    f.players[1].knockout = 14.2;
+    hud.update(f);
+    const counter = hud.knockouts[1];
+    assert.equal(counter.el.hidden, false);
+    assert.equal(counter.n.textContent, "15");
+    assert.equal(counter.el.style.left, "400px");
+    assert.equal(counter.el.style.top, "300px");
+    assert.ok(counter.el.classes.has("dmg"), "mismo estilo del número flotante");
+    assert.equal(counter.n.style.color, undefined, "blanco, sin rampa");
+    f.players[1].knockout = 0.4;
+    hud.update(f);
+    assert.equal(counter.n.textContent, "1");
+    f.players[1].knockout = 0;
+    hud.update(f);
+    assert.equal(counter.el.hidden, true);
+    assert.equal(hud.knockouts[0].el.hidden, true);
 });
 
 test("el panel no tiene texto de arma: sin arma es el puño, con el tanque vacío el ícono se apaga", () => {

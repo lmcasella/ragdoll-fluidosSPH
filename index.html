@@ -73,7 +73,7 @@
                 stepWorld,
                 STEP_SETTINGS,
             } from "./lib/ragimporter.js";
-            import { ActiveRagdoll, KNOCKBACK } from "./js/ActiveRagdoll.js";
+            import { ActiveRagdoll } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
             import { Bot, botConfig } from "./js/bot.js";
             import { Menu, ControlsScreen, HelpScreen, PAUSE } from "./js/menu.js";
@@ -281,7 +281,7 @@
                     spawnOnGround(robotRag.def, spawn.x, spawn.y),
                     spawn.flipX,
                 );
-                robot.accumulates = climb !== null;
+                robot.knocksOut = climb !== null;
                 equipLoadout(robot, climb ? CLIMB.loadout : LOADOUT);
                 return robot;
             }
@@ -940,7 +940,6 @@
                     roundWinner: match.roundWinner,
                     matchWinner: match.matchWinner,
                     floodStart: flood.config.start,
-                    maxPct: KNOCKBACK.maxPct,
                     device: uiDevice,
                     prize: infinite && banner ? { k: banner.k, left: banner.until - now } : null,
                     players: players.map((player) => {
@@ -957,7 +956,7 @@
                         }
                         return {
                             hp: player.hp,
-                            pct: player.damagePct,
+                            knockout: player.knockoutLeft(now),
                             alive: !player.dead,
                             weapon: weapon
                                 ? { icon: WEAPON_ICONS[weapon.id], ratio: (player.tanks.get(weapon.id) ?? 0) / weapon.tank }

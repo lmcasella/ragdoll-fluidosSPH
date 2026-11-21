@@ -130,6 +130,7 @@ export class Hud {
         this.final = this.buildFinal();
         this.headbars = [0, 1].map((k) => this.buildHeadbar(k));
         this.floaters = Array.from({ length: FLOATERS }, () => this.buildFloater());
+        this.knockouts = [0, 1].map(() => this.buildKnockout());
         this.attached = [null, null];
         this.last = [null, null];
         this.lastMode = null;
@@ -142,27 +143,20 @@ export class Hud {
 
     buildPanel(k) {
         const doc = this.doc;
-        const el = make(doc, "div", `pnl ${k === 0 ? "l" : "r"} classic`, this.stage);
+        const el = make(doc, "div", `pnl ${k === 0 ? "l" : "r"}`, this.stage);
         make(doc, "span", `badge p${k + 1}`, el, `J${k + 1}`);
         const main = make(doc, "div", "main", el);
         const row1 = make(doc, "div", `row1 p${k + 1}c`, main);
-        const bar = make(doc, "div", "bar m-cls", row1);
+        const bar = make(doc, "div", "bar", row1);
         const chip = make(doc, "div", "chip", bar);
         const fill = make(doc, "div", "fillb", bar);
         make(doc, "div", "ticks", bar);
-        const num = make(doc, "span", "num m-cls", row1, "100");
-        const pctCol = make(doc, "div", "pctcol m-inf", row1);
-        const big = make(doc, "span", "pctnum", pctCol);
-        const bigValue = make(doc, "span", "", big, "0");
-        make(doc, "small", "", big, "%");
-        const pctBar = make(doc, "div", "pctbar", pctCol);
-        const pctFill = make(doc, "i", "", pctBar);
-        make(doc, "div", "tk5", pctBar);
+        const num = make(doc, "span", "num", row1, "100");
         const row2 = make(doc, "div", "row2", main);
         const iconHolder = make(doc, "span", "wslot", row2);
         const tank = make(doc, "span", "tank", row2);
         const tankFill = make(doc, "i", "", tank);
-        return { el, bar, chip, fill, num, big, bigValue, pctFill, row2, iconHolder, tank, tankFill };
+        return { el, bar, chip, fill, num, row2, iconHolder, tank, tankFill };
     }
 
     buildScore() {
@@ -282,7 +276,13 @@ export class Hud {
         const doc = this.doc;
         const el = make(doc, "div", "dmg off", this.stage);
         const n = make(doc, "span", "n", el);
-        return { el, n, active: false, victim: 0, sum: 0, age: 0, since: 0, shook: false, infinite: false };
+        return { el, n, active: false, victim: 0, sum: 0, age: 0, since: 0, shook: false };
+    }
+
+    buildKnockout() {
+        const el = make(this.doc, "div", "dmg ko off", this.stage);
+        const n = make(this.doc, "span", "n", el);
+        return { el, n };
     }
 
     /**
@@ -290,9 +290,9 @@ export class Hud {
      * (`count`, `go`, `flood`, `prize`, `band`); quien los consume vacía el arreglo:
      * - `dt` s reales del frame, `mode` ("classic" | "infinite"), `state` de `Match`, `round`, `winsNeeded`, `wins`
      *   `[J1, J2]`, `roundTime` s, `timer` s del estado de `Match`, `lock` s que faltan del bloqueo de fin de partida,
-     *   `go` (recién empezó la ronda), `roundWinner` y `matchWinner` (índice o `null`), `floodStart` s, `maxPct`,
+     *   `go` (recién empezó la ronda), `roundWinner` y `matchWinner` (índice o `null`), `floodStart` s,
      *   `device` ("pad" o "keyboard": qué glifos de botones mostrar);
-     * - `players[k]`: `hp`, `pct` (daño acumulado de Infinito), `alive`, `weapon` (`null` sin arma, o `{ icon, ratio }` con el
+     * - `players[k]`: `hp`, `knockout` (s que faltan para que se levante de un nocaut, 0 si no está en nocaut), `alive`, `weapon` (`null` sin arma, o `{ icon, ratio }` con el
      *   tanque en 0 a 1), `head` y `torso` (`{ x, y }` en píxeles de pantalla sobre la cabeza y en el torso) y `above` (m del
      *   torso sobre el agua, o `null`);
      * - `gauge`: `null` fuera de Infinito, o `{ level, stageHeight, offset }` (m del agua, de una etapa y del primer piso);
@@ -319,7 +319,7 @@ export class Hud {
         }
 
         f.players.forEach((p, k) => {
-            this.updatePanel(k, p, f, infinite);
+            this.updatePanel(k, p);
             if (live) this.detect(k, p, infinite);
         });
         this.updateScore(f);
@@ -331,25 +331,15 @@ export class Hud {
         this.updateFeedback(f, live);
     }
 
-    updatePanel(k, p, f, infinite) {
+    updatePanel(k, p) {
         const panel = this.panels[k];
-        flag(panel.el, "classic", !infinite);
-        flag(panel.el, "infinite", infinite);
-        if (infinite) {
-            const color = heatColor(p.pct);
-            text(panel.bigValue, String(Math.floor(p.pct)));
-            style(panel.big, "color", color);
-            style(panel.pctFill, "width", pct(p.pct / f.maxPct));
-            style(panel.pctFill, "backgroundColor", color);
-        } else {
-            const ratio = p.hp / 100;
-            const low = p.hp < HUD.lowHp;
-            style(panel.fill, "width", pct(ratio));
-            style(panel.chip, "width", pct(ratio));
-            text(panel.num, String(Math.ceil(p.hp)));
-            flag(panel.bar, "low", low);
-            flag(panel.num, "low", low);
-        }
+        const ratio = p.hp / 100;
+        const low = p.hp < HUD.lowHp;
+        style(panel.fill, "width", pct(ratio));
+        style(panel.chip, "width", pct(ratio));
+        text(panel.num, String(Math.ceil(p.hp)));
+        flag(panel.bar, "low", low);
+        flag(panel.num, "low", low);
         const weapon = p.weapon;
         html(panel.iconHolder, icon(weapon ? weapon.icon : "puno"));
         flag(panel.row2, "none", !weapon);
@@ -501,14 +491,14 @@ export class Hud {
         flag(fin.menu, "lock", locked);
     }
 
-    /** Daño de este frame de la víctima `k`: compara la vida (o el %) con la del frame anterior; solo cuenta lo que baja la vida. */
+    /** Daño de este frame de la víctima `k`: compara la vida con la del frame anterior; solo cuenta lo que baja la vida. */
     detect(k, p, infinite) {
-        const value = infinite ? p.pct : p.hp;
+        const value = p.hp;
         const previous = this.last[k];
         this.last[k] = value;
         if (previous === null) return;
-        const lost = infinite ? value - previous : previous - value;
-        if (lost > 1e-6) this.damage(k, lost, previous / 100, infinite, infinite ? value : heatOfHp(value));
+        const lost = previous - value;
+        if (lost > 1e-6) this.damage(k, lost, previous / 100, infinite, heatOfHp(value));
         else if (!infinite && lost < 0) this.headbars[k].chipRatio = Math.min(1, value / 100);
     }
 
@@ -526,14 +516,13 @@ export class Hud {
             f.age = 0;
             f.since = 0;
             f.shook = false;
-            f.infinite = infinite;
             flag(f.el, "off", false);
             restart(f.el, "hit");
             restart(f.n, "shake");
             this.attached[k] = f;
         }
         const shown = Math.max(1, Math.round(f.sum));
-        text(f.n, f.infinite ? `${shown}%` : `−${shown}`);
+        text(f.n, `−${shown}`);
         style(f.n, "color", heatColor(heat));
         if (f.sum > HUD.floater.shakeOver && !f.shook) {
             f.shook = true;
@@ -581,6 +570,14 @@ export class Hud {
             if (p.head) this.place(bar.el, p.head);
             if (bar.timer <= 0) flag(bar.el, "off", true);
         });
+        this.knockouts.forEach((ko, k) => {
+            const p = f.players[k];
+            const shown = live && p.knockout > 0 && p.head;
+            flag(ko.el, "off", !shown);
+            if (!shown) return;
+            text(ko.n, String(Math.ceil(p.knockout)));
+            this.place(ko.el, p.head);
+        });
         if (!live) this.releaseAll();
     }
 
@@ -596,6 +593,7 @@ export class Hud {
             flag(fl.el, "off", true);
         }
         this.attached = [null, null];
+        for (const ko of this.knockouts) flag(ko.el, "off", true);
         for (const bar of this.headbars) {
             bar.timer = 0;
             bar.chipRatio = 1;
