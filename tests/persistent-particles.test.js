@@ -142,7 +142,18 @@ function liveShots(game) {
     return shots;
 }
 
-test("recorte con carga simulada: las más viejas primero y el mapa al final, de a 100", async () => {
+/** Corre `fn` con `PARTICLES.minCount` en `value` y lo restaura al terminar. */
+async function withMinCount(value, fn) {
+    const saved = PARTICLES.minCount;
+    PARTICLES.minCount = value;
+    try {
+        await fn();
+    } finally {
+        PARTICLES.minCount = saved;
+    }
+}
+
+test("recorte con carga simulada: las más viejas primero y el mapa al final, de a 100", () => withMinCount(0, async () => {
     const game = await start();
     const { store } = game.state;
     fill(game, 400, (n) => (n < 50 ? 0 : n));
@@ -165,6 +176,32 @@ test("recorte con carga simulada: las más viejas primero y el mapa al final, de
     assert.equal(store.destroyed[SINK.PERF][FLUID.WATER], 400);
     assert.equal(store.trim(10, 1), 0, "con el frame recuperado no recorta");
     assertMassBook(game, FLUID.WATER);
+}));
+
+test("el recorte no baja de minCount partículas vivas", async () => {
+    const game = await start();
+    const { store } = game.state;
+    await withMinCount(350, async () => {
+        fill(game, 400, (n) => n + 1);
+        store.trim(25, 1);
+        assert.equal(liveShots(game).length, 350, "recorta solo lo que pasa de minCount");
+        assert.equal(store.trim(25, 1), 0, "en minCount ya no recorta");
+    });
+});
+
+test("#266 a 40 fps sostenidos con un disparo de lava no se recorta nada", async () => {
+    const game = await start();
+    const { store, players } = game.state;
+    players[0].weapon = FLUID.LAVA;
+    game.setPad(0, { buttons: [RT] });
+    for (let n = 0; n < 150; n++) {
+        if (n === 60) game.setPad(0);
+        game.skipTime(1 / 40 - 1 / 60);
+        game.frame();
+    }
+    assert.equal(destroyedBy(game, FLUID.LAVA, [SINK.PERF]), 0);
+    assert.ok(game.state.particleSystem.GetParticleCount() > 50, "la lava sigue viva");
+    assert.equal(store.destroyed[SINK.PERF].reduce((a, b) => a + b, 0), 0);
 });
 test("sin carga no se recorta nada: 30 s a 60 fps con 400 partículas", async () => {
     const game = await start();
@@ -173,7 +210,7 @@ test("sin carga no se recorta nada: 30 s a 60 fps con 400 partículas", async ()
     assert.equal(destroyedBy(game, FLUID.WATER, [SINK.PERF]), 0);
 });
 
-test("con frames lentos en el juego se recortan las más viejas con causa PERF hasta recuperar", async () => {
+test("con frames lentos en el juego se recortan las más viejas con causa PERF hasta recuperar", () => withMinCount(0, async () => {
     const game = await start();
     const { store } = game.state;
     fill(game, 600, (n) => n + 1);
@@ -187,4 +224,4 @@ test("con frames lentos en el juego se recortan las más viejas con causa PERF h
     game.frames(60);
     assert.equal(store.destroyed[SINK.PERF][FLUID.WATER], trimmed, "al recuperar el frame deja de recortar");
     assertMassBook(game, FLUID.WATER);
-});
+}));
