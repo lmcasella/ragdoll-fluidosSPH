@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
-import { BUTTON, AIM_RIGHT, startDuel } from "./helpers/duel.js";
-import { createFakeAudioContext } from "./helpers/fake-audio.js";
+import { loadGame } from "../helpers/game.js";
+import { BUTTON, AIM_RIGHT, startDuel } from "../helpers/duel.js";
+import { createFakeAudioContext } from "../helpers/fake-audio.js";
 
-const { GameAudio, SOUNDS, MUSIC, AUDIO } = await import("../js/audio.js");
-const { LEVEL } = await import("../js/level.js");
+const { GameAudio, SOUNDS, MUSIC, AUDIO } = await import("../../js/audio.js");
+const { LEVEL } = await import("../../js/level.js");
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 const name = (url) => url.match(/\/([^/]+)\.ogg$/)[1];

@@ -9,18 +9,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { loadGame, giveAllWeapons } from "./helpers/game.js";
-import { recordGame } from "./helpers/recorder.js";
-import { HoneyProbe } from "./helpers/honey-probe.js";
-import { runStandardScene, AREA_TOLERANCE, PARTICLE_AREA_TOLERANCE, AREA_SHARE, AREA_HARD_LIMIT, MATERIAL_NAMES, STEPS_PER_SECOND } from "./helpers/invariants-run.js";
+import { loadGame, giveAllWeapons } from "../helpers/game.js";
+import { recordGame } from "../helpers/recorder.js";
+import { HoneyProbe } from "../helpers/honey-probe.js";
+import { runStandardScene, AREA_TOLERANCE, PARTICLE_AREA_TOLERANCE, AREA_SHARE, AREA_HARD_LIMIT, MATERIAL_NAMES, STEPS_PER_SECOND } from "../helpers/invariants-run.js";
 
-const { LEVEL } = await import("../js/level.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
-const { SINK, ORIGIN } = await import("../js/particleStore.js");
-const { FLUID, weaponById } = await import("../js/weapons.js");
-const { PARTICLE } = await import("../js/particles.js");
-const { WATER_FIELD } = await import("../js/water.js");
-const render = await import("../js/render.js");
+const { LEVEL } = await import("../../js/level.js");
+const { MATERIALS, SIGMA_W } = await import("../../js/materials.js");
+const { SINK, ORIGIN } = await import("../../js/particleStore.js");
+const { FLUID, weaponById } = await import("../../js/weapons.js");
+const { PARTICLE } = await import("../../js/particles.js");
+const { WATER_FIELD } = await import("../../js/water.js");
+const render = await import("../../js/render.js");
 
 /** Carpeta de grabación (vacía: no se graba) y frames entre registros grabados. */
 const RECORD_DIR = process.env.USER_SCENARIOS_RECORD ?? "";

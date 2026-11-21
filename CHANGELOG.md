@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.52.2] - 2026-11-21
+
+### Changed
+- Los tests largos pasaron a `tests/slow/`: la suite rápida (`node --test "tests/*.test.js"`) corre en menos de 30 s y la completa (`node --test "tests/**/*.test.js"`) sigue igual en CI.
+
 ## [0.52.1] - 2026-11-21
 
 ### Fixed

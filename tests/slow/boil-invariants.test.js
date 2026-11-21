@@ -6,11 +6,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runStandardScene, MASS_TOLERANCE, SPECIES } from "./helpers/invariants-run.js";
+import { runStandardScene, MASS_TOLERANCE, SPECIES } from "../helpers/invariants-run.js";
 
-const { FLUID } = await import("../js/weapons.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
-const { SINK, ORIGIN } = await import("../js/particleStore.js");
+const { FLUID } = await import("../../js/weapons.js");
+const { MATERIALS, SIGMA_W } = await import("../../js/materials.js");
+const { SINK, ORIGIN } = await import("../../js/particleStore.js");
 
 const WINDOW = 45;
 let game = null;

@@ -1,12 +1,12 @@
 /** Las partículas no desaparecen (#160): recorte por rendimiento, con LiquidFun real. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import "./helpers/fluid-bench.js";
-import { loadGame, giveAllWeapons } from "./helpers/game.js";
+import "../helpers/fluid-bench.js";
+import { loadGame, giveAllWeapons } from "../helpers/game.js";
 
-const { FLUID, weaponById } = await import("../js/weapons.js");
-const { ORIGIN, SINK, PARTICLES } = await import("../js/particleStore.js");
-const { PARTICLE } = await import("../js/particles.js");
+const { FLUID, weaponById } = await import("../../js/weapons.js");
+const { ORIGIN, SINK, PARTICLES } = await import("../../js/particleStore.js");
+const { PARTICLE } = await import("../../js/particles.js");
 
 const RT = 7;
 const FLOOR_Y = 4;

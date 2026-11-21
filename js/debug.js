@@ -51,7 +51,7 @@ export const DEBUG_ROWS = [
 const stroke = (r, g, b) => `rgba(${r}, ${g}, ${b}, ${STROKE.alpha})`;
 
 /**
- * Error relativo `|a − b| / |b|`. Es la fórmula de la deriva de volumen del test W1 (`tests/shallow-water.test.js`) y
+ * Error relativo `|a − b| / |b|`. Es la fórmula de la deriva de volumen del test W1 (`tests/slow/shallow-water.test.js`) y
  * la del panel.
  */
 export function relativeError(a, b) {
