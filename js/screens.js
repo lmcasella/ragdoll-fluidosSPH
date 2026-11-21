@@ -20,27 +20,6 @@ const MAP_THUMBS = {
         '<svg viewBox="0 0 160 90"><rect width="160" height="90" fill="#10131f"/><rect x="12" y="62" width="50" height="6" fill="#4a5068"/><rect x="74" y="46" width="50" height="6" fill="#4a5068"/><rect x="24" y="30" width="50" height="6" fill="#4a5068"/><rect x="86" y="14" width="50" height="6" fill="#4a5068"/><rect y="78" width="160" height="12" fill="#2f6fe0"/><rect y="77" width="160" height="2" fill="#9ad6ff"/><path d="M144 34l8 10h-5v16h-6V44h-5z" fill="#40dcff"/></svg>',
 };
 
-const PADS = {
-    LT: { side: "left", y: 270, to: [790, 270] },
-    LB: { side: "left", y: 350, to: [770, 304] },
-    L: { side: "left", y: 430, to: [815, 395] },
-    dpad: { side: "left", y: 530, to: [885, 500] },
-    RT: { side: "right", y: 270, to: [1130, 270] },
-    RB: { side: "right", y: 345, to: [1150, 304] },
-    X: { side: "right", y: 420, to: [1070, 390] },
-    B: { side: "right", y: 490, to: [1140, 390] },
-    A: { side: "right", y: 560, to: [1105, 425] },
-    R: { side: "right", y: 630, to: [1030, 500] },
-};
-
-const PAD_BODY =
-    '<path d="M760 335Q760 298 800 295H1120Q1160 298 1160 335L1232 560Q1252 650 1182 666Q1130 672 1100 620L1072 582H848L820 620Q790 672 738 666Q668 650 688 560Z" fill="#161824" stroke="rgba(255,255,255,.24)" stroke-width="3"/>' +
-    '<rect x="738" y="255" width="104" height="30" rx="10" fill="#1f2230" stroke="rgba(255,255,255,.24)" stroke-width="3"/><rect x="1078" y="255" width="104" height="30" rx="10" fill="#1f2230" stroke="rgba(255,255,255,.24)" stroke-width="3"/>' +
-    '<rect x="730" y="290" width="120" height="22" rx="8" fill="#1f2230" stroke="rgba(255,255,255,.24)" stroke-width="3"/><rect x="1070" y="290" width="120" height="22" rx="8" fill="#1f2230" stroke="rgba(255,255,255,.24)" stroke-width="3"/>' +
-    '<circle cx="815" cy="395" r="34" fill="#0b0c13" stroke="rgba(255,255,255,.24)" stroke-width="3"/><circle cx="1030" cy="500" r="30" fill="#0b0c13" stroke="rgba(255,255,255,.24)" stroke-width="3"/>' +
-    '<path d="M876 478h18v16h16v18h-16v16h-18v-16h-16v-18h16z" fill="#0b0c13" stroke="rgba(255,255,255,.24)" stroke-width="3"/>' +
-    '<circle cx="1105" cy="355" r="15" fill="none" stroke="#ffd84a" stroke-width="3"/><circle cx="1070" cy="390" r="15" fill="none" stroke="#4fa8ff" stroke-width="3"/><circle cx="1140" cy="390" r="15" fill="none" stroke="#ff6060" stroke-width="3"/><circle cx="1105" cy="425" r="15" fill="none" stroke="#6bd66b" stroke-width="3"/>';
-
 /** Pares glifo + ícono de la barra de ayuda de cada pantalla: `pad` y `kb` son los glifos por dispositivo (`kb: null` si no aplica). */
 const HINTS = {
     menu: [
@@ -87,14 +66,16 @@ function glyphHtml(name, hold = false) {
     return hold ? `<span class="hold">${glyph}${icon("hold")}</span>` : glyph;
 }
 
-function calloutHtml(entry) {
-    if (entry.glyph === "dpad") {
-        const [up, right, down, left] = WEAPON_ICONS;
-        return `<span class="cross">${padGlyph("dpad")}<span class="cu">${icon(up)}</span><span class="cr">${icon(right)}</span><span class="cd">${icon(down)}</span><span class="cl">${icon(left)}</span></span>`;
-    }
-    const glyph = glyphHtml(entry.glyph, entry.hold);
-    const label = entry.weapon ? weaponHtml(entry.weapon) : `<span class="word">${entry.word}</span>`;
-    return PADS[entry.glyph].side === "left" ? `${label}${glyph}` : `${glyph}${label}`;
+/** Fila de la tabla del gamepad, con el mismo formato que la del teclado: glifos a la izquierda y la acción a la derecha. */
+function padRowHtml(glyphs, entry) {
+    const keys = glyphs.map((g) => (g === "+" ? '<span class="plus">+</span>' : glyphHtml(g, entry.hold))).join("");
+    const air = entry.air ? icon("bot", "air") : "";
+    const label = entry.weapon
+        ? weaponHtml(entry.weapon)
+        : entry.glyph === "dpad"
+          ? weaponHtml("direct")
+          : `<span class="word">${entry.word}</span>`;
+    return `<span class="keys">${keys}${air}</span>${label}`;
 }
 
 function keyRowHtml(row) {
@@ -161,25 +142,12 @@ export class Screens {
         }
         make(doc, "span", "tabglyph", tabs).innerHTML = padGlyph("RB");
         const ref = make(doc, "div", "refbox", el);
-        const pad = make(doc, "div", "padbody off", ref);
-        const lines = [];
-        const callouts = [...HELP.pad.left, ...HELP.pad.right];
-        for (const entry of callouts) {
-            const p = PADS[entry.glyph];
-            const call = make(doc, "div", `call ${p.side}`, pad);
-            custom(call, "--y", String(p.y));
-            call.innerHTML = calloutHtml(entry);
-            const x = p.side === "left" ? 558 : 1362;
-            lines.push(`<line x1="${x}" y1="${p.y}" x2="${p.to[0]}" y2="${p.to[1]}"/>`);
+        const pad = make(doc, "div", "kbbody padbody off", ref);
+        const padCard = make(doc, "div", "kcard", pad);
+        for (const entry of [...HELP.pad.left, ...HELP.pad.right]) {
+            make(doc, "div", "krow", padCard).innerHTML = padRowHtml([entry.glyph], entry);
         }
-        const svg = make(doc, "div", "padsvg", pad);
-        svg.innerHTML = `<svg viewBox="0 0 1920 1080">${PAD_BODY}<g class="lines">${lines.join("")}</g></svg>`;
-        const combos = make(doc, "div", "combos", pad);
-        for (const combo of HELP.pad.combos) {
-            const card = make(doc, "div", "combo", combos);
-            const glyphs = combo.glyphs.map((g) => (g === "+" ? '<span class="plus">+</span>' : padGlyph(g))).join("");
-            card.innerHTML = `<span class="chain">${glyphs}${combo.air ? icon("bot", "air") : ""}</span><span class="word">${combo.word}</span>`;
-        }
+        for (const combo of HELP.pad.combos) make(doc, "div", "krow", padCard).innerHTML = padRowHtml(combo.glyphs, combo);
         const kb = make(doc, "div", "kbbody off", ref);
         const card = make(doc, "div", "kcard", kb);
         make(doc, "span", "badge p1", card, "J1");
