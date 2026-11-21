@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-21
+
+### Changed
+- En Infinito, las plataformas son largas y pocas al principio (de 8 a 14 m, y las de una sola por fila de 10 a 14 m) y se van acortando y multiplicando al subir: desde la etapa 5 miden de 2 a 4 m y las filas suelen tener de 2 a 4 plataformas.
+
 ## [0.51.0] - 2026-11-21
 
 ### Added

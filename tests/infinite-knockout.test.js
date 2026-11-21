@@ -80,11 +80,12 @@ test("Infinito: cada nocaut de la ronda dura KNOCKOUT.step s más que el anterio
 test("Infinito: en nocaut no responde a ningún control durante 15 s y después se levanta con 50 de vida", { timeout: 300000 }, async (t) => {
     const game = await infinite();
     freezeFlood(game);
-    const [p1] = game.state.players;
+    let [p1] = game.state.players;
     p1.weapon = FLUID.WATER;
     p1.tanks.set(FLUID.WATER, 500);
     game.setPad(0, EVERYTHING);
     game.frames(30);
+    [p1] = game.state.players;
     p1.hurt("b_1", 300);
     game.frames(3);
     game.frames(60);

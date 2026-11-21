@@ -28,7 +28,7 @@ test("la base de la etapa 0 son de 3 a 5 plataformas anchas entre 4 y 7 m, repar
         assert.ok(base.length >= 3 && base.length <= 5, `semilla ${seed}: ${base.length}`);
         for (const p of base) {
             assert.ok(p.y >= 4 && p.y <= 7, `tope ${p.y}`);
-            assert.ok(p.w >= 3.2 && p.w <= 9, `ancho ${p.w}`);
+            assert.ok(p.w >= 8 && p.w <= 14, `ancho ${p.w}`);
             assert.ok(Math.abs(p.x - CLIMB.centerX) + p.w / 2 <= 28 + 1e-9);
         }
         const sorted = [...base].sort((a, b) => a.x - b.x);
@@ -109,7 +109,29 @@ test("variedad en 50 semillas: desviación de alturas > 0,4 m en tramos de 3 m",
     assert.ok(mean > 0.4, `desviación ${mean}`);
 });
 
-test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", () => {
+test("plataformas largas y pocas al principio, cortas y más al subir (#286): ancho etapa 0 >= 2,5 veces el de la 5 y menos plataformas por fila", () => {
+    const stat = (n) => {
+        const rows = new Map();
+        let width = 0;
+        let platforms = 0;
+        for (let seed = 1; seed <= 50; seed++) {
+            for (const p of run(seed, 100).list) {
+                if (p.stage !== n) continue;
+                rows.set(`${seed}:${p.row}`, (rows.get(`${seed}:${p.row}`) ?? 0) + 1);
+                width += p.w;
+                platforms++;
+            }
+        }
+        return { width: width / platforms, perRow: platforms / rows.size };
+    };
+    const first = stat(0);
+    const last = stat(5);
+    console.log(`etapa 0: ancho medio ${first.width.toFixed(2)} m, ${first.perRow.toFixed(2)} por fila; etapa 5: ancho medio ${last.width.toFixed(2)} m, ${last.perRow.toFixed(2)} por fila; razón ${(first.width / last.width).toFixed(2)}`);
+    assert.ok(first.width >= 2.5 * last.width, `razón ${first.width / last.width}`);
+    assert.ok(first.perRow < last.perRow, `por fila ${first.perRow} contra ${last.perRow}`);
+});
+
+test("el ancho medio baja con la etapa: de [8, 14] en la 0 a [2, 4] desde la 5", () => {
     const sums = new Map();
     for (let seed = 1; seed <= 50; seed++) {
         for (const p of run(seed, 150).list) {
@@ -124,7 +146,7 @@ test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", 
     console.log(`ancho medio por etapa: ${table.join(", ")}`);
     for (let n = 1; n <= 5; n++) assert.ok(mean(n) < mean(n - 1), `etapa ${n}`);
     for (let n = 0; n <= 9; n++) {
-        const [lo, hi] = [5 + (2 - 5) * Math.min(n, 5) / 5, 9 + (4 - 9) * Math.min(n, 5) / 5];
+        const [lo, hi] = [8 + (2 - 8) * Math.min(n, 5) / 5, 14 + (4 - 14) * Math.min(n, 5) / 5];
         const nominal = (lo + hi) / 2;
         assert.ok(Math.abs(mean(n) - nominal) < 0.35 * nominal, `etapa ${n}: ${mean(n)} contra ${nominal}`);
     }
