@@ -169,7 +169,12 @@ export function drawWeaponWheel(ctx, cx, cy, entries, selected) {
         ctx.fillStyle = "rgba(16, 16, 24, 0.6)";
         ctx.fillRect(lx - barWidth / 2, barY, barWidth, barHeight);
         ctx.fillStyle = "#ffffff";
-        ctx.fillRect(lx - barWidth / 2, barY, barWidth * Math.max(0, Math.min(1, entry.fill)), barHeight);
+        ctx.fillRect(
+            lx - barWidth / 2,
+            barY,
+            barWidth * Math.max(0, Math.min(1, entry.fill)),
+            barHeight,
+        );
     });
 }
 
@@ -217,7 +222,8 @@ function drawSparks(ctx, player, scale, now) {
     ctx.lineWidth = 3 / scale;
     for (let s = 0; s < SPARKS_PER_FRAME; s++) {
         const seed = tick * 97 + s * 13;
-        const pos = items[Math.floor(hash01(seed) * items.length)].body.GetPosition();
+        const pos =
+            items[Math.floor(hash01(seed) * items.length)].body.GetPosition();
         let x = pos.get_x();
         let y = pos.get_y();
         let angle = hash01(seed + 1) * Math.PI * 2;
@@ -236,9 +242,15 @@ function drawSparks(ctx, player, scale, now) {
 export function drawRobot(ctx, player, color, scale, now) {
     const base = hexToRgb(color);
     // Mojado: tinte cian que parpadea
-    const wet = player.wet && !player.dead ? 0.35 + 0.35 * Math.sin(now * WET_BLINK_HZ * Math.PI * 2) : 0;
+    const wet =
+        player.wet && !player.dead
+            ? 0.35 + 0.35 * Math.sin(now * WET_BLINK_HZ * Math.PI * 2)
+            : 0;
     // Pegado por miel: tinte ámbar que parpadea
-    const sticky = player.sticky && !player.dead ? 0.5 + 0.4 * Math.sin(now * STICKY_BLINK_HZ * Math.PI * 2) : 0;
+    const sticky =
+        player.sticky && !player.dead
+            ? 0.5 + 0.4 * Math.sin(now * STICKY_BLINK_HZ * Math.PI * 2)
+            : 0;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5 / scale;
     for (const item of player.renderItems) {
@@ -252,14 +264,21 @@ export function drawRobot(ctx, player, color, scale, now) {
         ctx.rotate(angle);
         ctx.translate(item.cx, item.cy);
         ctx.rotate(item.angle);
-        ctx.fillStyle = mix(base, player.flashAmount(item.bodyId, now), wet, sticky);
+        ctx.fillStyle = mix(
+            base,
+            player.flashAmount(item.bodyId, now),
+            wet,
+            sticky,
+        );
         ctx.beginPath();
         if (item.type === "box") {
             ctx.rect(-item.hw, -item.hh, item.hw * 2, item.hh * 2);
         } else if (item.type === "circle") {
             ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
         } else if (item.type === "polygon") {
-            item.vertices.forEach(([vx, vy], k) => (k === 0 ? ctx.moveTo(vx, vy) : ctx.lineTo(vx, vy)));
+            item.vertices.forEach(([vx, vy], k) =>
+                k === 0 ? ctx.moveTo(vx, vy) : ctx.lineTo(vx, vy),
+            );
             ctx.closePath();
         }
         ctx.fill();
@@ -295,8 +314,22 @@ export function drawAimLaser(ctx, laser, color, scale) {
  */
 export const HIT_FX = {
     hit: { time: 0.2, radius: 0.15, grow: 0.4, color: "#ffffff", width: 3 },
-    block: { time: 0.25, rays: 6, from: 0.15, to: 0.45, color: "#bfe0ff", width: 2.5 },
-    blockBreak: { time: 0.35, rays: 8, from: 0.15, to: 0.8, color: "#ff8a1f", width: 3 },
+    block: {
+        time: 0.25,
+        rays: 6,
+        from: 0.15,
+        to: 0.45,
+        color: "#bfe0ff",
+        width: 2.5,
+    },
+    blockBreak: {
+        time: 0.35,
+        rays: 8,
+        from: 0.15,
+        to: 0.8,
+        color: "#ff8a1f",
+        width: 3,
+    },
 };
 
 /**
@@ -323,17 +356,35 @@ export function drawHits(ctx, hits, scale, now) {
             const to = fx.from + (fx.to - fx.from) * k;
             for (let r = 0; r < fx.rays; r++) {
                 const angle = (r / fx.rays) * Math.PI * 2;
-                ctx.moveTo(hits[i].x + Math.cos(angle) * from, hits[i].y + Math.sin(angle) * from);
-                ctx.lineTo(hits[i].x + Math.cos(angle) * to, hits[i].y + Math.sin(angle) * to);
+                ctx.moveTo(
+                    hits[i].x + Math.cos(angle) * from,
+                    hits[i].y + Math.sin(angle) * from,
+                );
+                ctx.lineTo(
+                    hits[i].x + Math.cos(angle) * to,
+                    hits[i].y + Math.sin(angle) * to,
+                );
             }
         } else {
-            ctx.arc(hits[i].x, hits[i].y, fx.radius + k * fx.grow, 0, Math.PI * 2);
+            ctx.arc(
+                hits[i].x,
+                hits[i].y,
+                fx.radius + k * fx.grow,
+                0,
+                Math.PI * 2,
+            );
         }
         ctx.stroke();
     }
     ctx.globalAlpha = 1;
 }
-const MENU_LAYOUT = { rowHeight: 38, labelX: -300, valueX: -110, valueWidth: 200, top: 100 };
+const MENU_LAYOUT = {
+    rowHeight: 38,
+    labelX: -300,
+    valueX: -110,
+    valueWidth: 200,
+    top: 100,
+};
 
 /**
  * Dibuja las filas del menú principal debajo del cartel del título, en píxeles de pantalla. `rows` es `Menu.view`:
@@ -347,12 +398,31 @@ export function drawMenu(ctx, width, height, rows) {
     rows.forEach((row, i) => {
         const y = height / 2 + MENU_LAYOUT.top + i * MENU_LAYOUT.rowHeight;
         const x = width / 2;
-        ctx.fillStyle = !row.enabled ? "#555555" : row.selected ? "#ffd84a" : "#dddddd";
-        ctx.fillText(`${row.selected ? "▶ " : ""}${row.label}`, x + MENU_LAYOUT.labelX, y);
+        ctx.fillStyle = !row.enabled
+            ? "#555555"
+            : row.selected
+              ? "#ffd84a"
+              : "#dddddd";
+        ctx.fillText(
+            `${row.selected ? "▶ " : ""}${row.label}`,
+            x + MENU_LAYOUT.labelX,
+            y,
+        );
         row.values.forEach((v, j) => {
-            ctx.fillStyle = !row.enabled || v.disabled ? "#555555" : v.chosen ? (row.selected ? "#ffd84a" : "#ffffff") : "#aaaaaa";
+            ctx.fillStyle =
+                !row.enabled || v.disabled
+                    ? "#555555"
+                    : v.chosen
+                      ? row.selected
+                          ? "#ffd84a"
+                          : "#ffffff"
+                      : "#aaaaaa";
             const text = `${v.chosen ? "[" : ""}${v.label}${v.chosen ? "]" : ""}${v.note ? ` (${v.note})` : ""}`;
-            ctx.fillText(text, x + MENU_LAYOUT.valueX + j * MENU_LAYOUT.valueWidth, y);
+            ctx.fillText(
+                text,
+                x + MENU_LAYOUT.valueX + j * MENU_LAYOUT.valueWidth,
+                y,
+            );
         });
     });
     drawControlsHelp(ctx, width, height, rows.length);
@@ -373,8 +443,11 @@ export function drawControlsHelp(ctx, width, height, rowCount) {
     ctx.textAlign = "center";
     ctx.font = "14px Segoe UI";
     ctx.fillStyle = "#aaaaaa";
-    const y0 = height / 2 + MENU_LAYOUT.top + rowCount * MENU_LAYOUT.rowHeight + 6;
-    CONTROLS_HELP.forEach((line, i) => ctx.fillText(line, width / 2, y0 + i * 20));
+    const y0 =
+        height / 2 + MENU_LAYOUT.top + rowCount * MENU_LAYOUT.rowHeight + 6;
+    CONTROLS_HELP.forEach((line, i) =>
+        ctx.fillText(line, width / 2, y0 + i * 20),
+    );
     ctx.textAlign = "left";
 }
 
@@ -397,7 +470,16 @@ const TANK_BAR = { width: 180, height: 10 };
 
 // HUD en pantalla (sin cámara): vida, arma, tanque y rondas ganadas por jugador; cartel central entre rondas.
 // `weapons` es la tabla de armas (id, name, color, tank).
-export function drawHud(ctx, width, height, players, match, colors, weapons, floodStart = Infinity) {
+export function drawHud(
+    ctx,
+    width,
+    height,
+    players,
+    match,
+    colors,
+    weapons,
+    floodStart = Infinity,
+) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.font = "bold 24px Segoe UI";
     ctx.textBaseline = "alphabetic";
@@ -407,12 +489,19 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
         ctx.textAlign = left ? "left" : "right";
         ctx.fillStyle = player.hp > 30 ? "#55ff55" : "#ff5555";
         const weapon = weapons.find((w) => w.id === player.weapon);
-        ctx.fillText(`J${k + 1} Salud: ${Math.ceil(player.hp)}%${weapon ? ` · ${weapon.name}` : ""}`, x, height - 30);
+        ctx.fillText(
+            `J${k + 1} Salud: ${Math.ceil(player.hp)}%${weapon ? ` · ${weapon.name}` : ""}`,
+            x,
+            height - 30,
+        );
 
         if (weapon) {
             const left0 = left ? x : x - TANK_BAR.width;
             const top = height - 22;
-            const ratio = Math.max(0, Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank));
+            const ratio = Math.max(
+                0,
+                Math.min(1, (player.tanks.get(weapon.id) ?? 0) / weapon.tank),
+            );
             ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
             ctx.fillRect(left0, top, TANK_BAR.width, TANK_BAR.height);
             ctx.fillStyle = `rgb(${weapon.color.join(", ")})`;
@@ -430,7 +519,8 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
             const cx = left ? x + 10 + w * 26 : x - 10 - w * 26;
             ctx.beginPath();
             ctx.arc(cx, height - 70, 9, 0, Math.PI * 2);
-            ctx.fillStyle = w < match.wins[k] ? colors[k] : "rgba(255, 255, 255, 0.15)";
+            ctx.fillStyle =
+                w < match.wins[k] ? colors[k] : "rgba(255, 255, 255, 0.15)";
             ctx.fill();
         }
     });
@@ -441,22 +531,33 @@ export function drawHud(ctx, width, height, players, match, colors, weapons, flo
     if (match.state !== "title") {
         ctx.fillText(`Ronda ${match.round}`, width / 2, 36);
         const seconds = Math.floor(match.roundTime);
-        ctx.fillText(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, width / 2, 60);
+        ctx.fillText(
+            `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`,
+            width / 2,
+            60,
+        );
     }
     if (match.state === "playing" && match.roundTime >= floodStart - 10) {
         const flooding = match.roundTime >= floodStart;
         ctx.fillStyle = flooding ? "#40dcff" : "#ffcc44";
         ctx.font = "bold 22px Segoe UI";
         ctx.fillText(
-            flooding ? "¡INUNDACIÓN!" : `Inundación en ${Math.ceil(floodStart - match.roundTime)}`,
+            flooding
+                ? "¡INUNDACIÓN!"
+                : `Inundación en ${Math.ceil(floodStart - match.roundTime)}`,
             width / 2,
             88,
         );
     }
 
+    if (match.state === "title") {
+        ctx.fillStyle = "rgba(10, 10, 16, 0.7)";
+        ctx.fillRect(0, 0, width, height);
+    }
+
     const banner = match.banner;
     if (banner) {
-        ctx.fillStyle = "rgba(10, 10, 16, 0.7)";
+        ctx.fillStyle = "rgba(10, 10, 16, 0.9)";
         ctx.fillRect(0, height / 2 - 70, width, 130);
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 48px Segoe UI";
@@ -526,7 +627,8 @@ function buildGrid(reach) {
 // los rigs actuales no los usan.
 export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
     surfaceCount = 0;
-    for (const s of solids) addSurface(0, s.x, s.y + offsetY, 0, s.w / 2, s.h / 2, 0);
+    for (const s of solids)
+        addSurface(0, s.x, s.y + offsetY, 0, s.w / 2, s.h / 2, 0);
     for (const player of players) {
         for (const item of player.renderItems) {
             if (item.type === "polygon") continue;
@@ -559,7 +661,11 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
     let best = reach;
     let gx = 0;
     let gy = 0;
-    const near = grid[cellIndex(y, GRID_Y0, GRID_H) * GRID_W + cellIndex(x, GRID_X0, GRID_W)];
+    const near =
+        grid[
+            cellIndex(y, GRID_Y0, GRID_H) * GRID_W +
+                cellIndex(x, GRID_X0, GRID_W)
+        ];
     for (let i = 0; i < near.length; i++) {
         const s = near[i];
         const dx = x - s.x;
@@ -602,7 +708,14 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
     return skinShift;
 }
 
-const NO_SKIN = { radius: PARTICLE_RADIUS, area: PARTICLE_AREA, maxRadius: Infinity, snapReach: 0, snapFullReach: 0, kinds: {} };
+const NO_SKIN = {
+    radius: PARTICLE_RADIUS,
+    area: PARTICLE_AREA,
+    maxRadius: Infinity,
+    snapReach: 0,
+    snapFullReach: 0,
+    kinds: {},
+};
 
 /**
  * Círculo con que se dibuja una partícula (puro, sin `ctx`): llena `out` (`radius`, `x0`, `y0`, en metros) y lo
@@ -617,7 +730,13 @@ export function dropShape(x, y, kind, draw, out) {
     out.x0 = x;
     out.y0 = y;
     if (draw.snapReach > 0) {
-        const p = skinPosition(x, y, radius, draw.snapReach, draw.snapFullReach);
+        const p = skinPosition(
+            x,
+            y,
+            radius,
+            draw.snapReach,
+            draw.snapFullReach,
+        );
         out.x0 = p.x;
         out.y0 = p.y;
     }
@@ -631,7 +750,13 @@ const shape = { radius: 0, x0: 0, y0: 0 };
  * `skin` (`SHOT_DRAW`), las partículas junto a un cuerpo se dibujan acercadas a su superficie (ver `skinPosition`). Lo
  * que se dibuja lo decide `dropShape`. `store` (opcional): `store.kind` da el material de cada partícula.
  */
-export function drawParticles(ctx, particleSystem, radius = PARTICLE_RADIUS, skin = null, store = null) {
+export function drawParticles(
+    ctx,
+    particleSystem,
+    radius = PARTICLE_RADIUS,
+    skin = null,
+    store = null,
+) {
     const count = particleSystem.GetParticleCount();
     const positions = Box2D.HEAPF32;
     const colors = Box2D.HEAPU8;
@@ -722,8 +847,10 @@ const stopColor = [0, 0, 0];
 export function fieldColor(water, x, out = [0, 0, 0]) {
     const { color } = water.config.draw;
     const { tint, tintAbsorbance, species } = MATERIALS.acid;
-    const f = 1 - 10 ** ((-tintAbsorbance * water.acidFractionAt(x)) / species.H2SO4);
-    for (let k = 0; k < 3; k++) out[k] = Math.round(color[k] + f * (tint[k] - color[k]));
+    const f =
+        1 - 10 ** ((-tintAbsorbance * water.acidFractionAt(x)) / species.H2SO4);
+    for (let k = 0; k < 3; k++)
+        out[k] = Math.round(color[k] + f * (tint[k] - color[k]));
     return out;
 }
 
@@ -743,7 +870,10 @@ function tintedFill(ctx, water, left, right, step) {
     const width = right - left;
     const stop = (x) => {
         fieldColor(water, x, stopColor);
-        gradient.addColorStop(Math.min(1, Math.max(0, (x - left) / width)), `rgb(${stopColor[0]}, ${stopColor[1]}, ${stopColor[2]})`);
+        gradient.addColorStop(
+            Math.min(1, Math.max(0, (x - left) / width)),
+            `rgb(${stopColor[0]}, ${stopColor[1]}, ${stopColor[2]})`,
+        );
     };
     stop(left);
     for (let c = first; c <= end; c += step) stop(x0 + (c + 0.5) * dx);
@@ -769,7 +899,12 @@ export function drawWater(ctx, water, scale, deep = null) {
         const left = water.x0 + water.i0 * water.dx;
         ctx.fillStyle = flat;
         ctx.globalAlpha = alpha;
-        ctx.fillRect(left, deep.bottom, (water.i1 - water.i0) * water.dx, deep.floor - deep.bottom);
+        ctx.fillRect(
+            left,
+            deep.bottom,
+            (water.i1 - water.i0) * water.dx,
+            deep.floor - deep.bottom,
+        );
     }
     ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
     ctx.lineWidth = lineWidth / scale;
@@ -777,7 +912,14 @@ export function drawWater(ctx, water, scale, deep = null) {
     for (let s = 0; s < outline.count; s++) {
         const first = outline.start[s];
         const last = first + outline.size[s];
-        ctx.fillStyle = tintedFill(ctx, water, xs[first], xs[first + outline.surface[s]], colorStep) ?? flat;
+        ctx.fillStyle =
+            tintedFill(
+                ctx,
+                water,
+                xs[first],
+                xs[first + outline.surface[s]],
+                colorStep,
+            ) ?? flat;
         ctx.globalAlpha = alpha;
         ctx.beginPath();
         ctx.moveTo(xs[first], ys[first]);
