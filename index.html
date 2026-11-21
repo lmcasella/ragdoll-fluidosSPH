@@ -76,7 +76,7 @@
             import { ActiveRagdoll, KNOCKBACK } from "./js/ActiveRagdoll.js";
             import { Input } from "./js/Input.js";
             import { Bot, botConfig } from "./js/bot.js";
-            import { Menu, ControlsScreen, HelpScreen } from "./js/menu.js";
+            import { Menu, ControlsScreen, HelpScreen, PAUSE } from "./js/menu.js";
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
@@ -299,14 +299,21 @@
             const menu = new Menu({ storage: menuStorage() });
             const asignacion = new ControlsScreen({ storage: menuStorage() });
             const ayuda = new HelpScreen();
+            const pausa = new Menu({ table: PAUSE });
             let pantalla = "menu";
+            let pausaPantalla = "menu";
             let uiNow = 0;
             let uiDevice = "pad";
             let uiScreen = null;
             let knownDevices = null;
 
-            /** Pantalla de interfaz visible: `menu`, `controles`, `asignacion`, `final` (fin de partida) o `null` durante la partida. */
-            const pantallaActual = () => (match.state === "title" ? pantalla : match.state === "matchOver" ? "final" : null);
+            /** Pantalla de interfaz visible: `menu`, `controles`, `asignacion`, `pausa`, `pausa-controles`, `final` (fin de partida) o `null` durante la partida. */
+            const pantallaActual = () => {
+                if (match.state === "title") return pantalla;
+                if (match.state === "matchOver") return "final";
+                if (match.state === "paused") return pausaPantalla === "menu" ? "pausa" : "pausa-controles";
+                return null;
+            };
 
             /** `localStorage`, o `null` si el navegador lo bloquea (acceder a la propiedad puede lanzar). */
             function menuStorage() {
@@ -412,7 +419,7 @@
              */
             function musicaActual() {
                 if (match.state === "title" || match.state === "matchOver") return "mainMenu";
-                if (match.state === "roundOver" || match.state === "countdown") return null;
+                if (match.state === "roundOver" || match.state === "countdown" || match.state === "paused") return null;
                 return climb || flood.active ? "suddenDeath" : "combat";
             }
 
@@ -486,7 +493,8 @@
                 if (match.state === "countdown" && (lastUiState === "title" || lastUiState === "matchOver")) {
                     audio.playUi("play", uiNow);
                     cuentaMuda = true;
-                } else if (match.state === "title" && lastUiState === "matchOver") audio.playUi("back", uiNow);
+                } else if (match.state === "title" && (lastUiState === "matchOver" || lastUiState === "paused")) audio.playUi("back", uiNow);
+                else if (match.state === "paused" || lastUiState === "paused") audio.playUi("pause", uiNow);
                 lastUiState = match.state;
             }
 
@@ -696,7 +704,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    asignacion, ayuda, screens, hud, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
+                    asignacion, ayuda, pausa, screens, hud, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -704,8 +712,50 @@
                 };
             }
 
+            /** Verdadero si algún dispositivo apretó Start (Escape en el teclado) en este frame. */
+            const startCualquiera = () => input.devices.some((d) => (d.kind === "keyboard" ? d.back : d.start));
+
+            /**
+             * Un frame con la partida en pausa: solo corre el menú de pausa (Continuar, Controles y Menú), sin pasos de física,
+             * reloj de ronda ni input de los jugadores. Start, Escape o B continúan; en Controles, B vuelve a la pausa.
+             */
+            function simularPausa() {
+                if (pausaPantalla === "controles") {
+                    const pestana = ayuda.tab;
+                    if (ayuda.update(input.menu) === "back") {
+                        pausaPantalla = "menu";
+                        audio.playUi("back", uiNow);
+                    } else if (ayuda.tab !== pestana) audio.playUi("tab", uiNow);
+                    return;
+                }
+                if (startCualquiera() || input.menu.back) {
+                    match.resume();
+                    sonarTransicion();
+                    return;
+                }
+                const fila = pausa.cursor;
+                const salida = pausa.update(input.menu);
+                if (pausa.cursor !== fila) audio.playUi("focus", uiNow);
+                if (salida === "resume") match.resume();
+                else if (salida === "controls") {
+                    audio.playUi("confirm", uiNow);
+                    ayuda.open();
+                    pausaPantalla = "controles";
+                } else if (salida === "quit") {
+                    match.quit();
+                    reiniciarRonda();
+                    menu.reset();
+                    pantalla = "menu";
+                }
+                sonarTransicion();
+            }
+
             /** Avanza la partida un frame: input, rondas, pasos de física y limpieza. Con el menú de debug abierto no se llama. */
             function simular(frameDt, enTitulo) {
+                if (match.state === "paused") {
+                    simularPausa();
+                    return;
+                }
                 inputs.forEach((s, k) => {
                     const bajando = !s.roll && s.drop && match.controlsActive && !players[k].dead && platforms.drop(k);
                     if (s.roll) jumpPending[k] = "roll";
@@ -751,13 +801,14 @@
                     }
                 }
                 const cualquiera = {
-                    start: input.devices.some((d) => (d.kind === "keyboard" ? d.back : d.start)),
+                    start: startCualquiera(),
                     action: input.devices.some((d) => (d.kind === "keyboard" ? d.start : d.a)),
                 };
                 if (match.state === "matchOver" && match.lockRemaining > 0 && (cualquiera.start || cualquiera.action)) {
                     audio.playUi("denied", uiNow);
                 }
-                if (match.update(players, [...inputs, cualquiera], frameDt) === "reset") {
+                const entradas = [...inputs, cualquiera];
+                if (match.update(players, enTitulo ? entradas.map((e) => ({ ...e, start: false })) : entradas, frameDt) === "reset") {
                     reiniciarRonda();
                 }
                 if (!enTitulo && match.state === "title") {
@@ -765,6 +816,13 @@
                     pantalla = "menu";
                 }
                 sonarTransicion();
+                if (match.state === "paused") {
+                    pausa.reset();
+                    pausaPantalla = "menu";
+                    jumpPending.fill(false);
+                    controls = inputs.map(neutro);
+                    return;
+                }
                 controls = match.controlsActive ? inputs : inputs.map(neutro);
                 if (!match.controlsActive) jumpPending.fill(false);
                 if (match.state === "roundOver" && lastMatchState !== "roundOver") audio.play("roundEnd");
@@ -871,7 +929,7 @@
                 return {
                     dt: frameDt,
                     mode: infinite ? "infinite" : "classic",
-                    state: match.state,
+                    state: match.phase,
                     round: match.round,
                     winsNeeded: match.winsNeeded,
                     wins: match.wins,
@@ -919,7 +977,7 @@
                 const enTitulo = match.state === "title";
                 if (enTitulo && bots.size) quitarBots();
                 const botGame = { players, match, flood, water, pickups: pickups.points, climbing: climb !== null, offsetY: climb ? climb.offsetY : 0 };
-                bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
+                if (match.state !== "paused") bots.forEach((bot, k) => input.setVirtualPad(k, bot.update(botGame, simTime)));
                 inputs = input.poll();
                 sonarDispositivos();
                 if (pantallaActual() !== uiScreen) {
@@ -1044,6 +1102,13 @@
                         choice: menu.choice,
                         helpView: ayuda.view,
                         assignView: asignacion.view,
+                    });
+                } else if (match.state === "paused") {
+                    screens.update({
+                        screen: pausaPantalla === "menu" ? "pause" : "help",
+                        device: uiDevice,
+                        pauseView: pausa.view,
+                        helpView: ayuda.view,
                     });
                 } else screens.update({ screen: null });
                 requestAnimationFrame(loop);

@@ -16,7 +16,8 @@ export const MATCH_OVER_LOCK = 1;
  * quien llega a `winsNeeded`. Al terminar una ronda hay cámara lenta y un cartel, y se reinicia sin recargar.
  * Estados: `title` (el menú principal, que llama a `begin`) -> `countdown` -> `playing` -> `roundOver` ->
  * (`countdown` | `matchOver`); `matchOver` -> `countdown` (revancha, `action`) o `title` (`start`). Toda entrada a
- * `countdown` devuelve "reset".
+ * `countdown` devuelve "reset". `paused` solo existe desde `countdown` o `playing` (Start de cualquier jugador, en
+ * `update`), guarda el estado de origen en `resumeState` y vuelve a él con `resume`; `quit` lo lleva al título.
  */
 export class Match {
     constructor(playerCount, winsNeeded = 2) {
@@ -28,6 +29,30 @@ export class Match {
         this.roundTime = 0;
         this.roundWinner = null;
         this.matchWinner = null;
+        this.resumeState = null;
+    }
+
+    /** Estado de la partida ignorando la pausa: el de origen mientras está en `paused`. */
+    get phase() {
+        return this.state === "paused" ? this.resumeState : this.state;
+    }
+
+    /** Sale de la pausa y vuelve exactamente al estado anterior. */
+    resume() {
+        if (this.state !== "paused") return;
+        this.state = this.resumeState;
+        this.resumeState = null;
+    }
+
+    /** Vuelve al título con la partida en cero (desde el fin de partida o la pausa); devuelve "reset". */
+    quit() {
+        this.state = "title";
+        this.resumeState = null;
+        this.wins.fill(0);
+        this.round = 1;
+        this.matchWinner = null;
+        this.roundTime = 0;
+        return "reset";
     }
 
     /** Escala de tiempo de la simulación (cámara lenta al terminar la ronda). */
@@ -53,7 +78,13 @@ export class Match {
 
     /** Avanza con tiempo real (`roundTime`, en s, solo en `playing`); devuelve "reset" para volver a armar la ronda. */
     update(players, inputs, dt) {
-        if (this.state === "title") return null;
+        if (this.state === "title" || this.state === "paused") return null;
+
+        if ((this.state === "countdown" || this.state === "playing") && inputs.some((s) => s.start)) {
+            this.resumeState = this.state;
+            this.state = "paused";
+            return null;
+        }
 
         if (this.state === "countdown") {
             this.timer -= dt;
@@ -92,14 +123,7 @@ export class Match {
 
         this.timer -= dt;
         if (this.timer > 0) return null;
-        if (inputs.some((s) => s.start)) {
-            this.state = "title";
-            this.wins.fill(0);
-            this.round = 1;
-            this.matchWinner = null;
-            this.roundTime = 0;
-            return "reset";
-        }
+        if (inputs.some((s) => s.start)) return this.quit();
         if (inputs.some((s) => s.action)) {
             this.wins.fill(0);
             this.round = 1;
@@ -126,16 +150,17 @@ export class Match {
 
     /** Cartel central, o null durante el juego. */
     get banner() {
-        if (this.state === "title") {
+        const state = this.phase;
+        if (state === "title") {
             return { title: "WATERBOTS", subtitle: "↑↓ elegir · ←→ cambiar · A / Start / Enter sobre Jugar" };
         }
-        if (this.state === "countdown") {
+        if (state === "countdown") {
             return { title: String(Math.ceil(this.timer)), subtitle: `Ronda ${this.round}` };
         }
-        if (this.state === "playing") {
+        if (state === "playing") {
             return this.roundTime < GO_TIME ? { title: "¡YA!", subtitle: `Ronda ${this.round}` } : null;
         }
-        if (this.state === "roundOver") {
+        if (state === "roundOver") {
             return this.roundWinner === null
                 ? { title: "¡Empate!", subtitle: `Ronda ${this.round}` }
                 : { title: `¡J${this.roundWinner + 1} gana la ronda!`, subtitle: `Ronda ${this.round}` };
