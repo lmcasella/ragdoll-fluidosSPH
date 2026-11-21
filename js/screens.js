@@ -89,6 +89,14 @@ function keyRowHtml(row) {
     return `<span class="keys">${keys}</span>${label}`;
 }
 
+/** Texto de versión del menú a partir de `version.json` (`{ version, commit }`): `v0.52.3 · da518ab`, solo la versión si falta el commit, y `dev` si no hay datos válidos. */
+export function versionLabel(data) {
+    const version = typeof data?.version === "string" ? data.version : "";
+    if (!version) return "dev";
+    const commit = typeof data.commit === "string" ? data.commit : "";
+    return commit ? `${version} · ${commit}` : version;
+}
+
 /** Menú principal, controles y asignación de controles: una sola capa con tres pantallas, de las que se ve a lo sumo una. */
 export class Screens {
     /**
@@ -151,7 +159,8 @@ export class Screens {
         make(doc, "span", "ricon", play).innerHTML = icon("play");
         rows.play = { el: play };
         const hints = make(doc, "div", "hintbar", el);
-        return { el, rows, hints };
+        const ver = make(doc, "div", "ver", el);
+        return { el, rows, hints, ver };
     }
 
     buildHelp() {

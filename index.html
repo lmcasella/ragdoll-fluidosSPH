@@ -93,7 +93,7 @@
             import { MATERIALS } from "./js/materials.js";
             import { Match, GO_TIME } from "./js/round.js";
             import { Hud } from "./js/hud.js";
-            import { Screens } from "./js/screens.js";
+            import { Screens, versionLabel } from "./js/screens.js";
             import { Melee, MELEE } from "./js/melee.js";
             import { getRaycaster } from "./js/raycast.js";
             import { withReversedClip, withoutJointTracks } from "./js/clips.js";
@@ -206,6 +206,12 @@
             const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
             const hud = new Hud(document, document.getElementById("gameContainer"));
             const screens = new Screens(document, document.getElementById("gameContainer"));
+            fetch("version.json", { cache: "no-store" })
+                .then((res) => (res.ok ? res.json() : null))
+                .catch(() => null)
+                .then((data) => {
+                    screens.menu.ver.textContent = versionLabel(data);
+                });
 
             function resize() {
                 for (const c of [canvas, pickupCanvas, hudCanvas]) {
