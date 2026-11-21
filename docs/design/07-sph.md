@@ -18,7 +18,7 @@ Partículas de sistemas distintos **no interactúan entre sí**, solo con los cu
 | Sistema | Contenido | Radio | Gravedad | Vida | Estado |
 |---|---|---|---|---|---|
 | Disparos (líquidos) | Agua, ácido, lava, miel | 0,1 m | 1 | Ilimitada | ✅ |
-| Agua del nivel | Pileta y lluvia de la inundación (#22) | 0,25 m (477 de la pileta; hasta 5.500 con la lluvia). Se dibuja a 0,28 m | 1 | Ilimitada | ✅ #22; 🔨 #62 la reemplaza por un campo de alturas ([14.3](14-agua.md#143-campo-de-alturas-saint-venant-1d-shallowwater)) |
+| Agua del nivel | Pileta y lluvia de la inundación (#22) | 0,25 m (477 de la pileta; hasta 5.500 con la lluvia). Se dibuja a 0,28 m | 1 | Ilimitada | ✅ #22; ✅ #62 (#71) la reemplazó por un campo de alturas ([14.3](14-agua.md#143-campo-de-alturas-saint-venant-1d-shallowwater)) |
 | Gases | Fuego, viento, vapor | — | Negativa o 0 | Corta (*verificado*: `set_lifetime` del grupo) | 🔨 #16. **Reemplazado por #62:** no hay sistema de gases; fuego, viento y vapor van en el sistema líquido único con empuje en aire calculado ([14.6](14-agua.md#146-disparos-con-agua-pura)) |
 
 La lluvia comparte sistema con la pileta para que **suba el agua de la pileta**: si fuera un sistema aparte, las gotas atravesarían el agua de la pileta y quedarían superpuestas en el fondo. Se distinguen por la marca de `userData` (lluvia = −1, pileta = 0).

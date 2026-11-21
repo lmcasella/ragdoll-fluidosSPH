@@ -184,7 +184,7 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 **El viento como impulso:** LiquidFun no tiene "fuerza de viento". La ráfaga es un grupo de partículas sin gravedad cuya velocidad se escribe en cada paso (*verificado*: escribir el buffer de velocidad persiste). Al tocar un cuerpo le transfieren cantidad de movimiento, y como las partículas se ven, el empuje se entiende.
 
-## 4.2 Recogida e inventario 🔨
+## 4.2 Recogida e inventario ✅
 
 - **Arranque** ✅ #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `js/weapons.js`):
   - **#13** ✅: todas las armas de la tabla con tanque lleno; arranca equipada la primera fila. Es provisorio, para poder probar.

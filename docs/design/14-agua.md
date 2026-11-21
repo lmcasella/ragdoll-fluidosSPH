@@ -1,8 +1,8 @@
-# 14. Agua física: campo de alturas, disparos e intercambios 🔨 #62
+# 14. Agua física: campo de alturas, disparos e intercambios ✅ #62 (🔨 #76)
 
 Rediseño de los fluidos para que **se simulen** con su física y no se imiten con reglas de juego (pedido del usuario, 18/11). La dirección la eligió el usuario y no se reabre: campo de alturas con Saint-Venant 1D para el agua del nivel, partículas chicas de agua pura para los disparos, absorción de partículas en el campo, flotación de Arquímedes por pieza, térmica con fases, mezcla por concentración, adherencia, arranque asentado y herramientas de debug.
 
-- **Estado:** todo 🔨. Lo que está en `main` sigue descripto en [07-sph](07-sph.md) hasta que cada sub-issue se mergee.
+- **Estado:** ✅ en `main`: campo de alturas e inundación (#70, #71), flotación (#72), evaporación (#73), térmica y fases (#75), adherencia (#77), debug (#29) y los arreglos #98, #100 y #110. 🔨 sin hacer: mezcla por concentración (#76, no existe `js/mixing.js`).
 - **Relevamiento medido** (18/11, no versionado): scripts, tablas y videos en el scratchpad del issue. Acá se citan los números usados.
 - **Restricciones:** `lib/` no se toca (`stepWorld` sigue con 8 subpasos para los ragdolls); render en Canvas2D, sin WebGL propio; el código no se comenta (solo JSDoc).
 - **Cada parte** tiene variables con unidades, ecuaciones, módulo, qué reemplaza y criterios físicos ([14.16](#1416-criterios-de-aceptación)). `physics-analyst` aprueba el diseño antes de implementar y valida cada resultado sobre video.
