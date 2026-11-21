@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-11-21
+
+### Changed
+- Sin stick derecho ni mouse, el robot vuelve a mirar y girar hacia donde camina. Con el stick derecho o el mouse manda la mira, y durante un golpe o un combo no gira.
+- El 2.º y el 3.er golpe del combo vuelven a hacer avanzar al atacante, a la mitad de velocidad que antes (2,5 m/s hasta el fin de la ventana activa).
+
 ## [0.49.1] - 2026-11-21
 
 ### Fixed

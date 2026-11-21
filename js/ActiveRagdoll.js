@@ -340,6 +340,18 @@ export class ActiveRagdoll {
         return t >= row.active[0] && t <= row.active[1] ? row : null;
     }
 
+    /**
+     * Velocidad horizontal del paso adelante de un golpe del combo (columna `lunge`, m/s hacia el lado de la mira),
+     * desde el inicio del golpe hasta el fin de su ventana activa; 0 fuera de eso. Mantiene al rival empujado dentro
+     * del alcance para el golpe siguiente.
+     */
+    lungeSpeed(now = this.now) {
+        if (this.attack === null) return 0;
+        const row = this.rig.melee.attacks[this.attack];
+        if (!row.lunge || now - this.attackStart > row.active[1]) return 0;
+        return row.lunge * this.side;
+    }
+
     /** Marca el ataque en curso como conectado (pegó o fue bloqueado): no vuelve a pegar en esa ventana. */
     markConnected() {
         this.attackHit = true;
@@ -850,8 +862,11 @@ export class ActiveRagdoll {
             this.attack === null;
 
         let isMoving = false;
+        const lunge = this.lungeSpeed(now);
         if (rolling) {
             this.setVelocity(ROLL.speed * this.rollDir, velY);
+        } else if (lunge !== 0 && this.grounded) {
+            this.setVelocity(lunge, velY);
         } else if (this.attack !== null) {
             isMoving = false;
         } else if (!this.isStunned(now)) {

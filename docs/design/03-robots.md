@@ -304,6 +304,7 @@ Tabla `MELEE` en el módulo nuevo `js/melee.js`. La raíz de composición la pas
 Además, para todos: impulso de 5 N·s en el punto de impacto (como hoy), daño × multiplicador de la parte, un solo impacto por ataque y feedback de golpe.
 
 - **Ventanas activas:** salen de las claves de los clips (el brazo que golpea pasa de recogido a extendido: `front_shoulder` de −0,77 a 1,94 rad entre 0,2 y 0,3 s en `combo1`; `back_shoulder` de −0,83 a 2,40 rad entre 0,1 y 0,3 s en `combo2`; los dos hombros de ~3,2 a −2,6 rad entre 0,3 y 0,6 s en `combo3`; las caderas a su límite entre 0,4 y 0,6 s en `air_kick`). R6b verifica que el alcance máximo medido de la mano o el pie cae dentro de la ventana.
+- **Paso adelante (`lunge`):** `combo2` y `combo3` llevan `lunge` = 2,5 m/s: el atacante apoyado avanza hacia el lado de la mira desde el inicio del golpe hasta el fin de su ventana activa. `combo1` no avanza. Durante el ataque el robot no camina ni gira.
 - **Empuje del combo:** los dos primeros golpes empujan poco (1,5 m/s, sin despegar) para que el rival siga al alcance del siguiente; el tercero empuja fuerte. Daño del combo completo: 30 en 1,8 s más el enfriamiento, ≈ 14 por segundo, igual que el golpe actual repetido (8 cada 0,6 s ≈ 13 por segundo).
 - **Valores aceptados (19/11):** daño 8/8/14 y empuje lateral 1,5/1,5/6 m/s del combo son el punto de partida aprobado; se ajustan en el balance de #27, cambiando solo la tabla.
 - **Golpe fuerte:** `combo3` y `airKick` (columna `reaction` = `stumble`).
