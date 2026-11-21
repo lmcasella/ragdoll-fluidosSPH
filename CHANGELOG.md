@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-21
+
+### Added
+- El menú principal muestra la versión y el commit del juego publicado (por ejemplo `v0.52.3 · da518ab`) abajo a la derecha; en local muestra `dev`.
+
 ## [0.52.3] - 2026-11-21
 
 ### Fixed
