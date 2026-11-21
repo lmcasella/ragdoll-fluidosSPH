@@ -33,7 +33,14 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `stuck`: 	ime` (s) sin apoyo y sin alejarse más de `radius` (m) (encajado en una plataforma), tras lo que salta empujando de un lado a otro para zafarse.
  */
 export const BOT = {
-    melee: { range: 1.6, stop: 1.3, vertical: 1.2, airRange: 2.2, airDrop: 0.8, kickDrop: 1.4 },
+    melee: {
+        range: 1.6,
+        stop: 1.3,
+        vertical: 1.2,
+        airRange: 2.2,
+        airDrop: 0.8,
+        kickDrop: 1.4,
+    },
     shoot: { min: 4, max: 10, aimError: 0.05, aimRefresh: 0.5 },
     reaction: [0.15, 0.35],
     defense: 0.7,
@@ -45,10 +52,21 @@ export const BOT = {
     safeLead: 5,
     edgeMargin: 0.5,
     engage: { dy: 8, dx: 14 },
-    reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
+    reach: {
+        up: { dy: 3.3, gap: 2 },
+        short: { dy: 2, gap: 3.5 },
+        downGap: 3.5,
+    },
     through: { overlap: 1.5 },
     cost: { through: 0.6, jump: 1 },
-    jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3, settle: 0.6 },
+    jump: {
+        distance: 2.5,
+        edge: 0.6,
+        inset: 0.6,
+        dropBelow: -1,
+        align: 0.3,
+        settle: 0.6,
+    },
     highBonus: 4,
     hopCost: 0.3,
     replan: 0.5,
@@ -59,6 +77,7 @@ export const BOT = {
     reserveRange: 3,
     evade: 0.5,
     stuck: { time: 1, radius: 0.4 },
+    breakable: { fleeCrack: 0.35, penalty: 2 },
 };
 
 /**
@@ -74,7 +93,12 @@ export const DIFFICULTY = {
 /** Tabla `BOT` con el preset de `difficulty` aplicado (`normal` si no existe). */
 export function botConfig(difficulty) {
     const preset = DIFFICULTY[difficulty] ?? DIFFICULTY.normal;
-    return { ...BOT, reaction: [...preset.reaction], defense: preset.defense, shoot: { ...BOT.shoot, aimError: preset.aimError } };
+    return {
+        ...BOT,
+        reaction: [...preset.reaction],
+        defense: preset.defense,
+        shoot: { ...BOT.shoot, aimError: preset.aimError },
+    };
 }
 
 const GRAVITY = 10;
@@ -107,7 +131,13 @@ export function buildNav(level = LEVEL, config = BOT) {
         if (s.kind !== "floor" && s.kind !== "platform") continue;
         const top = s.y + s.h / 2;
         if (top <= floorTop) continue;
-        nodes.push({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top, oneWay: !!s.oneWay });
+        nodes.push({
+            minX: s.x - s.w / 2,
+            maxX: s.x + s.w / 2,
+            top,
+            oneWay: !!s.oneWay,
+            solid: s,
+        });
     }
     const { up, short, downGap } = config.reach;
     const { through, cost } = config;
@@ -118,9 +148,17 @@ export function buildNav(level = LEVEL, config = BOT) {
             if (i === j) return;
             const gap = Math.max(0, b.minX - a.maxX, a.minX - b.maxX);
             const dy = b.top - a.top;
-            const ok = dy > 0 ? (dy <= up.dy && gap <= up.gap) || (dy <= short.dy && gap <= short.gap) : gap <= downGap;
+            const ok =
+                dy > 0
+                    ? (dy <= up.dy && gap <= up.gap) ||
+                      (dy <= short.dy && gap <= short.gap)
+                    : gap <= downGap;
             if (!ok) return;
-            const vertical = dy > 0 && dy <= up.dy && Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX) >= through.overlap;
+            const vertical =
+                dy > 0 &&
+                dy <= up.dy &&
+                Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX) >=
+                    through.overlap;
             edges[i].push(j);
             costs[i].push(vertical ? cost.through : cost.jump);
         });
@@ -147,7 +185,14 @@ export class Bot {
      * @param {number} [options.seed] Semilla del generador.
      * @param {() => number} [options.rng] Generador en [0, 1); gana sobre `seed`.
      */
-    constructor({ k, world, level = LEVEL, config = BOT, seed = 1, rng = null }) {
+    constructor({
+        k,
+        world,
+        level = LEVEL,
+        config = BOT,
+        seed = 1,
+        rng = null,
+    }) {
         this.k = k;
         this.config = config;
         this.raycaster = getRaycaster(world);
@@ -174,7 +219,15 @@ export class Bot {
         this.nav = buildNav(level, this.config);
         const same = (i) => {
             const n = old.nodes[i];
-            const j = n === undefined ? -1 : this.nav.nodes.findIndex((m) => m.top === n.top && m.minX === n.minX && m.maxX === n.maxX);
+            const j =
+                n === undefined
+                    ? -1
+                    : this.nav.nodes.findIndex(
+                          (m) =>
+                              m.top === n.top &&
+                              m.minX === n.minX &&
+                              m.maxX === n.maxX,
+                      );
             return j < 0 ? null : j;
         };
         this.minTop = -Infinity;
@@ -243,7 +296,9 @@ export class Bot {
         for (const b of this.pad.buttons) b.pressed = false;
         if (!this.unstick(game.players[this.k], now)) this.think(game, now);
         this.holdJump(game.players[this.k]);
-        this.previous.forEach((_, i) => (this.previous[i] = this.pad.buttons[i].pressed));
+        this.previous.forEach(
+            (_, i) => (this.previous[i] = this.pad.buttons[i].pressed),
+        );
         return this.pad;
     }
 
@@ -256,7 +311,11 @@ export class Bot {
         }
         const x = me.torso.GetPosition().get_x();
         const y = me.torso.GetPosition().get_y() - this.offsetY;
-        if (me.grounded || a === null || Math.hypot(x - a.x, y - a.y) > this.config.stuck.radius) {
+        if (
+            me.grounded ||
+            a === null ||
+            Math.hypot(x - a.x, y - a.y) > this.config.stuck.radius
+        ) {
             this.anchor = { x, y, at: now };
             return false;
         }
@@ -271,7 +330,8 @@ export class Bot {
         if (this.pad.buttons[PAD.jump].pressed) {
             this.jumping = true;
         } else if (this.jumping) {
-            if (!me.dead && me.torso.GetLinearVelocity().get_y() > 0) this.press(PAD.jump);
+            if (!me.dead && me.torso.GetLinearVelocity().get_y() > 0)
+                this.press(PAD.jump);
             else this.jumping = false;
         }
     }
@@ -290,7 +350,10 @@ export class Bot {
                 foe = p;
             }
         });
-        const cur = me.grounded && me.torso.GetLinearVelocity().get_y() < 1 ? this.supportOf(me) : null;
+        const cur =
+            me.grounded && me.torso.GetLinearVelocity().get_y() < 1
+                ? this.supportOf(me)
+                : null;
         if (cur !== null) this.committed = null;
         const level = this.floodLevel(game, mx);
         this.minTop = this.safeLine(game, level) - this.offsetY;
@@ -315,23 +378,55 @@ export class Bot {
             return;
         }
 
-        const near = adx < cfg.blockRange && Math.abs(dy) < cfg.melee.vertical + 0.3;
+        const near =
+            adx < cfg.blockRange && Math.abs(dy) < cfg.melee.vertical + 0.3;
         const threatened = near && foe.side * dx < 0;
         this.watchThreat(foe, now);
-        if (threatened && (this.defend(me, foe, cur, dir, now) || (this.defends && foe.attack !== null))) {
+        if (
+            threatened &&
+            (this.defend(me, foe, cur, dir, now) ||
+                (this.defends && foe.attack !== null))
+        ) {
             this.aim(dx, dy);
             return;
         }
         if (this.melee(me, foe, cur, adx, dx, dy, dir, now)) return;
-        const foeTop = foeNode === null ? foePos.get_y() - this.offsetY : this.nav.nodes[foeNode].top;
-        this.move(game, me, foe, cur, foeNode, foeTop, below, adx, dx, dy, dir, now);
+
+        const cracking =
+            cur !== null &&
+            (this.nav.nodes[cur].solid?.crack ?? 0) >= cfg.breakable.fleeCrack;
+        if (
+            !(cracking && me.attack === null) &&
+            this.melee(me, foe, cur, adx, dx, dy, dir, now)
+        )
+            return;
+
+        const foeTop =
+            foeNode === null
+                ? foePos.get_y() - this.offsetY
+                : this.nav.nodes[foeNode].top;
+        this.move(
+            game,
+            me,
+            foe,
+            cur,
+            foeNode,
+            foeTop,
+            below,
+            adx,
+            dx,
+            dy,
+            dir,
+            now,
+        );
         this.fight(me, foe, cur, foeNode, adx, dx, dy, now);
     }
 
     /** Anota cuándo el robot perdió vida o quedó mojado, pegado o quemado (para la evasión). */
     watchHurt(me, now) {
         const status = me.wet || me.sticky || me.burns.size > 0;
-        if (status || (this.lastHp !== null && me.hp < this.lastHp)) this.hurtAt = now;
+        if (status || (this.lastHp !== null && me.hp < this.lastHp))
+            this.hurtAt = now;
         this.lastHp = me.hp;
     }
 
@@ -345,6 +440,9 @@ export class Bot {
             this.escape(me, cur);
             return;
         }
+
+        if (this.fleeBreakable(me, cur)) return;
+
         if (this.evade(me, cur, dir, now)) return;
         if (this.seekPickup(me, cur, game.pickups ?? [])) return;
         if (foeTop < this.minTop) {
@@ -373,7 +471,8 @@ export class Bot {
         const { nodes, edges } = this.nav;
         let up = null;
         for (const to of edges[cur]) {
-            if (nodes[to].top <= nodes[cur].top || nodes[to].top < this.minTop) continue;
+            if (nodes[to].top <= nodes[cur].top || nodes[to].top < this.minTop)
+                continue;
             if (up === null || nodes[to].top > nodes[up].top) up = to;
         }
         if (up !== null) {
@@ -384,6 +483,41 @@ export class Bot {
         this.press(PAD.block);
         this.walk(-dir);
         this.pulse(PAD.jump);
+        return true;
+    }
+
+    /**
+     * Si la plataforma actual está por romperse (`crack >= breakable.fleeCrack`), salta a la vecina sana más segura
+     * (prefiere una firme y sobre la línea segura). Devuelve verdadero si usó el frame.
+     */
+    fleeBreakable(me, cur) {
+        if (cur === null) return false;
+        const solid = this.nav.nodes[cur].solid;
+        if (
+            !solid?.breakable ||
+            (solid.crack ?? 0) < this.config.breakable.fleeCrack
+        )
+            return false;
+        const { nodes, edges } = this.nav;
+        let best = null;
+        let bestScore = -Infinity;
+        for (const to of edges[cur]) {
+            const n = nodes[to];
+            if (n.solid?.broken) continue;
+            const score =
+                (n.top >= this.minTop ? 100 : 0) +
+                (n.solid?.breakable ? 0 : 10) +
+                n.top;
+            if (score > bestScore) {
+                bestScore = score;
+                best = to;
+            }
+        }
+        if (best === null) return false;
+        const line = this.minTop;
+        if (nodes[best].top < line) this.minTop = -Infinity;
+        this.navigate(me, cur, best);
+        this.minTop = line;
         return true;
     }
 
@@ -405,8 +539,18 @@ export class Bot {
         const dist = this.distances(cur);
         let best = null;
         this.nav.nodes.forEach((n, i) => {
-            if (dist[i] === Infinity || n.top < line || n.top < this.nav.nodes[cur].top) return;
-            if (best === null || dist[i] < dist[best] || (dist[i] === dist[best] && n.top > this.nav.nodes[best].top)) best = i;
+            if (
+                dist[i] === Infinity ||
+                n.top < line ||
+                n.top < this.nav.nodes[cur].top
+            )
+                return;
+            if (
+                best === null ||
+                dist[i] < dist[best] ||
+                (dist[i] === dist[best] && n.top > this.nav.nodes[best].top)
+            )
+                best = i;
         });
         this.navigate(me, cur, best ?? this.highest(cur));
         this.minTop = line;
@@ -424,7 +568,8 @@ export class Bot {
         if (attack === null) return;
         const cfg = this.config;
         this.threatAt = now;
-        this.threatDelay = cfg.reaction[0] + this.rng() * (cfg.reaction[1] - cfg.reaction[0]);
+        this.threatDelay =
+            cfg.reaction[0] + this.rng() * (cfg.reaction[1] - cfg.reaction[0]);
         if (previous === null) this.defends = this.rng() < cfg.defense;
     }
 
@@ -434,7 +579,12 @@ export class Bot {
      */
     defend(me, foe, cur, dir, now) {
         const hold = this.config.blockHold;
-        if (foe.attack !== null && this.defends && now - this.threatAt >= this.threatDelay && me.grounded) {
+        if (
+            foe.attack !== null &&
+            this.defends &&
+            now - this.threatAt >= this.threatDelay &&
+            me.grounded
+        ) {
             const row = foe.rig.melee.attacks[foe.attack];
             if (row?.breaksGuard && this.canRoll(me, cur, -dir, now)) {
                 this.press(PAD.block);
@@ -453,7 +603,13 @@ export class Bot {
     }
 
     canRoll(me, cur, dir, now) {
-        if (cur === null || now < me.rollReadyAt || me.attack !== null || me.framesGrounded <= 5) return false;
+        if (
+            cur === null ||
+            now < me.rollReadyAt ||
+            me.attack !== null ||
+            me.framesGrounded <= 5
+        )
+            return false;
         const end = me.torso.GetPosition().get_x() + dir * this.config.rollRoom;
         const node = this.nav.nodes[cur];
         return end > node.minX + 0.2 && end < node.maxX - 0.2;
@@ -472,13 +628,23 @@ export class Bot {
         if (me.attack !== null) {
             const row = me.rig.melee.attacks[me.attack];
             this.aim(dx, dy);
-            const connected = me.attackHit && (foe.isStunned(now) || foe.blocking);
-            if (connected && me.nextAttack === null && now - me.attackStart >= row.active[0]) this.pulse(PAD.punch);
+            const connected =
+                me.attackHit && (foe.isStunned(now) || foe.blocking);
+            if (
+                connected &&
+                me.nextAttack === null &&
+                now - me.attackStart >= row.active[0]
+            )
+                this.pulse(PAD.punch);
             return true;
         }
         if (adx > cfg.range || Math.abs(dy) > cfg.vertical) return false;
         this.aim(dx, dy);
-        if (me.hp < this.config.lowHp && foe.attack === null && this.canRoll(me, cur, -dir, now)) {
+        if (
+            me.hp < this.config.lowHp &&
+            foe.attack === null &&
+            this.canRoll(me, cur, -dir, now)
+        ) {
             this.press(PAD.block);
             this.walk(-dir);
             this.pulse(PAD.jump);
@@ -492,7 +658,10 @@ export class Bot {
     floodLevel(game, x) {
         const { flood, water } = game;
         if (!flood.active) return -Infinity;
-        const wet = water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity;
+        const wet =
+            water.depthAt(x) > water.config.hDry
+                ? water.surfaceAt(x)
+                : -Infinity;
         return Math.max(flood.level, wet);
     }
 
@@ -506,7 +675,13 @@ export class Bot {
     pickupNode(point) {
         let best = null;
         this.nav.nodes.forEach((n, i) => {
-            if (point.x < n.minX || point.x > n.maxX || n.top > point.y || point.y - n.top > PICKUP_ABOVE) return;
+            if (
+                point.x < n.minX ||
+                point.x > n.maxX ||
+                n.top > point.y ||
+                point.y - n.top > PICKUP_ABOVE
+            )
+                return;
             if (best === null || n.top > this.nav.nodes[best].top) best = i;
         });
         return best;
@@ -528,7 +703,8 @@ export class Bot {
             let hops = 0;
             for (let n = node; parent[n] !== -1; n = parent[n]) hops++;
             if (hops > this.config.pickupReach) continue;
-            const isLower = this.nav.nodes[node].top < this.nav.nodes[cur].top - 1e-9;
+            const isLower =
+                this.nav.nodes[node].top < this.nav.nodes[cur].top - 1e-9;
             const slot = isLower ? lower : best;
             if (slot === null || dist[node] < slot.cost) {
                 const found = { point, node, cost: dist[node] };
@@ -538,7 +714,8 @@ export class Bot {
         }
         best ??= lower;
         if (best === null) return false;
-        if (best.node === cur) this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
+        if (best.node === cur)
+            this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
         else this.navigate(me, cur, best.node);
         return true;
     }
@@ -567,7 +744,11 @@ export class Bot {
         const lift = this.lift(adx, dy, weaponById(me.weapon)?.speed ?? 14);
         const angle = Math.atan2(dy + lift, adx) + this.aimOffset;
         this.aim(sign * Math.cos(angle), Math.sin(angle));
-        if (adx >= this.config.reserveRange && tank <= this.config.reserve * weaponById(me.weapon).tank) return;
+        if (
+            adx >= this.config.reserveRange &&
+            tank <= this.config.reserve * weaponById(me.weapon).tank
+        )
+            return;
         if (now >= this.burstUntil && now >= this.burstReadyAt) {
             this.burstUntil = now + this.config.burst;
             this.burstReadyAt = this.burstUntil + this.config.burstCooldown;
@@ -589,7 +770,13 @@ export class Bot {
     lineOfSight(me, foe) {
         const a = me.torso.GetPosition();
         const b = foe.torso.GetPosition();
-        const hit = this.raycaster.cast(a.get_x(), a.get_y(), b.get_x(), b.get_y(), me.ownBodies);
+        const hit = this.raycaster.cast(
+            a.get_x(),
+            a.get_y(),
+            b.get_x(),
+            b.get_y(),
+            me.ownBodies,
+        );
         return hit !== null && foe.ownBodies.has(hit.bodyPtr);
     }
 
@@ -612,7 +799,8 @@ export class Bot {
         if (adx < cfg.melee.airRange + 1) this.aim(dx, dy);
         const px = me.torso.GetPosition().get_x();
         if (cur !== null && this.foeNode === cur) {
-            if (adx > cfg.melee.stop) this.walkWithin(cur, px, px + dx - dir * cfg.melee.stop);
+            if (adx > cfg.melee.stop)
+                this.walkWithin(cur, px, px + dx - dir * cfg.melee.stop);
             return;
         }
         if (cur !== null && now >= this.replanAt) {
@@ -626,13 +814,20 @@ export class Bot {
     pickGoal(cur, foe) {
         const dist = this.distances(cur);
         const fx = foe.torso.GetPosition().get_x();
-        const fy = this.foeNode === null ? foe.torso.GetPosition().get_y() - this.offsetY : this.nav.nodes[this.foeNode].top;
+        const fy =
+            this.foeNode === null
+                ? foe.torso.GetPosition().get_y() - this.offsetY
+                : this.nav.nodes[this.foeNode].top;
         let best = cur;
         let bestScore = -Infinity;
         this.nav.nodes.forEach((n, i) => {
-            if (dist[i] === Infinity) return;
+            if (dist[i] === Infinity || n.solid?.broken) return;
             const h = Math.max(0, n.minX - fx, fx - n.maxX);
-            const score = -h + (n.top >= fy + 0.8 ? this.config.highBonus : 0) - dist[i] * this.config.hopCost;
+            const score =
+                -h +
+                (n.top >= fy + 0.8 ? this.config.highBonus : 0) -
+                dist[i] * this.config.hopCost -
+                (n.solid?.breakable ? this.config.breakable.penalty : 0);
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -647,7 +842,8 @@ export class Bot {
         const dist = this.distances(from);
         let best = from;
         this.nav.nodes.forEach((n, i) => {
-            if (dist[i] !== Infinity && n.top > this.nav.nodes[best].top) best = i;
+            if (dist[i] !== Infinity && n.top > this.nav.nodes[best].top)
+                best = i;
         });
         return best;
     }
@@ -670,11 +866,22 @@ export class Bot {
         parent[from] = -1;
         for (;;) {
             let node = -1;
-            for (let i = 0; i < nodes.length; i++) if (!done[i] && dist[i] < Infinity && (node < 0 || dist[i] < dist[node])) node = i;
+            for (let i = 0; i < nodes.length; i++)
+                if (
+                    !done[i] &&
+                    dist[i] < Infinity &&
+                    (node < 0 || dist[i] < dist[node])
+                )
+                    node = i;
             if (node < 0) break;
             done[node] = true;
             edges[node].forEach((to, k) => {
-                if (nodes[to].top < this.minTop || dist[node] + costs[node][k] >= dist[to]) return;
+                if (
+                    nodes[to].top < this.minTop ||
+                    nodes[to].solid?.broken ||
+                    dist[node] + costs[node][k] >= dist[to]
+                )
+                    return;
                 dist[to] = dist[node] + costs[node][k];
                 parent[to] = node;
             });
@@ -697,7 +904,13 @@ export class Bot {
         const low = player.lowestPoint() - this.offsetY;
         let best = null;
         this.nav.nodes.forEach((n, i) => {
-            if (x < n.minX - 0.3 || x > n.maxX + 0.3 || Math.abs(low - n.top) > 0.35) return;
+            if (
+                n.solid?.broken ||
+                x < n.minX - 0.3 ||
+                x > n.maxX + 0.3 ||
+                Math.abs(low - n.top) > 0.35
+            )
+                return;
             if (best === null || n.top > this.nav.nodes[best].top) best = i;
         });
         return best;
@@ -706,7 +919,14 @@ export class Bot {
     /** Camina hacia `x` sin pasar de los bordes de la plataforma `node`. */
     walkWithin(node, px, x) {
         const n = this.nav.nodes[node];
-        this.walkTo(px, clamp(x, n.minX + this.config.edgeMargin, n.maxX - this.config.edgeMargin));
+        this.walkTo(
+            px,
+            clamp(
+                x,
+                n.minX + this.config.edgeMargin,
+                n.maxX - this.config.edgeMargin,
+            ),
+        );
     }
 
     /**
@@ -738,7 +958,10 @@ export class Bot {
             } else if (dy < 0 && a.oneWay) {
                 this.pad.axes[1] = 1;
                 this.pulse(PAD.jump);
-            } else if (dy >= 0 && Math.abs(me.torso.GetLinearVelocity().get_x()) <= jump.settle) {
+            } else if (
+                dy >= 0 &&
+                Math.abs(me.torso.GetLinearVelocity().get_x()) <= jump.settle
+            ) {
                 this.pulse(PAD.jump);
             }
             return;
@@ -748,17 +971,22 @@ export class Bot {
         if (dy < jump.dropBelow) return;
         const dist = Math.max(0, b.minX - px, px - b.maxX);
         const edge = dir > 0 ? a.maxX - px : px - a.minX;
-        if (me.grounded && (dist <= jump.distance || edge <= jump.edge)) this.pulse(PAD.jump);
+        if (me.grounded && (dist <= jump.distance || edge <= jump.edge))
+            this.pulse(PAD.jump);
     }
 
     /** En el aire: empuja hacia el destino comprometido hasta estar dentro de él y ahí suelta el stick. */
     airControl(me, px) {
         let dest = this.committed;
+        if (dest !== null && this.nav.nodes[dest].solid?.broken) {
+            dest = null;
+            this.committed = null;
+        }
         if (dest === null) {
             const low = me.lowestPoint() - this.offsetY;
             let bestGap = Infinity;
             this.nav.nodes.forEach((n, i) => {
-                if (n.top > low + 0.3) return;
+                if (n.solid?.broken || n.top > low + 0.3) return;
                 const gap = Math.max(0, n.minX - px, px - n.maxX);
                 if (gap < bestGap) {
                     bestGap = gap;

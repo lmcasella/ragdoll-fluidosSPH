@@ -21,7 +21,6 @@ export const LEVEL = {
             h: 0.4,
             kind: "platform",
             oneWay: true,
-            breakable: 0.5,
         },
         {
             x: 28,
@@ -30,7 +29,7 @@ export const LEVEL = {
             h: 0.4,
             kind: "platform",
             oneWay: true,
-            breakable: 1.5,
+            breakable: 2,
         },
         {
             x: 35,
@@ -39,7 +38,6 @@ export const LEVEL = {
             h: 0.4,
             kind: "platform",
             oneWay: true,
-            breakable: 0.5,
         },
         { x: 28, y: 13.4, w: 12, h: 0.4, kind: "platform", oneWay: true },
         { x: 43, y: 10.1, w: 8, h: 0.4, kind: "platform", oneWay: true },
