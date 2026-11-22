@@ -2,290 +2,142 @@
 
 Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los que se descartaron. Formato en `CLAUDE.md` ("Formato de `docs/referencias.md`").
 
+- [Física de fluidos](#física-de-fluidos)
+- [Métodos numéricos](#métodos-numéricos)
+- [Física de cuerpos rígidos y ragdoll](#física-de-cuerpos-rígidos-y-ragdoll)
+- [Geometría y raycast](#geometría-y-raycast)
+- [Criterios de validación](#criterios-de-validación)
+- [Descartados](#descartados)
+- [Ejemplos de implementación](#ejemplos-de-implementación)
+
 ## Física de fluidos
 
-- **SPH (hidrodinámica de partículas suavizadas)** — Robert Gingold y Joe Monaghan (1977); Leon Lucy (1977).
-  - Representa el fluido con partículas que interactúan con las vecinas dentro de un radio.
-  - Dónde se usa: `js/weapons.js:19`, `js/particles.js:15`.
-- **LiquidFun** — Google, sobre el Box2D de Erin Catto.
-  - Variante de SPH con pares de partículas, presión `max(0, η(w − w₀))` y flags por partícula; aporta el sistema de disparos.
-  - Dónde se usa: `js/particles.js:5`, `js/weapons.js:19`, `docs/design/07-sph.md:7`.
-- **Ecuaciones de Saint-Venant (aguas someras)** — Adhémar Barré de Saint-Venant (1871).
-  - Conservación de masa y cantidad de movimiento del agua en una dimensión, con lecho variable.
-  - Dónde se usa: `js/water.js:80`, `js/water.js:281`.
-- **Celeridad de onda larga `c = √(g h)`** — Joseph-Louis Lagrange (1781).
-  - Velocidad de las ondas en aguas someras; fija las velocidades de onda del flujo.
-  - Dónde se usa: `js/water.js:356`, `js/water.js:429`.
-- **Frente de Ritter** — August Ritter (1892).
-  - Velocidad `2√(g h)` del frente de una rotura de presa sobre lecho seco; fija el tope de velocidad del campo.
-  - Dónde se usa: `js/water.js:14`.
-- **Principio de Arquímedes** — Arquímedes de Siracusa.
-  - El empuje es el peso del fluido desalojado; con gravedad específica `SG`, la aceleración es `g ρ_col/(ρ_w SG)`. Desde #110 vale también para la miel (`SG` 1,42): se hunde y queda en el fondo.
-  - Dónde se usa: `js/immersion.js:30`, `js/immersion.js:155`, `js/materials.js:8`, `js/materials.js:18`.
-- **Arrastre cuadrático** — Isaac Newton (*Principia*, libro II).
-  - Fuerza de arrastre proporcional a `|v_rel|²` con coeficiente `C_d`; frena a la partícula inmiscible hacia la corriente. Desde #110 también a la miel (`C_d` 1,2).
-  - Dónde se usa: `js/immersion.js:157`, `js/materials.js:9`, `js/materials.js:18`.
-- **Aproximación de Boussinesq** — Joseph Boussinesq.
-  - La densidad de la mezcla solo entra en el empuje y en la cantidad de movimiento aportada (`SG · A · v_x`), no en la dinámica de la columna.
-  - Dónde se usa: `js/immersion.js:26`, `js/immersion.js:109`.
-- **Fricción de Manning** — Robert Manning (1889), antes Gauckler (1867).
-  - Fricción de fondo `g n² u|u| / h^{1/3}` de un canal.
-  - Dónde se usa: `js/water.js:36`, `js/water.js:489`, `js/water.js:498`.
-- **Película laminar (Nusselt)** — Wilhelm Nusselt (1916).
-  - Con perfil parabólico, la fricción de fondo promediada es `3 ν u / h²`; domina en columnas con miel.
-  - Dónde se usa: `js/water.js:486`, `js/water.js:498`.
-- **Regla logarítmica de mezcla de viscosidades** — Svante Arrhenius (1887).
-  - `ln μ = X ln μ_miel + (1 − X) ln μ_agua`.
-  - Dónde se usa: `js/water.js:173`, `js/water.js:497`.
-- **Calor específico** — Joseph Black (siglo XVIII).
-  - La energía térmica de una columna es `σ_w · c · h · T`.
-  - Dónde se usa: `js/materials.js:8`, `js/water.js:151`, `js/water.js:184`, `js/immersion.js:48`.
-- **Película de apriete (squeeze film)** — Jožef Stefan (1874).
-  - Entre dos superficies que se acercan, el agua incompresible escurre de costado con `u = V_n x / h` y no sostiene carga estática.
-  - Dónde se usa: `js/wallContact.js:11`, `js/wallContact.js:304`, `js/wallContact.js:333`.
-- **Ecuación de continuidad** — Leonhard Euler (1757).
-  - El caudal de la lluvia sale de la conservación de la masa: `Q = riseSpeed · W_libre`.
-  - Dónde se usa: `js/flood.js:93`, `js/flood.js:160`.
-- **Pistón de Stoker** — James J. Stoker (1957).
-  - Un cuerpo que avanza por un charco levanta un frente y sufre `F = ½ σ_w g (h₂² − h₃²)`; es física del modelo y no se corrige.
-  - Dónde se usa: `docs/design/14-agua.md:347`, `tests/drops-vs-robot.test.js:145`.
-- **Longitud capilar y espesor de charco de equilibrio** — Pierre-Gilles de Gennes.
-  - Un charco quieto no se adelgaza más que `h_c = 2 κ⁻¹ sin(θ_E/2)`, con `κ⁻¹ = √(γ/(ρ g))`; fija `h_min` = 1,85 mm.
-  - Dónde se usa: `js/water.js:35`, `docs/design/14-agua.md:163`.
-- **Ángulo de contacto y ecuación de Young** — Thomas Young (1805).
-  - El ángulo de equilibrio `θ_E` de una gota sobre un sólido; el diseño usa 40° (hormigón) como ángulo de avance.
-  - Dónde se usa: `docs/design/14-agua.md:165`.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
+| **SPH (hidrodinámica de partículas suavizadas)** | Robert Gingold y Joe Monaghan (1977); Leon Lucy (1977) | Representa el fluido con partículas que interactúan con las vecinas dentro de un radio. | `js/weapons.js:19`, `js/particles.js:15` | [Wikipedia](https://es.wikipedia.org/wiki/Hidrodin%C3%A1mica_de_part%C3%ADculas_suavizadas) |
+| **LiquidFun** | Google, sobre el Box2D de Erin Catto | Variante de SPH con pares de partículas, presión `max(0, η(w − w₀))` y flags por partícula; aporta el sistema de disparos. | `js/particles.js:5`, `js/weapons.js:19`, `docs/design/07-sph.md:7` | [sitio oficial](https://google.github.io/liquidfun/) |
+| **Ecuaciones de Saint-Venant (aguas someras)** | Adhémar Barré de Saint-Venant (1871) | Conservación de masa y cantidad de movimiento del agua en una dimensión, con lecho variable. | `js/water.js:80`, `js/water.js:281` | [Wikipedia](https://en.wikipedia.org/wiki/Shallow_water_equations) |
+| **Celeridad de onda larga `c = √(g h)`** | Joseph-Louis Lagrange (1781) | Velocidad de las ondas en aguas someras; fija las velocidades de onda del flujo. | `js/water.js:356`, `js/water.js:429` | — |
+| **Frente de Ritter** | August Ritter (1892) | Velocidad `2√(g h)` del frente de una rotura de presa sobre lecho seco; fija el tope de velocidad del campo. | `js/water.js:14` | [Wikipedia](https://en.wikipedia.org/wiki/Dam_break) |
+| **Principio de Arquímedes** | Arquímedes de Siracusa | El empuje es el peso del fluido desalojado; con gravedad específica `SG`, la aceleración es `g ρ_col/(ρ_w SG)`. | `js/immersion.js:30`, `js/immersion.js:155`, `js/materials.js:8`, `js/materials.js:18` | [Wikipedia](https://es.wikipedia.org/wiki/Principio_de_Arqu%C3%ADmedes) |
+| **Arrastre cuadrático** | Isaac Newton (*Principia*, libro II) | Fuerza de arrastre proporcional a `\|v_rel\|²` con coeficiente `C_d`; frena a la partícula inmiscible hacia la corriente. | `js/immersion.js:157`, `js/materials.js:9`, `js/materials.js:18` | [Wikipedia](https://es.wikipedia.org/wiki/Resistencia_aerodin%C3%A1mica) |
+| **Aproximación de Boussinesq** | Joseph Boussinesq | La densidad de la mezcla solo entra en el empuje y en la cantidad de movimiento aportada (`SG · A · v_x`), no en la dinámica de la columna. | `js/immersion.js:26`, `js/immersion.js:109` | [Wikipedia](https://es.wikipedia.org/wiki/Aproximaci%C3%B3n_de_Boussinesq) |
+| **Fricción de Manning** | Robert Manning (1889), antes Gauckler (1867) | Fricción de fondo `g n² u\|u\| / h^{1/3}` de un canal. | `js/water.js:36`, `js/water.js:489`, `js/water.js:498` | [Wikipedia](https://es.wikipedia.org/wiki/F%C3%B3rmula_de_Manning) |
+| **Película laminar (Nusselt)** | Wilhelm Nusselt (1916) | Con perfil parabólico, la fricción de fondo promediada es `3 ν u / h²`; domina en columnas con miel. | `js/water.js:486`, `js/water.js:498` | — |
+| **Regla logarítmica de mezcla de viscosidades** | Svante Arrhenius (1887) | `ln μ = X ln μ_miel + (1 − X) ln μ_agua`. | `js/water.js:173`, `js/water.js:497` | — |
+| **Calor específico** | Joseph Black (siglo XVIII) | La energía térmica de una columna es `σ_w · c · h · T`. | `js/materials.js:8`, `js/water.js:151`, `js/water.js:184`, `js/immersion.js:48` | [Wikipedia](https://es.wikipedia.org/wiki/Calor_espec%C3%ADfico) |
+| **Película de apriete (squeeze film)** | Jožef Stefan (1874) | Entre dos superficies que se acercan, el agua incompresible escurre de costado con `u = V_n x / h` y no sostiene carga estática. | `js/wallContact.js:11`, `js/wallContact.js:304`, `js/wallContact.js:333` | — |
+| **Ecuación de continuidad** | Leonhard Euler (1757) | El caudal de la lluvia sale de la conservación de la masa: `Q = riseSpeed · W_libre`. | `js/flood.js:93`, `js/flood.js:160` | [Wikipedia](https://es.wikipedia.org/wiki/Ecuaci%C3%B3n_de_continuidad) |
+| **Pistón de Stoker** | James J. Stoker (1957) | Un cuerpo que avanza por un charco levanta un frente y sufre `F = ½ σ_w g (h₂² − h₃²)`; es física del modelo y no se corrige. | `docs/design/14-agua.md:347`, `tests/drops-vs-robot.test.js:145` | — |
+| **Longitud capilar y espesor de charco de equilibrio** | Pierre-Gilles de Gennes | Un charco quieto no se adelgaza más que `h_c = 2 κ⁻¹ sin(θ_E/2)`, con `κ⁻¹ = √(γ/(ρ g))`; fija `h_min` = 1,85 mm. | `js/water.js:35`, `docs/design/14-agua.md:163` | [Wikipedia](https://en.wikipedia.org/wiki/Capillary_length) |
+| **Ángulo de contacto y ecuación de Young** | Thomas Young (1805) | El ángulo de equilibrio `θ_E` de una gota sobre un sólido; el diseño usa 40° (hormigón) como ángulo de avance. | `docs/design/14-agua.md:165` | [Wikipedia](https://es.wikipedia.org/wiki/%C3%81ngulo_de_contacto) |
 
 ## Métodos numéricos
 
-- **Volúmenes finitos** — Sergei Godunov (1959).
-  - Actualiza cada celda con los flujos de sus caras; conserva masa y cantidad de movimiento.
-  - Dónde se usa: `js/water.js:281`, `js/water.js:408`.
-- **Flujo HLL** — Ami Harten, Peter Lax y Bram van Leer (1983).
-  - Flujo numérico entre dos estados con las velocidades de onda `S_L` y `S_R`.
-  - Dónde se usa: `js/water.js:380`.
-  - Ejemplo: `gM = (sR * flM - sL * frM + sL * sR * (hRs - hLs)) * inv;`
-- **Velocidades de onda de Einfeldt** — Bernd Einfeldt (1988).
-  - Cota de `S_L` y `S_R` con los promedios de Roe entre estados mojados.
-  - Dónde se usa: `js/water.js:369`.
-- **Velocidades de onda con lado seco** — Eleuterio Toro.
-  - Con un lado seco, `S_R = u_L + 2 c_L` o `S_L = u_R − 2 c_R`.
-  - Dónde se usa: `js/water.js:362`.
-- **Reconstrucción hidrostática** — Audusse, Bouchut, Bristeau, Klein y Perthame (2004).
-  - Esquema *well-balanced*: el lago en reposo sobre el escalón queda exactamente quieto y `h` no se hace negativa.
-  - Dónde se usa: `js/water.js:335`, `js/water.js:392`, `js/water.js:409`.
-- **Proyección por energía y caudal en escalones** — Noelle, Xing y Shu (2007); energía específica de Henderson (1966).
-  - Conserva la carga total y `q` al subir un escalón, con flujo estrangulado si la carga no alcanza.
-  - Dónde se usa: `js/water.js:46`, `js/water.js:342`.
-- **MUSCL con limitador minmod** — Bram van Leer (1979); minmod de Philip Roe (1986).
-  - Segundo orden en espacio sin oscilaciones, limitando la pendiente entre celdas.
-  - Dónde se usa: `js/water.js:41`, `js/water.js:305`.
-  - Ejemplo: `const minmod = (a, b) => (a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b);`
-- **SSP-RK2 (Heun)** — Chi-Wang Shu y Stanley Osher (1988).
-  - Integración temporal de segundo orden que conserva la positividad.
-  - Dónde se usa: `js/water.js:456`.
-- **Desingularización de la velocidad** — Alexander Kurganov y Guergana Petrova (2007).
-  - `u = 2 h q / (h² + max(h², h_dry²))` evita dividir por una `h` casi nula.
-  - Dónde se usa: `js/water.js:159`, `js/water.js:291`.
-- **Condición CFL** — Richard Courant, Kurt Friedrichs y Hans Lewy (1928).
-  - El paso no puede dejar que una onda cruce más de una fracción de celda: `n = ⌈dt · S_max / (CFL · dx)⌉` subpasos.
-  - Dónde se usa: `js/water.js:32`, `js/water.js:529`.
-  - Ejemplo: `Math.ceil((dt * smax) / (config.cfl * this.dx))`
-- **Esquema upwind para escalares** — Courant, Isaacson y Rees (1952).
-  - La energía y la miel viajan con el signo del flujo de masa de la cara.
-  - Dónde se usa: `js/water.js:397`.
-- **Método de Newton–Raphson** — Isaac Newton y Joseph Raphson.
-  - Resuelve `h* + q²/(2 g h*²) = Ẽ` en la proyección de escalones.
-  - Dónde se usa: `js/water.js:66`.
-- **Bisección** — Bernard Bolzano (1817).
-  - Invierte el área libre para hallar el nivel del agua.
-  - Dónde se usa: `js/flood.js:75`.
-- **Euler implícito** — Leonhard Euler.
-  - La fricción y el arrastre se tratan de forma implícita linealizada, estable aunque el término sea rígido.
-  - Dónde se usa: `js/water.js:499`, `js/immersion.js:158`.
-  - Ejemplo: `s.q[i] /= 1 + dt * kappa;`
-- **Cloud-in-cell** — Charles Birdsall y Dieter Fuss (1969).
-  - Reparte una fuente puntual entre las dos celdas vecinas con pesos lineales.
-  - Dónde se usa: `js/water.js:258`.
-- **Interpolación lineal** — sin autor único.
-  - Lee el campo en `x` entre centros de celda, sin extrapolar.
-  - Dónde se usa: `js/water.js:188`.
-- **Separación de operadores (Lie–Trotter)** — Sophus Lie y Hale Trotter (1959).
-  - Las fuentes (absorción, reacción) se aplican aparte del avance del campo.
-  - Dónde se usa: `js/water.js:255`, `index.html:554`.
-- **Paso fijo con acumulador** — Glenn Fiedler (*Fix Your Timestep*, 2004).
-  - Simula en pasos de 1/60 s sin importar el frame; la escala de tiempo da la cámara lenta.
-  - Dónde se usa: `index.html:488`, `index.html:510`, `index.html:542`.
-- **Secuencia áurea (equidistribución)** — Hermann Weyl (1916).
-  - `(i · φ⁻¹) mod 1` reparte puntos de forma pareja y determinista.
-  - Dónde se usa: `js/weapons.js:88`, `js/weapons.js:174`, `js/flood.js:7`, `js/flood.js:89`.
-  - Ejemplo: `const frac = (i * GOLDEN) % 1;`
-- **Hash entero xorshift-multiply** — familia de xorshift de George Marsaglia (2003).
-  - Da piezas y ángulos repetibles sin `Math.random` (chispas del cortocircuito).
-  - Dónde se usa: `js/render.js:94`, `js/render.js:106`.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
+| **Volúmenes finitos** | Sergei Godunov (1959) | Actualiza cada celda con los flujos de sus caras; conserva masa y cantidad de movimiento. | `js/water.js:281`, `js/water.js:408` | [Wikipedia](https://es.wikipedia.org/wiki/M%C3%A9todo_de_los_vol%C3%BAmenes_finitos) |
+| **Flujo HLL** | Ami Harten, Peter Lax y Bram van Leer (1983) | Flujo numérico entre dos estados con las velocidades de onda `S_L` y `S_R`. | `js/water.js:380` | [Wikipedia](https://en.wikipedia.org/wiki/Riemann_solver) |
+| **Velocidades de onda de Einfeldt** | Bernd Einfeldt (1988) | Cota de `S_L` y `S_R` con los promedios de Roe entre estados mojados. | `js/water.js:369` | — |
+| **Velocidades de onda con lado seco** | Eleuterio Toro | Con un lado seco, `S_R = u_L + 2 c_L` o `S_L = u_R − 2 c_R`. | `js/water.js:362` | — |
+| **Reconstrucción hidrostática** | Audusse, Bouchut, Bristeau, Klein y Perthame (2004) | Esquema *well-balanced*: el lago en reposo sobre el escalón queda exactamente quieto y `h` no se hace negativa. | `js/water.js:335`, `js/water.js:392`, `js/water.js:409` | — |
+| **Proyección por energía y caudal en escalones** | Noelle, Xing y Shu (2007); Henderson (1966) | Conserva la carga total y `q` al subir un escalón, con flujo estrangulado si la carga no alcanza. | `js/water.js:46`, `js/water.js:342` | — |
+| **MUSCL con limitador minmod** | Bram van Leer (1979); Philip Roe (1986) | Segundo orden en espacio sin oscilaciones, limitando la pendiente entre celdas. | `js/water.js:41`, `js/water.js:305` | [Wikipedia](https://en.wikipedia.org/wiki/MUSCL_scheme) |
+| **SSP-RK2 (Heun)** | Chi-Wang Shu y Stanley Osher (1988) | Integración temporal de segundo orden que conserva la positividad. | `js/water.js:456` | [Wikipedia](https://en.wikipedia.org/wiki/Heun%27s_method) |
+| **Desingularización de la velocidad** | Alexander Kurganov y Guergana Petrova (2007) | `u = 2 h q / (h² + max(h², h_dry²))` evita dividir por una `h` casi nula. | `js/water.js:159`, `js/water.js:291` | — |
+| **Condición CFL** | Richard Courant, Kurt Friedrichs y Hans Lewy (1928) | El paso no puede dejar que una onda cruce más de una fracción de celda: `n = ⌈dt · S_max / (CFL · dx)⌉` subpasos. | `js/water.js:32`, `js/water.js:529` | [Wikipedia](https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition) |
+| **Esquema upwind para escalares** | Richard Courant, Eugene Isaacson y Mina Rees (1952) | La energía y la miel viajan con el signo del flujo de masa de la cara. | `js/water.js:397` | [Wikipedia](https://en.wikipedia.org/wiki/Upwind_scheme) |
+| **Método de Newton–Raphson** | Isaac Newton y Joseph Raphson | Resuelve `h* + q²/(2 g h*²) = Ẽ` en la proyección de escalones. | `js/water.js:66` | [Wikipedia](https://es.wikipedia.org/wiki/M%C3%A9todo_de_Newton) |
+| **Bisección** | Bernard Bolzano (1817) | Invierte el área libre para hallar el nivel del agua. | `js/flood.js:75` | [Wikipedia](https://es.wikipedia.org/wiki/M%C3%A9todo_de_bisecci%C3%B3n) |
+| **Euler implícito** | Leonhard Euler | La fricción y el arrastre se tratan de forma implícita linealizada, estable aunque el término sea rígido. | `js/water.js:499`, `js/immersion.js:158` | [Wikipedia](https://en.wikipedia.org/wiki/Backward_Euler_method) |
+| **Cloud-in-cell** | Charles Birdsall y Dieter Fuss (1969) | Reparte una fuente puntual entre las dos celdas vecinas con pesos lineales. | `js/water.js:258` | [Wikipedia](https://en.wikipedia.org/wiki/Particle-in-cell) |
+| **Interpolación lineal** | — | Lee el campo en `x` entre centros de celda, sin extrapolar. | `js/water.js:188` | [Wikipedia](https://es.wikipedia.org/wiki/Interpolaci%C3%B3n_lineal) |
+| **Separación de operadores (Lie–Trotter)** | Sophus Lie y Hale Trotter (1959) | Las fuentes (absorción, reacción) se aplican aparte del avance del campo. | `js/water.js:255`, `index.html:554` | [Wikipedia](https://en.wikipedia.org/wiki/Operator_splitting) |
+| **Paso fijo con acumulador** | Glenn Fiedler (2004) | Simula en pasos de 1/60 s sin importar el frame; la escala de tiempo da la cámara lenta. | `index.html:488`, `index.html:510`, `index.html:542` | [artículo](https://gafferongames.com/post/fix_your_timestep/) |
+| **Secuencia áurea (equidistribución)** | Hermann Weyl (1916) | `(i · φ⁻¹) mod 1` reparte puntos de forma pareja y determinista. | `js/weapons.js:88`, `js/weapons.js:174`, `js/flood.js:7`, `js/flood.js:89` | [Wikipedia](https://en.wikipedia.org/wiki/Equidistribution_theorem) |
+| **Hash entero xorshift-multiply** | George Marsaglia (2003) | Da piezas y ángulos repetibles sin `Math.random` (chispas del cortocircuito). | `js/render.js:94`, `js/render.js:106` | [Wikipedia](https://en.wikipedia.org/wiki/Xorshift) |
 
 ## Física de cuerpos rígidos y ragdoll
 
-- **Solver de Box2D** — Erin Catto.
-  - Impulsos secuenciales con integración de Euler semi-implícita; `stepWorld` lo llama 8 veces por paso con 20 iteraciones de velocidad.
-  - Dónde se usa: `lib/ragimporter.js:66`, `lib/ragimporter.js:92`, `index.html:552`.
-- **Control PD de articulaciones** — Nicolas Minorsky (1922, control PID).
-  - El motor corrige el ángulo con `G · error − D · (velocidad − tasa)`, con tope de velocidad y de torque.
-  - Dónde se usa: `lib/instance.js:35`.
-  - Ejemplo: `rate + clampAbs(pose.G * error - pose.D * (jointSpeed - rate), motor.maxSpeed)`
-- **Impulso y conservación de la cantidad de movimiento** — Isaac Newton.
-  - Un cambio de velocidad `Δv` de una masa `m` se paga con el impulso opuesto `m Δv` sobre el otro cuerpo.
-  - Dónde se usa: `js/wallContact.js:197`, `js/wallContact.js:281`, `js/immersion.js:170`.
-- **Coeficiente de restitución** — Isaac Newton.
-  - Relación entre las velocidades normales de salida y llegada; el contorno inelástico lo lleva a 0.
-  - Dónde se usa: `js/wallContact.js:189`.
-- **Masa reducida** — mecánica newtoniana del problema de dos cuerpos.
-  - `1/μ = 1/m₁ + 1/m₂`; limita el impulso entre dos cuerpos para que no inviertan su velocidad relativa.
-  - Dónde se usa: `js/wallContact.js:328`, `js/immersion.js:160`.
-- **Contorno inelástico** — propuesta de `physics-reviewer` para el proyecto (D8).
-  - Recorta la componente normal saliente `u_n ← min(u_n, max(0, u_n,antes))` en cada subpaso.
-  - Dónde se usa: `js/wallContact.js:189`, `js/wallContact.js:193`, `docs/design/14-agua.md:292`.
-- **Velocidad de acercamiento** — mecánica clásica.
-  - Velocidad relativa proyectada sobre la normal del contacto; sobre `IMPACT_SPEED` hay daño.
-  - Dónde se usa: `js/damage.js:112`, `js/damage.js:120`.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
+| **Solver de Box2D** | Erin Catto | Impulsos secuenciales con integración de Euler semi-implícita; `stepWorld` lo llama 8 veces por paso con 20 iteraciones de velocidad. | `lib/ragimporter.js:66`, `lib/ragimporter.js:92`, `index.html:552` | [sitio oficial](https://box2d.org/) |
+| **Control PD de articulaciones** | Nicolas Minorsky (1922) | El motor corrige el ángulo con `G · error − D · (velocidad − tasa)`, con tope de velocidad y de torque. | `lib/instance.js:35` | [Wikipedia](https://es.wikipedia.org/wiki/Controlador_PID) |
+| **Impulso y conservación de la cantidad de movimiento** | Isaac Newton | Un cambio de velocidad `Δv` de una masa `m` se paga con el impulso opuesto `m Δv` sobre el otro cuerpo. | `js/wallContact.js:197`, `js/wallContact.js:281`, `js/immersion.js:170` | [Wikipedia](https://es.wikipedia.org/wiki/Cantidad_de_movimiento) |
+| **Coeficiente de restitución** | Isaac Newton | Relación entre las velocidades normales de salida y llegada; el contorno inelástico lo lleva a 0. | `js/wallContact.js:189` | [Wikipedia](https://es.wikipedia.org/wiki/Coeficiente_de_restituci%C3%B3n) |
+| **Masa reducida** | — | `1/μ = 1/m₁ + 1/m₂`; limita el impulso entre dos cuerpos para que no inviertan su velocidad relativa. | `js/wallContact.js:328`, `js/immersion.js:160` | [Wikipedia](https://es.wikipedia.org/wiki/Masa_reducida) |
+| **Contorno inelástico** | propuesta de `physics-analyst` para el proyecto (D8) | Recorta la componente normal saliente `u_n ← min(u_n, max(0, u_n,antes))` en cada subpaso. | `js/wallContact.js:189`, `js/wallContact.js:193`, `docs/design/14-agua.md:292` | — |
+| **Velocidad de acercamiento** | — | Velocidad relativa proyectada sobre la normal del contacto; sobre `IMPACT_SPEED` hay daño. | `js/damage.js:112`, `js/damage.js:120` | — |
 
 ## Geometría y raycast
 
-- **Raycast de Box2D (`b2World.RayCast`)** — Erin Catto.
-  - Recorre un árbol de cajas (AABB) y llama al callback por cada figura cruzada; lo que devuelve define el modo (−1 ignora, `fraction` recorta).
-  - Dónde se usa: `js/raycast.js:14`, `js/raycast.js:45`, `js/weapons.js:165`, `js/ActiveRagdoll.js:272`, `index.html:330`.
-- **Caja envolvente alineada (AABB)** — técnica estándar de detección de colisiones.
-  - `[minX, minY, maxX, maxY]` de cada figura, usada para pegar miel, ubicar la gota y calcular el punto más bajo del robot.
-  - Dónde se usa: `js/ActiveRagdoll.js:215`, `js/wallContact.js:312`, `js/damage.js:154`.
-- **Rotación 2D con espejo** — trigonometría elemental.
-  - Lleva la boca del arma del sistema local del cuerpo al del mundo, con `flipX`.
-  - Dónde se usa: `js/ActiveRagdoll.js:278`.
-- **Apuntado por la línea del cañón** — trigonometría elemental.
-  - Corrige el ángulo del hombro con `asin(offset / dist)` para que la línea del cañón, y no la del hombro, pase por el objetivo.
-  - Dónde se usa: `js/ActiveRagdoll.js:326`.
-- **Camino angular más corto** — normalización de ángulos con `atan2`.
-  - Evita que el brazo gire por el otro lado al cruzar ±π.
-  - Dónde se usa: `js/ActiveRagdoll.js:341`.
-  - Ejemplo: `current + Math.atan2(Math.sin(delta), Math.cos(delta))`
-- **Distancia a una caja orientada y a un círculo** — técnica estándar de distancia con signo.
-  - Acerca el segundo círculo de cada gota hasta tocar la superficie del cuerpo.
-  - Dónde se usa: `js/render.js:356`.
-- **Grilla uniforme** — técnica estándar de partición espacial.
-  - Cada celda lista las superficies cercanas, para consultar solo las de la celda de la gota.
-  - Dónde se usa: `js/render.js:300`, `js/render.js:304`.
-- **Fórmula del área de Gauss (shoelace)** — Carl Friedrich Gauss; fórmula del agrimensor.
-  - Área de un polígono como `½ |Σ (xₐ y_b − x_b yₐ)|`; el test mide con ella el área que dibuja `waterOutline`.
-  - Dónde se usa: `tests/helpers/drawn-area.js:18`, `tests/helpers/invariants-run.js:231`.
-- **Muestreo en grilla regular (regla del punto medio)** — integración numérica estándar.
-  - El área de la unión de círculos y cápsulas se cuenta como las celdas de 2,5 mm cuyo centro cae dentro, fila por fila.
-  - Dónde se usa: `tests/helpers/drawn-area.js:61`, `tests/helpers/drawn-area.js:142`.
-  - Ejemplo: `const a = Math.ceil(xa / CELL - 0.5);`
-- **Cámara con encuadre y suavizado exponencial** — suavizado exponencial de Robert G. Brown (1956).
-  - Encuadra a los jugadores con margen y mueve cámara y zoom con `1 − e^{−k dt}`, independiente del frame.
-  - Dónde se usa: `js/camera.js:37`, `js/camera.js:63`.
-  - Ejemplo: `const t = snap ? 1 : 1 - Math.exp(-SMOOTHING * dt);`
-- **Transformación afín de cámara** — álgebra lineal.
-  - Pasa de metros con Y hacia arriba a píxeles y de la pantalla al mundo.
-  - Dónde se usa: `js/camera.js:70`, `js/camera.js:75`.
-- **Metaballs (efecto "goo")** — James Blinn (1982), aproximado con desenfoque y umbral.
-  - Une las gotas vecinas en una sola masa de líquido.
-  - Dónde se usa: `index.html:64`, `index.html:476`.
-- **Zona muerta radial** — técnica estándar de entrada analógica.
-  - El stick de apuntar solo cuenta si la norma `√(x² + y²)` supera el umbral.
-  - Dónde se usa: `js/Input.js:48`, `js/Input.js:208`.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
+| **Raycast de Box2D (`b2World.RayCast`)** | Erin Catto | Recorre un árbol de cajas (AABB) y llama al callback por cada figura cruzada; lo que devuelve define el modo (−1 ignora, `fraction` recorta). | `js/raycast.js:14`, `js/raycast.js:45`, `js/weapons.js:165`, `js/ActiveRagdoll.js:272`, `index.html:330` | [sitio oficial](https://box2d.org/) |
+| **Caja envolvente alineada (AABB)** | — | `[minX, minY, maxX, maxY]` de cada figura, usada para pegar miel, ubicar la gota y calcular el punto más bajo del robot. | `js/ActiveRagdoll.js:215`, `js/wallContact.js:312`, `js/damage.js:154` | [Wikipedia](https://en.wikipedia.org/wiki/Minimum_bounding_box) |
+| **Rotación 2D con espejo** | — | Lleva la boca del arma del sistema local del cuerpo al del mundo, con `flipX`. | `js/ActiveRagdoll.js:278` | — |
+| **Apuntado por la línea del cañón** | — | Corrige el ángulo del hombro con `asin(offset / dist)` para que la línea del cañón, y no la del hombro, pase por el objetivo. | `js/ActiveRagdoll.js:326` | — |
+| **Camino angular más corto** | — | Evita que el brazo gire por el otro lado al cruzar ±π. | `js/ActiveRagdoll.js:341` | — |
+| **Distancia a una caja orientada y a un círculo** | — | Acerca el segundo círculo de cada gota hasta tocar la superficie del cuerpo. | `js/render.js:356` | [Wikipedia](https://en.wikipedia.org/wiki/Signed_distance_function) |
+| **Grilla uniforme** | — | Cada celda lista las superficies cercanas, para consultar solo las de la celda de la gota. | `js/render.js:300`, `js/render.js:304` | [Wikipedia](https://en.wikipedia.org/wiki/Grid_(spatial_index)) |
+| **Fórmula del área de Gauss (shoelace)** | Carl Friedrich Gauss | Área de un polígono como `½ \|Σ (xₐ y_b − x_b yₐ)\|`; el test mide con ella el área que dibuja `waterOutline`. | `tests/helpers/drawn-area.js:18`, `tests/helpers/invariants-run.js:231` | [Wikipedia](https://en.wikipedia.org/wiki/Shoelace_formula) |
+| **Muestreo en grilla regular (regla del punto medio)** | — | El área de la unión de círculos y cápsulas se cuenta como las celdas de 2,5 mm cuyo centro cae dentro, fila por fila. | `tests/helpers/drawn-area.js:61`, `tests/helpers/drawn-area.js:142` | [Wikipedia](https://en.wikipedia.org/wiki/Midpoint_rule) |
+| **Cámara con encuadre y suavizado exponencial** | Robert G. Brown (1956) | Encuadra a los jugadores con margen y mueve cámara y zoom con `1 − e^{−k dt}`, independiente del frame. | `js/camera.js:37`, `js/camera.js:63` | [Wikipedia](https://en.wikipedia.org/wiki/Exponential_smoothing) |
+| **Transformación afín de cámara** | — | Pasa de metros con Y hacia arriba a píxeles y de la pantalla al mundo. | `js/camera.js:70`, `js/camera.js:75` | [Wikipedia](https://es.wikipedia.org/wiki/Transformaci%C3%B3n_af%C3%ADn) |
+| **Metaballs (efecto "goo")** | James Blinn (1982) | Une las gotas vecinas en una sola masa de líquido, aproximado con desenfoque y umbral. | `index.html:64`, `index.html:476` | [Wikipedia](https://en.wikipedia.org/wiki/Metaballs) |
+| **Zona muerta radial** | — | El stick de apuntar solo cuenta si la norma `√(x² + y²)` supera el umbral. | `js/Input.js:48`, `js/Input.js:208` | [Wikipedia](https://en.wikipedia.org/wiki/Deadband) |
 
 ## Criterios de validación
 
-- **Rotura de presa de Ritter** — August Ritter (1892).
-  - El frente a `2√(g h₀)` y el perfil `(2c₀ − x/t)² / (9g)` validan el campo y la gota.
-  - Dónde se usa: `tests/shallow-water.test.js:124`, `tests/shallow-water.test.js:151`, `tests/pure-water.test.js:24`.
-- **Solución de Stoker** — James J. Stoker (1957).
-  - Rotura de presa sobre lecho mojado: meseta intermedia y onda de choque.
-  - Dónde se usa: `tests/shallow-water.test.js:170`.
-- **Lago en reposo (*well-balanced*)** — Audusse et al. (2004).
-  - El agua quieta sobre el lecho real no debe moverse.
-  - Dónde se usa: `tests/shallow-water.test.js:69`.
-- **Conservación del volumen** — conservación de la masa.
-  - `Σ h dx` constante con olas y frentes secos.
-  - Dónde se usa: `tests/shallow-water.test.js:58`, `tests/immersion.test.js:17`.
-- **Onda larga `√(g h)`** — Joseph-Louis Lagrange (1781).
-  - Una perturbación chica viaja a `c = √(g h)`.
-  - Dónde se usa: `tests/shallow-water.test.js:114`, `tests/immersion.test.js:62`.
-- **Seiche, fórmula de Merian, y teoría de Airy** — Johann Rudolf Merian (1828); George Airy.
-  - Período `T = 2L/√(g h)` del modo fundamental, comparado con la dispersión de Airy `c = √(g tanh(kh)/k)`.
-  - Dónde se usa: `tests/shallow-water.test.js:302`, `tests/shallow-water.test.js:319`, `tests/shallow-water.test.js:323`.
-- **Vertedero de cresta ancha** — energía específica y flujo crítico (Bélanger; Henderson, 1966).
-  - Caudal de la cresta `√g (2H/3)^{3/2}` con la carga total `H`.
-  - Dónde se usa: `tests/shallow-water.test.js:331`, `tests/shallow-water.test.js:334`, `tests/shallow-water.test.js:362`.
-- **Velocidad terminal en agua** — Arquímedes y arrastre cuadrático de Newton.
-  - `√(2 g (SG − 1) A_p / (C_d D))` = 1,55 m/s para la lava y 0,79 m/s para la miel (±15 %).
-  - Dónde se usa: `tests/immersion.test.js:100`, `tests/immersion.test.js:103`, `tests/immersion.test.js:124`, `tests/immersion.test.js:142`.
-- **Flujo de Couette y esfuerzo de fondo de Manning** — Maurice Couette (1890); Robert Manning (1889).
-  - Cota del desplazamiento horizontal de la miel apoyada en el fondo (H6, ≤ 0,5 m en 60 s): el arrastre del modelo no tiene apantallamiento y sobreestima ~10² veces la fuerza de la capa de Couette cerca del lecho.
-  - Dónde se usa: `tests/user-scenarios.test.js:218`, `tests/user-scenarios.test.js:273`, `tests/invariants.test.js:215`.
-- **Conservación de la cantidad de movimiento** — Isaac Newton.
-  - Lo absorbido suma `Σ SG A_p v_x` y la reacción de la inmersión no invierte velocidades.
-  - Dónde se usa: `tests/immersion.test.js:34`, `tests/immersion.test.js:143`.
-- **Tiempo de la película de apriete** — Jožef Stefan (1874).
-  - Integra la energía con masa agregada `σ_w W_c³/(12 h)` para fijar el tiempo de referencia `t_ref` de llegada al piso y la continuidad de la salida.
-  - Dónde se usa: `tests/helpers/squeeze-bench.js:93`, `tests/squeeze-escape.test.js:51`, `tests/squeeze-escape.test.js:89`.
-- **Peso de un charco `N m_p g`** — segunda ley de Newton.
-  - Un charco quieto sobre una placa pesa lo que sus gotas.
-  - Dónde se usa: `tests/squeeze-escape.test.js:40`.
-- **Flujo de cantidad de movimiento `ṁ v`** — segunda ley de Newton (forma de Euler para fluidos).
-  - El empuje del chorro sobre una placa es `rate · σ_w · A_p · v`.
-  - Dónde se usa: `tests/pure-water.test.js:78`.
-- **Restitución `e ≤ 0,2`** — Isaac Newton.
-  - El chorro y las gotas no rebotan contra el piso.
-  - Dónde se usa: `tests/pure-water.test.js:69`, `tests/wall-contact.test.js:65`.
-- **Conservación de la energía `½|v|² + g y`** — Hermann von Helmholtz (1847).
-  - El chorro no gana energía al nacer.
-  - Dónde se usa: `tests/stream-energy.test.js:89`.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
+| **Rotura de presa de Ritter** | August Ritter (1892) | El frente a `2√(g h₀)` y el perfil `(2c₀ − x/t)² / (9g)` validan el campo y la gota. | — | [Wikipedia](https://en.wikipedia.org/wiki/Dam_break) |
+| **Solución de Stoker** | James J. Stoker (1957) | Rotura de presa sobre lecho mojado: meseta intermedia y onda de choque. | — | — |
+| **Lago en reposo (*well-balanced*)** | Audusse et al. (2004) | El agua quieta sobre el lecho real no debe moverse. | — | — |
+| **Conservación del volumen** | — | `Σ h dx` constante con olas y frentes secos. | `tests/immersion.test.js:17` | [Wikipedia](https://es.wikipedia.org/wiki/Conservaci%C3%B3n_de_la_masa) |
+| **Onda larga `√(g h)`** | Joseph-Louis Lagrange (1781) | Una perturbación chica viaja a `c = √(g h)`. | `tests/immersion.test.js:62` | — |
+| **Seiche, fórmula de Merian, y teoría de Airy** | Johann Rudolf Merian (1828); George Airy | Período `T = 2L/√(g h)` del modo fundamental, comparado con la dispersión de Airy `c = √(g tanh(kh)/k)`. | — | [Wikipedia](https://es.wikipedia.org/wiki/Seiche) |
+| **Vertedero de cresta ancha** | Bélanger; Henderson (1966) | Caudal de la cresta `√g (2H/3)^{3/2}` con la carga total `H`. | — | [Wikipedia](https://es.wikipedia.org/wiki/Vertedero) |
+| **Velocidad terminal en agua** | Arquímedes; Isaac Newton | `√(2 g (SG − 1) A_p / (C_d D))` = 1,55 m/s para la lava y 0,79 m/s para la miel (±15 %). | `tests/immersion.test.js:100`, `tests/immersion.test.js:103`, `tests/immersion.test.js:124`, `tests/immersion.test.js:142` | [Wikipedia](https://es.wikipedia.org/wiki/Velocidad_terminal) |
+| **Flujo de Couette y esfuerzo de fondo de Manning** | Maurice Couette (1890); Robert Manning (1889) | Cota del desplazamiento horizontal de la miel apoyada en el fondo (H6, ≤ 0,5 m en 60 s): el arrastre del modelo no tiene apantallamiento y sobreestima ~10² veces la fuerza de la capa de Couette cerca del lecho. | — | [Wikipedia](https://es.wikipedia.org/wiki/Flujo_de_Couette) |
+| **Conservación de la cantidad de movimiento** | Isaac Newton | Lo absorbido suma `Σ SG A_p v_x` y la reacción de la inmersión no invierte velocidades. | `tests/immersion.test.js:34`, `tests/immersion.test.js:143` | [Wikipedia](https://es.wikipedia.org/wiki/Cantidad_de_movimiento) |
+| **Tiempo de la película de apriete** | Jožef Stefan (1874) | Integra la energía con masa agregada `σ_w W_c³/(12 h)` para fijar el tiempo de referencia `t_ref` de llegada al piso y la continuidad de la salida. | `tests/helpers/squeeze-bench.js:93`, `tests/squeeze-escape.test.js:51`, `tests/squeeze-escape.test.js:89` | — |
+| **Peso de un charco `N m_p g`** | Isaac Newton | Un charco quieto sobre una placa pesa lo que sus gotas. | `tests/squeeze-escape.test.js:40` | [Wikipedia](https://es.wikipedia.org/wiki/Leyes_de_Newton) |
+| **Flujo de cantidad de movimiento `ṁ v`** | Isaac Newton; Leonhard Euler | El empuje del chorro sobre una placa es `rate · σ_w · A_p · v`. | — | — |
+| **Restitución `e ≤ 0,2`** | Isaac Newton | El chorro y las gotas no rebotan contra el piso. | `tests/wall-contact.test.js:65` | [Wikipedia](https://es.wikipedia.org/wiki/Coeficiente_de_restituci%C3%B3n) |
+| **Conservación de la energía `½\|v\|² + g y`** | Hermann von Helmholtz (1847) | El chorro no gana energía al nacer. | `tests/stream-energy.test.js:89` | [Wikipedia](https://es.wikipedia.org/wiki/Conservaci%C3%B3n_de_la_energ%C3%ADa) |
 
 ## Descartados
 
-- **Escape de gotas con la velocidad de Bernoulli y `F = K w²`** — Daniel Bernoulli (1738).
-  - Daba a la gota `u_e = √(2 K w² / (σ_w D))`.
-  - Se descartó en `docs/design/14-agua.md:300`.
-  - Se optó por la película de apriete (Stefan) porque no funcionó (`K w²` es un artefacto del motor: 215 J en las gotas contra 77 J que bajó el cuerpo, hasta 16 m/s).
-- **Dejar de recortar la gota apretada en el contorno inelástico** — diseño propio del proyecto.
-  - Se descartó en `docs/design/14-agua.md:298`.
-  - Se optó por el escape de la película de apriete porque no funcionó (la gota seguía sosteniendo al cuerpo como puntal).
-- **Chorro en dos carriles (`lanes` = 2)** — diseño propio del proyecto.
-  - Dos carriles paralelos separados `1,5 r`; la columna `lanes` queda como dato (`js/weapons.js:42`).
-  - Se descartó en `docs/design/14-agua.md:366`.
-  - Se optó por un carril con caudal al tope `speed/(1,5 r)` porque no funcionó (el chorro derivaba de costado y fallaba P2).
-- **Arrastre del aire sobre la lluvia** — Isaac Newton (arrastre cuadrático).
-  - Se descartó en `docs/design/14-agua.md:394` y `docs/design/14-agua.md:940`.
-  - Se optó por soltar las gotas a `dropSpeed` constante porque queda fuera de alcance (decisión del usuario: la lluvia rápida no es un problema).
-- **Agua masiva del nivel en partículas (SPH de LiquidFun con `VISCOUS` y `STATIC_PRESSURE`)** — Google (LiquidFun).
-  - Se descartó en `docs/design/14-agua.md:103` y `docs/design/14-agua.md:288`.
-  - Se optó por el campo de alturas de Saint-Venant porque no funcionó (~7,2 ms por frame, frente de rotura de presa a −70/−75 % de Ritter y pico de 33 m/s al arrancar).
-- **Mundo de fluidos separado** — diseño propio del proyecto.
-  - Se descartó en `docs/design/12-decisiones.md:34`.
-  - Se optó por un solo sistema líquido porque no funcionó (fugas sobre ~13 m/s y empuje sin calibrar; innecesario sin agua en partículas).
-- **Empuje aplicado en cada subpaso con un objeto falso en `stepWorld`** — diseño propio del proyecto.
-  - Se descartó en `docs/design/14-agua.md:270`.
-  - Se optó por un impulso por paso (`F · dt`) porque depende de un detalle de RagImporter que no está en su contrato (el esquema funcionaba).
-- **Offset fijo del buffer de contactos de LiquidFun** — diseño propio del proyecto.
-  - Se descartó en `docs/design/12-decisiones.md:34`.
-  - Se optó por buscar y validar el offset al arrancar (`js/wallContact.js:96`) porque no funcionó (frágil: cambia con cada compilación del motor).
-- **Reciclado de partículas por edad del motor (`destroyByAge`)** — LiquidFun (Google).
-  - Se descartó en `docs/design/12-decisiones.md:24`.
-  - Se optó por `destroyByAge: false` y un `ParticleStore` propio (`js/particleStore.js:30`) porque no funcionó (sin `lifetime` por partícula es indefinido y el build no expone `SetParticleLifetime`).
-- **Grupos de partículas por pulsación o por paso** — LiquidFun (Google).
-  - Se descartó en `docs/design/12-decisiones.md:22`.
-  - Se optó por partículas sueltas con crédito acumulado (`js/weapons.js:146`) porque no funcionó (se ven como balas que rebotan).
-- **Pegar la miel con `BeginParticleBodyContact`** — Box2D (Erin Catto).
-  - Se descartó en `docs/design/12-decisiones.md:33`.
-  - Se optó por una consulta geométrica por paso (`js/damage.js:145`) porque no funcionó (un robot quieto en el charco deja de recibir avisos).
-- **Tensión superficial (`TENSILE`) en los disparos** — LiquidFun (Google).
-  - Se descartó en `docs/design/12-decisiones.md:31`.
-  - Se optó por tensiones en 0 (`js/weapons.js:28`) porque no funcionó (causaba el rebote de las gotas y no daba cohesión física).
-- **`b2DistanceJoint` para el gancho** — Box2D (Erin Catto).
-  - Se descartó en `docs/design/12-decisiones.md:38`.
-  - Se optó por `b2RopeJoint` porque no funcionó (es una barra rígida y empuja hacia afuera).
-- **Pegado por columnas de miel disuelta en el campo** — diseño propio del proyecto.
-  - Sumaba la miel `M` de las columnas del campo para pegar al robot (`stickOnHoneyColumns`).
-  - Se descartó en `docs/design/14-agua.md` (D11, #110).
-  - Se optó por miel inmiscible con pegado por partículas porque la miel se volvía agua (regresión).
+| Descartado | Autor | Se optó por | Motivo | Dónde se decidió | Para leer |
+|---|---|---|---|---|---|
+| **Escape de gotas con la velocidad de Bernoulli y `F = K w²`** | Daniel Bernoulli (1738) | La película de apriete (Stefan). | `K w²` es un artefacto del motor: 215 J en las gotas contra 77 J que bajó el cuerpo, hasta 16 m/s. | `docs/design/14-agua.md:300` | [Wikipedia](https://es.wikipedia.org/wiki/Principio_de_Bernoulli) |
+| **Dejar de recortar la gota apretada en el contorno inelástico** | — | El escape de la película de apriete. | La gota seguía sosteniendo al cuerpo como puntal. | `docs/design/14-agua.md:298` | — |
+| **Chorro en dos carriles (`lanes` = 2)** | — | Un carril con caudal al tope `speed/(1,5 r)`. | El chorro derivaba de costado y fallaba P2. | `docs/design/14-agua.md:366` | — |
+| **Arrastre del aire sobre la lluvia** | Isaac Newton | Soltar las gotas a `dropSpeed` constante. | Queda fuera de alcance (decisión del usuario: la lluvia rápida no es un problema). | `docs/design/14-agua.md:394`, `docs/design/14-agua.md:940` | [Wikipedia](https://es.wikipedia.org/wiki/Resistencia_aerodin%C3%A1mica) |
+| **Agua masiva del nivel en partículas (SPH de LiquidFun con `VISCOUS` y `STATIC_PRESSURE`)** | Google | El campo de alturas de Saint-Venant. | ~7,2 ms por frame, frente de rotura de presa a −70/−75 % de Ritter y pico de 33 m/s al arrancar. | `docs/design/14-agua.md:103`, `docs/design/14-agua.md:288` | [sitio oficial](https://google.github.io/liquidfun/) |
+| **Mundo de fluidos separado** | — | Un solo sistema líquido. | Fugas sobre ~13 m/s y empuje sin calibrar; innecesario sin agua en partículas. | `docs/design/12-decisiones.md:34` | — |
+| **Empuje aplicado en cada subpaso con un objeto falso en `stepWorld`** | — | Un impulso por paso (`F · dt`). | Depende de un detalle de RagImporter que no está en su contrato (el esquema funcionaba). | `docs/design/14-agua.md:270` | — |
+| **Offset fijo del buffer de contactos de LiquidFun** | — | Buscar y validar el offset al arrancar (`js/wallContact.js:96`). | Frágil: cambia con cada compilación del motor. | `docs/design/12-decisiones.md:34` | [sitio oficial](https://google.github.io/liquidfun/) |
+| **Reciclado de partículas por edad del motor (`destroyByAge`)** | Google | `destroyByAge: false` y un `ParticleStore` propio (`js/particleStore.js:30`). | Sin `lifetime` por partícula es indefinido y el build no expone `SetParticleLifetime`. | `docs/design/12-decisiones.md:24` | [sitio oficial](https://google.github.io/liquidfun/) |
+| **Grupos de partículas por pulsación o por paso** | Google | Partículas sueltas con crédito acumulado (`js/weapons.js:146`). | Se ven como balas que rebotan. | `docs/design/12-decisiones.md:22` | [sitio oficial](https://google.github.io/liquidfun/) |
+| **Pegar la miel con `BeginParticleBodyContact`** | Erin Catto | Una consulta geométrica por paso (`js/damage.js:145`). | Un robot quieto en el charco deja de recibir avisos. | `docs/design/12-decisiones.md:33` | [sitio oficial](https://box2d.org/) |
+| **Tensión superficial (`TENSILE`) en los disparos** | Google | Tensiones en 0 (`js/weapons.js:28`). | Causaba el rebote de las gotas y no daba cohesión física. | `docs/design/12-decisiones.md:31` | [sitio oficial](https://google.github.io/liquidfun/) |
+| **`b2DistanceJoint` para el gancho** | Erin Catto | `b2RopeJoint`. | Es una barra rígida y empuja hacia afuera. | `docs/design/12-decisiones.md:38` | [sitio oficial](https://box2d.org/) |
+| **Pegado por columnas de miel disuelta en el campo** | — | Miel inmiscible con pegado por partículas. | La miel se volvía agua (regresión). | `docs/design/14-agua.md` (D11, #110) | — |
+
+<hr>
+
+## Ejemplos de implementación
+
+### Control PD de articulaciones
+
+```js
+rate + clampAbs(pose.G * error - pose.D * (jointSpeed - rate), motor.maxSpeed)
+```
+
+### Flujo HLL
+
+```js
+gM = (sR * flM - sL * frM + sL * sR * (hRs - hLs)) * inv;
+```
