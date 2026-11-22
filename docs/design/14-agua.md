@@ -1,8 +1,8 @@
-# 14. Agua física: campo de alturas, disparos e intercambios 🔨 #62
+# 14. Agua física: campo de alturas, disparos e intercambios ✅ #62 (🔨 #76)
 
 Rediseño de los fluidos para que **se simulen** con su física y no se imiten con reglas de juego (pedido del usuario, 18/11). La dirección la eligió el usuario y no se reabre: campo de alturas con Saint-Venant 1D para el agua del nivel, partículas chicas de agua pura para los disparos, absorción de partículas en el campo, flotación de Arquímedes por pieza, térmica con fases, mezcla por concentración, adherencia, arranque asentado y herramientas de debug.
 
-- **Estado:** todo 🔨. Lo que está en `main` sigue descripto en [07-sph](07-sph.md) hasta que cada sub-issue se mergee.
+- **Estado:** ✅ en `main`: campo de alturas e inundación (#70, #71), flotación (#72), evaporación (#73), térmica y fases (#75), adherencia (#77), debug (estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos; #29) y los arreglos #98, #100 y #110. 🔨 sin hacer: mezcla por concentración (#76, no existe `js/mixing.js`), las capas de debug de temperatura, concentración y contactos (#78) y, de la reacción de los cuerpos sobre el agua (#74), la reacción vertical y la presión de casco.
 - **Relevamiento medido** (18/11, no versionado): scripts, tablas y videos en el scratchpad del issue. Acá se citan los números usados.
 - **Restricciones:** `lib/` no se toca (`stepWorld` sigue con 8 subpasos para los ragdolls); render en Canvas2D, sin WebGL propio; el código no se comenta (solo JSDoc).
 - **Cada parte** tiene variables con unidades, ecuaciones, módulo, qué reemplaza y criterios físicos ([14.16](#1416-criterios-de-aceptación)). `physics-analyst` aprueba el diseño antes de implementar y valida cada resultado sobre video.
@@ -264,7 +264,7 @@ Acople partícula ↔ campo, una vez por paso, después de `stepWorld` y `store.
   | H₂SO₄ (#98) | `SG · σ_w · A_p · species.H2SO4` del material de la partícula (`material.species.H2SO4`, 0 si no está): 8,16·10⁻³ kg por partícula de ácido (de 0,102 kg), 0 en el agua y la lluvia. Sale de `MATERIALS`, sin columna nueva en `KIND_MATERIAL` | kg |
 
 - **Volumen por partícula:** `A_p / dx` = **0,081 m** (0,32 m con `r` = 0,12) de altura de agua si cae entera en una celda (repartida entre dos celdas, menos en cada una). Una gota es un montículo de ese tamaño, que el campo reparte como dos ondas.
-- **Cantidad de movimiento vertical:** el modelo hidrostático no la resuelve, y **no genera ola**. Se transfiere al lecho como impulso de presión y se registra en el debug. La **salpicadura es la ola** que genera el volumen agregado: dos frentes a ±√(g h).
+- **Cantidad de movimiento vertical:** el modelo hidrostático no la resuelve, y **no genera ola**. Se transfiere al lecho como impulso de presión y se registra en el debug. La **salpicadura de una gota** es la ola que genera el volumen agregado: dos frentes a ±√(g h). La salpicadura que levanta un cuerpo al entrar es de partículas: sale del campo y vuelve por esta misma absorción ([14.5](#salpicaduras-del-campo-a-partículas-244)).
 - **Evaporación previa** ([14.7b](#147b-evaporación-de-agua-detenida-d7)): si la partícula ya se evaporó en parte (fracción `φ`), deposita `A_p (1 − φ)` de volumen y la masa, la cantidad de movimiento y la energía en la misma proporción.
 - Después de depositar, `store.destroy(i)`.
 - **Ácido** (#98): se absorbe como cualquier miscible (volumen `A_p`, cantidad de movimiento con su `SG`, energía como hoy) y **conserva su identidad**: su H₂SO₄ entra en `A` con la fila de arriba. Deja de dañar como partícula; la columna no daña ([14.3](#ecuaciones)). Con la evaporación de #73, deposita `A_p (1 − φ)` y su H₂SO₄ también por `(1 − φ)`, porque D7 evapora la partícula entera (limitación de [15.5](15-quimica.md#155-lo-que-el-modelo-actual-no-representa), punto 15: en la realidad queda el H₂SO₄).
@@ -325,6 +325,16 @@ Sin este término, el robot flota, pero el agua no lo siente entrar: no hay ola 
 - **Piezas totalmente sumergidas:** su `d` se apaga linealmente cuando el tope de la pieza queda a más de 0,1 m bajo la superficie. Una pieza profunda no deprime la superficie. Su desplazamiento sube el nivel medio solo `A/W` (el robot entero en la pileta: 1,08/20 = 5 cm), que se ignora.
 - **Recorte de la flotación** contra `ζ = η + d`, la superficie de presión, que en equilibrio es plana.
 - **Riesgo:** el acople implícito entre `d` y `η` puede oscilar. Si no cumple el criterio B5, se recorta a M5 y queda solo la reacción horizontal del arrastre.
+
+### Salpicaduras del campo a partículas (#244)
+
+Las dispara **solo un cuerpo Box2D**, desde `js/buoyancy.js` (nunca las gotas): una pieza que perfora la superficie en una franja con velocidad normal `v_n < 0` y `Fr = v_n²/(g ℓ) > 1` (`ℓ`, ancho mojado de la franja). Se encolan durante `apply` y se crean después de `stepWorld` (`releaseSplashes`, patrón "juntar y actuar después"), como `ORIGIN.SPLASH`.
+
+- **Cantidad, acotada por energía:** `n = ⌊(ε W + resto) / (½ m_p v_p²)⌋`, con `W = −J·v_r` el trabajo del arrastre de la franja en el paso, `m_p = σ_w A_p`, el `resto` acarreado por columna y un tope para que la columna no baje de `h_min`. **`ε` = 0,08**, aproximación declarada (aprobada por el usuario; rango 5–10 %: la fracción del trabajo del arrastre que se vuelve energía cinética de las gotas).
+- **Velocidad:** `|v_p| = v_n`, a 60° ± 10° de la horizontal, hacia afuera del centro de la pieza, con el azar de `?seed`. Cada gota sale desde el borde mojado de la franja, a 2 r sobre la superficie que tenía la columna, separadas `1,5 r` sobre su rayo.
+- **Libro exacto:** `h[c] −= n A_p/dx`, `q[c] −= Σ A_p v_x/dx` y `E[c] −= (n A_p/dx) E[c]/h[c]`, con la entalpía de la gota a esa misma `T`. El impulso vertical lanzado `Σ σ_w A_p v_y` no supera `|J_y|` de la franja (tope por construcción; `stats.splash` lo lleva).
+- **Solo agua:** no salpica desde columnas con miel ≥ 1 % ni ácido ≥ 0,5 % (límite declarado).
+- Al volver, las gotas se absorben como cualquiera ([14.4](#144-absorción-e-inmersión)).
 
 ## 14.6 Disparos con agua pura
 
@@ -484,6 +494,7 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
   - mezcla en ebullición entre `e_l` y `e_v = e_l + L_v` (`T` = 100 °C; título `x = (e − e_l)/L_v`);
   - vapor, `T = 100 + (e − e_v)/c_v`;
   - lava/piedra: sólido hasta `e_s = c_p · 1000`, fusión entre `e_s` y `e_s + L_f`, y líquido por encima.
+- **Ácido en partícula (#112, límite declarado):** una partícula de ácido no pasa a `STEAM`, porque su masa de agua no coincide con la de una partícula de vapor y rompería I1. Al llegar a `e_l` queda a 100 °C y acumula el latente como título en su entalpía, sin emitir vapor (la energía se conserva). El ácido en el campo sí hierve su agua y deja el H₂SO₄ en `A`. La ebullición de la partícula con residuo queda para un issue de M5.
 - **Cambio de fase con histéresis natural:** el agua pasa a `STEAM` cuando `e ≥ e_v` y vuelve a `WATER` cuando `e ≤ e_l`; la lava pasa a `STONE` cuando `e ≤ e_s`. La masa de la partícula no cambia, y la energía se conserva por construcción.
 - **Intercambio entre vecinas** por el buffer de contactos, para cada par vivo `(a, b)` con peso `w`:
   - el calor `Q_ab = K_ab · w · (T_b − T_a)` (W) se aplica como `e_a += Q dt/m_a` y `e_b −= Q dt/m_b`, una suma de pares antisimétrica que conserva la energía;
@@ -495,8 +506,8 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
   - vapor, por arrastre de aire de la pluma (hipótesis de *entrainment* de Morton, Taylor y Turner, 1956): `Q = λ m c_v (T − T_a)`, con `λ = 2 α w / R` (térmico lineal 2D):
     - `α` = 0,10 es el coeficiente de arrastre de aire de Morton–Taylor–Turner (rango de la literatura 0,07–0,13);
     - `w` es la velocidad de ascenso de la parcela;
-    - `R = √(ρ_w A_p / (π ρ_s))` ≈ 4,1 m es el radio del volumen real de vapor que representa la parcela (1.600 veces `A_p`).
-    - Con `w` = 1,35 m/s (`r` = 0,12) daba `λ` ≈ 0,066 1/s (τ ≈ 15 s); con `w` = 0,95 m/s, `λ` ≈ 0,046 1/s (τ ≈ 21 s), con el mismo `R`. Criterio T9.
+    - `R = √(ρ_w A_p / (π ρ_s))` ≈ 2,1 m con `r` = 0,06 (4,1 m con 0,12; escala con `r`) es el radio del volumen real de vapor que representa la parcela (1.600 veces `A_p`).
+    - Con `w` = 1,35 m/s (`r` = 0,12) daba `λ` ≈ 0,066 1/s (τ ≈ 15 s); con `w` = 0,95 m/s y `r` = 0,06, `λ` ≈ 0,092 1/s (τ ≈ 11 s): media condensación a ~73 m de altura. Criterio T9.
 - **Dinámica del vapor en el aire:** el motor aplica −g. Se suma el empuje del aire `+g ρ_a/ρ_s` y el arrastre cuadrático en aire, `½ ρ_a C_d D |v| v / (ρ_s A_p)`, integrado en forma exacta. Velocidad terminal resultante: `v_t = √(2 g (ρ_a − ρ_s) A_p / (ρ_a C_d D))` = **0,95 m/s** hacia arriba con `r` = 0,06 (1,35 m/s con `r` = 0,12; escala con `√r`). **Límite:** una partícula de vapor es una parcela que lleva la masa de agua de la que vino. Su volumen dibujado no está a escala (el vapor real ocuparía 1.600 veces más). Queda documentado.
 - **Piedra:** al solidificar, `SetParticleFlags(i, POWDER)` (granular, sin cohesión: cae y se apila con su `SG`). Cuando queda en reposo (|v| < 0,05 m/s durante 0,5 s), `SetParticleFlags(i, WALL)`, inmóvil (*verificado* en ejecución en el relevamiento `H`: la piedra con `WALL` quedó en 0,00 m/s). `POWDER` (1 << 6, de `b2Particle.h`) está *por verificar* en ejecución.
 
@@ -513,9 +524,13 @@ Decisión del usuario D7: las gotas y charcos que no llegan al campo (plataforma
 
 La térmica escribe el color de las partículas según `T` y fase (agua que se calienta, lava que se oscurece, piedra gris, vapor blanco), como en el relevamiento. El dibujo no cambia; el color ya no identifica el material.
 
-### Expectativa física (decidido, [D3](#1418-decisiones-del-usuario): tiempos reales, sin escalar)
+### Tiempo de juego (#186, reemplaza D3 desde el 20/11)
 
-Con `h_b` = 500 W/(m²·K), una partícula de lava de 0,12 m (`r` = 0,06) tarda **~1,25 min** en solidificar en el agua (2,5 min con la de 0,24 m; el modelo concentrado escala con `A_p / P ∝ r`; la costra real se forma en segundos, pero el interior sigue fundido). Un tanque de lava entero (180 partículas, ~45 kg, 1.150 °C) calienta la pileta (60 m², 720 kg) unos 27 K: hierve localmente en las columnas donde se junta la lava, no toda la pileta. Las "plataformas de piedra temporales" de #30 no aparecen en el tiempo de una ronda con valores reales.
+Decisión del usuario: la física tiene que ser correcta pero **gamificada**, porque con tiempos reales nada se veía en una ronda de menos de un minuto. Un factor nombrado, `THERMAL.timeScale` (≈ 25), multiplica todos los coeficientes de intercambio de calor (contactos, lava sumergida con su columna, pérdidas de lava y piedra al aire). La masa, la energía y los cocientes se conservan, y solo cambia el reloj. La lava sumergida emite vapor por ebullición en película aunque la columna esté subenfriada, y la burbuja condensa en el agua con un tiempo propio. **Contacto lava–agua (decisión del usuario, 20/11):** el agua que toca lava o piedra a más de 100 °C hierve al contacto y la lava se vuelve piedra a la vez. Es el contraataque del agua. Con `timeScale` solo, una partícula de agua tardaba ~30 s en hervir. Un segundo factor nombrado, `THERMAL.quenchScale`, multiplica únicamente el intercambio entre basalto caliente y agua o ácido (partículas y columna), elegido para que una partícula de agua en contacto hierva en ≤ 0,1 s (~8.000 veces `h_b` real). Lo reparte la energía: ~1,5 partículas de agua por cada partícula de lava que se solidifica. El vapor condensa también sobre cuerpos fríos (techo, paredes, plataformas, robots), tomados como reservorio a temperatura ambiente con `h_c` de la piedra fría por `quenchScale`, y gotea. En el aire se disipa con `plumeScale` = 30, porque lo que domina es el latente. Los tests físicos corren en tiempo real (factores en 1) y el juego pasa `THERMAL.game`. Metas: vapor al primer contacto lava–agua (≤ 0,1 s), lava que cae en la pileta convertida en piedra mientras larga vapor, piedra en 8–12 s en el aire, y vapor que desaparece en 3–6 s. Los números de abajo son los de tiempo real, sin el factor.
+
+### Expectativa física (tiempo real, sin el factor de #186)
+
+Con `h_b` = 500 W/(m²·K), una partícula de lava de 0,12 m (`r` = 0,06) tarda **~1,25 min** en solidificar en el agua (2,5 min con la de 0,24 m; el modelo concentrado escala con `A_p / P ∝ r`; la costra real se forma en segundos, pero el interior sigue fundido). Un tanque de lava entero (180 partículas, ~45 kg, 1.150 °C) calienta la pileta (60 m², 720 kg) unos 23 K (cota por energía con c de la piedra 1.000 J/(kg·K)): hierve localmente en las columnas donde se junta la lava, no toda la pileta. Las "plataformas de piedra temporales" de #30 no aparecen en el tiempo de una ronda con valores reales.
 
 ### Qué reemplaza
 
@@ -539,17 +554,14 @@ El diseño de reacciones de #30 ([04-fluidos §4.4](04-fluidos.md#44-reacciones-
 
 ## 14.10 Adherencia
 
-**Módulo nuevo `js/adhesion.js`.** Usa `js/bodyShapes.js` y `store`.
+**`js/adhesion.js`** ✅ (#77, rehecho en #214). Película viscosa entre la miel y **todo** cuerpo del mundo (robots, techo, paredes, plataformas): estático, cinemático (usa su velocidad, no recibe impulso) o dinámico (recibe el impulso opuesto, así que se conserva la cantidad de movimiento). Solo actúa sobre partículas con miel (`X > 0`): con la `μ` del agua o del ácido el efecto es despreciable.
 
-- **Detección por cercanía:** `GetBodyContacts` no alcanza, porque las partículas en reposo quedan a ~1,65 radios y el build no expone el conteo (*verificado*). Las partículas a menos de `δ_max` = `2 r` de la superficie de una pieza (distancia punto-polígono en JS, filtrada por las cajas de `fixtureBoxes()`) forman una película.
-- **Fuerza viscosa de película** sobre la velocidad relativa en el punto más cercano, `v_r = v_p − v_cuerpo(punto)`:
-  - **tangencial:** esfuerzo de corte de película `τ = μ(X) v_t / δ`, con `δ` la distancia a la superficie (acotada a ≥ 0,25 r);
-  - **normal**, solo al separarse: resistencia viscosa a la separación (adhesión de Stefan), con el mismo `μ(X)/δ` y un factor geométrico dato.
-  - El impulso sobre la partícula se integra en forma exacta (no invierte `v_r`). El impulso opuesto va al cuerpo (`ApplyLinearImpulse` en el punto, con vectores de trabajo reutilizados), así que la cantidad de movimiento se conserva.
-- **Escala:** con `μ_agua` el efecto es nulo (el agua no se pega); con la miel, la película escurre por una pared y frena a un cuerpo que la atraviesa. Relevamiento `J`: la miel escurre a ~0,2 m/s, y una caja que entra a 6 m/s en miel queda en 0,87 m/s a los 0,5 s, contra 3,47 m/s en agua (con constantes no calibradas).
-- **Calibración:** se usa `μ_miel` = 10 Pa·s, sin ajustarla, y un factor geométrico nombrado `filmFactor` (`MATERIALS.honey.filmFactor`) para la película. El factor se **mide**: se ajusta en un escenario de corte de Couette (una placa que se desliza sobre una capa de miel de espesor conocido, esfuerzo `τ = μ v / δ`) y se valida en otro escenario independiente, el escurrido por una pared (A2). No se calibra con M3, que mide otra cosa (la viscosidad de LiquidFun entre partículas).
-- **Qué reemplaza** (decidido, [D4](#1418-decisiones-del-usuario)): `DamageSystem.stickHoney` y la regla de juego `STICKY` de #41 (estado `pegado` con velocidad ×0,1) **se retiran en este sub-issue (#77)**, cuando cumple A1–A2. Hasta entonces sigue el temporizador actual con la regla de partículas de #41 (`store.kind`, cajas agrandadas `2 r`). **#110 retira la consulta de columnas** (`stickOnHoneyColumns` y `HONEY_COLUMN_FRACTION` en `js/damage.js`, `X_v ≥ 0,5` bajo el robot): existía porque la miel absorbida dejaba de ser partícula, y desde #110 la miel siempre es partícula (también en el fondo del agua y sobre las islas). Con eso `DamageSystem.water` queda sin uso (*verificado leyendo* `js/damage.js`: solo lo usa esa consulta) y se quita, junto con su asignación en `index.html`.
-
+- **Aproximación declarada:** la miel usa una viscosidad efectiva `μ_ef = F · μ` con `F` = `MATERIALS.honey.viscosityScale` = 100, en todos lados (miel–cuerpo y miel–miel; `mixtureViscosity(X)` usa la `μ_ef` de la miel). Es una similitud viscosa-gravitatoria: con partículas de 9 cm la miel real escurre y se desprende en ~0,02 s, y `F = 100` iguala a esa escala los tiempos de escurrido y de desprendimiento de una película real de 2–3 mm (Rayleigh–Taylor de película, Fermigier et al., 1992).
+- **Charco de varias capas (#214):** contra un cuerpo no dinámico, una partícula que tiene una vecina de miel del lado opuesto a la pared (dirección a la vecina · `n` > 0,2) usa la `μ` real en `k_t` y `k_n`. La similitud `F` reemplaza a una película de una sola partícula de espesor; cuando hay varias capas, la profundidad ya está resuelta por las partículas. Con `μ_ef` el charco quedaba soldado al piso y hacía de bloque rígido que sostenía al robot (pie a 0,07 m del piso, sin apoyo caminando). Con la `μ` real fluye bajo el pie: el robot pisa el piso, camina por la miel a una velocidad parecida a la del agua (la física espera 0,84–1 veces la del agua) y un chorro de miel empuja al rival en vez de clavarlo al piso.
+- **Se corre por subpaso** como pseudo-instancia de `stepWorld` (`update(substep)`), después de `wallContact`, con los contactos partícula–cuerpo de LiquidFun (`js/contacts.js`) y la integración exacta `v_r ← v_r exp(−k dt Σ inv)`. Se saltea a las partículas con escape lateral de `wallContact` en ese subpaso. Con `b = σ_w/ρ_w`: tangencial `k_t = 2 μ_ef b` (Couette sobre media capa); normal, solo al separarse, `k_n = 3 μ_ef b` (Trouton cohesivo).
+- **Puente de miel:** LiquidFun solo reporta contacto a menos de `2 r` y empuja a la partícula hasta ahí, así que una partícula que se despega salía del rango en ~0,2 s. Al llegar a un cuerpo (`v_r·n ≤ 0`; la que sale disparada del arma no se engancha), la partícula guarda por slot el cuerpo, el anclaje `q` y la normal en coordenadas locales, y la película sigue actuando aunque no haya contacto. Se corta a `(p − q)·n > 2 r + d` (el hilo se estiró un diámetro más allá del contacto), al morir la partícula o cuando `wallContact` descarta los contactos. Colgada del techo, una capa tarda ≈ 2,3 s en soltarse; en una pared baja a `W/k_t` ≈ 5,8 cm/s.
+- **Hilos miel–miel:** viscosidad entre pares de miel con `k = 3 μ_ef b · w/w⁰` sobre los contactos partícula–partícula, por paso, en `js/viscosity.js` (reemplaza el flag `VISCOUS` de LiquidFun, que a esta `μ` es inestable). La miel sale con `rate` 200 y `tank` 304 (mismo tiempo de fuego), para que las partículas del chorro se toquen (separación ≤ 1,5 r).
+- **Qué reemplaza** (decidido, [D4](#1418-decisiones-del-usuario)): `DamageSystem.stickHoney` y la regla de juego `STICKY` de #41 se retiraron en #77 ✅ (también `stickyTimer`, `stick()`, `sticky` y el parpadeo ámbar de `render.js`). **#110 retira la consulta de columnas** (`stickOnHoneyColumns` y `HONEY_COLUMN_FRACTION` en `js/damage.js`): desde #110 la miel siempre es partícula. `DamageSystem.water` queda sin uso y se quita.
 ## 14.11 Arranque asentado
 
 - **Agua del nivel:** el lago en reposo es solución exacta del esquema *well-balanced* ([14.3](#paso-estabilidad-y-bordes)), así que no hace falta asentar nada (criterio W2).
@@ -567,7 +579,7 @@ El diseño de reacciones de #30 ([04-fluidos §4.4](04-fluidos.md#44-reacciones-
 
 ## 14.12 Herramientas de debug
 
-**Módulo nuevo `js/debug.js`**, que integra el panel de métricas de #29. Es una herramienta de desarrollo, no una mecánica: se conmuta con teclado (F3 el panel, F4 el modo de capa) y con L3 + R3 en el gamepad (juntos encienden y apagan el panel; mantenidos 1 s pasan a la capa siguiente). El atajo anterior, Select + LB, chocaba con la pausa y la rueda ([10.5](10-controles.md#105-debug)). No viola "gamepad primero" porque no es una mecánica.
+**Módulo nuevo `js/debug.js`**, que integra el panel de métricas de #29. Es una herramienta de desarrollo, no una mecánica: se abre con un solo botón (F3, o L3 + R3 juntos en el gamepad), que muestra un menú con las estadísticas, el modo de dibujo de los fluidos y cada capa de vectores por separado ([10.5](10-controles.md#105-debug)). No viola "gamepad primero" porque no es una mecánica.
 
 - **Panel:** partículas por material y por origen, slots libres y pendientes, offset del buffer de contactos, ms por subsistema (`flood`, `buoyancy`, `stepWorld`, `immersion`, `thermal`, `mixing`, `adhesion`, `water`, `damage` y el render de fluidos), subpasos CFL del campo y FPS.
 - **Monitores de conservación:** volumen de agua (columnas + partículas · `A_p (1 − φ)` + evaporado + vapor), pérdidas por fricción y por el `q` = 0 de las celdas secas, activaciones del tope de subpasos y repeticiones con `dt/2`, energía (`Σ m (1 − φ) e` + `Σ m φ e_v` + `Σ E` + `E_perdida`) y miel (`Σ m X` + `Σ ρ_miel M dx`), con su deriva desde el inicio de la ronda.
@@ -645,7 +657,7 @@ Los sistemas reciben `water` y `store` por constructor desde la raíz de composi
 | Preset de los disparos (`TENSILE`, `pressureStrength` 0,005) | `weapons.js` | Agua pura | #69 |
 | ✅ `STATIC_PRESSURE` y fuerzas del agua del nivel (`LEVEL.pool.flags`/`.physics`) | `level.js` | Campo de alturas | #71 |
 | `stickOnHoneyColumns`, `HONEY_COLUMN_FRACTION` y `DamageSystem.water` (pegado por columnas con `X_v ≥ 0,5`) | `damage.js`, `index.html` | Regla de partículas de #41 (la miel siempre es partícula, D11) | #110 |
-| `stickHoney` y `STICKY` | `damage.js`, `ActiveRagdoll.js` | Adherencia y arrastre (D4) | #77 |
+| ✅ `stickHoney` y `STICKY` | `damage.js`, `ActiveRagdoll.js` | Adherencia y arrastre (D4) | #77 |
 | Tests `water-gap`, `immersion` (puente), bancos 2 y 3 de `fluid-feel` y los de densidad de `flood` | `tests/` | Criterios W, F, I y P | Cada uno en su sub-issue |
 
 ## 14.15 Verificaciones contra LiquidFun y el binding
@@ -766,7 +778,7 @@ Para `physics-analyst`. Cada criterio tiene referencia, valor esperado y toleran
 | F9 | Arrastre de presión por arista: caja y círculo arrastrados a velocidad fija en agua quieta (sin campo de velocidad) | `F = ½ ρ C_d D_proy v² b` con `C_d` caja 2,0 y círculo 1,2 | Según datos | ±10 % |
 | F7 | `world.GetAutoClearForces()` es `true` | Supuesto de impulsos | `true` | — |
 
-### B. Reacción de los cuerpos sobre el agua (#74, recortable)
+### B. Reacción de los cuerpos sobre el agua (#74, recortable) 🔨 parcial: están la reacción horizontal del arrastre y las salpicaduras; faltan la reacción vertical y la presión de casco
 
 | Id | Criterio | Referencia | Esperado | Tolerancia |
 |---|---|---|---|---|
@@ -893,7 +905,7 @@ Son los criterios A1–A5 del issue, con otra letra porque A es la adherencia (#
 | E3 | Volumen total con evaporación, 60 s | Conservación: `Σ m (1 − φ)` + campo + evaporado = inicial | Constante | < 10⁻⁶ |
 | E4 | Lluvia y chorros en vuelo (\|v\| ≥ 1 m/s) | Regla de aplicación | `φ` no aumenta mientras \|v\| ≥ 1 m/s (dφ = 0 en vuelo); la lluvia y los chorros que llegan al campo sin haberse detenido llegan con `φ` = 0 | 0 partículas con dφ > 0 en vuelo |
 
-### D. Debug (#29 y #78)
+### D. Debug (#29 ✅ y #78 🔨: estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos ✅; capas de temperatura, concentración y contactos 🔨 #78)
 
 | Id | Criterio | Esperado |
 |---|---|---|
@@ -1021,11 +1033,11 @@ Las letras del primer borrador (A, B, C, D1, D2, F, K1, E, G, H, I, J, K2) queda
 | #72 | Flotación de Arquímedes por pieza | #71 | M3 | Sí |
 | #29 | Debug básico (panel, columnas, conservación, empuje) | #71 | M3 | No (recomendado) |
 | #73 | Evaporación de agua detenida (D7) y lector de contactos `contacts.js` | #68, #71 | M4 | No (si no llega, D5 vence a los 6 s todos los disparos en plataformas) |
-| #74 | Reacción de los cuerpos sobre el agua | #72 | M4 | No (recortable a M5) |
+| #74 🔨 | Reacción de los cuerpos sobre el agua (parcial: reacción horizontal del arrastre y salpicaduras ✅; reacción vertical y presión de casco 🔨) | #72 | M4 | No (recortable a M5) |
 | #75 | Térmica y fases | #73 | M4 | No (recortable a M5) |
 | #76 | Mezcla por concentración y viscosidad | #75 | M5 | No |
 | #77 | Adherencia con reacción (retira `STICKY`) | #76, #72 | M5 | No |
-| #78 | Debug completo (temperatura, concentración, contactos, vectores) | #75 | M5 | No |
+| #78 🔨 | Debug completo (vectores ✅; temperatura, concentración y contactos 🔨) | #75 | M5 | No |
 
 **Alcance de #69:** `SHOT_SYSTEM` nuevo (radio 0,12 m, `density` 12,0, damping 0,5, presión 0,1, sin tensiones, `maxCount` 3.000, `destroyByAge` `false`, flags 0 en agua, ácido y lava); en `WEAPONS`, los caudales y tanques de D2 con las velocidades actuales, sin `TENSILE`; emisión en un carril con la regla `rate ≤ speed/(1,5 r)` verificada por test; criterios P1–P6. El agua del nivel y su `STATIC_PRESSURE` **no** se tocan en #69: se borran en #71.
 
@@ -1045,7 +1057,7 @@ Las letras del primer borrador (A, B, C, D1, D2, F, K1, E, G, H, I, J, K2) queda
 
 **Alcance de #110** (bug, [D11](#1418-decisiones-del-usuario)): la miel inmiscible con el campo.
 - `MATERIALS.honey`: `miscible: false` y `Cd: 1.2`, y su docstring. Sin lógica nueva en `Immersion` ([14.4](#144-absorción-e-inmersión)).
-- Se retira el pegado por columnas (`stickOnHoneyColumns`, `HONEY_COLUMN_FRACTION`, `DamageSystem.water` y su asignación en `index.html`); el pegado sigue con la regla de partículas de #41 hasta #77 ([14.10](#1410-adherencia)).
+- Se retira el pegado por columnas (`stickOnHoneyColumns`, `HONEY_COLUMN_FRACTION`, `DamageSystem.water` y su asignación en `index.html`); el pegado por la regla de partículas de #41 se retiró después en #77 ✅ ([14.10](#1410-adherencia)).
 - `M` del campo se conserva sin fuente ([14.9](#149-mezcla-por-concentración-y-viscosidad)); desde #160 la miel disparada no tiene tope propio.
 - Sin cambios en `js/render.js` ni en `js/water.js`.
 - Criterios H1–H6 ([14.16](#h-miel-inmiscible-en-el-campo-110)); se quitan los `todo` de U2, I3f miel y `PERSIST_CAP`, y el motivo `#110` de I1, I2b e I3f agua.
@@ -1079,7 +1091,7 @@ Decididas por el usuario (18/11). Ninguna bloquea ya a un sub-issue. D7 llegó c
 | D1 | Flotación de los robots | **Neutra:** `σ_w` = 12,0 kg/m², sin tocar las masas del rig | Espesor equivalente de 12,0 mm; robot con gravedad específica 1,00; partícula de agua de 0,0972 kg con `r` = 0,06 (D10; 0,389 kg con 0,12); criterios F4 y F4b ([14.1](#141-unidades-rebanada-2d-y-materiales)) |
 | D2 | Empuje del chorro | **Revisada (18/11):** densidad física (`σ_w` = 12,0) y empuje balanceado bajando el caudal; la primera versión (caudal y velocidad actuales, 544 N) se descartó | Velocidades conservadas. Con `r` = 0,12: caudales a la mitad, agua 50/s → 272 N, ácido 45/s → 245 N, lava 30/s → 117 N, miel 25/s → 175 N. **Desde D10** (`r` = 0,06), caudal al tope de un carril: agua 155/s → 210,9 N (1,6 veces el peso del robot), ácido 155/s → 210,9 N, lava 111/s → 107,9 N, miel 100/s → 175 N; tanques 600/272/180/152; un solo carril; criterios P2, P2b y P5 ([14.6](#146-disparos-con-agua-pura)) |
 | D3 | Tiempos térmicos | **Reales, sin escalar** | La lava tarda ~1,25 min en solidificar en el agua con `r` = 0,06 (~2,5 min con 0,12); no hay plataformas de piedra temporales dentro de una ronda ([14.8](#148-térmica-y-fases)) |
-| D4 | Miel pegajosa | **Se retira el estado `pegado`** cuando llegue la adherencia (#77); hasta entonces sigue el temporizador actual de #41 | [14.10](#1410-adherencia) |
+| D4 | Miel pegajosa | **Se retiró el estado `pegado`** con la adherencia (#77 ✅) | [14.10](#1410-adherencia) |
 | D5 | Charcos en plataformas | **Desde #160 no vencen**: las partículas ya no desaparecen solas; solo se recortan las más viejas por debajo de 50 fps sostenidos (`PERF`). Los del piso se absorben en el campo y D7 evapora el agua y el ácido detenidos | [14.4](#144-absorción-e-inmersión) |
 | D6 | Reglas de la pileta | **Se mantienen:** el sensor mata y la pileta no moja antes de la inundación | [14.5](#145-flotación-de-arquímedes-por-pieza) |
 | D7 | Lluvia y gotas sobre plataformas | Siguen como partículas: escurren por física, se juntan y se absorben si llegan al campo. **Se evaporan** con una tasa proporcional a su superficie expuesta (fracción del contorno sin vecinas), acelerada respecto de la real con un factor nombrado; el volumen evaporado entra en los monitores | Modelo, módulo y criterios en [14.7b](#147b-evaporación-de-agua-detenida-d7) (`F_evap` = 3·10⁵, gota expuesta 4,8 s con `r` = 0,12 y ~2,4 s con 0,06; E1–E4). **Reemplaza a D5 para el agua y el ácido:** es un modelo físico aproximado, con un factor nombrado, en lugar de una desaparición por reloj; trata igual a la lluvia y a los disparos; un charco grande dura más que una gota, como se pidió; y el tope de `maxCount` sigue protegiendo el presupuesto. D5 queda como respaldo si #73 no llega |

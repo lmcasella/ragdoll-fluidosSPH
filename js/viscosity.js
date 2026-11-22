@@ -1,8 +1,12 @@
 import { MATERIALS, SIGMA_W } from "./materials.js";
 import { FLUID } from "./weapons.js";
+import { mixtureViscosity } from "./adhesion.js";
 
 const STATIC = 0;
 const DYNAMIC = 2;
+
+/** Coeficiente de Trouton del hilo de miel: la viscosidad elongacional de un fluido newtoniano en 2D es `3 μ`. */
+const HONEY_TROUTON = 3;
 
 /**
  * Pesos de contacto de reposo de LiquidFun (medidos una vez en banco con la lava de `SHOT_SYSTEM`, radio 0,06 m, en
@@ -28,8 +32,13 @@ export const BODY_REST_WEIGHT = 0.0601;
  * Una vez por paso fijo, después de `thermal.step`: usa sus temperaturas por índice y sus contactos. Si la térmica
  * está desactivada, el módulo se desactiva también (`stats.enabled` en falso).
  *
- * `stats`: `enabled`, `pairs` (pares con viscosidad en el último paso), `bodies` (contactos con cuerpos) y
- * `maxMu` (la mayor `μ` aplicada, Pa·s).
+ * Hilos de miel (#214): entre dos partículas de miel en contacto actúa `k = 3 μ_ef b (w / w⁰)`, con `μ_ef` la viscosidad
+ * efectiva de `MATERIALS.honey` (`mixtureViscosity(1)`, similitud viscosa-gravitatoria) y el coeficiente 3 de Trouton, y
+ * se integra con la misma forma exacta. Reemplaza al flag `VISCOUS` de LiquidFun, que con esta `μ` es inestable por ser
+ * explícito.
+ *
+ * `stats`: `enabled`, `pairs` (pares con viscosidad en el último paso), `bodies` (contactos con cuerpos),
+ * `honeyPairs` (pares de miel) y `maxMu` (la mayor `μ` de lava aplicada, Pa·s).
  */
 export class Viscosity {
     constructor(system, store, thermal) {
@@ -38,6 +47,8 @@ export class Viscosity {
         this.thermal = thermal;
         const diameter = 1.5 * system.GetRadius();
         this.mass = MATERIALS.lava.SG * SIGMA_W * diameter * diameter;
+        this.honeyMass = MATERIALS.honey.SG * SIGMA_W * diameter * diameter;
+        this.honeyK = HONEY_TROUTON * mixtureViscosity(1) * thermal.thickness;
         this.thickness = thermal.thickness;
         this.point = new Box2D.b2Vec2(0, 0);
         this.impulse = new Box2D.b2Vec2(0, 0);
@@ -46,7 +57,7 @@ export class Viscosity {
 
     /** Pone en cero las estadísticas. */
     reset() {
-        this.stats = { enabled: true, pairs: 0, bodies: 0, maxMu: 0 };
+        this.stats = { enabled: true, pairs: 0, bodies: 0, honeyPairs: 0, maxMu: 0 };
     }
 
     /** Libera los vectores nativos de trabajo. */
@@ -66,6 +77,7 @@ export class Viscosity {
         const { thermal, stats } = this;
         stats.pairs = 0;
         stats.bodies = 0;
+        stats.honeyPairs = 0;
         stats.maxMu = 0;
         stats.enabled = thermal.stats.enabled;
         if (!stats.enabled) return;
@@ -83,6 +95,7 @@ export class Viscosity {
         const heap = Box2D.HEAPF32;
         const lava = FLUID.LAVA;
         const stone = FLUID.STONE;
+        const honey = FLUID.HONEY;
         const m = this.mass;
         for (let c = 0; c < thermal.stats.pairs; c++) {
             const a = pairA[c];
@@ -92,6 +105,10 @@ export class Viscosity {
             if (sa < 0 || sb < 0) continue;
             const ka = thermal.kindOf[a];
             const kb = thermal.kindOf[b];
+            if (ka === honey && kb === honey) {
+                this.honeyPair(a, b, pairW[c], vel, dt);
+                continue;
+            }
             if (!((ka === lava && (kb === lava || kb === stone)) || (kb === lava && ka === stone))) continue;
             const mu = this.mu(0.5 * (thermal.temp[a] + thermal.temp[b]));
             const wallA = thermal.walled[sa] === 1;
@@ -115,6 +132,24 @@ export class Viscosity {
             stats.pairs++;
             if (mu > stats.maxMu) stats.maxMu = mu;
         }
+    }
+
+    /** Hilo de miel entre las partículas `a` y `b` con peso de contacto `w`: viscosidad exacta, conserva la cantidad de movimiento. */
+    honeyPair(a, b, w, vel, dt) {
+        const heap = Box2D.HEAPF32;
+        const m = this.honeyMass;
+        const inverse = 2 / m;
+        const k = (this.honeyK * w) / PAIR_REST_WEIGHT;
+        const factor = 1 - Math.exp(-k * dt * inverse);
+        const dvx = heap[vel + 2 * b] - heap[vel + 2 * a];
+        const dvy = heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1];
+        const jx = (factor * dvx) / inverse;
+        const jy = (factor * dvy) / inverse;
+        heap[vel + 2 * a] += jx / m;
+        heap[vel + 2 * a + 1] += jy / m;
+        heap[vel + 2 * b] -= jx / m;
+        heap[vel + 2 * b + 1] -= jy / m;
+        this.stats.honeyPairs++;
     }
 
     /** Lava contra los cuerpos: no deslizamiento con la velocidad del cuerpo en el punto, con reacción sobre el cuerpo dinámico. */

@@ -1,12 +1,12 @@
 // Daño por contactos. Un único JSContactListener del mundo (RagImporter no lo usa):
 //  - BeginContact: impactos entre cuerpos; la velocidad de acercamiento se mide sobre la normal del contacto.
 //  - BeginParticleBodyContact: cada partícula informa qué parte del cuerpo tocó (requiere CONTACT_LISTENER_PARTICLE).
-//  - La miel no usa contactos: avisan solo al empezar y el robot quieto en el charco se despegaría. process() busca
-//    por cercanía, una vez por paso (stickHoney).
+//  - La miel no usa contactos: la adherencia por cercanía vive en js/adhesion.js.
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
 import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
 import { SINK } from "./particleStore.js";
+import { MATERIALS } from "./materials.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -21,7 +21,6 @@ export class DamageSystem {
         this.particleDamage = new Map(weapons.map((w) => [w.id, particleDamage(w)]));
         this.world = world;
         this.store = store;
-        this.particleSystem = store.system;
         this.particleSystemPtr = Box2D.getPointer(store.system);
         this.players = [];
         this.owners = new Map(); // puntero de cuerpo → { player, index, bodyId }
@@ -30,7 +29,6 @@ export class DamageSystem {
         this.nextShot = 1;
         this.impacts = [];
         this.fluidHits = [];
-        this.honeyBoxes = [];
         this.drowned = [];
         /** Dueños (`{ player, index, bodyId }`) de un pie que empezó contacto con algo que no es un robot; los vacía quien los consume. */
         this.footfalls = [];
@@ -152,48 +150,8 @@ export class DamageSystem {
         if (slot < 0 || store.alive[slot] === 0) return;
         const shot = this.shots.get(store.shot[slot]);
         const kind = store.kind[slot];
-        if (kind) this.fluidHits.push({ owner, index, shot, kind });
-    }
-
-    /**
-     * Pega a todo robot vivo que tenga el centro de una partícula de miel dentro de alguna de sus cajas agrandadas
-     * `2 · radio`: la miel en reposo queda a un radio de la pieza con el contorno inelástico. No encola ni destruye nada: la miel sigue ahí. Una partícula sin tramo vivo (la de más de
-     * 6 s o la del mapa) pega a cualquiera; la propia, dentro de la gracia de SELF_IMMUNITY, no pega a su dueño.
-     */
-    stickHoney(now) {
-        const system = this.particleSystem;
-        const store = this.store;
-        const count = system.GetParticleCount();
-        const players = this.players;
-        if (count === 0 || players.length === 0) return;
-        const pad = 2 * system.GetRadius();
-        const boxes = this.honeyBoxes;
-        boxes.length = 0;
-        for (const player of players) boxes.push(player.dead ? null : player.fixtureBoxes());
-        let pending = players.length; // robots que todavía no quedaron pegados en este paso
-        const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
-        for (let i = 0; i < count && pending > 0; i++) {
-            const slot = store.slotAt(i);
-            if (slot < 0 || store.alive[slot] === 0 || store.kind[slot] !== FLUID.HONEY) continue;
-            const x = Box2D.HEAPF32[pos + i * 2];
-            const y = Box2D.HEAPF32[pos + i * 2 + 1];
-            const shot = this.shots.get(store.shot[slot]);
-            for (let k = 0; k < players.length; k++) {
-                const b = boxes[k];
-                if (!b) continue;
-                if (shot && shot.owner === k && now - shot.time < SELF_IMMUNITY) continue;
-                const u = b.length - 4;
-                if (x < b[u] - pad || x > b[u + 2] + pad || y < b[u + 1] - pad || y > b[u + 3] + pad) continue;
-                for (let j = 0; j < u; j += 4) {
-                    if (x >= b[j] - pad && x <= b[j + 2] + pad && y >= b[j + 1] - pad && y <= b[j + 3] + pad) {
-                        players[k].stick();
-                        boxes[k] = null;
-                        pending--;
-                        break;
-                    }
-                }
-            }
-        }
+        if (!kind) return;
+        this.fluidHits.push({ owner, index, shot, kind });
     }
 
     /** Altura (m) del punto más alto del torso: el máximo del AABB de sus fixtures. */
@@ -208,9 +166,10 @@ export class DamageSystem {
     /**
      * Aplica lo encolado durante el paso; llamar después de stepWorld y de `store.afterStep()`.
      * `waterLevel`: altura del agua en metros, o función `(x) => altura` para el agua local (columna x del
-     * robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks).
+     * robot). El robot con el borde inferior de alguna pieza por debajo queda mojado (inundación, sin callbacks), con la
+     * conductividad `conductivityAt(x)` (S/m) del campo en esa columna; sin esa función, la del agua de red.
      */
-    process(now, waterLevel = -Infinity) {
+    process(now, waterLevel = -Infinity, conductivityAt = null) {
         for (const owner of this.drowned) owner.player.drown(now);
         this.drowned.length = 0;
 
@@ -222,11 +181,14 @@ export class DamageSystem {
             }
         }
 
-        if (waterLevel !== -Infinity) {
-            for (const player of this.players) {
-                if (player.dead) continue;
-                const level = typeof waterLevel === "function" ? waterLevel(player.torso.GetPosition().get_x()) : waterLevel;
-                if (level > -Infinity && player.lowestPoint() < level) player.soak();
+        for (const player of this.players) {
+            player.inWater = false;
+            if (player.dead || waterLevel === -Infinity) continue;
+            const level = typeof waterLevel === "function" ? waterLevel(player.torso.GetPosition().get_x()) : waterLevel;
+            if (level > -Infinity && player.lowestPoint() < level) {
+                player.inWater = true;
+                const x = player.torso.GetPosition().get_x();
+                player.soak(conductivityAt ? conductivityAt(x) : undefined);
             }
         }
 
@@ -234,7 +196,7 @@ export class DamageSystem {
             const key = `${owner.index}:${owner.bodyId}`;
             if (now - (this.lastImpact.get(key) ?? -Infinity) < IMPACT_COOLDOWN) continue;
             this.lastImpact.set(key, now);
-            owner.player.hurt(owner.bodyId, (speed - IMPACT_SPEED) * IMPACT_DAMAGE, now);
+            if (owner.player.hurt(owner.bodyId, (speed - IMPACT_SPEED) * IMPACT_DAMAGE, now) > 0) owner.player.markImpact();
             this.stats.impacts++;
         }
 
@@ -244,8 +206,9 @@ export class DamageSystem {
             if (consumed.has(index)) continue;
             if (shot && shot.owner === owner.index && now - shot.time < SELF_IMMUNITY) continue;
             if (kind === FLUID.WATER) {
-                owner.player.soak();
+                owner.player.soak(MATERIALS.water.sigmaE);
             } else if (kind === FLUID.ACID) {
+                owner.player.soak(MATERIALS.acid.sigmaE);
                 owner.player.hurt(owner.bodyId, this.particleDamage.get(kind), now);
                 consumed.add(index);
             } else if (kind === FLUID.LAVA) {
@@ -253,7 +216,6 @@ export class DamageSystem {
             }
         }
         for (const index of consumed) this.store.destroy(index, SINK.HIT);
-        this.stickHoney(now);
 
         this.impacts.length = 0;
         this.fluidHits.length = 0;

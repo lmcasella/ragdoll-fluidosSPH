@@ -17,8 +17,36 @@ export const SOUNDS = {
     land: { files: ["land_hurt_1", "land_hurt_2", "land_hurt_3"], volume: 1 },
     step: { files: ["feet_04", "feet_05", "feet_08", "feet_10", "feet_12", "feet_14", "feet_17"], volume: 0.4, cooldown: 0.22 },
     death: { files: ["death_1"], volume: 1 },
-    pickup: { files: ["pickup_1", "pickup_2", "pickup_3", "pickup_4", "pickup_5"], volume: 1 },
+    pickup: { files: ["pickup_1", "pickup_2", "pickup_3", "pickup_4"], volume: 1 },
+    repair: { files: ["pickup_5"], volume: 1 },
     roundEnd: { files: ["round_end"], volume: 1 },
+};
+
+/** Volumen de los sonidos de interfaz respecto de los golpes: -6 dB (docs/design/18-interfaz.md §4). */
+export const UI_VOLUME = 10 ** (-6 / 20);
+
+/**
+ * Sonidos de interfaz por evento (docs/design/18-interfaz.md §4). `file` es el archivo de `audio/sfx/*.ogg` sin
+ * extensión; `cooldown` (opcional) son los s mínimos entre dos disparos del evento: la navegación con repetición suena
+ * como mucho cada 70 ms. Los `ui_submitN` marcados como provisorios en el diseño se reemplazan al llegar los definitivos.
+ */
+export const UI_SOUNDS = {
+    focus: { file: "ui_select", cooldown: 0.07 },
+    value: { file: "ui_submit1", cooldown: 0.07 },
+    tab: { file: "ui_submit2", cooldown: 0.07 },
+    confirm: { file: "ui_confirm" },
+    back: { file: "ui_back" },
+    play: { file: "ui_play" },
+    join: { file: "ui_player_join" },
+    leave: { file: "ui_player_leave" },
+    move: { file: "ui_player_select" },
+    count: { file: "ui_countdown" },
+    go: { file: "ui_submit3" },
+    pause: { file: "ui_pause" },
+    flood: { file: "ui_submit4" },
+    prize: { file: "ui_submit5" },
+    band: { file: "ui_submit6" },
+    denied: { file: "ui_submit7" },
 };
 
 /** Pistas de música por nombre (archivos de `audio/music/*.ogg` sin extensión). */
@@ -49,6 +77,8 @@ export class GameAudio {
         this.lastPlayed = new Map();
         this.wanted = null;
         this.current = null;
+        this.leaving = [];
+        this.uiSource = null;
         if (!Context) return;
         try {
             this.context = new Context();
@@ -75,6 +105,7 @@ export class GameAudio {
         if (!this.context) return;
         const urls = new Set([
             ...Object.values(SOUNDS).flatMap((row) => row.files.map(sfxUrl)),
+            ...Object.values(UI_SOUNDS).map((row) => sfxUrl(row.file)),
             ...Object.values(MUSIC).map(musicUrl),
         ]);
         await Promise.all([...urls].map((url) => this.loadBuffer(url)));
@@ -135,6 +166,34 @@ export class GameAudio {
     }
 
     /**
+     * Reproduce un sonido de interfaz a `UI_VOLUME`: uno solo a la vez, el nuevo corta al anterior, y sin variación de
+     * `playbackRate`.
+     * @param {string} event Clave de `UI_SOUNDS`.
+     * @param {number} [now] Reloj en s con el que se mide el `cooldown`.
+     * @returns {boolean} Si sonó.
+     */
+    playUi(event, now = 0) {
+        const row = UI_SOUNDS[event];
+        if (!row || !this.running) return false;
+        if (row.cooldown && now - (this.lastPlayed.get(`ui:${event}`) ?? -Infinity) < row.cooldown) return false;
+        const buffer = this.buffers.get(sfxUrl(row.file));
+        if (!buffer) return false;
+        this.lastPlayed.set(`ui:${event}`, now);
+        this.uiSource?.stop();
+        const context = this.context;
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        const gain = context.createGain();
+        gain.gain.value = UI_VOLUME;
+        source.connect(gain);
+        gain.connect(this.sfxGain);
+        source.onended = () => gain.disconnect();
+        source.start();
+        this.uiSource = source;
+        return true;
+    }
+
+    /**
      * Pide una pista de música (clave de `MUSIC`); suena en loop y, si ya hay otra, hay fundido cruzado. Con `null` no
      * cambia nada.
      * @param {string|null} name Clave de `MUSIC`.
@@ -145,18 +204,32 @@ export class GameAudio {
         this.syncMusic();
     }
 
+    /**
+     * Lleva la música a la pista pedida. Nunca hay más de una pista entrando y una saliendo: si el cambio llega durante
+     * un fundido, la que ya estaba saliendo se corta en el acto.
+     */
     syncMusic() {
         if (!this.running || !this.wanted || this.current?.name === this.wanted) return;
         const buffer = this.buffers.get(musicUrl(MUSIC[this.wanted]));
         if (!buffer) return;
         const context = this.context;
         const t = context.currentTime;
+        for (const leaving of this.leaving) {
+            leaving.source.stop(t);
+            leaving.gain.disconnect();
+        }
+        this.leaving = [];
         const old = this.current;
         if (old) {
             old.gain.gain.cancelScheduledValues(t);
             old.gain.gain.setValueAtTime(old.gain.gain.value, t);
             old.gain.gain.linearRampToValueAtTime(0, t + AUDIO.fade);
             old.source.stop(t + AUDIO.fade);
+            old.source.onended = () => {
+                old.gain.disconnect();
+                this.leaving = this.leaving.filter((track) => track !== old);
+            };
+            this.leaving.push(old);
         }
         const source = context.createBufferSource();
         source.buffer = buffer;

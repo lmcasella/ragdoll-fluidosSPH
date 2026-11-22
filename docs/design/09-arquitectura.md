@@ -1,4 +1,4 @@
-# 9. Arquitectura y rendimiento
+# 9. Arquitactura y rendimiento
 
 Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar y actuar, sistemas por módulo, intención en lugar de dispositivo, máquinas de estado, datos en tablas, memoria nativa, contrato de RagImporter) están en `CLAUDE.md`. Esta sección describe los módulos y el rendimiento.
 
@@ -10,7 +10,7 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | `js/ActiveRagdoll.js` | Un jugador: vida, estados (miel, quemadura, aturdido, ahogado; mojado ✅ #22), movimiento, mira, golpe, clips. Desde #13 ✅ también guarda el inventario (`weapon`, `tanks`), que copia en `copyStateFrom`, pero no conoce la tabla de armas. ✅ #41: la miel pasa a ser el estado `pegado` (`stick()`, `stickyTimer` en s, datos `STICKY`), `move(input, dt)` recibe el `dt` del paso y `fixtureBoxes()` devuelve las cajas de sus fixtures en un `Float32Array` reutilizado |
 | `js/weapons.js` ✅ #13 | Armas como datos y emisor de chorros. Exporta `FLUID` (se movió desde `damage.js`), `WEAPONS` (tabla, [04-fluidos](04-fluidos.md#tabla-de-armas-datos-en-weapons-jsweaponsjs)), `LOADOUT`, `weaponById(id)`, `cycleWeapon(player, step)`, `equipLoadout(player)`, `particleDamage(weapon)` (`dps / rate`) y `ShotEmitter`. `ShotEmitter(system, damage, weapons = WEAPONS)` crea los objetos nativos de trabajo una vez, `fire(k, player, wants, dt, now)` emite y descuenta el tanque, `reset()` borra los créditos y exige soltar el botón, y `dispose()` libera los nativos. Recibe `DamageSystem` por constructor y usa el `Box2D` global. Desde #40 ✅ suma `SHOT_SYSTEM` (radio, tope y fuerzas del sistema de disparos) y **solo importa `particles.js`** (flags). ✅ #41: columna `persist` en `WEAPONS` y `PERSIST_MAX` (300), que usa `limpiarParticulas` en `index.html` |
 | `js/particles.js` ✅ #40 | Creación de sistemas de partículas a partir de datos. `PARTICLE` (flags de LiquidFun usadas por el juego) y `createParticleSystem(world, params)`: aplica cada clave con su `set_` del `b2ParticleSystemDef`, falla ante una clave desconocida y libera el def. **No importa nada.** Es el único módulo que conoce `b2ParticleSystemDef` ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)) |
-| `js/Input.js` | Gamepad y teclado → estado por jugador. Desde #13 ✅ suma `fire` (mantenido) a `action` (flanco) |
+| `js/Input.js` | Gamepad y teclado → estado por jugador. Desde #13 ✅ suma `fire` (mantenido) a `action` (flanco). El teclado es solo de J1 (`KEYBOARD_LAYOUT`, un solo layout): J2 juega con gamepad o es el bot |
 | `js/camera.js` | Encuadre compartido y conversión pantalla ↔ mundo |
 | `js/level.js` | Datos del nivel, sólidos, sensor y agua de la pileta. Desde #40 ✅: `LEVEL.pool.flags` y `LEVEL.pool.physics` (fuerzas del agua del nivel); `fillPool` crea el sistema con `createParticleSystem` y `fillPoolWater` aplica las flags al grupo. Importa solo `particles.js` |
 | `js/raycast.js` | Rayos con callback reutilizado, uno por mundo |
@@ -19,23 +19,32 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | `js/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
 | `js/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja. Desde #40 ✅ aplica `LEVEL.pool.flags` a su `b2ParticleDef`, para que la lluvia tenga las mismas flags que la pileta |
 | `js/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD. Desde #13 ✅, barra de tanque (recibe la tabla de armas como parámetro y no la importa). Desde #18 ✅, chispas de mojado |
+| `js/pickups.js` | Puntos de aparición de armas y de ítems de reparación (`HEALTH`: suma salud al recogerse, y en Infinito levanta al robot en nocaut), con sensor circular y reaparición en segundos de juego |
+| `js/bot.js` | Bot de prueba que maneja a un jugador: acercarse, golpear (también en el aire, con patada), disparar con error de puntería, reaccionar a los golpes del rival y defenderse; valores en `BOT` por dificultad |
+| `js/menu.js` | Datos del menú principal (filas, valores, opción inicial) y `storageKey` de `localStorage` donde se recuerda la última elección |
+| `js/screens.js` | Menú principal, pantalla de controles y asignación de controles en HTML y CSS; módulo de vista que refleja el estado que le pasa `index.html` y no lee dispositivos |
+| `js/uikit.js` | Piezas comunes de la interfaz HTML: sprite de íconos, glifos de botones y funciones que escriben en el DOM solo lo que cambió; módulo hoja que usan `hud.js` y `screens.js` |
+| `js/hud.js` | HUD de partida en HTML y CSS sobre el canvas; módulo hoja que no importa ningún sistema y recibe datos planos una vez por frame |
+| `js/audio.js` | Sonido: música con fundido entre pistas y efectos por evento (variantes al azar, ganancia propia y cooldown), con ganancias separadas por bus |
+| `js/climb.js` | Mapa Infinito: genera y libera etapas del ascenso a partir de los datos `CLIMB` ([16](16-ascenso.md)) |
+| `js/platforms.js` | Plataformas atravesables: filtro de contactos que las vuelve sólidas desde arriba y fantasmas desde abajo o al bajar |
 | `js/clips.js` | Transformaciones de clips antes de `parse` (`walk_back`) |
 | `lib/` | RagImporter, copiado de ragassembler2d `d067775`; no se edita acá |
 | `assets/*.rag.json` | Rigs (robot en uso; dino sin uso) |
 | `tests/` | Tests de humo, que corre el CI antes de cada deploy (PR #3) |
 
-Previsto: un módulo de métricas (#29), que se integra en `js/debug.js` de #62.
+✅ Módulo de métricas (#29), integrado en `js/debug.js` de #62.
 
-**🔨 #62, módulos previstos** (responsabilidad, dependencias y orden del paso fijo en [14.13](14-agua.md#1413-orden-en-el-paso-fijo-y-patrones)): `js/materials.js` (hoja), `js/water.js` (`ShallowWater`, JS puro), `js/particleStore.js` (hoja, único dueño de `CreateParticle`/`DestroyParticle`), `js/bodyShapes.js` (hoja), `js/buoyancy.js`, `js/contacts.js` (hoja, lector del buffer nativo de contactos), `js/evaporation.js` (agua detenida, D7), `js/thermal.js`, `js/mixing.js`, `js/adhesion.js` y `js/debug.js`. Cambian `js/immersion.js` (absorción e inmersión contra el campo), `js/flood.js` (solo fuente de lluvia), `js/damage.js` (lee el estado por slot), `js/level.js` (sin el agua en partículas), `js/weapons.js` (`SHOT_SYSTEM` de agua pura, sin `immersion`) y `js/particles.js` (suma `WALL` y `POWDER`). Lo que se borra está en [14.14](14-agua.md#1414-qué-se-borra).
+**✅ #62, módulos (están en `js/` todos menos `js/mixing.js`, 🔨 #76)** (responsabilidad, dependencias y orden del paso fijo en [14.13](14-agua.md#1413-orden-en-el-paso-fijo-y-patrones)): `js/materials.js` (hoja), `js/water.js` (`ShallowWater`, JS puro), `js/particleStore.js` (hoja, único dueño de `CreateParticle`/`DestroyParticle`), `js/bodyShapes.js` (hoja), `js/buoyancy.js`, `js/contacts.js` (hoja, lector del buffer nativo de contactos), `js/evaporation.js` (agua detenida, D7), `js/thermal.js`, `js/mixing.js`, `js/adhesion.js` y `js/debug.js`. Cambian `js/immersion.js` (absorción e inmersión contra el campo), `js/flood.js` (solo fuente de lluvia), `js/damage.js` (lee el estado por slot), `js/level.js` (sin el agua en partículas), `js/weapons.js` (`SHOT_SYSTEM` de agua pura, sin `immersion`) y `js/particles.js` (suma `WALL` y `POWDER`). Lo que se borra está en [14.14](14-agua.md#1414-qué-se-borra).
 
-**🔨 Remapeo y gancho (18/11):** `js/Input.js` suma las intenciones `jump`, `drop`, `grapple`, `wheel`/`wheelPick`, `ragdoll` y `pause` ([10](10-controles.md#102-intenciones-de-input)). Módulos nuevos:
+**✅ Remapeo (18/11); 🔨 gancho (`js/grapple.js` no existe) y plataformas ✅ (`js/platforms.js`):** `js/Input.js` suma las intenciones `jump`, `drop`, `grapple`, `wheel`/`wheelPick`, `ragdoll` y `pause` ([10](10-controles.md#102-intenciones-de-input)). Módulos nuevos:
 - `js/grapple.js` (`Grapple`, datos `GRAPPLE`): cuerda `b2RopeJoint` creada y destruida por el juego. Recibe `world`, `ground`, `raycaster` y `damage` por constructor ([03 §3.5](03-robots.md#35-gancho-)).
 - `js/platforms.js` (`OneWayPlatforms`), sin issue todavía: filtro de contactos para las plataformas atravesables ([05 §5.3](05-escenario.md#53-plataformas-atravesables-desde-abajo-)).
 
-**🔨 #104, rig v5 y combate cuerpo a cuerpo** ([03 §3.7](03-robots.md#37-rig-v5-combos-bloqueo-roll-y-estados-de-salto--104)):
+**✅ #104, rig v5 y combate cuerpo a cuerpo** ([03 §3.7](03-robots.md#37-rig-v5-combos-bloqueo-roll-y-estados-de-salto--104)):
 - `js/melee.js` (nuevo; `Melee`, datos `MELEE`): rayos de los ataques, daño, bloqueo, empuje, reacción y eventos de feedback (`hits`). Sale de `index.html` (`golpear`, `PUNCH_*`, `golpes`). No importa nada: recibe `raycaster`, `damage` (solo `ownerOf`) y los jugadores.
 - `js/ActiveRagdoll.js`: máquina de clips nueva (estados de aire, combo, bloqueo, roll, reacciones, `idle`, `aim`), `armsBusy`, datos `AIR` y `ROLL`. Recibe `MELEE` dentro del rig; no importa `melee.js`.
-- `js/Input.js`: intenciones `block`, `roll` y `kick`; en `KEYBOARD_LAYOUTS`, `block` en `KeyG` (J1) y `NumpadSubtract` (J2), y el `punch` de J2 pasa de `ShiftRight` a `Numpad5` ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).
+- `js/Input.js`: intenciones `block`, `roll` y `kick`; en `KEYBOARD_LAYOUT` (solo J1), `block` en Shift izquierdo o derecho ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).
 - `js/render.js`: `drawHits` distingue `"hit"` y `"block"` (datos `HIT_FX`); recibe los eventos, no importa `melee.js`.
 - `js/clips.js`: sin cambios de código; se usa también para `roll_back` y para quitar las pistas de mira de más clips.
 - `index.html`: nombres v5 en `AIM_JOINTS`/`AIM_HOLD`, `ROBOT_RIG` nuevo, giro diferido durante el roll, `!armsBusy` hacia el emisor y el gancho.
@@ -110,4 +119,4 @@ El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 
 **Presupuesto con #62** 🔨: sin el agua del nivel en partículas, el sistema líquido único (radio 0,06 m y `maxCount` 12.000 desde #100; antes 0,12 m y 3.000) cuesta ~3 ms con 8 subpasos (tabla de arriba); `ShallowWater` < 0,3 ms; flotación < 0,15 ms; inmersión < 0,3 ms; térmica y mezcla < 0,3 ms. La meta sigue en física ≤ 8 ms y render de fluidos ≤ 2 ms ([14.16](14-agua.md#1416-criterios-de-aceptación)).
 
-**Panel de métricas** 🔨 #29 (se integra en `js/debug.js`; el resto de las capas es #78. Atajo de gamepad: L3 + R3, [10.5](10-controles.md#105-debug)): partículas por sistema, ms de física y de render, rayos por frame, contactos partícula↔cuerpo y FPS. Base de los benchmarks de la defensa.
+**Panel de métricas** ✅ #29 (se integra en `js/debug.js`; el resto de las capas es #78. Atajo de gamepad: L3 + R3, [10.5](10-controles.md#105-debug)): partículas por sistema, ms de física y de render, rayos por frame, contactos partícula↔cuerpo y FPS. Base de los benchmarks de la defensa.

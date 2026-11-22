@@ -18,18 +18,35 @@ Juego web 1v1 de robots ragdoll que pelean con fluidos SPH, para la materia Simu
 | Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los decide `planner` con la taxonomía de abajo y los opera `github-clerk`. |
 | `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Se actualiza en cada merge.** |
 | `README.md` | Cómo correr, probar y jugar. |
-| `docs/referencias.md` | Material de estudio: matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan. Durante la entrega se pone al día en una sola pasada antes de la presentación. |
+| `docs/referencias.md` | Material de estudio: índice en tablas de matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan y un enlace para leer más. Durante la entrega se pone al día en una sola pasada antes de la presentación. |
+
+### Reparto de la documentación
+
+Cada dato tiene un solo dueño. Los demás lugares lo nombran o lo enlazan, pero no lo copian. El GDD y los docstrings no se contradicen ni se repiten.
+
+| Dónde | Qué explica | Qué no pone |
+|---|---|---|
+| GDD (`docs/design/`) | Qué hace cada subsistema y por qué, con detalle y en palabras del juego: lo que se ve, las reglas, las decisiones y los criterios medibles. | Nombres de funciones o variables, detalles de implementación ni desarrollos matemáticos. Solo lleva la fórmula que define un criterio. |
+| Docstrings | Cómo lo resuelve ese código, de forma breve y concreta: qué recibe y devuelve, unidades, cuándo se llama, por qué está hecho así y qué limitación del motor esquiva. | Reglas del juego ni el porqué del diseño: remiten a la sección del GDD (por ejemplo, "ver `14-agua.md` §14.6"). |
+| `docs/referencias.md` | Leyes, algoritmos y autores, con dónde se usan y un enlace para leer más. | Historia ni diseño. |
+| Tablas de datos del código | Los valores de balance. | — (el GDD nombra la tabla y repite el número solo si es un criterio). |
+
+`architect` es dueño del GDD, `developer` escribe los docstrings con el código y `doc-writer` controla que no se contradigan.
 
 ### Formato de `docs/referencias.md`
 
-Cada entrada tiene solo esto, sin fechas, historia ni detalles:
+Es un índice en tablas, una por sección, que se lee de un vistazo:
 
-- **Nombre** — quién lo inventó o formuló.
-- Una línea de descripción.
-- Dónde se usa: `ruta:línea` (una o varias).
-- Opcional: un ejemplo de implementación corto.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
 
-Lo descartado va en su propia sección, con la misma entrada más una línea: "se optó por <otra solución> porque no funcionó (<motivo breve>)".
+- **Qué es:** una línea. Lleva fórmula solo si es la idea central.
+- **Dónde se usa:** `ruta:línea`; si son varias, separadas por coma.
+- **Para leer:** un enlace a una fuente pública (Wikipedia en español si existe, si no en inglés, o el artículo original). Lleva "—" si es un diseño propio.
+
+Lo descartado va en su propia tabla: `| Descartado | Autor | Se optó por | Motivo | Dónde se decidió | Para leer |`.
+
+Los ejemplos de implementación van solo como último recurso, cuando la línea de código no alcanza para entender la entrada. Se ponen al final del archivo, después de un `<hr>`, con el nombre de su fila.
 
 Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corrige el código, o `architect` actualiza el GDD.
 
@@ -59,7 +76,7 @@ Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corr
 1. **Gamepad primero.** Cada mecánica se diseña para stick y botones (Gamepad API, mapeo "standard"). El teclado y el mouse son respaldo, nunca la fuente principal: un input de respaldo no puede pisar al gamepad.
 2. **Sin atribución de IA** en commits, PRs, código ni documentos.
 3. **Idioma:** documentos, issues, commits y PRs en español. **Nombres de rama en inglés** y sin caracteres especiales (ni ñ ni acentos). En el código, seguir el idioma y estilo del archivo que se toca.
-4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves. Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
+4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves y con lo que dice el "Reparto de la documentación". Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
 5. **Confidencialidad:** sin credenciales, tokens ni datos privados en el repo.
 6. **Assets:** solo propios o con licencia libre. Las referencias de estilo (por ejemplo, Unreal Tournament) se usan como inspiración, nunca copiando archivos.
 
@@ -135,8 +152,8 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 1. **Elegir:** `/next` recomienda un issue y crea su rama al confirmar.
 2. **Diseño corto:** la sesión principal (game designer, en Opus) decide y escribe el diseño en el brief de `developer`: qué hace, controles, valores y criterios medibles. Si cambia el GDD, lo edita ella misma con un cambio mínimo en `docs/design/`. No se lanzan `architect`, `chemist` ni `physics-analyst`, salvo que la tarea cree un módulo nuevo o rompa un patrón, y en ese caso una sola pasada acotada.
 3. **Implementar** con `developer`, un agente nuevo con brief corto. Cada punto de control es un commit convencional. Escribe también la entrada de `CHANGELOG.md` y lo mínimo de `README.md`.
-4. **Verificar:** `node --test tests/` en verde, sin regresiones de lo que funcionaba en `main`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
-5. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama.
+4. **Verificar:** la suite rápida mientras se trabaja y la completa (`node --test "tests/**/*.test.js"`) en verde antes del PR, sin regresiones de lo que funcionaba en `main`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
+5. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama. Después del merge se comprueba con `gh issue view <n>` que el issue quedó cerrado. `Refs #<n>` solo para issues paraguas; si un issue queda abierto a propósito (arreglo parcial, falta la prueba del usuario), se avisa al usuario en ese momento y se anota en el issue.
 6. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`.
 
 **Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: la sesión principal crea el issue con `gh`.
@@ -162,11 +179,12 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 | `developer` | agente | Implementa un issue con sus tests y verificación. |
 | `doc-writer` | agente | Mantiene `CHANGELOG.md`, `README.md` y el estado del GDD. |
 | `chemist` | agente | Informa cómo interactúan de verdad las sustancias (reacciones, mezcla, cambios de fase, calor, productos, color), con referencias. No decide jugabilidad. |
+| `ui-ux-designer` | agente | Revisa y diseña la interfaz (menús, HUD, carteles, selector de controles) con criterios de videojuegos y entrega una maqueta HTML + CSS con su especificación. Toda interfaz nueva o rehecha pasa por él antes de implementarse. |
 | `physics-analyst` | agente | Modela los fenómenos que decide el game designer y valida el resultado contra la física, los invariantes globales y los escenarios del usuario; su aprobación es obligatoria para mergear cambios de simulación. |
 | `/next` | skill | Elige el próximo issue y crea su rama. |
 | `/code-review`, `/simplify` | skills incluidos | Revisar un diff; limpiar después de una funcionalidad. |
 
-**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `chemist`, `physics-analyst`); `sonnet` para los que ejecutan lo ya decidido (`developer`, `doc-writer`, `github-clerk`); `haiku` para la lectura (`scout`).
+**Modelos:** `opus` para los agentes que planifican, deciden y validan (`planner`, `architect`, `chemist`, `physics-analyst`, `ui-ux-designer`); `sonnet` para los que ejecutan lo ya decidido (`developer`, `doc-writer`, `github-clerk`); `haiku` para la lectura (`scout`).
 
 **Solo Opus decide.** Los agentes en `sonnet` y `haiku` no eligen entre alternativas ni completan lo que falta: si algo no está especificado, se detienen e informan la pregunta. Para no leer archivos enteros ni listados largos en Opus, la búsqueda se delega a `scout`.
 
@@ -178,5 +196,9 @@ Los agentes y skills son genéricos: no repiten reglas ni datos del proyecto. To
 
 ```powershell
 npx http-server -c-1 .     # juego en http://localhost:8080
-node --test tests/          # tests
+node --test "tests/*.test.js"        # suite rápida (< 30 s), día a día
+node --test "tests/slow/*.test.js"   # solo los tests largos
+node --test "tests/**/*.test.js"     # suite completa (antes del PR y en CI)
 ```
+
+Un test que tarda 10 s o más va en `tests/slow/`.

@@ -12,7 +12,7 @@ const COMBO_FRAMES = [0, 15, 39];
 /** Frame en el que J1 aprieta B, y el resto del tiempo lo suelta; la mira queda a la derecha. */
 const comboPresses = (frames) => (f) => ({ buttons: frames.includes(f) ? [BUTTON.B] : [], axes: AIM_RIGHT });
 
-test("R6: combo de tres golpes con B en t = 0, 0,25 y 0,65 s", { todo: "con el paso adelante conectan el 1 y el 3; el 2 no alcanza porque los cuerpos en contacto empujan al rival (ajuste en el balance)" }, async (t) => {
+test("R6: combo de tres golpes con B en t = 0, 0,25 y 0,65 s", { todo: "sin el paso adelante (#230) solo conecta el golpe 1: el alcance depende de la animación de las piernas" }, async (t) => {
     const game = await startDuel(GAP);
     const [p1, p2] = game.state.players;
     const press = comboPresses(COMBO_FRAMES);
@@ -232,15 +232,38 @@ test("R8 y R8b: contra un rival que bloquea de frente, los golpes 1 y 2 no daña
     }
 });
 
-test("el tercer golpe del combo rompe la guardia: sin daño, el rival sale de block y no vuelve a bloquear durante 0,7 s con LT mantenido", async (t) => {
-    const { game, hits, samples } = await blockDuel(170);
-    const p2 = game.state.players[1];
-    t.diagnostic(`rotura: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}`);
+test("con el rival bloqueando, el combo con el pad llega a combo3, rompe la guardia y el rival tropieza", { todo: "con lunge 2,5 (#279) el rival que bloquea a 0,8 m sale del suelo en el tercer golpe y el impacto cae como hit; depende del empuje entre cuerpos" }, async (t) => {
+    const { hits, samples } = await blockDuel(170);
+    t.diagnostic(`eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}`);
     assert.deepEqual(hits.map((h) => h.kind), ["block", "block", "blockBreak"]);
+    assert.equal(samples[hits[2].frame].state, "reactStumble");
+});
+
+test("el tercer golpe del combo rompe la guardia: sin daño ni empuje, el rival tropieza y no vuelve a bloquear durante 0,7 s con LT mantenido", { todo: "sin lunge (#230) el combo avanza solo con la animación de las piernas; se reevalúa con la distancia de la animación nueva" }, async (t) => {
+    const game = await startDuel(GAP);
+    game.setPad(1, { buttons: [BUTTON.LT], axes: AIM_LEFT });
+    game.frames(10);
+    const [p1, p2] = game.state.players;
+    p1.beginAttack("combo3", p1.now);
+    const samples = [];
+    const hits = run(
+        game,
+        170,
+        () => game.setPad(0, { buttons: [], axes: AIM_RIGHT }),
+        () => {
+            const v = p2.torso.GetLinearVelocity();
+            samples.push({ vx: v.get_x(), vy: v.get_y(), state: p2.clipState });
+        },
+    );
+    t.diagnostic(`rotura: eventos ${hits.map((h) => `${h.kind}@${h.frame}`)}; hp ${p2.hp}`);
+    assert.deepEqual(hits.map((h) => h.kind), ["blockBreak"]);
     assert.equal(p2.hp, 100);
-    const f = hits[2].frame;
+    const f = hits[0].frame;
     assert.equal(samples[f - 1].state, "block");
     assert.equal(samples[f].state, "reactStumble");
+    const dv = Math.hypot(samples[f].vx - samples[f - 1].vx, samples[f].vy - samples[f - 1].vy);
+    t.diagnostic(`Δv del torso rival al romper la guardia ${dv.toFixed(3)} m/s`);
+    assert.ok(dv < 1.5);
     const stunned = Math.round(0.7 / DT);
     for (let i = f; i < f + stunned - 1; i++) assert.notEqual(samples[i].state, "block", `frame ${i - f}`);
     const back = samples.findIndex((s, i) => i > f && s.state === "block");

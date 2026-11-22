@@ -184,17 +184,17 @@ test("la revancha con RT funciona, no gasta el tanque y hay que soltar RT antes 
     assert.ok(players[0].tanks.get(4) < 600);
 });
 
-test("la revancha con Enter (J2) también funciona", async () => {
+test("la revancha con Espacio (teclado) también funciona", async () => {
     const game = await start();
     const { match } = game.state;
     finishRound(game);
     finishRound(game);
     assert.equal(match.state, "matchOver");
     game.frames(60);
-    game.emit("keydown", { code: "Enter", preventDefault() {} });
+    game.emit("keydown", { code: "Space", preventDefault() {} });
     game.frames(1);
     assert.equal(match.state, "countdown");
-    game.emit("keyup", { code: "Enter" });
+    game.emit("keyup", { code: "Space" });
     game.frames(215);
     assert.equal(match.state, "playing");
     assert.equal(game.state.players[1].tanks.get(4), 600);

@@ -14,19 +14,21 @@
 
 /**
  * Datos del recorte por rendimiento. `slowFrameMs` y `slowTime` (s): frame lento sostenido que activa el recorte,
- * de a `trimBatch` partículas por frame.
+ * de a `trimBatch` partículas por frame. Nunca baja de `minCount` vivas: con pocas partículas la lentitud viene de
+ * otra parte y recortar borraría los disparos apenas salen (#266).
  */
-export const PARTICLES = { slowFrameMs: 20, slowTime: 1, trimBatch: 100 };
+export const PARTICLES = { slowFrameMs: 20, slowTime: 1, trimBatch: 100, minCount: 1000 };
 
-/** Origen de cada partícula, para el dibujo y la limpieza. */
-export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4 };
+/** Origen de cada partícula, para el dibujo y la limpieza (SPLASH: gota lanzada por un cuerpo que entra al agua del campo). */
+export const ORIGIN = { SHOT: 1, RAIN: 2, STEAM: 3, MAP: 4, SPLASH: 5 };
 
 /**
  * Causa de cada destrucción, obligatoria en `destroy` (libro de masa, docs/design/14-agua.md §14.2): `ABSORBED`
  * pasa al campo, `OUT` salió del mundo, `HIT` ácido consumido al dañar, `EVAPORATED` pasó al aire,
- * `RESET` ronda nueva y `PERF` recorte de las más viejas por rendimiento.
+ * `RESET` ronda nueva, `PERF` recorte de las más viejas por rendimiento y `HUMIDITY` niebla que se disolvió en el
+ * aire (sumidero de H₂O, #113).
  */
-export const SINK = { ABSORBED: 1, OUT: 2, HIT: 3, EVAPORATED: 4, RESET: 5, PERF: 6 };
+export const SINK = { ABSORBED: 1, OUT: 2, HIT: 3, EVAPORATED: 4, RESET: 5, PERF: 6, HUMIDITY: 7 };
 
 const SINK_SLOTS = Math.max(...Object.values(SINK)) + 1;
 const KIND_SLOTS = 256;
@@ -115,7 +117,8 @@ export class ParticleStore {
      * Recorte por rendimiento, una vez por frame. `frameMs` es el tiempo de frame medido por quien llama (en las
      * pruebas se simula) y `dt` los segundos reales del frame. Si `frameMs` supera `slowFrameMs` de forma sostenida
      * durante `slowTime`, destruye hasta `trimBatch` partículas con `SINK.PERF` en ese frame, las de id de
-     * disparo menor primero; las del mapa (disparo 0) van al final. Devuelve cuántas destruyó.
+     * disparo menor primero; las del mapa (disparo 0) van al final, sin bajar de `minCount` vivas. Devuelve cuántas
+     * destruyó.
      */
     trim(frameMs, dt) {
         if (!(frameMs > PARTICLES.slowFrameMs)) {
@@ -136,7 +139,7 @@ export class ParticleStore {
         }
         const key = this.trimKey;
         order.sort((a, b) => key[a] - key[b] || a - b);
-        const count = Math.min(PARTICLES.trimBatch, order.length);
+        const count = Math.max(0, Math.min(PARTICLES.trimBatch, order.length - PARTICLES.minCount));
         for (let n = 0; n < count; n++) this.destroy(order[n], SINK.PERF);
         return count;
     }

@@ -6,7 +6,7 @@ import { SIGMA_W } from "./materials.js";
  * Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
  * la tabla. Ver docs/design/04-fluidos.md §4.1, docs/design/07-sph.md §7.5 y docs/design/14-agua.md §14.6.
  */
-export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4, STONE: 5 };
+export const FLUID = { ACID: 1, LAVA: 2, HONEY: 3, WATER: 4, STONE: 5, STEAM: 6 };
 
 export const CONTACT_LISTENER_PARTICLE = PARTICLE.CONTACT_LISTENER;
 
@@ -39,7 +39,7 @@ export const WEAPONS = [
     { id: FLUID.WATER, name: "Agua", flags: PARTICLE.WATER, color: [90, 170, 255], rate: 155, speed: 14, spread: 0.035, tank: 600, dps: 0, lanes: 1 },
     { id: FLUID.ACID, name: "Ácido", flags: PARTICLE.WATER, color: [50, 255, 50], rate: 155, speed: 14, spread: 0.035, tank: 272, dps: 20, lanes: 1 },
     { id: FLUID.LAVA, name: "Lava", flags: PARTICLE.WATER, color: [255, 80, 20], rate: 111, speed: 10, spread: 0.017, tank: 180, dps: 12, lanes: 1 },
-    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.VISCOUS, color: [255, 200, 50], rate: 100, speed: 18, spread: 0.017, tank: 152, dps: 0, lanes: 1 },
+    { id: FLUID.HONEY, name: "Miel", flags: PARTICLE.WATER, color: [255, 200, 50], rate: 200, speed: 18, spread: 0.017, tank: 304, dps: 0, lanes: 1 },
 ];
 
 /**
@@ -51,6 +51,14 @@ const byId = new Map(WEAPONS.map((w) => [w.id, w]));
 
 export function weaponById(id) {
     return byId.get(id);
+}
+
+/**
+ * Flags de partícula del material de `weapon`: la única definición (con `color` de la tabla) que usan todos los
+ * emisores del material, el chorro y la lluvia (#219).
+ */
+export function particleFlags(weapon) {
+    return weapon.flags | CONTACT_LISTENER_PARTICLE;
 }
 
 /** Tipo de fluido por color de partícula (para las que no tienen disparo asociado). Los pares (r, g) salen de la tabla. */
@@ -183,7 +191,7 @@ export class ShotEmitter {
         }
         this.props.kind = weapon.id;
         this.props.shot = this.damage.shotId(k, weapon.id, now);
-        this.def.set_flags(weapon.flags | CONTACT_LISTENER_PARTICLE);
+        this.def.set_flags(particleFlags(weapon));
         this.def.set_color(this.colors.get(weapon.id));
         let made = 0;
         for (let j = 0; j < n; j++) {

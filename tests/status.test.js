@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { ActiveRagdoll, STICKY } = await import("../js/ActiveRagdoll.js");
+const { ActiveRagdoll, shortCircuitDps } = await import("../js/ActiveRagdoll.js");
+const { MATERIALS } = await import("../js/materials.js");
 
 // Estado mínimo para probar el cortocircuito sin física
 function robot() {
@@ -10,7 +11,6 @@ function robot() {
     r.burns = new Map();
     r.flashes = new Map();
     r.wetTimer = 0;
-    r.stickyTimer = 0;
     r.rig = {};
     return r;
 }
@@ -68,32 +68,37 @@ test("dry apaga el cortocircuito: no hay más daño", () => {
     assert.equal(r.hp, hp);
     assert.equal(r.wet, false);
 });
-test("stick deja el robot pegado 0,3 s; a los 0,3 s + 1 paso sin renovar ya no", () => {
-    const r = robot();
-    assert.equal(r.sticky, false);
-    r.stick();
-    assert.equal(r.sticky, true);
-    run(r, 0.25);
-    assert.equal(r.sticky, true);
-    run(r, STICKY.grace + DT - 0.25); // 0,3 s más un paso desde stick
-    assert.equal(r.sticky, false);
+
+test("shortCircuitDps: agua limpia 3 y ácido casi 15, creciente y saturado", () => {
+    assert.ok(Math.abs(shortCircuitDps(MATERIALS.water.sigmaE) - 3) < 1e-9);
+    assert.ok(Math.abs(shortCircuitDps(MATERIALS.acid.sigmaE) - 15) < 0.01);
+    assert.ok(shortCircuitDps(1) > shortCircuitDps(0.1));
+    assert.ok(shortCircuitDps(1e6) < 15);
 });
 
-test("renovar stick en cada paso lo mantiene 3 s", () => {
+test("el ácido mojando baja la vida al ritmo de su conductividad", () => {
     const r = robot();
-    for (let i = 0; i < 180; i++) {
-        r.stick();
-        r.updateStatus(DT);
-        assert.equal(r.sticky, true, `paso ${i}`);
-    }
+    r.soak(MATERIALS.acid.sigmaE);
+    run(r, 1);
+    assert.ok(Math.abs(100 - r.hp - shortCircuitDps(32)) < 0.3, `hp ${r.hp}`);
 });
 
-test("copyStateFrom conserva el estado pegado", () => {
+test("dos líquidos en el mismo paso dejan el mayor σ; al paso siguiente manda el último", () => {
+    const r = robot();
+    r.soak(MATERIALS.acid.sigmaE);
+    r.soak(MATERIALS.water.sigmaE);
+    assert.equal(r.wetSigma, 32);
+    r.updateStatus(DT);
+    r.soak(MATERIALS.water.sigmaE);
+    assert.equal(r.wetSigma, MATERIALS.water.sigmaE);
+    assert.ok(Math.abs(r.shortCircuitDps - 3) < 1e-9);
+});
+
+test("copyStateFrom conserva la conductividad del líquido", () => {
     const old = robot();
-    old.stick();
-    run(old, 0.1);
+    old.soak(32);
     const nuevo = robot();
     nuevo.copyStateFrom(old);
-    assert.equal(nuevo.stickyTimer, old.stickyTimer);
-    assert.ok(nuevo.sticky);
+    assert.equal(nuevo.wetSigma, 32);
 });
+

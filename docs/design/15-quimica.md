@@ -336,7 +336,7 @@ Cada ficha tiene: **1** qué pasa, **2** productos y estado final, **3** energí
 1. Como la [ficha 5](#5-agua--lava), sumergida. La lava se hunde (`v_t` ≈ 1,55 m/s, [14.4](14-agua.md#144-absorción-e-inmersión)) envuelta en su película de vapor.
    - **En agua subenfriada** (por debajo de ~90 °C), las burbujas de vapor colapsan en pocos milímetros: una burbuja de 1 cm colapsa en ~10 ms (número de Jakob ≈ 250). El calor queda en el agua y **no sale vapor a la superficie**.
    - **Sale vapor** solo donde el agua alrededor llegó a la saturación (100 °C).
-2. Piedra en el fondo, agua más caliente y estratificada ([ficha 10](#10-agua-campo--agua-campo)), y vapor solo si hierve. Un tanque de lava (45 kg) calienta la pileta de 720 kg unos 27 K en promedio ([14.8](14-agua.md#148-térmica-y-fases)), pero hierve localmente.
+2. Piedra en el fondo, agua más caliente y estratificada ([ficha 10](#10-agua-campo--agua-campo)), y vapor solo si hierve. Un tanque de lava (45 kg) calienta la pileta de 720 kg unos 23 K (cota por energía con c de la piedra 1.000 J/(kg·K)) en promedio ([14.8](14-agua.md#148-térmica-y-fases)), pero hierve localmente.
 3. Igual que la [ficha 5](#5-agua--lava).
 4. Hundimiento: segundos. Transferencia de calor: ~1 min por partícula con el modelo concentrado. Colapso de burbujas: milisegundos.
 5. [R5], [R10], [R17].
@@ -599,6 +599,24 @@ Comparación con el código en `main` (`js/materials.js`, `js/immersion.js`, `js
 - **Lava:** falta `μ`.
 - **Vapor:** `c_p` 2,08·10³ saturado (el diseño usa 2010).
 - **Piedra:** `SG` 2,6 corresponde a basalto vesiculado (la piedra densa es 2,9).
+
+## 15.5b Papel en el juego
+
+Qué se ve en una ronda y para qué sirve cada par. Solo se lleva al juego lo que tiene base física en su ficha (#188).
+
+| Par | Qué se ve | En cuánto | Papel | Estado |
+|---|---|---|---|---|
+| Ácido + robot ([24](#24-ácido--robot-acero)) | Burbujas de H₂ en las piezas mojadas de ácido; chispas por cortocircuito | < 0,5 s | Daño | #188 |
+| Ácido + agua del campo ([11](#11-agua-campo--ácido)) | La pileta se tiñe y electrifica: un robot dentro hace chispas y pierde vida | 1–3 s | Terreno, combo con empujón | #188 |
+| Agua + robot ([9](#9-agua--robot-acero)) | Chispas leves | < 0,5 s | Daño bajo | En `main` |
+| Lava + agua o ácido ([5](#5-agua--lava), [20](#20-ácido--lava)) | Vapor y piedra | < 1 s | Contraataque: apagar lava, hacer terreno | En `main`; humos del ácido en #215 |
+| Lava + miel ([26](#26-miel--lava)) | Carameliza, se oscurece y humea | segundos | Terreno | #115 (M5) |
+| Miel + ácido ([19](#19-ácido--miel)) | Nada | — | Ninguno: sin reacción real al 8 % | — |
+| Miel + agua, lava + piedra | Nada visible en una ronda | — | Ninguno | — |
+
+**Cortocircuito.** El robot mojado es un circuito con resistencia interna fija; el líquido lo cierra con una resistencia ∝ 1/σ. El daño satura con la conductividad: `dps = 15 · σ / (σ + σ½)`, con `σ½ = 4 · σ_agua` para que el agua limpia conserve los 3 %/s de antes y el ácido al 8 % (32 S/m) llegue a ~15 %/s. El σ del robot es el del último líquido que lo mojó: 32 S/m con un disparo de ácido, `conductivityAt(x)` dentro del campo.
+
+**Burbujas de H₂.** Mientras una pieza está mojada de ácido se ven burbujas que suben desde su superficie, con tasa proporcional a [H⁺] (ficha 24: 0,1–1 mL/(m²·s), visibles en segundos). Son dibujo: el H₂ no se simula como gas y la pérdida de metal es despreciable.
 
 ## 15.6 Referencias
 

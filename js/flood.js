@@ -1,11 +1,12 @@
 import { LEVEL } from "./level.js";
-import { FLUID } from "./weapons.js";
+import { FLUID, weaponById, particleFlags } from "./weapons.js";
 import { ORIGIN } from "./particleStore.js";
+import { SIGMA_W } from "./materials.js";
+import { seededRandom } from "./bot.js";
 import { CLIMB, halfWidth, stageOf } from "./climb.js";
 
 /** Paso (m) de integración del ancho libre. */
 const SLICE = 0.05;
-const GOLDEN = 0.6180339887498949;
 
 /** Iteraciones de la bisección de `levelOfArea`. */
 const BISECTION_STEPS = 40;
@@ -85,19 +86,19 @@ export function levelOfArea(area, level = LEVEL) {
     return (lo + hi) / 2;
 }
 
-/** x de la gota número i: secuencia áurea, reparto parejo y determinista. */
-export function rainX(i, flood = LEVEL.flood) {
-    const frac = (i * GOLDEN) % 1;
-    return flood.emitX1 + frac * (flood.emitX2 - flood.emitX1);
-}
-
 /**
  * Inundación (muerte súbita) como fuente de lluvia por caudal (docs/design/14-agua.md §14.7). No impone el nivel:
- * emite gotas en el sistema de disparos con `store.create` (`origin` RAIN) al caudal de la curva de diseño,
- * `Q = riseSpeed · W_libre(nivel(t))` en m²/s, o `Q / A_p` gotas por segundo con crédito acumulado, tope
- * `maxRate`. Las gotas caen como partículas y `Immersion` las absorbe en el campo. El nivel resulta de la
- * conservación de la masa. Se corta cuando la curva está en `maxLevel` y el nivel medio del campo
- * (`meanLevel`) también. Antes de `start` no llueve. Una vez por paso fijo, antes de `stepWorld`.
+ * el caudal de la curva de diseño, `Q = riseSpeed · W_libre(nivel(t))` en m²/s, entra de dos maneras. Una fracción
+ * `particleShare` (con ráfagas de `gustMin` a `gustMax` veces su media en ciclos de `gustPeriod` s) sale como gotas
+ * del sistema de disparos con `store.create` (`origin` RAIN), con las flags y el color del agua de `WEAPONS`
+ * (una sola agua, #219): `Q_gotas / A_p` gotas por segundo con crédito acumulado, tope `maxRate`. El resto entra
+ * directo al campo con `water.deposit`, repartido parejo a lo ancho del emisor donde hay lecho bajo la curva, y se
+ * suma a `water.stats.sourced` (libro de masa). Cada gota nace a `x` al azar, a una altura repartida en
+ * `spawnBand` m bajo `emitY`, con velocidad vertical `dropSpeed` ± `dropSpeedSpread` y velocidad horizontal de
+ * viento `windMax · sin(2π t / windPeriod)` m/s. Las gotas caen como partículas y `Immersion` las absorbe en el
+ * campo. El nivel resulta de la conservación de la masa. Se corta cuando la curva está en `maxLevel` y el nivel
+ * medio del campo (`meanLevel`) también. Antes de `start` no llueve. Una vez por paso fijo, antes de `stepWorld`.
+ * El azar sale de `seededRandom(seed)`: sin `seed` es nueva en cada ronda.
  *
  * `meanLevel` es el nivel `η` medio: el que ocuparía todo el volumen de agua agregado desde el arranque (el del
  * campo más el de las gotas de lluvia que todavía están como partículas, en vuelo o retenidas en plataformas) si se
@@ -105,16 +106,19 @@ export function rainX(i, flood = LEVEL.flood) {
  * `maxLevel` las sume de más.
  */
 export class Flood {
-    constructor(store, water, level = LEVEL) {
+    constructor(store, water, level = LEVEL, seed = null) {
         this.store = store;
         this.water = water;
         this.data = level;
         this.config = level.flood;
+        this.fixedSeed = seed;
         this.dropArea = (1.5 * store.system.GetRadius()) ** 2;
+        const rain = weaponById(FLUID.WATER);
         this.def = new Box2D.b2ParticleDef();
         this.position = new Box2D.b2Vec2(0, this.config.emitY);
         this.velocity = new Box2D.b2Vec2(0, -this.config.dropSpeed);
-        this.color = new Box2D.b2ParticleColor(40, 120, 255, 255);
+        this.color = new Box2D.b2ParticleColor(...rain.color, 255);
+        this.def.set_flags(particleFlags(rain));
         this.def.set_velocity(this.velocity);
         this.def.set_color(this.color);
         this.props = { kind: FLUID.WATER, origin: ORIGIN.RAIN };
@@ -123,6 +127,26 @@ export class Flood {
         this.emitted = 0;
         this.credit = 0;
         this.rate = 0;
+        this.reseed();
+    }
+
+    /** Reinicia el azar de la ronda: con semilla fija repite la lluvia; sin ella es nueva. */
+    reseed() {
+        this.random = seededRandom(this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0);
+        this.windPhase = 2 * Math.PI * this.random();
+        this.gustPhase = 2 * Math.PI * this.random();
+    }
+
+    /** Velocidad horizontal del viento (m/s) en el tiempo de ronda `t`. */
+    wind(t) {
+        const { windMax, windPeriod } = this.config;
+        return windMax * Math.sin((2 * Math.PI * t) / windPeriod + this.windPhase);
+    }
+
+    /** Factor de ráfaga en `t`: de `gustMin` a `gustMax`, con media 1. */
+    gust(t) {
+        const { gustMin, gustMax, gustPeriod } = this.config;
+        return (gustMax + gustMin) / 2 + ((gustMax - gustMin) / 2) * Math.sin((2 * Math.PI * t) / gustPeriod + this.gustPhase);
     }
 
     get active() {
@@ -158,18 +182,47 @@ export class Flood {
             this.credit = 0;
             return;
         }
-        this.rate = Math.min(cfg.maxRate, (cfg.riseSpeed * freeWidth(target, this.data)) / this.dropArea);
+        const flow = cfg.riseSpeed * freeWidth(target, this.data);
+        this.rate = Math.min(cfg.maxRate, (cfg.particleShare * this.gust(roundTime) * flow) / this.dropArea);
         this.credit += this.rate * dt;
         const wanted = Math.floor(this.credit);
         let made = 0;
-        while (made < wanted && this.emit()) made++;
+        while (made < wanted && this.emit(roundTime)) made++;
         this.credit = made < wanted ? 0 : this.credit - made;
+        this.pour(flow * dt - this.rate * dt * this.dropArea, target);
     }
 
-    /** Crea una gota en el techo; devuelve `false` si el sistema no tiene lugar. */
-    emit() {
-        this.position.set_x(rainX(this.emitted, this.config));
+    /**
+     * Entra directo al campo `area` (m²) repartida parejo en las columnas del emisor ya mojadas (`h > hDry`) con lecho bajo `level`, a
+     * temperatura ambiente y sin cantidad de movimiento, y la suma a `water.stats.sourced`.
+     */
+    pour(area, level) {
+        const { water, config } = this;
+        const hDry = water.config.hDry;
+        let columns = 0;
+        for (let i = water.i0; i < water.i1; i++) {
+            const x = water.center(i);
+            if (water.h[i] > hDry && water.b[i] < level && x >= config.emitX1 && x <= config.emitX2) columns++;
+        }
+        if (columns === 0 || area <= 0) return;
+        const part = area / columns;
+        const energy = SIGMA_W * water.cWater * part * water.config.ambientT;
+        for (let i = water.i0; i < water.i1; i++) {
+            const x = water.center(i);
+            if (water.h[i] > hDry && water.b[i] < level && x >= config.emitX1 && x <= config.emitX2) water.deposit(x, part, 0, energy, 0);
+        }
+        water.stats.sourced += area;
+    }
+
+    /** Crea una gota en la franja de nacimiento; devuelve `false` si el sistema no tiene lugar. */
+    emit(roundTime) {
+        const cfg = this.config;
+        this.position.set_x(cfg.emitX1 + this.random() * (cfg.emitX2 - cfg.emitX1));
+        this.position.set_y(cfg.emitY - this.random() * cfg.spawnBand);
+        this.velocity.set_x(this.wind(roundTime));
+        this.velocity.set_y(-cfg.dropSpeed * (1 + cfg.dropSpeedSpread * (2 * this.random() - 1)));
         this.def.set_position(this.position);
+        this.def.set_velocity(this.velocity);
         if (this.store.create(this.def, this.props) < 0) return false;
         this.emitted++;
         return true;
@@ -183,6 +236,7 @@ export class Flood {
         this.emitted = 0;
         this.credit = 0;
         this.rate = 0;
+        this.reseed();
     }
 
     dispose() {
@@ -194,19 +248,31 @@ export class Flood {
 }
 
 /**
+ * Altura de apoyo (m) de un robot para el alcance de la inundación: con los pies apoyados (`grounded`) es `lowest`, su punto más bajo;
+ * en el aire es `min(last, lowest)` (un salto no cuenta, una caída sí). Sin apoyo previo (`last` no finito) usa `lowest`.
+ */
+export function supportHeight(grounded, lowest, last) {
+    if (grounded || !Number.isFinite(last)) return lowest;
+    return Math.min(last, lowest);
+}
+
+/**
  * Inundación del ascenso infinito (docs/design/16-ascenso.md §16.5): el agua sube sin techo, solo en el campo de alturas
  * (JS puro, no crea partículas ni llueve). La curva `η*` (mundo) vale `flood.surface` hasta `flood.start` y después sube
- * `v = speed + perStage · etapa` m/s, con la etapa de la altura local `η* − offsetY()` (el mapa baja). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
+ * `v = speed + perStage · etapa + alcance` m/s, con la etapa de la altura local `η* − offsetY()` (el mapa baja) y
+ * `alcance = min(catchUp.max, catchUp.rate · max(0, d − catchUp.gap))`, con `d` la distancia de `η*` al punto más bajo del
+ * robot vivo más bajo según su altura de apoyo (`lowestPlayer()`, mismas coordenadas del mundo; `-Infinity` sin robots vivos: alcance 0). Una vez por paso fijo y antes de `stepWorld`, `step` angosta el span del campo
  * al ancho de la etapa, sube el fondo efectivo (`floor`, a `depth` m bajo `η*`) y suma `v · dt` a las columnas bajo `η*`.
  * Misma interfaz que `Flood`: `active`, `level`, `config.start`, `step`, `reset` y `dispose`.
  */
 export class RisingFlood {
-    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0) {
+    constructor(water, level = LEVEL, climb = CLIMB, offsetY = () => 0, lowestPlayer = () => -Infinity) {
         this.water = water;
         this.data = level;
         this.climb = climb;
         this.config = climb.flood;
         this.offsetY = offsetY;
+        this.lowestPlayer = lowestPlayer;
         this.eta = climb.flood.surface;
         this.roundTime = 0;
         this.speed = 0;
@@ -226,9 +292,17 @@ export class RisingFlood {
         return Math.max(0, this.eta - this.config.depth);
     }
 
-    /** Velocidad de subida (m/s) a la altura actual. */
-    get riseSpeed() {
+    /** Velocidad base de subida (m/s) a la altura actual: la de la etapa, sin el alcance. */
+    get baseRiseSpeed() {
         return this.config.speed + this.config.perStage * stageOf(this.eta - this.offsetY(), this.climb);
+    }
+
+    /** Velocidad de subida (m/s) a la altura actual: la de la etapa más el alcance (0 sin robots vivos o a menos de `gap`). */
+    get riseSpeed() {
+        const { catchUp } = this.config;
+        const distance = this.lowestPlayer() - this.eta;
+        const reach = distance > catchUp.gap ? Math.min(catchUp.max, catchUp.rate * (distance - catchUp.gap)) : 0;
+        return this.baseRiseSpeed + reach;
     }
 
     /** Avanza la curva y el campo un paso fijo `dt`. */

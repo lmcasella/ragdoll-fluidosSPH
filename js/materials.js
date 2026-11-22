@@ -24,12 +24,38 @@ export const SIGMA_W = 12.0;
  * transferencia: `filmBoiling` `h_b` (basalto contra otro fluido, W/(m²·K)), `convection` `h_a` (al aire),
  * `stefanBoltzmann` (W/(m²·K⁴)) y `shearCoefficient` `C_s` de la difusividad por cizalla entre fluidos iguales
  * (sin calibrar, a la espera de #76: con 0 queda solo la conducción molecular).
+ * Ebullición (#112): `boilingPoint` (°C) y `latentVaporization` `L_v` (J/kg a esa temperatura) del agua. El vapor
+ * (`steam`) es una parcela con la masa de la partícula de agua de la que vino (`SG` 1), y `rho` (kg/m³) es la
+ * densidad del vapor real a 100 °C que fija su empuje y su arrastre en el aire (`air.rho`), con `Cd` de arrastre. Es
+ * miscible: al tocar el campo se absorbe con su entalpía. `entrainment` es el coeficiente de arrastre de aire `α` de
+ * Morton–Taylor–Turner (#113, rango 0,07–0,13). `heat.condensation` son los `h` (W/(m²·K)) de la condensación por
+ * contacto directo del vapor sobre líquidos (agua y ácido) y sobre piedra: el extremo superior de los rangos de las
+ * fichas 7 (10⁴–10⁶) y 37 (5·10³–2·10⁴).
+ * Adherencia (#77, #214): `honey.viscosityScale` es el factor `F` de la viscosidad efectiva `μ_ef = F · μ` que usan la
+ * película miel–cuerpo (`js/adhesion.js`) y los hilos miel–miel (`js/viscosity.js`). Es una similitud viscosa-gravitatoria,
+ * una aproximación nombrada: con partículas de 9 cm la miel real escurre y se desprende en ~0,02 s, y `F = 100` iguala a esa
+ * escala los tiempos de escurrido y de desprendimiento de una película real de 2–3 mm (inestabilidad de Rayleigh–Taylor de
+ * película, Fermigier et al. 1992).
  * Valores de referencia de la literatura, a confirmar por physics-analyst.
  */
 export const MATERIALS = {
-    water: { SG: 1.0, c: 4186, k: 0.6, temperature: 20, mu: 1.0e-3, sigmaE: 5e-3, miscible: true, species: { H2O: 1 }, evaporationScale: 3e5 },
+    water: {
+        SG: 1.0,
+        c: 4186,
+        k: 0.6,
+        temperature: 20,
+        mu: 1.0e-3,
+        sigmaE: 5e-3,
+        miscible: true,
+        species: { H2O: 1 },
+        evaporationScale: 3e5,
+        boilingPoint: 100,
+        latentVaporization: 2.257e6,
+    },
+    steam: { SG: 1.0, c: 2010, k: 0.025, temperature: 100, rho: 0.598, Cd: 1.0, entrainment: 0.1, miscible: true, species: { H2O: 1 } },
+    air: { rho: 1.2 },
     acid: { SG: 1.05, c: 3850, k: 0.6, temperature: 20, mu: 1.17e-3, sigmaE: 32, tint: [50, 255, 50], tintAbsorbance: 2, miscible: true, species: { H2O: 0.92, H2SO4: 0.08 } },
-    honey: { SG: 1.42, c: 2400, k: 0.5, temperature: 20, mu: 10, Cd: 1.2, miscible: false, species: { honey: 1 } },
+    honey: { SG: 1.42, c: 2400, k: 0.5, temperature: 20, mu: 10, viscosityScale: 100, Cd: 1.2, miscible: false, species: { honey: 1 } },
     lava: {
         SG: 2.6,
         c: 1200,
@@ -45,7 +71,13 @@ export const MATERIALS = {
     },
     stone: { SG: 2.6, c: 1000, k: 1.5, temperature: 20, emissivity: 0.9, Cd: 1.2, miscible: false, species: { basalt: 1 } },
     drag: { box: 2.0, circle: 1.2 },
-    heat: { filmBoiling: 500, convection: 10, stefanBoltzmann: 5.670374e-8, shearCoefficient: 0 },
+    heat: {
+        filmBoiling: 500,
+        convection: 10,
+        stefanBoltzmann: 5.670374e-8,
+        shearCoefficient: 0,
+        condensation: { liquid: 1e6, stone: 2e4 },
+    },
 };
 
 /**
@@ -57,11 +89,14 @@ export const K_MU = 4 * Math.PI;
 /**
  * Reacciones diseñadas. Cada fila es `{ id, from: { material: kg }, to: { material: kg } }` por kg de avance, con
  * `Σ from = Σ to` y cada especie conservada. Ningún código cambia el material de una masa si no es ejecutando una
- * fila de esta tabla. Hoy son las dos de las fases del basalto (docs/design/14-agua.md §14.8, #75): `solidify`
- * (la lava sin entalpía de fusión pasa a piedra) y `remelt` (la piedra que supera `solidus + L_f` vuelve a lava);
- * las decide la entalpía de la partícula, en `js/thermal.js`.
+ * fila de esta tabla. Hoy son las de las fases (docs/design/14-agua.md §14.8, #75 y #112): `solidify` (la lava sin
+ * entalpía de fusión pasa a piedra), `remelt` (la piedra que supera `solidus + L_f` vuelve a lava), `boil` (el agua
+ * que llega a `e_v` pasa a vapor) y `condense` (el vapor que baja a `e_l` vuelve a agua); las decide la entalpía de
+ * la partícula, en `js/thermal.js`.
  */
 export const REACTIONS = [
     { id: "solidify", from: { lava: 1 }, to: { stone: 1 } },
     { id: "remelt", from: { stone: 1 }, to: { lava: 1 } },
+    { id: "boil", from: { water: 1 }, to: { steam: 1 } },
+    { id: "condense", from: { steam: 1 }, to: { water: 1 } },
 ];

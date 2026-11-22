@@ -66,7 +66,22 @@ test("soltar con el stick al centro no cambia el arma y el toque corto de LB es 
     game.frames(3);
     game.setPad(0);
     game.frames(3);
-    assert.equal(player.weapon, FLUID.ACID, "cancelada");
+    assert.equal(player.weapon, FLUID.ACID, "sin apuntar nunca, no cambia");
+
+    game.setPad(0, { buttons: [4] });
+    game.frames(holdFrames);
+    game.setPad(0, { buttons: [4], axes: [0, 0, -1, 0] });
+    game.frames(3);
+    game.setPad(0, { buttons: [4] });
+    game.frames(3);
+    game.setPad(0);
+    game.frames(3);
+    assert.equal(player.weapon, FLUID.HONEY, "el stick vuelve al centro antes de soltar LB: elige el último sector apuntado");
+
+    game.setPad(0, { buttons: [4] });
+    game.frames(3);
+    game.setPad(0);
+    game.frames(3);
 
     game.setPad(0, { buttons: [4] });
     game.frames(3);

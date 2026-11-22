@@ -6,11 +6,14 @@
  * sumados a todo el robot golpeado; `stun` en s; `reaction` = `simple` o `stumble`; `lunge` (m/s, opcional) es el paso adelante del atacante hasta el fin de la ventana activa. `impulse` (N·s) se aplica en el
  * punto de impacto. `combo`: secuencia, `grace` (s de tolerancia tras terminar un golpe para encadenar) y `cooldown`
  * (s tras cortarse o terminar un ataque). `breaksGuard` (opcional): si el golpe llega a un bloqueo lo rompe en vez de
- * ser bloqueado: sin daño, el receptor sale de `block` y queda aturdido `guardBreakStun` s.
+ * ser bloqueado: sin daño ni empuje (#192), el receptor sale de `block` con la reacción del golpe y queda aturdido
+ * `guardBreakStun` s. `blockClipSpeed`: velocidad del clip `block`, para que los brazos suban casi al instante; la guardia
+ * protege todo el frente (cualquier pieza, golpe desde el lado de la mira) desde el primer frame del bloqueo (#238).
  */
 export const MELEE = {
     impulse: 5,
     guardBreakStun: 0.7,
+    blockClipSpeed: 4,
     combo: { sequence: ["combo1", "combo2", "combo3"], grace: 0.2, cooldown: 0.25 },
     attacks: {
         combo1: {
@@ -38,7 +41,7 @@ export const MELEE = {
             push: [1.5, 0],
             stun: 0.4,
             reaction: "simple",
-            lunge: 5,
+            lunge: 2.5,
         },
         combo3: {
             duration: 1.0,
@@ -52,7 +55,7 @@ export const MELEE = {
             push: [6, 4],
             stun: 0.7,
             reaction: "stumble",
-            lunge: 5,
+            lunge: 2.5,
             breaksGuard: true,
         },
         airPunch: {
@@ -141,27 +144,26 @@ export class Melee {
 
     connect(attacker, owner, row, dx, dy, hit, now) {
         const victim = owner.player;
-        const guarded =
-            victim.blocking && dx * victim.side < 0 && (victim.rig.arms ?? []).includes(owner.bodyId);
-        this.impulse.set_x(dx * this.config.impulse);
-        this.impulse.set_y(dy * this.config.impulse);
+        const guarded = victim.blocking && dx * victim.side < 0;
+        const body = victim.rag.bodies.get(owner.bodyId);
         this.point.set_x(hit.x);
         this.point.set_y(hit.y);
+        this.impulse.set_x(dx * this.config.impulse);
+        this.impulse.set_y(dy * this.config.impulse);
         if (guarded && row.breaksGuard) {
             victim.stun(this.config.guardBreakStun, now);
-            victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
-            victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
+            body.ApplyLinearImpulse(this.impulse, this.point, true);
             victim.hit(row.reaction, now);
             this.events.push({ kind: "blockBreak", victim: owner.index });
         } else if (guarded) {
-            victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
+            body.ApplyLinearImpulse(this.impulse, this.point, true);
             victim.blocked(now);
             this.events.push({ kind: "block", victim: owner.index });
         } else {
             const dealt = victim.hurt(owner.bodyId, row.damage, now);
             if (dealt > 0) this.events.push({ kind: "hit", victim: owner.index });
             victim.stun(row.stun, now);
-            victim.rag.bodies.get(owner.bodyId).ApplyLinearImpulse(this.impulse, this.point, true);
+            body.ApplyLinearImpulse(this.impulse, this.point, true);
             victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
             victim.hit(row.reaction, now);
         }

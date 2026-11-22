@@ -5,11 +5,382 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
-## [0.33.0] - 2026-11-21
+## [0.54.0] - 2026-11-22
 
 ### Added
-- Plataformas rompibles con aviso visual y reaparición en modos Clásico e Infinito, con evasión de los bots.
-- Fondo oscuro en el menú principal para mejorar la legibilidad de las opciones.
+- Plataformas rompibles en Clásico e Infinito: se agrietan y vibran al sostener un robot, se rompen al cumplirse su tiempo, reaparecen tras un intervalo y los bots las detectan para escapar antes de que cedan.
+
+## [0.53.1] - 2026-11-21
+
+### Changed
+- `docs/referencias.md` pasa a ser un índice en tablas por sección, con un enlace para leer sobre cada concepto; `CLAUDE.md` fija qué explica el GDD, qué los docstrings y qué las referencias.
+
+## [0.53.0] - 2026-11-21
+
+### Added
+- El menú principal muestra la versión y el commit del juego publicado (por ejemplo `v0.52.3 · da518ab`) abajo a la derecha; en local muestra `dev`.
+
+## [0.52.3] - 2026-11-21
+
+### Fixed
+- El deploy vuelve a publicarse: los topes de tiempo de la adherencia, la flotación y el panel de debug solo se exigen con `PERF=1` en corrida aislada, como los demás tests de costo. Corridos en paralelo con la suite medían la carga de la máquina y dejaban el CI en rojo.
+
+## [0.52.2] - 2026-11-21
+
+### Changed
+- Los tests largos pasaron a `tests/slow/`: la suite rápida (`node --test "tests/*.test.js"`) corre en menos de 30 s y la completa (`node --test "tests/**/*.test.js"`) sigue igual en CI.
+
+## [0.52.1] - 2026-11-21
+
+### Fixed
+- Los bots de Infinito ya no se suicidan: con el agua cerca dejan de pelear y suben, y si estar quieto es peligroso entran en pánico y van a la plataforma alcanzable más cercana. Antes se quedaban bloqueando o golpeando bajo la línea segura, o parados sin plataforma a la vista, hasta que el agua los alcanzaba. Pasa igual en fácil, normal y difícil.
+- Los bots eligen saltos con margen: evitan los que están justo al límite de lo que alcanzan y las caídas de más de 6 m, y en el aire corrigen hacia la plataforma más alta que quede sobre el agua en vez de la más cercana.
+- Los bots no pelean al borde de una plataforma: no arrancan un golpe si el paso adelante los saca, se apartan del borde tras un golpe y no se tiran al vacío con el stick en cero.
+- El bot de J2 en Infinito con la semilla 8 llega vivo a los 180 s en lugar de ahogarse a los 29 m.
+- Los bots saltan lejos del rival que está justo encima y se zafan de las plataformas donde quedan encajados empujando hacia el centro.
+- El monitor de debug (F3) muestra el modo de supervivencia de cada bot.
+
+## [0.52.0] - 2026-11-21
+
+### Changed
+- En Infinito, las plataformas son largas y pocas al principio (de 8 a 14 m, y las de una sola por fila de 10 a 14 m) y se van acortando y multiplicando al subir: desde la etapa 5 miden de 2 a 4 m y las filas suelen tener de 2 a 4 plataformas.
+
+## [0.51.0] - 2026-11-21
+
+### Added
+- En Infinito, el agua persigue a los jugadores que se escapan: si el jugador vivo más bajo queda a más de 6 m sobre ella, sube más rápido (hasta 3 m/s extra) hasta quedar justo debajo de la pantalla, y desde ahí entra a la vista a su ritmo de siempre. Los saltos no la aceleran: cuenta la plataforma donde está parado cada jugador.
+
+## [0.50.3] - 2026-11-21
+
+### Changed
+- La documentación del juego queda al día: el README explica el combate, la pausa y los tiempos de nocaut, e incluye el enlace para jugar.
+- El diseño marca como hecho lo que ya está en el juego (combos, bloqueo, plataformas atravesables, armas recogibles, agua física).
+
+## [0.50.2] - 2026-11-21
+
+### Changed
+- El nocaut de Infinito sube 3 s por cada nocaut siguiente, hasta 18 s.
+
+## [0.50.1] - 2026-11-21
+
+### Changed
+- En Infinito el primer nocaut de la ronda dura 5 s y cada uno siguiente 5 s más, hasta 20 s (antes, siempre 15 s).
+
+## [0.50.0] - 2026-11-21
+
+### Changed
+- Sin stick derecho ni mouse, el robot vuelve a mirar y girar hacia donde camina. Con el stick derecho o el mouse manda la mira, y durante un golpe o un combo no gira.
+- El 2.º y el 3.er golpe del combo vuelven a hacer avanzar al atacante, a la mitad de velocidad que antes (2,5 m/s hasta el fin de la ventana activa).
+
+## [0.49.1] - 2026-11-21
+
+### Fixed
+- En Infinito también aparece la barrita de vida sobre el robot al recibir daño.
+- El menú de debug queda por encima de la interfaz y debajo del panel de J1.
+
+## [0.49.0] - 2026-11-20
+
+### Changed
+- En Infinito la vida vuelve a ser la de 100 del Clásico, con las mismas fuentes de daño. Se quitan el daño acumulado en % y el empuje creciente: los golpes y los chorros empujan siempre igual.
+- La tuerca de reparación en Infinito deja la vida en 100 (en el Clásico sigue sumando 35). El premio por etapa también.
+- El panel de Infinito muestra la barra y el número de vida como el Clásico, y el número flotante de daño es "−N" con la misma rampa de calor.
+
+### Added
+- Nocaut en Infinito: con la vida en 0 el robot no muere, queda inconsciente 15 s con la animación de caída dolorida, sin responder a ningún control (el bot tampoco lo maneja) mientras los golpes y los fluidos lo siguen empujando, y se levanta con 50 de vida. Más daño en nocaut no alarga el tiempo. Una tuerca lo levanta en el acto con 100 de vida. Solo el agua saca al robot de la partida, también en nocaut. Sobre el robot inconsciente se ve el contador de segundos que faltan.
+
+## [0.48.0] - 2026-11-20
+
+### Added
+- Menú de pausa: cualquier jugador lo abre con Start o Escape durante la cuenta regresiva o la partida. Mientras está abierto no avanzan la física, el reloj de ronda ni los bots, y el HUD sigue visible. Tiene Continuar (también Start, Escape o B), Controles (B vuelve a la pausa) y Menú, que vuelve al título.
+
+## [0.47.1] - 2026-11-20
+
+### Changed
+- La pantalla de controles del gamepad es una tabla como la del teclado, en lugar del dibujo del gamepad.
+
+## [0.47.0] - 2026-11-20
+
+### Added
+- Menú principal nuevo, con íconos en vez de texto: Mapa (con la miniatura del Clásico o del Infinito), Bot (1, 2 o 3 puntos de dificultad, o el maniquí), Controles y Jugar. El foco se ve en amarillo y el valor entra deslizándose al cambiarlo.
+- Pantalla de controles propia, desde la fila Controles: el gamepad dibujado con cada botón y una palabra de acción, las combinaciones (rodar, bajar, patada, combo) y una pestaña con el teclado y mouse de J1. LB y RB cambian de pestaña y B vuelve.
+- Asignación de controles nueva: fichas de dispositivo que se deslizan entre J1, la bandeja del medio y J2, con un tilde en el jugador que ya tiene control y el bot en el que no.
+- Sonidos de interfaz para navegar el menú, cambiar valores y pestañas, sumar, mover y quitar dispositivos, conectar y desconectar un gamepad, empezar y la revancha, la cuenta regresiva, el "¡YA!", el aviso de inundación, el premio de etapa, el fin de ronda y la pausa. Suenan 6 dB más bajo que los golpes y de a uno por vez.
+- Los glifos de ayuda muestran los botones del gamepad o las teclas, según lo último que usaste en esa pantalla.
+
+### Changed
+- El panel de cada jugador es más chico (420 × 72, como máximo 1,8 veces el alto de un robot) y ya no tiene texto: sin arma muestra el puño, y con el tanque vacío el ícono del arma se apaga.
+- El marcador de arriba solo tiene los rombos de victorias y el reloj. El aviso de inundación muestra los segundos que faltan sobre franjas amarillas y después una ola que late. El fin de ronda es una banda con la insignia del ganador y el marcador, y el fin de partida tiene la corona y los botones de revancha y menú solo con íconos.
+- El daño se lee como algo malo: el número flotante sale del torso, sacude y cae en vez de subir, no lleva el signo "+" y va de blanco a rojo según el daño acumulado de Infinito o la vida perdida en Clásico (nunca amarillo ni dorado). Los paneles de Infinito usan la misma escala de colores, sin "empuje".
+- En Infinito el premio de etapa es una ficha con la insignia del ganador, un rayo y un tanque, y el medidor de altura no lleva texto: solo las fichas con los metros y la zona roja.
+
+### Fixed
+- El HUD de la partida ya no aparece encima del menú principal.
+## [0.46.0] - 2026-11-20
+
+### Added
+- Interfaz nueva en partida: un panel por jugador arriba (insignia, vida con marcas cada 25 y número grande, o el % de daño en Infinito, y el arma con su tanque o "VACÍO"), marcador "AL MEJOR DE 3" con rombos de victorias, ronda, reloj y aviso de inundación, y la cuenta regresiva, el fin de ronda y el fin de partida (con los botones Revancha y Menú bloqueados el primer segundo).
+- Cuando un robot recibe daño sale un número flotante sobre él ("−12", o "+12 %" en Infinito) que suma el daño seguido, una barrita de vida sobre la cabeza durante 1,5 s (solo en Clásico) y un tramo blanco en el panel con lo perdido.
+- Infinito: medidor de altura a la derecha, con una ficha por jugador que marca cuántos metros le saca al agua, rayas por etapa y zona roja en los últimos 4 m.
+
+### Changed
+- Se retiran de la partida los textos de salud, los puntitos de ronda, "Ronda N", el reloj y la banda negra de carteles: los reemplaza la interfaz nueva. El menú y la pantalla de asignación siguen como estaban.
+
+## [0.45.3] - 2026-11-20
+
+### Fixed
+- La miel vuelve a pegarse a los robots en el juego publicado: cuando las primeras gotas entraban en el cuerpo del robot, el juego dejaba de leer los contactos y la adherencia (junto con el calor y la evaporación por contacto) quedaba apagada toda la partida.
+
+## [0.45.2] - 2026-11-20
+
+### Changed
+- Diseño del juego: página nueva de balance con los valores con los que se juega hoy (vida, golpes, armas, tiempos de la partida e Infinito), y corrección de los números viejos que no coincidían con el juego. Sin cambios en el juego.
+
+## [0.45.1] - 2026-11-20
+
+### Fixed
+- Los líquidos ya no desaparecen apenas salen del arma cuando el juego corre a menos de 50 fps. El recorte de partículas por rendimiento solo actúa con más de 1000 partículas vivas.
+
+## [0.45.0] - 2026-11-20
+
+### Added
+- Menú de debug con un solo botón: F3 (teclado) o L3 + R3 juntos (gamepad) lo abre y lo cierra. Mientras está abierto la partida queda en pausa y se recorre con arriba/abajo y izquierda/derecha. Filas: Estadísticas, Fluidos (metaball, puntos o ambos) y las capas de vectores Velocidades, Fuerzas, Columnas y Bots, cada una por separado y apagadas al empezar.
+- Modo de fluidos en puntos: cada partícula se ve como un círculo del tamaño real y el color de su material, para mirar la simulación sin el efecto de gota.
+- Las flechas del debug son más finas y semitransparentes.
+
+### Removed
+- F4 y los atajos Select + LB y Select + RB del monitor de física: ahora todo sale del menú. LB y RB vuelven a abrir la rueda y cambiar de arma aunque Select esté apretado.
+
+## [0.44.3] - 2026-11-20
+
+### Changed
+- Test de aterrizajes rápidos sobre plataformas atravesables, fijas y móviles: ninguna pieza del robot queda dentro de la plataforma y termina parado arriba. Sin cambios en el juego.
+
+## [0.44.2] - 2026-11-20
+
+### Changed
+- Flujo de trabajo: después de cada merge se comprueba que el issue quedó cerrado, y `/next` revisa los PRs ya mergeados de un issue antes de recomendarlo. Sin cambios en el juego.
+
+## [0.44.1] - 2026-11-20
+
+### Fixed
+- El robot que pisa un charco de miel apoya los pies en el piso, en vez de quedar parado arriba del charco como sobre un bloque. La miel se sigue pegando al robot, pero ya no lo clava al piso: un chorro de miel puede empujar al rival, y caminar por un charco de miel cuesta más o menos lo mismo que por agua. La miel del fondo de la pileta se corre despacio con la corriente.
+
+## [0.44.0] - 2026-11-20
+
+### Added
+- Cuando un robot cae al agua, la superficie levanta gotas hacia afuera, con la energía que el golpe le da al agua; el agua que sale de la pileta vuelve a ella cuando las gotas caen. Solo salpica el agua limpia, no la mezclada con miel o ácido.
+
+## [0.43.1] - 2026-11-20
+
+### Fixed
+- En el cartel de fin de partida, Escape (o el Start de cualquier control) vuelve al menú y Enter (o A) pide la revancha, aunque el teclado o ese control no estén asignados a un jugador.
+
+## [0.43.0] - 2026-11-20
+
+### Added
+- Monitor de física: F3 muestra un panel con FPS, milisegundos por subsistema, partículas por material, contactos partícula-cuerpo, subpasos del campo de agua, deriva del volumen de agua y el estado de cada bot, y F4 dibuja una capa con la velocidad de las partículas, el empuje y el arrastre de cada pieza de los robots, las columnas del campo de agua y la línea de cada bot a su meta. En gamepad: Select mantenido + LB el panel y Select mantenido + RB la capa; con Select apretado, LB no abre la rueda de armas.
+
+## [0.42.12] - 2026-11-20
+
+### Fixed
+- La miel cuelga del techo unos 2 segundos antes de soltarse, escurre despacio por las paredes y las plataformas (unos 6 cm/s) y se estira en hilos entre las gotas, en lugar de caer como agua. Pega contra cualquier cosa del mapa, no solo contra los robots. La miel sale con más partículas por segundo y el mismo tiempo de fuego, para que el chorro vaya unido.
+
+## [0.42.11] - 2026-11-20
+
+### Fixed
+- En Infinito suena una sola música durante la ronda (la de muerte súbita), en lugar de cambiar de pista a los 5 s cuando empieza a subir el agua, en cada ronda.
+
+## [0.42.9] - 2026-11-20
+
+### Fixed
+- El bloqueo es inmediato: protege todo el frente desde el primer frame en que se aprieta (antes el golpe tenía que pegar en un brazo, y los brazos tardaban en subir), y la animación de guardia corre 4 veces más rápido. Con el bloqueo mantenido, la mira sigue eligiendo hacia qué lado se bloquea.
+
+## [0.42.8] - 2026-11-20
+
+### Fixed
+- La mira la mueven solo el stick derecho o el mouse: caminar con el stick izquierdo o el teclado ya no cambia hacia dónde apunta el robot ni lo da vuelta. Caminar hacia el lado contrario de la mira es caminar de espaldas.
+
+## [0.42.7] - 2026-11-20
+
+### Fixed
+- Las gotas en movimiento se dibujan estiradas a lo largo de su velocidad, así el chorro se ve como un hilo continuo y no como una fila de bolitas: a 18 m/s las gotas del chorro quedan a 0,18 m y el dibujo solo las fundía a menos de 0,12 m.
+
+## [0.42.6] - 2026-11-20
+
+### Fixed
+- Dificultad "Muñeco" en el menú: el rival que maneja la máquina se queda quieto, sin moverse ni atacar, para probar el combate con un solo control sin que la ronda se reinicie por su cuenta. En Clásico la inundación empieza a los 60 s.
+
+## [0.42.5] - 2026-11-20
+
+### Fixed
+- El robot ya no se da vuelta durante un golpe ni durante el combo cuando la mira apunta al lado contrario: gira recién al terminar el ataque. El bot solo empieza un golpe con el rival del lado al que mira.
+
+## [0.42.4] - 2026-11-20
+
+### Changed
+- La lluvia de la inundación es la misma agua que el chorro del jugador: mismas flags (genera los eventos de contacto que mojan y adhieren) y mismo color, definidos en un solo lugar (`WEAPONS`). La lluvia solo se distingue por su origen en el libro de masa.
+- La lluvia cae de forma natural y menos densa: posición al azar con la semilla (`?seed`), nacimiento repartido en una franja de 2 m, velocidad de cada gota de 8 m/s ±25 %, viento leve de -1,5 a 1,5 m/s con período de 8 s y ráfagas de 0,5 a 1,5 veces el caudal medio cada 4 s. Solo el 40 % del caudal sale como gotas; el resto entra al campo de alturas repartido a lo ancho del agua, con su volumen en el libro de masa, así que la subida de la inundación no cambia.
+
+## [0.42.3] - 2026-11-20
+
+### Fixed
+- La rueda de armas ya no cancela si el stick vuelve al centro antes de soltar LB: elige el último sector apuntado, que queda resaltado. Solo se cierra sin cambiar el arma si nunca se apuntó.
+
+## [0.42.2] - 2026-11-20
+
+### Changed
+- Mapa Infinito: las plataformas se arman por filas separadas de 2,2 a 3,2 m, con de 1 a 4 plataformas por fila (sin más de 2 filas seguidas con la misma cantidad) y cada una corrida hasta 0,4 m en vertical, para que no parezca una escalera. Una plataforma vale si se alcanza con el salto real del robot (hasta 3,3 m de desnivel con 2 m de hueco, o 2 m de desnivel con 3,5 m de hueco) desde otra de la fila de abajo o de su misma fila. La plataforma de una fila de 1 es siempre ancha (de 4 a 5,5 m).
+
+## [0.42.1] - 2026-11-20
+
+### Changed
+- Los golpes ya no empujan al atacante hacia adelante: el avance lo dan solo las piernas animadas.
+- Durante un golpe o un combo el robot no camina ni se da vuelta, aunque el stick apunte al otro lado; gira al terminar el golpe.
+
+## [0.42.0] - 2026-11-20
+
+### Added
+- Pantalla de asignación de controles al elegir Jugar: cada dispositivo conectado (teclado y mouse, gamepad 1, gamepad 2) se ubica en J1, sin jugar o J2 con su propio stick, cruceta o A/D. Select o A suman al gamepad, Start, Enter o A empiezan y B o Escape vuelven. La última asignación se recuerda; un jugador sin dispositivo lo maneja el bot con la dificultad del menú.
+
+### Changed
+- El teclado y el mouse son un solo dispositivo con un esquema nuevo: Espacio salta, Shift bloquea, Shift + Espacio rueda, F golpea, S + F patea, S + Espacio baja de la plataforma, clic izquierdo dispara, clic derecho o E es el gancho, Q anterior o rueda, R siguiente, 1-4 directa y Escape es Start. W queda solo como arriba. La revancha se pide con Espacio.
+- El menú principal pierde la fila Modo; se elige con los dispositivos de la pantalla de asignación. ?bot= sigue forzando bots y salta la pantalla.
+- Input asigna el estado por dispositivo y no por el índice del gamepad.
+
+### Removed
+- El teclado de J2 y todas las teclas del teclado numérico.
+
+## [0.41.3] - 2026-11-20
+
+### Fixed
+- Infinito: el daño acumulado se satura en 500 % (factor de empuje máximo 6) en lugar de crecer sin límite.
+- Infinito: el impulso extra que suma el daño acumulado a golpes y chorros se recorta para que ninguna pieza del robot golpeado supere 25 m/s por su causa; la física del contacto no cambia.
+
+## [0.41.2] - 2026-11-20
+
+### Fixed
+- Música: un cambio de pista pedido durante un fundido ya no deja sonando la pista que estaba saliendo. Nunca hay más de una pista entrando y una saliendo.
+
+## [0.41.1] - 2026-11-20
+
+### Fixed
+- Las gotas del mismo material se funden en una masa continua (chorro, charco, hilo) en lugar de verse como bolitas sueltas. Cada partícula aporta un campo que se suma al de sus vecinas y un umbral recorta el contorno, con la gota aislada con su área física. Cada material se dibuja en su propia capa, así que materiales distintos ya no se funden entre sí. Se conserva el color por temperatura.
+
+## [0.41.0] - 2026-11-20
+
+### Changed
+- Infinito: la vida pasa a ser daño acumulado en %, que arranca en 0 y no tiene tope. El daño no mata: el robot solo muere ahogado. El HUD muestra el % (por ejemplo `47 %`) con el color del jugador en lugar de la salud. La reparación y el premio por etapa restan % sin bajar de 0. El bot usa el % de forma equivalente para huir y buscar reparación. Clásico no cambia.
+- Infinito: todo golpe y todo chorro empuja `1 + daño % / 100` veces más (100 % duplica el empuje). En los chorros el extra se estima con la masa de la partícula y su velocidad de acercamiento sobre la normal del contacto.
+
+## [0.40.0] - 2026-11-20
+
+### Added
+- El cortocircuito depende de la conductividad del líquido que moja al robot: agua limpia sigue en 3 de vida por segundo y el ácido (32 S/m) llega a ~15. El ácido de un disparo también moja, y en la pileta cuenta la conductividad del campo en la columna del robot, así que volcar ácido en la pileta la electrifica.
+- Las chispas del cortocircuito escalan con el daño (el ácido da unas 5 veces más) y las piezas mojadas de ácido sueltan burbujas de H₂ que suben y se apagan en 0,5 s, con tasa proporcional a la concentración.
+
+### Fixed
+- El ácido no hacía daño apreciable: de un tanque entero solo ~7 de vida llegaban a un blanco a 4 m, porque no lo mojaba. Ahora el mismo disparo le quita ~33 de vida.
+
+## [0.39.3] - 2026-11-20
+
+### Fixed
+- La levantada tras una caída con daño espera a que el robot esté apoyado y quieto: `land_hurt` sigue mientras esté en el aire o rebotando, y la levantada empieza tras 0,5 s seguidos con alguna pieza apoyada en el mapa o en el agua (mínimo 1 s de `land_hurt`).
+
+## [0.39.2] - 2026-11-20
+
+### Fixed
+- Los modos contra bot y bot contra bot funcionan aunque haya más de un gamepad conectado: el jugador elegido como bot lo maneja el bot, y ya no se queda quieto esperando a un mando.
+
+## [0.39.1] - 2026-11-20
+
+### Fixed
+- Al romperse la guardia vuelve la animación de tropiezo (`stumble`) del que bloqueaba; sigue sin el empuje artificial.
+
+## [0.39.0] - 2026-11-20
+
+### Added
+- Robot v7: clips nuevos `land_hurt`, `getup_front` y `getup_back`; los 19 anteriores no cambian.
+- Una caída alta que hace daño por impacto deja al robot dolorido en el piso (`land_hurt`) y después se levanta de frente o de espalda, según cómo quedó el torso. Durante esos 3 s no puede moverse, girar, saltar, rodar, atacar ni disparar; un golpe no reinicia la secuencia y la muerte la corta. Una caída sin daño sigue igual.
+
+## [0.38.2] - 2026-11-20
+
+### Fixed
+- Infinito ya no se cuelga al arrancar una partida cuando la base deja una sola plataforma válida para aparecer: los dos robots aparecen sobre ella, separados y mirándose.
+
+## [0.38.1] - 2026-11-20
+
+### Fixed
+- El salto completo a través de plataformas atravesables se verifica en las semillas 1 a 6 del Infinito. Los saltos "cortados" que mostraba la prueba eran el robot saltando ya bajo el agua de la inundación (el arrastre le acortaba el salto), no un fallo de las plataformas.
+
+## [0.38.0] - 2026-11-20
+
+### Changed
+- Los bots equipan enseguida el arma que acaban de recoger y, cuando se les vacía el tanque equipado, cambian al azar a otra que tenga carga.
+
+## [0.37.2] - 2026-11-20
+
+### Fixed
+- Un golpe bloqueado ya no corta el combo: el combo sigue como antes y el tercer golpe rompe la guardia, ahora sin lanzar ni hacer tropezar al que bloqueaba.
+
+## [0.37.1] - 2026-11-20
+
+### Fixed
+- Bloquear vale la pena: un golpe bloqueado corta el combo del atacante, y romper la guardia solo aturde 0,7 s, sin lanzar ni hacer tropezar al que bloqueaba.
+
+## [0.37.0] - 2026-11-20
+
+### Changed
+- La miel ahora frena al robot por adherencia física y no por una regla de juego: las partículas cerca de cualquier pieza del robot forman una película viscosa que lo arrastra (y que él arrastra a ella), así que cruzar un charco de miel de 9 capas lleva casi el doble que en seco (2,7 m/s contra 5,2 m/s medios en 4 m) y más que con agua (3,9 m/s), y al salir del charco camina normal. El agua casi no se pega. El robot ya no queda "pegado" al piso ni parpadea en ámbar.
+
+### Removed
+- El estado pegado de la miel: salto bajo, velocidad al 10 %, gravedad extra y parpadeo ámbar.
+
+## [0.36.1] - 2026-11-20
+
+### Fixed
+- En Infinito aparecen de 8 a 13 plataformas en cada 10 m de alto (antes de 3 a 7), repartidas por todo el ancho. Cada plataforma tiene una vecina alcanzable arriba y otra a su altura o abajo, y ninguna queda a más de 6 m en horizontal de las de abajo: el alcance ya no depende de la semilla.
+
+## [0.36.0] - 2026-11-20
+
+### Added
+- Ítem de reparación (tuerca hexagonal): suma 35 de salud con tope en el máximo, no se recoge con la salud llena y reaparece a los 20 s. Está en el mapa clásico (plataforma central, junto al agua, que se corrió a x = 26) y una vez por etapa en Infinito.
+- El bot con menos de 40 de salud busca la reparación cercana.
+- Sonido propio para la reparación.
+
+## [0.35.2] - 2026-11-20
+
+### Fixed
+- Con el tanque de un líquido lleno, el robot atraviesa el punto de ese líquido sin gastarlo y queda para el contrincante.
+
+## [0.35.1] - 2026-11-20
+
+### Fixed
+- El agua caliente (y la que condensa del vapor) se dibuja celeste claro en vez de blanca: antes se confundía con el vapor y parecía vapor que caía.
+## [0.35.0] - 2026-11-20
+
+### Changed
+- La química se ve dentro de una ronda (tiempo de juego, con factores de aceleración nombrados en `THERMAL.game`; la masa y la energía se siguen conservando). El agua que toca la lava hierve al instante y la lava que toca se vuelve piedra: el agua es el contraataque de la lava. La lava que cae en la pileta larga vapor desde el primer contacto y se endurece. La lava sola en el aire es piedra en unos 10 s.
+- El vapor sube, se vuelve niebla y se disipa en unos 5 s. Si toca un techo, una plataforma, una pared o un robot, condensa y gotea.
+
+### Fixed
+- El intercambio de calor de una gota parcialmente evaporada usa su masa restante, así el balance de energía cierra cuando hierve.
+## [0.34.0] - 2026-11-20
+
+### Agregado
+
+- El vapor que sube se enfría con el aire que arrastra la pluma y se vuelve niebla; al agotar su latente se disuelve en el aire como humedad, sin crear gotas de agua.
+- El vapor condensa por contacto directo sobre agua, ácido y piedra fría, que se calientan hasta 100 °C.
+
+## [0.33.0] - 2026-11-20
+
+### Added
+- El agua hierve. La lava y la piedra caliente que tocan el agua ya no la dejan pasar de 100 °C: la partícula de agua que llega a la entalpía de vaporización pasa a vapor (`STEAM`) y las columnas del campo se quedan en 100 °C y guardan el excedente (`water.boiled`) hasta juntar el calor de un vapor, que sale como una partícula nueva sobre la superficie (una por columna y por paso, hasta 300 vivas). Bajo agua subenfriada no sale vapor: el calor queda en el agua.
+- Material `STEAM` (vapor, con la masa del agua de la que vino) y dos filas en `REACTIONS`, `boil` y `condense`. El vapor sube en el aire por el empuje y el arrastre cuadrático (velocidad terminal 0,95 m/s), el que toca el campo por debajo de 100 °C se absorbe con su entalpía y el que cae sobre una columna a 100 °C no condensa. El vapor que sale del mapa se destruye con `OUT`.
+- `MATERIALS.steam`, `MATERIALS.air` y `latentVaporization` y `boilingPoint` del agua. `thermal.boiledEnergy()` suma el excedente pendiente y entra al monitor de energía. `Thermal.dispose()` libera sus objetos nativos.
+- Tests (`tests/boil.test.js`, `tests/boil-invariants.test.js`): T3, T4, T5, B1, B2 y B3 de ebullición, y I1, I2b y la energía con vapor, ácido y lava en la escena del juego.
+
+### Changed
+- Los invariantes I1 e I2b cuentan el vapor como H2O y el paso del campo al vapor.
 
 ## [0.32.0] - 2026-11-20
 

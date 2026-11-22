@@ -167,7 +167,7 @@ test("R5: aterrizar de cualquier estado de aire sale a idle, aim o walk en 3 pas
         if (contactAt >= 0 && f === contactAt + 3) result = player.clipState;
     }
     t.diagnostic(`R5 fallHigh: tres pasos después del contacto, ${result}`);
-    assert.ok(GROUND_STATES.includes(result), `fallHigh: ${result}`);
+    assert.ok([...GROUND_STATES, "landHurt"].includes(result), `fallHigh: ${result}`);
 });
 
 test("R16: quieto sin mira es idle; con RT o con el stick derecho es aim", async () => {

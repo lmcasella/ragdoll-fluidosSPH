@@ -1,0 +1,876 @@
+.hud {
+    z-index: 30;
+}
+.hud .scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 9, 14, 0.35);
+}
+
+.hud .pnl {
+    position: absolute;
+    top: calc(16 * var(--u));
+    width: calc(420 * var(--u));
+    height: calc(72 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    padding: 0 calc(14 * var(--u)) 0 calc(14 * var(--u));
+    background: var(--panel);
+}
+.hud .pnl .badge {
+    width: calc(52 * var(--u));
+    height: calc(52 * var(--u));
+    font-size: calc(26 * var(--u));
+    border-radius: calc(6 * var(--u));
+}
+.hud .pnl.l {
+    left: calc(16 * var(--u));
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26 * var(--u)), calc(100% - 26 * var(--u)) 100%, 0 100%);
+    box-shadow: inset calc(4 * var(--u)) 0 0 var(--p1);
+}
+.hud .pnl.r {
+    right: calc(16 * var(--u));
+    flex-direction: row-reverse;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, calc(26 * var(--u)) 100%, 0 calc(100% - 26 * var(--u)));
+    box-shadow: inset calc(-4 * var(--u)) 0 0 var(--p2);
+}
+.hud .pnl .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(4 * var(--u));
+    min-width: 0;
+}
+.hud .pnl .row1 {
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    height: calc(36 * var(--u));
+}
+.hud .pnl.r .row1,
+.hud .pnl.r .row2 {
+    flex-direction: row-reverse;
+}
+.hud .pnl .num {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(36 * var(--u));
+    line-height: 1;
+    width: calc(62 * var(--u));
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.hud .pnl.r .num {
+    text-align: left;
+}
+.hud .num.low {
+    color: var(--danger);
+}
+.hud .bar {
+    position: relative;
+    flex: 1;
+    height: calc(16 * var(--u));
+    background: rgba(255, 255, 255, 0.07);
+    border: calc(2 * var(--u)) solid var(--line-2);
+    transform: skewX(-14deg);
+    overflow: hidden;
+}
+.hud .pnl.r .bar {
+    transform: skewX(14deg);
+}
+.hud .bar .chip,
+.hud .bar .fillb {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+}
+.hud .pnl.r .bar .chip,
+.hud .pnl.r .bar .fillb {
+    left: auto;
+    right: 0;
+}
+.hud .bar .chip {
+    background: var(--chip);
+    transition: width 0.5s ease-in 0.4s;
+}
+.hud .bar .ticks {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2 * var(--u)), rgba(0, 0, 0, 0.7) calc(25% - 2 * var(--u)) 25%);
+}
+.hud .p1c .fillb {
+    background: linear-gradient(180deg, #ffc27f, var(--p1) 55%, #d9741a);
+}
+.hud .p2c .fillb {
+    background: linear-gradient(180deg, #9ddcff, var(--p2) 55%, #1a8fd1);
+}
+.hud .bar.low .fillb {
+    background: linear-gradient(180deg, #ff98a2, var(--danger) 55%, #c7283a);
+    animation: ui-lowpulse 0.8s ease-in-out infinite;
+}
+.hud .num.low {
+    animation: ui-lowpulse 0.8s ease-in-out infinite;
+}
+.hud .pnl.shake {
+    animation: ui-shake 0.15s linear;
+}
+.hud .pnl .row2 {
+    display: flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    height: calc(16 * var(--u));
+}
+.hud .pnl .wslot {
+    display: inline-flex;
+}
+.hud .pnl .wslot .ic {
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+}
+.hud .pnl .row2.dry .wslot .ic {
+    color: var(--text-2);
+    opacity: 0.35;
+}
+.hud .tank {
+    width: calc(140 * var(--u));
+    height: calc(6 * var(--u));
+    border: calc(1 * var(--u)) solid var(--line-2);
+    border-radius: calc(2 * var(--u));
+    overflow: hidden;
+}
+.hud .tank i {
+    display: block;
+    height: 100%;
+}
+.hud .pnl.r .tank i {
+    margin-left: auto;
+}
+.hud .row2.none .tank {
+    display: none;
+}
+.hud .tank i.w-agua {
+    background: var(--w-agua);
+}
+.hud .tank i.w-acido {
+    background: var(--w-acido);
+}
+.hud .tank i.w-lava {
+    background: var(--w-lava);
+}
+.hud .tank i.w-miel {
+    background: var(--w-miel);
+}
+
+.hud .score {
+    position: absolute;
+    left: 50%;
+    top: calc(16 * var(--u));
+    transform: translateX(-50%);
+    height: calc(56 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(20 * var(--u));
+    padding: 0 calc(22 * var(--u));
+    background: var(--panel);
+    border: calc(2 * var(--u)) solid var(--line);
+    border-radius: calc(8 * var(--u));
+}
+.hud .score .clk {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(28 * var(--u));
+    line-height: 1;
+    min-width: calc(76 * var(--u));
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.hud .warn {
+    position: absolute;
+    left: 50%;
+    top: calc(80 * var(--u));
+    transform: translateX(-50%);
+    height: calc(40 * var(--u));
+    display: inline-flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    padding: 0 calc(16 * var(--u));
+    border-radius: calc(6 * var(--u));
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(28 * var(--u));
+}
+.hud .warn .ic {
+    width: calc(26 * var(--u));
+    height: calc(26 * var(--u));
+}
+.hud .warn .wu {
+    display: none;
+}
+.hud .warn.soon {
+    color: var(--focus-ink);
+    background: repeating-linear-gradient(-45deg, var(--hazard) 0 calc(14 * var(--u)), #e3b232 calc(14 * var(--u)) calc(28 * var(--u)));
+}
+.hud .warn.flood {
+    color: var(--flood);
+    background: var(--panel);
+    border: calc(2 * var(--u)) solid var(--line);
+}
+.hud .warn.flood .wi {
+    animation: ui-flood 0.8s ease-in-out infinite;
+}
+.hud .warn.inf .wu {
+    display: inline-flex;
+}
+
+.hud .prize {
+    position: absolute;
+    left: 50%;
+    top: calc(130 * var(--u));
+    translate: -50% 0;
+    height: calc(48 * var(--u));
+    display: flex;
+    align-items: center;
+    gap: calc(12 * var(--u));
+    padding: 0 calc(14 * var(--u));
+    background: var(--panel);
+    border: calc(3 * var(--u)) solid var(--line-2);
+    border-radius: calc(8 * var(--u));
+    animation: ui-prize-in 0.24s ease-out both;
+}
+.hud .prize.p1 {
+    border-color: var(--p1);
+}
+.hud .prize.p2 {
+    border-color: var(--p2);
+}
+.hud .prize.out {
+    animation: ui-prize-out 0.3s ease-out both;
+}
+.hud .prize .badge {
+    width: calc(36 * var(--u));
+    height: calc(36 * var(--u));
+    font-size: calc(18 * var(--u));
+    border-radius: calc(5 * var(--u));
+}
+.hud .prize .pi {
+    display: inline-flex;
+    color: var(--text);
+}
+.hud .prize .ic {
+    width: calc(28 * var(--u));
+    height: calc(28 * var(--u));
+}
+
+.hud .dmg {
+    position: absolute;
+    translate: -50% -50%;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(32 * var(--u));
+    line-height: 1;
+    white-space: nowrap;
+}
+.hud .dmg.hit {
+    animation: ui-hit 1s linear both;
+}
+.hud .dmg .n {
+    display: inline-block;
+    color: var(--heat-0);
+    -webkit-text-stroke: calc(2 * var(--u)) #2a0006;
+    paint-order: stroke fill;
+    text-shadow: 0 calc(2 * var(--u)) 0 rgba(0, 0, 0, 0.6);
+}
+.hud .dmg .n.shake {
+    animation: ui-nshake 0.18s linear;
+}
+.hud .dmg.ko {
+    margin-top: calc(-36 * var(--u));
+}
+.hud .headbar {
+    position: absolute;
+    margin-top: calc(-36 * var(--u));
+    width: calc(64 * var(--u));
+    height: calc(8 * var(--u));
+    transform: translateX(-50%) skewX(-14deg);
+    background: rgba(10, 10, 16, 0.8);
+    border: calc(1 * var(--u)) solid var(--line-2);
+    overflow: hidden;
+    transition: opacity 0.3s ease-out;
+}
+.hud .headbar.fade {
+    opacity: 0;
+}
+.hud .headbar i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+}
+.hud .headbar .chip {
+    background: var(--chip);
+    transition: width 0.5s ease-in 0.4s;
+}
+.hud .headbar .p1c {
+    background: var(--p1);
+}
+.hud .headbar .p2c {
+    background: var(--p2);
+}
+
+.hud .gauge {
+    position: absolute;
+    left: calc(1810 * var(--u));
+    top: calc(128 * var(--u));
+    width: calc(94 * var(--u));
+    height: calc(840 * var(--u));
+}
+.hud .gauge::before {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(56 * var(--u));
+    border-radius: calc(8 * var(--u));
+    background: var(--panel);
+}
+.hud .gauge .track {
+    position: absolute;
+    right: calc(23 * var(--u));
+    top: calc(8 * var(--u));
+    bottom: calc(8 * var(--u));
+    width: calc(10 * var(--u));
+    border-radius: calc(5 * var(--u));
+    background: rgba(10, 11, 18, 0.75);
+    border: calc(1 * var(--u)) solid var(--line-2);
+    overflow: hidden;
+}
+.hud .gauge .wfill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(var(--w-agua), var(--water));
+}
+.hud .gauge .wfill::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(-3 * var(--u));
+    height: calc(3 * var(--u));
+    background: var(--water-surface);
+}
+.hud .gauge .dz {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: linear-gradient(0deg, rgba(255, 77, 94, 0.55), transparent);
+}
+.hud .gauge .tick {
+    position: absolute;
+    right: calc(18 * var(--u));
+    width: calc(16 * var(--u));
+    height: calc(2 * var(--u));
+    background: var(--line-2);
+}
+.hud .gauge .wl {
+    position: absolute;
+    right: calc(1 * var(--u));
+    transform: translateY(-50%);
+    color: var(--water-surface);
+}
+.hud .gauge .wl .ic {
+    width: calc(18 * var(--u));
+    height: calc(18 * var(--u));
+}
+.hud .gauge .mk {
+    --shift: 0;
+    position: absolute;
+    right: calc(52 * var(--u));
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: calc(5 * var(--u));
+    height: calc(28 * var(--u));
+    padding: 0 calc(8 * var(--u)) 0 calc(3 * var(--u));
+    border-radius: calc(5 * var(--u));
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(18 * var(--u));
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.hud .gauge .mk small {
+    font-size: calc(16 * var(--u));
+    margin-left: calc(-3 * var(--u));
+}
+.hud .gauge .mk::after {
+    content: "";
+    position: absolute;
+    right: calc(-9 * var(--u));
+    top: calc(50% - var(--shift) * 8.4 * var(--u));
+    transform: translateY(-50%);
+    border: calc(6 * var(--u)) solid transparent;
+    border-left: calc(9 * var(--u)) solid currentColor;
+    border-right: 0;
+}
+.hud .gauge .mk b {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    border-radius: calc(4 * var(--u));
+    font-size: calc(12 * var(--u));
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+}
+.hud .gauge .mk .mu {
+    display: inline-flex;
+}
+.hud .gauge .mk .mu .ic {
+    width: calc(14 * var(--u));
+    height: calc(14 * var(--u));
+}
+.hud .gauge .mk.p1 {
+    background: var(--p1);
+    color: var(--p1-ink);
+}
+.hud .gauge .mk.p1::after {
+    color: var(--p1);
+}
+.hud .gauge .mk.p2 {
+    background: var(--p2);
+    color: var(--p2-ink);
+}
+.hud .gauge .mk.p2::after {
+    color: var(--p2);
+}
+.hud .gauge .mk.danger {
+    animation: ui-mkpulse 0.7s ease-in-out infinite;
+}
+
+.hud .cd {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(200 * var(--u));
+    height: calc(200 * var(--u));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.hud .cd .ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(var(--focus) 0 var(--p, 100%), rgba(255, 255, 255, 0.1) var(--p, 100%) 100%);
+    -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%);
+    mask: radial-gradient(circle, transparent 62%, #000 63%);
+}
+.hud .cd .ring.run {
+    animation: ui-ring 1s linear both;
+}
+.hud .cd .core {
+    position: absolute;
+    inset: calc(19 * var(--u));
+    border-radius: 50%;
+    background: var(--panel);
+}
+.hud .cd .n {
+    position: relative;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(120 * var(--u));
+    line-height: 1;
+}
+.hud .cd .n.run {
+    animation: ui-cdpop 1s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.hud .ya {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: calc(130 * var(--u));
+    line-height: 1;
+    color: var(--focus);
+    text-shadow: 0 0 calc(30 * var(--u)) rgba(255, 216, 74, 0.6);
+    animation: ui-ya 0.6s ease-out both;
+}
+
+.hud .band {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(440 * var(--u));
+    height: calc(200 * var(--u));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.82) 18%, rgba(0, 0, 0, 0.82) 82%, rgba(0, 0, 0, 0) 100%);
+}
+.hud .band::before,
+.hud .band::after {
+    content: "";
+    position: absolute;
+    left: 18%;
+    right: 18%;
+    height: calc(4 * var(--u));
+    background: var(--line-color, var(--text-3));
+}
+.hud .band.p1 {
+    --line-color: var(--p1);
+}
+.hud .band.p2 {
+    --line-color: var(--p2);
+}
+.hud .band::before {
+    top: 0;
+}
+.hud .band::after {
+    bottom: 0;
+}
+.hud .band .row {
+    display: flex;
+    align-items: center;
+    gap: calc(32 * var(--u));
+}
+.hud .band .badge {
+    width: calc(96 * var(--u));
+    height: calc(96 * var(--u));
+    font-size: calc(48 * var(--u));
+    border-radius: calc(10 * var(--u));
+    animation: ui-slidein 0.45s cubic-bezier(0.2, 1, 0.3, 1) both;
+}
+.hud .band .pip {
+    width: calc(28 * var(--u));
+    height: calc(28 * var(--u));
+    border-width: calc(3 * var(--u));
+}
+.hud .band .pips2 {
+    gap: calc(22 * var(--u));
+}
+.hud .band .eq {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(40 * var(--u));
+    color: var(--text-3);
+}
+.hud .band .sc {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(40 * var(--u));
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.hud .final {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(20 * var(--u));
+    background: radial-gradient(60% 60% at 50% 50%, var(--glow, rgba(51, 181, 255, 0.16)), rgba(8, 9, 14, 0.86) 70%);
+}
+.hud .final.p1 {
+    --glow: rgba(255, 153, 51, 0.16);
+    --win: var(--p1);
+}
+.hud .final.p2 {
+    --glow: rgba(51, 181, 255, 0.16);
+    --win: var(--p2);
+}
+.hud .final .who {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(12 * var(--u));
+}
+.hud .final .crown {
+    display: inline-flex;
+    color: var(--win);
+}
+.hud .final .crown .ic {
+    width: calc(72 * var(--u));
+    height: calc(72 * var(--u));
+}
+.hud .final .who .badge {
+    width: calc(150 * var(--u));
+    height: calc(150 * var(--u));
+    font-size: calc(76 * var(--u));
+    border-radius: calc(16 * var(--u));
+    box-shadow: 0 0 calc(60 * var(--u)) var(--win);
+}
+.hud .final .sc {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: calc(110 * var(--u));
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: calc(30 * var(--u));
+    margin: calc(10 * var(--u)) 0 calc(18 * var(--u));
+    font-variant-numeric: tabular-nums;
+}
+.hud .final .sc .dash {
+    color: var(--text-3);
+    font-size: 0.6em;
+}
+.hud .final .sc .lose {
+    color: var(--text-3);
+}
+.hud .final .sc .pip {
+    width: calc(28 * var(--u));
+    height: calc(28 * var(--u));
+}
+.hud .final .btns {
+    display: flex;
+    gap: calc(24 * var(--u));
+}
+.hud .primary {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(16 * var(--u));
+    width: calc(200 * var(--u));
+    height: calc(92 * var(--u));
+    border-radius: calc(12 * var(--u));
+    background: var(--panel-3);
+    color: var(--text);
+    border: calc(3 * var(--u)) solid var(--line-2);
+}
+.hud .primary .bi {
+    display: inline-flex;
+}
+.hud .primary .bi .ic {
+    width: calc(48 * var(--u));
+    height: calc(48 * var(--u));
+}
+.hud .primary .bg {
+    display: inline-flex;
+    --gs: 36;
+    --ks: 34;
+}
+.hud .primary.focus {
+    background: var(--focus);
+    color: var(--focus-ink);
+    border-color: var(--focus);
+    box-shadow: 0 0 0 calc(6 * var(--u)) rgba(255, 216, 74, 0.22);
+}
+.hud .primary.focus .g {
+    background: var(--focus-ink);
+}
+.hud .primary.secondary {
+    background: var(--panel);
+}
+.hud .primary.lock {
+    opacity: 0.4;
+}
+.hud .primary.lock::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: calc(6 * var(--u));
+    background: var(--focus-ink);
+    opacity: 0.6;
+    animation: ui-unlock 1s linear both;
+}
+
+@keyframes ui-lowpulse {
+    50% {
+        filter: brightness(1.45);
+    }
+}
+@keyframes ui-shake {
+    0% {
+        translate: 0 0;
+    }
+    25% {
+        translate: calc(3 * var(--u)) 0;
+    }
+    50% {
+        translate: calc(-3 * var(--u)) 0;
+    }
+    75% {
+        translate: calc(2 * var(--u)) 0;
+    }
+    100% {
+        translate: 0 0;
+    }
+}
+@keyframes ui-hit {
+    0% {
+        scale: 1.3;
+        opacity: 1;
+        translate: -50% -50%;
+    }
+    8%,
+    60% {
+        scale: 1;
+        opacity: 1;
+        translate: -50% -50%;
+    }
+    100% {
+        scale: 1;
+        opacity: 0;
+        translate: -50% calc(-50% + 16 * var(--u));
+    }
+}
+@keyframes ui-nshake {
+    0% {
+        translate: 0 0;
+    }
+    8.3% {
+        translate: calc(4 * var(--u)) 0;
+    }
+    25% {
+        translate: calc(-4 * var(--u)) 0;
+    }
+    41.6% {
+        translate: calc(4 * var(--u)) 0;
+    }
+    58.3% {
+        translate: calc(-4 * var(--u)) 0;
+    }
+    75% {
+        translate: calc(4 * var(--u)) 0;
+    }
+    91.6% {
+        translate: calc(-4 * var(--u)) 0;
+    }
+    100% {
+        translate: 0 0;
+    }
+}
+@keyframes ui-mkpulse {
+    50% {
+        box-shadow: 0 0 0 calc(4 * var(--u)) rgba(255, 77, 94, 0.75);
+    }
+}
+@keyframes ui-flood {
+    50% {
+        opacity: 0.35;
+    }
+}
+@keyframes ui-prize-in {
+    from {
+        opacity: 0;
+        translate: -50% calc(-16 * var(--u));
+    }
+    to {
+        opacity: 1;
+        translate: -50% 0;
+    }
+}
+@keyframes ui-prize-out {
+    from {
+        opacity: 1;
+        translate: -50% 0;
+    }
+    to {
+        opacity: 0;
+        translate: -50% calc(-16 * var(--u));
+    }
+}
+@keyframes ui-ring {
+    from {
+        --p: 100%;
+    }
+    to {
+        --p: 0%;
+    }
+}
+@keyframes ui-cdpop {
+    0% {
+        scale: 1.5;
+        opacity: 0;
+    }
+    18% {
+        scale: 1;
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.2;
+        scale: 0.9;
+    }
+}
+@keyframes ui-ya {
+    0% {
+        scale: 1.4;
+        opacity: 0;
+    }
+    25% {
+        scale: 1;
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+@keyframes ui-slidein {
+    from {
+        translate: calc(-60 * var(--u)) 0;
+        opacity: 0;
+    }
+    to {
+        translate: 0 0;
+        opacity: 1;
+    }
+}
+@keyframes ui-unlock {
+    from {
+        width: 100%;
+    }
+    to {
+        width: 0;
+    }
+}
+@keyframes ui-fade {
+    from {
+        opacity: 1;
+    }
+    60% {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+@property --p {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ui *,
+    .ui *::before,
+    .ui *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+    .hud .dmg.hit {
+        animation: ui-fade 1s linear both !important;
+        translate: -50% -50%;
+    }
+}

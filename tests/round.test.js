@@ -112,7 +112,7 @@ test("el cartel de fin de partida muestra el marcador y las opciones", () => {
     const match = playing(1);
     match.update([alive, dead], [], 1);
     match.update([alive, dead], [], 5);
-    assert.deepEqual(match.banner, { title: "J1 GANA LA PARTIDA", subtitle: "1 – 0 · A revancha · Start menú" });
+    assert.deepEqual(match.banner, { title: "J1 GANA LA PARTIDA", subtitle: "1 – 0 · A / Enter revancha · Start / Esc menú" });
 });
 
 test("los peligros por tiempo solo actúan en playing", () => {

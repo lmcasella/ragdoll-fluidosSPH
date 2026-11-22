@@ -20,6 +20,7 @@ git branch --list
 
 - Issues con una dependencia abierta ("Depende de" lista un issue abierto) o marcados como bloqueados.
 - Issues en curso: hay un PR abierto que los referencia, o una rama local contiene `issue-<número>`.
+- Antes de recomendar un issue, buscar PRs ya mergeados que lo referencien (`gh pr list --state merged --search "<número>"`). Si los hay, contar esa historia (qué se hizo y por qué sigue abierto) en vez de presentarlo como trabajo nuevo.
 - Issues asignados a otra persona (`gh api user --jq .login` es el usuario actual).
 
 ## 3. Ordenar los que quedan

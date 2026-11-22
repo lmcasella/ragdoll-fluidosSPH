@@ -23,17 +23,22 @@ function zIndex(id) {
 test("hudCanvas tiene el z-index más alto y no captura el mouse", () => {
     const hud = zIndex("hudCanvas");
     assert.ok(hud > zIndex("pickupCanvas"));
-    assert.ok(zIndex("pickupCanvas") > zIndex("fluidCanvas"));
+    assert.ok(zIndex("pickupCanvas") > 6);
     assert.match(html.match(/#hudCanvas\s*\{([^}]*)\}/)[1], /pointer-events:\s*none/);
     assert.ok(html.indexOf('id="hudCanvas"') > html.indexOf('id="pickupCanvas"'));
 });
 
-test("drawHud, drawAimLaser y drawHits reciben el contexto de la capa correcta", () => {
-    assert.equal(firstArg("drawHud"), "hudCtx");
+test("drawAimLaser y drawHits reciben el contexto de la capa correcta", () => {
     assert.equal(firstArg("drawAimLaser"), "pickupCtx");
     assert.equal(firstArg("drawHits"), "pickupCtx");
     assert.match(html, /hudCtx\s*=\s*hudCanvas\.getContext/);
-    assert.match(html, /\[canvas, fluidCanvas, pickupCanvas, hudCanvas\]/);
+    assert.match(html, /\[canvas, pickupCanvas, hudCanvas\]/);
+});
+
+test("las capas de fluidos van antes del canvas de recogibles, con el filtro goo y sin desenfoque", () => {
+    assert.match(html.match(/\.fluidLayer\s*\{([^}]*)\}/)[1], /filter:\s*url\("#goo"\)/);
+    assert.match(html, /new FluidLayers\(document, pickupCanvas/);
+    assert.doesNotMatch(html, /feGaussianBlur/);
 });
 
 test("la rueda de armas se dibuja después de la mira y los golpes", () => {

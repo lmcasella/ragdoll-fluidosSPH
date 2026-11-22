@@ -3,6 +3,12 @@ import { WEAPONS } from "./weapons.js";
 /** Segundos de juego hasta que un punto de aparición vuelve a estar disponible después de recogerse. */
 export const PICKUP_RESPAWN = 15;
 
+/**
+ * Ítem de reparación (#156): `hp` que suma al recogerse (con tope en la salud máxima; en Infinito deja la salud en el máximo y
+ * levanta al robot en nocaut) y `respawn` s de juego hasta que reaparece.
+ */
+export const REPAIR = { hp: 35, respawn: 20 };
+
 /** Radio del sensor circular de cada punto de aparición, en metros. */
 export const PICKUP_RADIUS = 0.5;
 
@@ -10,7 +16,8 @@ export const PICKUP_RADIUS = 0.5;
  * Puntos de aparición de armas (docs/design/04-fluidos.md §4.2). Cada punto es un sensor circular en su propio cuerpo
  * estático. Los contactos llegan por `DamageSystem.sensorHooks` y solo se encolan: `process` aplica la recogida
  * después de `stepWorld`. Mientras espera reaparecer, el cuerpo queda inactivo y al reactivarse Box2D vuelve a
- * generar el contacto con quien siga encima.
+ * generar el contacto con quien siga encima. Quien ya tiene el tanque de ese líquido lleno lo atraviesa sin
+ * consumirlo (#181). El punto `kind: "repair"` suma `REPAIR.hp` a la salud y no se recoge con la salud llena.
  */
 export class Pickups {
     constructor(world, damage, points, weapons = WEAPONS) {
@@ -18,7 +25,7 @@ export class Pickups {
         this.damage = damage;
         this.weapons = new Map(weapons.map((w) => [w.id, w]));
         this.queue = [];
-        /** Recogidas `{ weapon }` desde la última vez que quien las consume vació la lista. */
+        /** Recogidas `{ weapon }` o `{ kind: "repair" }` desde la última vez que quien las consume vació la lista. */
         this.events = [];
         this.points = [];
         /** Desplazamiento vertical (m) que se suma a la y de cada punto para ubicar su cuerpo (el mapa del ascenso baja). */
@@ -30,15 +37,15 @@ export class Pickups {
         for (const point of points) this.add(point);
     }
 
-    /** Crea el punto `{ x, y, weapon }` (cuerpo, sensor y gancho de contacto) y lo devuelve con su estado. */
-    add({ x, y, weapon }) {
+    /** Crea el punto `{ x, y, weapon }` o `{ x, y, kind: "repair" }` (cuerpo, sensor y gancho de contacto) y lo devuelve con su estado. */
+    add({ x, y, weapon, kind }) {
         this.center.set_x(x);
         this.center.set_y(y);
         this.bodyDef.set_position(this.center);
         const body = this.world.CreateBody(this.bodyDef);
         const fixture = body.CreateFixture(this.shape, 0);
         fixture.SetSensor(true);
-        const point = { x, y, weapon, body, fixture, active: true, readyAt: 0 };
+        const point = { x, y, weapon, kind, body, fixture, active: true, readyAt: 0 };
         this.points.push(point);
         this.damage.sensorHooks.set(Box2D.getPointer(fixture), (bodyPtr) => this.queue.push({ point, bodyPtr }));
         return point;
@@ -65,18 +72,31 @@ export class Pickups {
         this.world.DestroyBody(point.body);
     }
 
+    /** Deja el punto inactivo hasta `readyAt` (s de juego). */
+    consume(point, readyAt) {
+        point.active = false;
+        point.readyAt = readyAt;
+        point.body.SetActive(false);
+    }
+
     /** Aplica lo encolado durante el paso y reactiva los puntos cuyo tiempo venció; llamar después de `stepWorld`. */
     process(now) {
         for (const { point, bodyPtr } of this.queue) {
             if (!point.active) continue;
             const owner = this.damage.ownerOf(bodyPtr);
+            if (point.kind === "repair") {
+                if (!owner || owner.player.dead || owner.player.intact) continue;
+                owner.player.repair(REPAIR.hp);
+                this.consume(point, now + REPAIR.respawn);
+                this.events.push({ kind: "repair" });
+                continue;
+            }
             const weapon = this.weapons.get(point.weapon);
             if (!owner || owner.player.dead || !weapon) continue;
+            if ((owner.player.tanks.get(weapon.id) ?? -1) >= weapon.tank) continue;
             owner.player.tanks.set(weapon.id, weapon.tank);
             if (owner.player.weapon === null) owner.player.weapon = weapon.id;
-            point.active = false;
-            point.readyAt = now + PICKUP_RESPAWN;
-            point.body.SetActive(false);
+            this.consume(point, now + PICKUP_RESPAWN);
             this.events.push({ weapon: weapon.id });
         }
         this.queue.length = 0;

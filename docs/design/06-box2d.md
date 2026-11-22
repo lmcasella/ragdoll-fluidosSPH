@@ -10,7 +10,7 @@ La materia usa Phaser Box2D (v3, API por ids). Nosotros usamos LiquidFun, que es
 | Eventos `begin` / `hit` con `approachSpeed` | `JSContactListener.BeginContact`: velocidad de acercamiento = velocidad relativa de los cuerpos proyectada sobre la normal de `GetWorldManifold` (*verificado*; el build no expone `PostSolve` ni `PreSolve`) | ✅ |
 | "Juntá durante el paso, actuá después" | Los callbacks solo encolan; `DamageSystem.process` aplica el daño después de `stepWorld` | ✅ |
 | Sensores (`isSensor`) | Sensor de la pileta (`buildLevel`); los rayos ignoran sensores | ✅ |
-| Sensores para recoger | Puntos de aparición de armas | 🔨 #14 |
+| Sensores para recoger | Puntos de aparición de armas | ✅ #14 |
 | Cuerpos cinemáticos | Plataformas móviles | 🔨 #33 |
 | Impulsos (`ApplyLinearImpulse`) | Golpe: impulso en el punto de impacto + empuje de todo el robot por velocidad ([03-robots](03-robots.md#32-golpe-melee-)) | ✅ |
 

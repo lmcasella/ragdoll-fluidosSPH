@@ -1,5 +1,15 @@
 import { getRaycaster } from "./raycast.js";
+import { MATERIALS } from "./materials.js";
 
+/** Salud máxima de un robot. */
+export const MAX_HP = 100;
+
+/**
+ * Nocaut (#275, solo Infinito): con la vida en 0 el robot no muere, queda inconsciente (con `land_hurt`, sin responder
+ * al control) y se levanta con `reviveHp` de vida. El primer nocaut de la ronda dura `time` s y cada uno siguiente
+ * `step` s más, hasta `maxTime`. Solo el agua lo saca de la partida.
+ */
+export const KNOCKOUT = { time: 5, step: 3, maxTime: 18, reviveHp: 50 };
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
@@ -8,10 +18,18 @@ const BURN_TIME = 1.5;
 const BURN_DPS = 4;
 // Cortocircuito (agua): falla de todo el robot, por eso no usa el multiplicador por parte
 const WET_TIME = 3;
-const SHORT_CIRCUIT_DPS = 3;
-// Pegado (miel, docs/design/04-fluidos.md): factores sobre la velocidad de caminar, el frenado sin input y el
-// salto; `down` es gravedad extra (m/s²) y `grace` los s que dura tras la última cercanía a la miel
-export const STICKY = { speed: 0.1, brake: 0.5, jump: 0.3, down: 10, grace: 0.3 };
+
+/**
+ * Cortocircuito del robot mojado (docs/design/15-quimica.md §15.5b): `maxDps` (vida/s) es la saturación del daño y
+ * `halfSigma` (S/m) la conductividad del líquido a la que se llega a la mitad; con `halfSigma` = 4 · σ del agua, el
+ * agua limpia da 3 vida/s y el ácido al 8 % (32 S/m) casi 15.
+ */
+export const SHORT_CIRCUIT = { maxDps: 15, halfSigma: 4 * MATERIALS.water.sigmaE };
+
+/** Daño por segundo (vida/s) del cortocircuito con un líquido de conductividad `sigma` (S/m): `maxDps · σ / (σ + σ½)`. */
+export function shortCircuitDps(sigma) {
+    return (SHORT_CIRCUIT.maxDps * sigma) / (sigma + SHORT_CIRCUIT.halfSigma);
+}
 const WALK_SPEED = 6;
 const JUMP_SPEED = 9;
 /**
@@ -42,6 +60,18 @@ export const AIR = { deadband: 1.0, fallSpeed: 10 };
  */
 export const ROLL = { duration: 0.8, clipSpeed: 1.5, speed: 4, cooldown: 0.5 };
 
+/**
+ * Input vacío con el que `move` reemplaza al del jugador durante la secuencia de caída con daño (`landHurt`, luego
+ * `getupFront` o `getupBack`, cada uno con el largo de su clip en `rig.clipLengths`, s): el input se lee pero no actúa.
+ */
+const NO_INPUT = Object.freeze({});
+
+/**
+ * Caída con daño: `rest` (s) es el tiempo seguido que alguna pieza del robot debe estar apoyada en el mapa (o en el
+ * agua) para que `landHurt` pase a la levantada; cada despegue reinicia la cuenta.
+ */
+export const RECOVER = { rest: 0.5 };
+
 /** Largo (s) de los clips `jump_start` y de las reacciones al golpe. */
 const JUMP_START_TIME = 0.6;
 const REACT_TIME = 0.4;
@@ -60,6 +90,9 @@ const BUSY_STATES = new Set([
     "airPunch",
     "airKick",
     "block",
+    "landHurt",
+    "getupFront",
+    "getupBack",
 ]);
 
 /**
@@ -83,8 +116,14 @@ export class ActiveRagdoll {
         );
 
         // Estados del jugador
-        this.hp = 100;
-        this.stickyTimer = 0; // s restantes de pegado
+        this.hp = MAX_HP;
+        /** Verdadero en Infinito: la vida en 0 deja al robot en nocaut (`KNOCKOUT`) y solo el agua mata. */
+        this.knocksOut = false;
+        /** Verdadero durante el nocaut; `knockoutEnd` es el instante (s) en que se levanta. */
+        this.knockedOut = false;
+        this.knockoutEnd = 0;
+        /** Nocauts de este robot en la ronda: alarga el siguiente (`KNOCKOUT.step`). */
+        this.knockouts = 0;
         this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
@@ -97,6 +136,8 @@ export class ActiveRagdoll {
         this.burns = new Map(); // bodyId → segundos de quemadura restantes
         this.drowned = false;
         this.wetTimer = 0; // s restantes de cortocircuito
+        this.wetSigma = MATERIALS.water.sigmaE;
+        this.wetFresh = false;
         this.now = 0;
         this.blockHeld = false;
         this.attack = null;
@@ -111,6 +152,15 @@ export class ActiveRagdoll {
         this.rollBack = false;
         this.rollDir = 1;
         this.fallLatched = false;
+        /** Estado de la secuencia de caída con daño (`landHurt`, `getupFront`, `getupBack`) o `null`. */
+        this.recoverState = null;
+        this.recoverStart = -Infinity;
+        /** Instante (s) en que empezó el apoyo continuo de `landHurt`, o `null` si no está apoyado. */
+        this.restSince = null;
+        /** Verdadero si alguna pieza está bajo el agua; lo actualiza `damage.js` después de cada paso. */
+        this.inWater = false;
+        /** Verdadero si el impacto de la caída alta en curso hizo daño (`markImpact` con `fallLatched`). */
+        this.impactInFall = false;
         /** Verdadero desde que aterriza una caída alta (la que activa `fallHigh`) hasta que quien lo consume lo baja. */
         this.landed = false;
         this.jumpAt = -Infinity;
@@ -119,13 +169,44 @@ export class ActiveRagdoll {
     }
 
     get dead() {
-        return this.hp <= 0;
+        return this.knocksOut ? this.drowned : this.hp <= 0;
+    }
+
+    /** Verdadero si no hay nada que reparar: salud llena. */
+    get intact() {
+        return this.hp >= MAX_HP;
+    }
+
+    /** Segundos que faltan para que el robot en nocaut se levante; 0 fuera del nocaut. */
+    knockoutLeft(now = this.now) {
+        return this.knockedOut ? Math.max(0, this.knockoutEnd - now) : 0;
+    }
+
+    /**
+     * Repara `amount` de salud, sin pasar de la salud máxima. En Infinito deja la salud en el máximo y, si el robot está
+     * en nocaut, lo levanta en el acto.
+     */
+    repair(amount) {
+        if (this.knocksOut) {
+            this.hp = MAX_HP;
+            if (this.knockedOut) this.wake(MAX_HP);
+        } else {
+            this.hp = Math.min(MAX_HP, this.hp + amount);
+        }
+    }
+
+    /** Termina el nocaut con `hp` de vida y empieza la levantada que corresponde a cómo quedó el torso. */
+    wake(hp, now = this.now) {
+        this.knockedOut = false;
+        this.hp = hp;
+        this.beginRecover(this.chestDown() ? "getupFront" : "getupBack", now);
     }
 
     // Cayó a la pileta: cortocircuito total
     drown(now = this.now) {
         if (this.dead) return;
         this.drowned = true;
+        this.knockedOut = false;
         this.hp = 0;
         for (const id of this.rag.bodies.keys()) this.flashes.set(id, now);
     }
@@ -146,6 +227,7 @@ export class ActiveRagdoll {
     get armsBusy() {
         return (
             this.dead ||
+            this.recoverState !== null ||
             this.reacting() ||
             this.rolling() ||
             this.attack !== null ||
@@ -183,7 +265,7 @@ export class ActiveRagdoll {
      */
     strike(kind, now = this.now) {
         const melee = this.rig.melee;
-        if (!melee || this.dead || this.reacting(now) || this.rolling(now) || this.isStunned(now)) return false;
+        if (!melee || this.dead || this.recoverState !== null || this.reacting(now) || this.rolling(now) || this.isStunned(now)) return false;
         if (!this.grounded) {
             if (this.attack !== null || now < this.meleeReadyAt) return false;
             this.beginAttack(kind === "kick" ? "airKick" : "airPunch", now);
@@ -292,7 +374,7 @@ export class ActiveRagdoll {
             this.rollStart = -Infinity;
             this.rollReadyAt = now + ROLL.cooldown;
         }
-        if (!this.dead) this.enterState(this.reactKind, 1, true);
+        if (!this.dead && this.recoverState === null) this.enterState(this.reactKind, 1, true);
     }
 
     /** Recibe un golpe melee bloqueado: no cambia de estado, solo deja el instante. */
@@ -336,14 +418,18 @@ export class ActiveRagdoll {
      */
     copyStateFrom(old) {
         this.hp = old.hp;
+        this.knocksOut = old.knocksOut;
+        this.knockedOut = old.knockedOut;
+        this.knockoutEnd = old.knockoutEnd;
+        this.knockouts = old.knockouts;
         this.weapon = old.weapon;
         this.tanks = old.tanks;
-        this.stickyTimer = old.stickyTimer;
         this.framesGrounded = old.framesGrounded;
         this.jumping = old.jumping;
         this.flashes = old.flashes;
         this.burns = old.burns;
         this.wetTimer = old.wetTimer;
+        this.wetSigma = old.wetSigma;
         this.aimDir = old.aimDir;
         this.now = old.now;
         this.clipState = old.clipState;
@@ -360,15 +446,90 @@ export class ActiveRagdoll {
         this.rollBack = old.rollBack;
         this.rollDir = old.rollDir;
         this.fallLatched = old.fallLatched;
+        this.recoverState = old.recoverState;
+        this.recoverStart = old.recoverStart;
+        this.restSince = old.restSince;
+        this.inWater = old.inWater;
+        this.impactInFall = old.impactInFall;
         this.jumpAt = old.jumpAt;
         this.jumpCuttable = old.jumpCuttable;
         this.stunnedUntil = old.stunnedUntil;
         this.lastBlocked = old.lastBlocked;
     }
 
-    takeDamage(amount) {
+    /** Anota que un impacto con daño ocurrió; solo cuenta si el robot está en una caída alta. Lo llama `damage.js`. */
+    markImpact() {
+        this.impactInFall = this.fallLatched;
+    }
+
+    /** Verdadero durante `landHurt` y la levantada: el input se lee pero no actúa. */
+    recovering() {
+        return this.recoverState !== null;
+    }
+
+    /**
+     * Si el pecho mira al piso. El pecho es el lado al que mira el robot (`side`) sobre el eje x local del torso, así
+     * que su dirección en el mundo es `side · (cos θ, sin θ)` con θ el ángulo del torso; mira al piso si su
+     * componente y es negativa (boca abajo). Con la espalda abajo (boca arriba) es positiva.
+     */
+    chestDown() {
+        return this.side * Math.sin(this.torso.GetAngle()) < 0;
+    }
+
+    beginRecover(state, now) {
+        this.recoverState = state;
+        this.recoverStart = now;
+        this.restSince = null;
+    }
+
+    /**
+     * Apoyo del robot tirado: alguna pieza toca algo del mapa (cuerpo estático o cinemático, sin sensores; las
+     * plataformas atravesables que no son sólidas para él no generan contacto) o está en el agua. `grounded` no sirve
+     * acá porque solo mira los rayos de los pies.
+     */
+    resting() {
+        if (this.inWater) return true;
+        for (const body of this.rag.bodies.values()) {
+            for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+                const contact = edge.get_contact();
+                if (!contact.IsTouching() || contact.GetFixtureA().IsSensor() || contact.GetFixtureB().IsSensor()) continue;
+                if (edge.get_other().GetType() !== Box2D.b2_dynamicBody) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Avanza la secuencia de caída con daño: de `landHurt` a la levantada según `chestDown()`, y de ahí al control
+     * normal. `landHurt` dura al menos su clip y hasta `RECOVER.rest` s seguidos de apoyo (`resting()`).
+     */
+    updateRecover(now) {
+        if (this.recoverState === null || this.knockedOut) return;
+        const length = this.rig.clipLengths?.[this.rig.clips[this.recoverState]] ?? 0;
+        if (this.recoverState === "landHurt") {
+            if (this.resting()) this.restSince ??= now;
+            else this.restSince = null;
+            if (now - this.recoverStart < length) return;
+            if (this.restSince === null || now - this.restSince < RECOVER.rest) return;
+        } else if (now - this.recoverStart < length) {
+            return;
+        }
+        if (this.recoverState === "landHurt") {
+            this.beginRecover(this.chestDown() ? "getupFront" : "getupBack", now);
+        } else {
+            this.recoverState = null;
+        }
+    }
+
+    /** Resta vida; en Infinito, al llegar a 0 empieza el nocaut (más daño estando en nocaut no lo reinicia). */
+    takeDamage(amount, now = this.now) {
         this.hp -= amount;
         if (this.hp < 0) this.hp = 0;
+        if (this.knocksOut && this.hp <= 0 && !this.knockedOut && !this.drowned) {
+            this.knockedOut = true;
+            this.knockoutEnd = now + Math.min(KNOCKOUT.maxTime, KNOCKOUT.time + KNOCKOUT.step * this.knockouts);
+            this.knockouts++;
+        }
     }
 
     // Daño a una parte del cuerpo: aplica su multiplicador y la pone roja
@@ -376,7 +537,7 @@ export class ActiveRagdoll {
         if (this.dead) return 0;
         const multiplier = this.rig.damage?.[bodyId] ?? this.rig.defaultDamage ?? 1;
         const dealt = amount * multiplier;
-        this.takeDamage(dealt);
+        this.takeDamage(dealt, now);
         this.flashes.set(bodyId, now);
         return dealt;
     }
@@ -397,9 +558,20 @@ export class ActiveRagdoll {
         this.burns.set(bodyId, BURN_TIME);
     }
 
-    // Moja al robot (renueva el tiempo); el daño se aplica en updateStatus
-    soak() {
+    /**
+     * Moja al robot con un líquido de conductividad `sigma` (S/m; agua de red por defecto) y renueva el tiempo; el
+     * daño se aplica en `updateStatus`. Queda el σ del último líquido que lo mojó; si lo mojan varios dentro del
+     * mismo paso (entre dos `updateStatus`), el mayor.
+     */
+    soak(sigma = MATERIALS.water.sigmaE) {
+        this.wetSigma = this.wetFresh ? Math.max(this.wetSigma, sigma) : sigma;
+        this.wetFresh = true;
         this.wetTimer = WET_TIME;
+    }
+
+    /** Daño por segundo del cortocircuito actual (vida/s), 0 si el robot está seco. */
+    get shortCircuitDps() {
+        return this.wetTimer > 0 ? shortCircuitDps(this.wetSigma) : 0;
     }
 
     // Lo seca (fin de la ronda: el cortocircuito no debe matar al ganador bajo el cartel)
@@ -420,15 +592,6 @@ export class ActiveRagdoll {
 
     get wet() {
         return this.wetTimer > 0;
-    }
-
-    // Lo pega al piso por miel (renueva el tiempo); lo dispara DamageSystem.process
-    stick() {
-        this.stickyTimer = STICKY.grace;
-    }
-
-    get sticky() {
-        return this.stickyTimer > 0;
     }
 
     countFixtures() {
@@ -476,14 +639,14 @@ export class ActiveRagdoll {
 
     // Estados con duración (quemaduras); una vez por paso fijo
     updateStatus(dt) {
-        if (this.stickyTimer > 0) this.stickyTimer = Math.max(0, this.stickyTimer - dt);
         for (const [bodyId, left] of this.burns) {
             this.hurt(bodyId, BURN_DPS * dt);
             if (left - dt <= 0) this.burns.delete(bodyId);
             else this.burns.set(bodyId, left - dt);
         }
+        this.wetFresh = false;
         if (this.wetTimer > 0 && !this.dead) {
-            this.takeDamage(SHORT_CIRCUIT_DPS * dt);
+            this.takeDamage(shortCircuitDps(this.wetSigma) * dt);
             this.wetTimer = Math.max(0, this.wetTimer - dt);
         }
     }
@@ -620,6 +783,7 @@ export class ActiveRagdoll {
      * @param {number} now Reloj de simulación, s.
      */
     resolveState(input, velX, moving, blocking, now) {
+        if (this.recoverState !== null) return this.recoverState;
         if (this.reacting(now)) return this.reactKind;
         if (this.rolling(now)) return this.rollBack ? "rollBack" : "roll";
         if (this.attack !== null) return this.attack;
@@ -650,11 +814,17 @@ export class ActiveRagdoll {
             this.enterState("dead");
             return;
         }
+        if (this.knockedOut) {
+            if (now >= this.knockoutEnd) {
+                this.wake(KNOCKOUT.reviveHp, now);
+            } else if (this.recoverState !== "landHurt") {
+                this.attack = null;
+                this.nextAttack = null;
+                this.rollStart = -Infinity;
+                this.beginRecover("landHurt", now);
+            }
+        }
         this.blockHeld = input.block ?? this.blockHeld;
-
-        const sticky = this.sticky;
-        if (sticky) this.pull(STICKY.down * dt);
-        const currentSpeed = sticky ? WALK_SPEED * STICKY.speed : WALK_SPEED;
 
         const vel = this.torso.GetLinearVelocity();
         const velX = vel.get_x();
@@ -666,6 +836,24 @@ export class ActiveRagdoll {
             this.framesGrounded = 0;
         }
 
+        if (this.grounded) {
+            if (this.fallLatched) {
+                this.landed = true;
+                if (this.impactInFall && this.rig.clips.landHurt) {
+                    this.attack = null;
+                    this.nextAttack = null;
+                    this.rollStart = -Infinity;
+                    this.beginRecover("landHurt", now);
+                }
+            }
+            this.fallLatched = false;
+            this.impactInFall = false;
+        } else if (velY < -AIR.fallSpeed) {
+            this.fallLatched = true;
+        }
+        this.updateRecover(now);
+        if (this.recoverState !== null) input = NO_INPUT;
+
         if (input.roll) this.tryRoll(input, now);
         this.updateAttack(now);
         const rolling = this.rolling(now);
@@ -674,42 +862,36 @@ export class ActiveRagdoll {
             this.grounded &&
             !this.isStunned(now) &&
             !rolling &&
+            this.recoverState === null &&
             !this.reacting(now) &&
             this.attack === null;
-
-        if (this.grounded) {
-            if (this.fallLatched) this.landed = true;
-            this.fallLatched = false;
-        } else if (velY < -AIR.fallSpeed) {
-            this.fallLatched = true;
-        }
 
         let isMoving = false;
         const lunge = this.lungeSpeed(now);
         if (rolling) {
-            this.setVelocity(ROLL.speed * this.rollDir * (sticky ? STICKY.speed : 1), velY);
+            this.setVelocity(ROLL.speed * this.rollDir, velY);
         } else if (lunge !== 0 && this.grounded) {
-            this.setVelocity(lunge * (sticky ? STICKY.speed : 1), velY);
+            this.setVelocity(lunge, velY);
+        } else if (this.attack !== null) {
+            isMoving = false;
         } else if (!this.isStunned(now)) {
             if (!blocking && input.left && !input.right) {
-                this.setVelocity(-currentSpeed, velY);
+                this.setVelocity(-WALK_SPEED, velY);
                 this.facing = -1;
                 isMoving = true;
             } else if (!blocking && input.right && !input.left) {
-                this.setVelocity(currentSpeed, velY);
+                this.setVelocity(WALK_SPEED, velY);
                 this.facing = 1;
                 isMoving = true;
             } else {
-                const friction = sticky ? STICKY.brake : WALK_FRICTION;
-                this.setVelocity(velX * friction, velY);
+                this.setVelocity(velX * WALK_FRICTION, velY);
             }
         }
 
         if (input.jump && this.framesGrounded > 5 && !this.isStunned()) {
-            const jumpPower = sticky ? JUMP_SPEED * STICKY.jump : JUMP_SPEED;
             for (const body of this.rag.bodies.values()) {
                 this.scratch.set_x(body.GetLinearVelocity().get_x());
-                this.scratch.set_y(jumpPower);
+                this.scratch.set_y(JUMP_SPEED);
                 body.SetLinearVelocity(this.scratch);
             }
             this.framesGrounded = 0;
@@ -734,7 +916,8 @@ export class ActiveRagdoll {
                 : target;
             this.enterState(state, this.animSpeed);
         } else {
-            this.enterState(state, state === "roll" || state === "rollBack" ? ROLL.clipSpeed : 1);
+            const speed = state === "roll" || state === "rollBack" ? ROLL.clipSpeed : state === "block" ? (this.rig.melee?.blockClipSpeed ?? 1) : 1;
+            this.enterState(state, speed);
         }
     }
 

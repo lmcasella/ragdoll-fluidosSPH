@@ -14,19 +14,21 @@ const { newWorld, addSolids, wallFor, DT } = await import("./water-bench.js");
  * Banco de la térmica (#75, docs/design/14-agua.md §14.16 T y L): LiquidFun real, piso de 40 m (x de −15 a 25), el
  * contorno del juego, el campo de alturas, `Thermal` y `Viscosity`. `points` son `{ x, y, kind, flags, enthalpy }`;
  * `walls` agrega dos paredes que forman una artesa de x = 3 a 7; `immersion` agrega el campo y la inmersión;
- * `airLosses` apaga las pérdidas al aire. `step()` avanza un paso fijo en el orden del juego (mundo, térmica,
+ * `airLosses` apaga las pérdidas al aire; `floor` reemplaza el piso (`{ x, y, w, h }`), por ejemplo para cubrir la pileta
+ * del campo (x de 18 a 38); `solids` agrega cajas estáticas `{ x, y, w, h }`; `options` llega al constructor de
+ * `Thermal` (por ejemplo `THERMAL.game` para el tiempo de juego de #186). `step()` avanza un paso fijo en el orden del juego (mundo, térmica,
  * viscosidad); `thermalOnly(dt)` avanza solo la térmica con `dt` (para tiempos largos, sobre los contactos del
  * último paso del mundo).
  */
-export function thermalScene({ points = [], kind = 0, params = {}, walls = false, immersion = false, airLosses = true } = {}) {
+export function thermalScene({ points = [], kind = 0, params = {}, walls = false, immersion = false, airLosses = true, floor = null, solids = [], options = {} } = {}) {
     const world = newWorld();
-    addSolids(world, [{ x: 5, y: -0.5, w: 40, h: 1 }, ...(walls ? [{ x: 2.5, y: 2, w: 1, h: 4 }, { x: 7.5, y: 2, w: 1, h: 4 }] : [])]);
+    addSolids(world, [floor ?? { x: 5, y: -0.5, w: 40, h: 1 }, ...(walls ? [{ x: 2.5, y: 2, w: 1, h: 4 }, { x: 7.5, y: 2, w: 1, h: 4 }] : []), ...solids]);
     const system = createParticleSystem(world, { ...SHOT_SYSTEM, ...params });
     const store = new ParticleStore(system, SHOT_SYSTEM);
     const wall = wallFor(system, store);
     const water = new ShallowWater();
     const imm = immersion ? new Immersion(system, store, water) : null;
-    const thermal = new Thermal(system, store, water, imm, { airLosses });
+    const thermal = new Thermal(system, store, water, imm, { airLosses, ...options });
     const viscosity = new Viscosity(system, store, thermal);
     const def = new Box2D.b2ParticleDef();
     const at = new Box2D.b2Vec2(0, 0);
@@ -71,6 +73,7 @@ export function thermalScene({ points = [], kind = 0, params = {}, walls = false
         dispose() {
             wall.dispose();
             viscosity.dispose();
+            thermal.dispose();
             Box2D.destroy(def);
             Box2D.destroy(at);
         },

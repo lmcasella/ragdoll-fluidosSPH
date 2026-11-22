@@ -24,11 +24,15 @@ const pad = (rx = 0, ry = 0) => ({
     buttons: Array.from({ length: 17 }, () => ({ pressed: false })),
 });
 
+/** Teclado en J1, gamepad 0 en J1 y gamepad 1 en J2: lo que cubren estas pruebas, salvo donde se cambia. */
+const LEGACY = { keyboard: 0, "pad:0": 0, "pad:1": 1 };
+
 let input;
 beforeEach(() => {
     for (const k of Object.keys(handlers)) delete handlers[k];
     pads = [pad()];
     input = new Input(2);
+    input.setAssignment(LEGACY);
 });
 
 test("mouse movido antes del stick: al soltar el stick no hay pointer", () => {
@@ -68,7 +72,7 @@ test("sin mouse movido no hay pointer", () => {
     assert.equal(input.poll()[0].pointer, null);
 });
 
-test("el pointer es solo del J1", () => {
+test("el pointer es solo del jugador con el teclado", () => {
     mouseMove(5, 5);
     const [, j2] = input.poll();
     assert.equal(j2.pointer, null);
@@ -110,24 +114,48 @@ test("RT también mantiene fire", () => {
     assert.equal(held.action, false);
 });
 
-test("fire del teclado se mantiene mientras la tecla está apretada", () => {
+test("Espacio salta y es action en el flanco, pero no dispara", () => {
     emit("keydown", { code: "Space", preventDefault() {} });
     const first = input.poll()[0];
-    assert.equal(first.fire, true);
-    assert.equal(first.action, true);
+    assert.deepEqual([first.jump, first.action, first.fire], [true, true, false]);
     const held = input.poll()[0];
-    assert.equal(held.fire, true);
-    assert.equal(held.action, false);
+    assert.deepEqual([held.jump, held.jumpHeld, held.action, held.fire], [false, true, false, false]);
     emit("keyup", { code: "Space" });
-    assert.equal(input.poll()[0].fire, false);
 });
 
-test("el teclado del J2 dispara solo al J2", () => {
-    emit("keydown", { code: "Enter", preventDefault() {} });
+test("el teclado y el mouse manejan solo al jugador al que están asignados", () => {
+    input.setAssignment({ keyboard: 1 });
+    emit("keydown", { code: "KeyF", preventDefault() {} });
+    emit("mousedown", { button: 0 });
+    mouseMove(7, 8);
     const [j1, j2] = input.poll();
-    assert.equal(j1.fire, false);
-    assert.equal(j2.fire, true);
-    emit("keyup", { code: "Enter" });
+    assert.deepEqual([j1.punch, j1.fire, j1.pointer], [false, false, null]);
+    assert.deepEqual([j2.punch, j2.fire, j2.pointer], [true, true, { x: 7, y: 8 }]);
+    emit("keyup", { code: "KeyF" });
+    emit("mouseup", { button: 0 });
+});
+
+test("un gamepad maneja al jugador asignado y no a otro, sin importar su orden", () => {
+    input.setAssignment({ keyboard: null, "pad:0": 1, "pad:1": 0 });
+    pads = [padWith(1), padWith(7)];
+    const [j1, j2] = input.poll();
+    assert.deepEqual([j1.punch, j1.fire, j2.punch, j2.fire], [false, true, true, false]);
+});
+
+test("un jugador sin dispositivos queda quieto aunque haya teclas y gamepads", () => {
+    input.setAssignment({ keyboard: null, "pad:0": null });
+    pads = [padWith(0, 7)];
+    emit("keydown", { code: "KeyA", preventDefault() {} });
+    const [j1, j2] = input.poll();
+    for (const s of [j1, j2]) assert.deepEqual([s.left, s.jump, s.fire, s.action], [false, false, false, false]);
+    emit("keyup", { code: "KeyA" });
+});
+
+test("dos gamepads del mismo jugador se combinan con O", () => {
+    input.setAssignment({ keyboard: null, "pad:0": 0, "pad:1": 0 });
+    pads = [padWith(1), padWith(7)];
+    const [j1, j2] = input.poll();
+    assert.deepEqual([j1.punch, j1.fire, j2.punch, j2.fire], [true, true, false, false]);
 });
 
 test("el mouse mantenido da fire solo al J1 y mouseup lo apaga", () => {
@@ -148,14 +176,6 @@ test("blur apaga el fire del mouse", () => {
     input.poll();
     emit("blur");
     assert.equal(input.poll()[0].fire, false);
-});
-
-test("soltar el teclado no apaga el fire del gamepad", () => {
-    pads = [padWith(7)];
-    emit("keydown", { code: "Space", preventDefault() {} });
-    input.poll();
-    emit("keyup", { code: "Space" });
-    assert.equal(input.poll()[0].fire, true);
 });
 
 test("soltar el mouse no apaga el fire del gamepad", () => {
@@ -225,26 +245,24 @@ test("drop: A con ly > 0,6 (0,61), jump con 0,59", () => {
     assert.deepEqual([s.drop, s.jump], [false, true]);
 });
 
-test("drop con el teclado: W + S en J1 y flecha arriba + abajo en J2", () => {
+test("drop con el teclado: S + Espacio", () => {
     key("KeyS");
-    key("KeyW");
-    key("ArrowDown");
-    key("ArrowUp");
-    const [j1, j2] = input.poll();
-    assert.deepEqual([j1.drop, j1.jump, j2.drop, j2.jump], [true, false, true, false]);
+    key("Space");
+    const [j1] = input.poll();
+    assert.deepEqual([j1.drop, j1.jump], [true, false]);
     unkey("KeyS");
-    unkey("KeyW");
-    unkey("ArrowDown");
-    unkey("ArrowUp");
+    unkey("Space");
 });
 
-test("W salta en J1 y arriba salta en J2, y también mueven hacia arriba", () => {
+test("W es arriba y no salta; Espacio salta", () => {
     key("KeyW");
-    key("ArrowUp");
-    const [j1, j2] = input.poll();
-    assert.deepEqual([j1.jump, j1.up, j2.jump, j2.up], [true, true, true, true]);
+    let [j1] = input.poll();
+    assert.deepEqual([j1.jump, j1.up], [false, true]);
+    key("Space");
+    [j1] = input.poll();
+    assert.deepEqual([j1.jump, j1.up], [true, true]);
     unkey("KeyW");
-    unkey("ArrowUp");
+    unkey("Space");
 });
 
 test("RT dispara y mantiene fire; solo RT, no A", () => {
@@ -255,47 +273,55 @@ test("RT dispara y mantiene fire; solo RT, no A", () => {
     assert.deepEqual([held.fire, held.action], [true, false]);
 });
 
-test("B golpea en el flanco; F en J1 y Numpad 5 en J2", () => {
+test("B golpea en el flanco; F con el teclado", () => {
     pads = [padWith(1)];
     assert.equal(input.poll()[0].punch, true);
     assert.equal(input.poll()[0].punch, false);
     pads = [pad()];
     input.poll();
     key("KeyF");
-    key("Numpad5");
-    const [j1, j2] = input.poll();
-    assert.deepEqual([j1.punch, j2.punch], [true, true]);
+    assert.equal(input.poll()[0].punch, true);
+    unkey("KeyF");
 });
 
-test("R18b: ningún respaldo usa Shift", async () => {
-    const { KEYBOARD_LAYOUTS } = await import("../js/Input.js");
-    const codes = KEYBOARD_LAYOUTS.flatMap((layout) => Object.values(layout).flat());
-    assert.deepEqual(codes.filter((code) => code.startsWith("Shift")), []);
+test("ninguna tecla Numpad en los controles de juego y no queda el esquema de J2", async () => {
+    const mod = await import("../js/Input.js");
+    const codes = Object.values(mod.KEYBOARD_LAYOUT).flat();
+    assert.deepEqual(codes.filter((code) => code.startsWith("Numpad")), []);
+    assert.equal(mod.KEYBOARD_LAYOUTS, undefined);
+    for (const code of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "ControlRight"]) {
+        assert.ok(!codes.includes(code), code);
+    }
 });
 
-test("R18b: G (J1) y Numpad - (J2) mantienen block; Numpad 5 es punch y abajo + Numpad 5 es kick en J2", () => {
+test("Shift mantiene block; Shift + Espacio rueda; F es golpe y S + F es patada", () => {
     pads = [pad()];
-    key("KeyG");
-    key("NumpadSubtract");
-    let [j1, j2] = input.poll();
-    assert.deepEqual([j1.block, j2.block], [true, true]);
-    [j1, j2] = input.poll();
-    assert.deepEqual([j1.block, j2.block], [true, true]);
-    unkey("KeyG");
-    unkey("NumpadSubtract");
-    [j1, j2] = input.poll();
-    assert.deepEqual([j1.block, j2.block], [false, false]);
+    key("ShiftLeft");
+    let [j1] = input.poll();
+    assert.deepEqual([j1.block, j1.roll], [true, false]);
+    assert.equal(input.poll()[0].block, true);
+    key("Space");
+    [j1] = input.poll();
+    assert.deepEqual([j1.roll, j1.jump, j1.drop, j1.block], [true, false, false, true]);
+    unkey("Space");
+    unkey("ShiftLeft");
+    assert.equal(input.poll()[0].block, false);
+    key("ShiftRight");
+    assert.equal(input.poll()[0].block, true);
+    unkey("ShiftRight");
+    input.poll();
 
-    key("Numpad5");
-    [j1, j2] = input.poll();
-    assert.deepEqual([j2.punch, j2.kick], [true, false]);
-    key("ArrowDown");
-    key("Numpad5");
-    [j1, j2] = input.poll();
-    assert.deepEqual([j2.punch, j2.kick], [false, true]);
-    unkey("ArrowDown");
+    key("KeyF");
+    [j1] = input.poll();
+    assert.deepEqual([j1.punch, j1.kick], [true, false]);
+    unkey("KeyF");
+    key("KeyS");
+    key("KeyF");
+    [j1] = input.poll();
+    assert.deepEqual([j1.punch, j1.kick], [false, true]);
+    unkey("KeyS");
+    unkey("KeyF");
 });
-
 test("kick en J1: S + F; con el stick abajo (ly > 0,6) + B", () => {
     pads = [pad()];
     key("KeyS");
@@ -313,11 +339,11 @@ test("kick en J1: S + F; con el stick abajo (ly > 0,6) + B", () => {
     assert.deepEqual([s.punch, s.kick], [true, false]);
 });
 
-test("R18: LT mantiene block y no lo cortan las teclas; LT + A rueda (no salta ni baja); LT + W también rueda", () => {
+test("R18: LT mantiene block y no lo cortan las teclas; LT + A rueda (no salta ni baja); LT + Espacio también rueda", () => {
     pads = [padWith(6)];
-    key("KeyG");
+    key("ShiftLeft");
     assert.equal(input.poll()[0].block, true);
-    unkey("KeyG");
+    unkey("ShiftLeft");
     assert.equal(input.poll()[0].block, true, "soltar G no corta el bloqueo si LT sigue apretado");
     pads = [pad()];
     assert.equal(input.poll()[0].block, false);
@@ -337,38 +363,22 @@ test("R18: LT mantiene block y no lo cortan las teclas; LT + A rueda (no salta n
     assert.deepEqual([s.roll, s.jump, s.drop], [true, false, false], "roll gana sobre drop");
 
     pads = [padWith(6)];
-    key("KeyW");
+    key("Space");
     s = input.poll()[0];
     assert.deepEqual([s.roll, s.jump], [true, false]);
-    unkey("KeyW");
+    unkey("Space");
 });
 
-test("G + W en J1 y Numpad - + flecha arriba en J2 ruedan", () => {
-    pads = [pad()];
-    key("KeyG");
-    key("KeyW");
-    key("NumpadSubtract");
-    key("ArrowUp");
-    const [j1, j2] = input.poll();
-    assert.deepEqual([j1.roll, j1.jump, j2.roll, j2.jump], [true, false, true, false]);
-    unkey("KeyG");
-    unkey("KeyW");
-    unkey("NumpadSubtract");
-    unkey("ArrowUp");
-});
-
-test("X, E, clic derecho y Numpad 0 dan grapple mantenido", () => {
+test("X, E y clic derecho dan grapple mantenido", () => {
     pads = [padWith(2)];
     assert.equal(input.poll()[0].grapple, true);
     assert.equal(input.poll()[0].grapple, true);
     pads = [pad()];
     assert.equal(input.poll()[0].grapple, false);
     key("KeyE");
-    key("Numpad0");
     let [j1, j2] = input.poll();
-    assert.deepEqual([j1.grapple, j2.grapple], [true, true]);
+    assert.deepEqual([j1.grapple, j2.grapple], [true, false]);
     unkey("KeyE");
-    unkey("Numpad0");
     emit("mousedown", { button: 2 });
     [j1, j2] = input.poll();
     assert.deepEqual([j1.grapple, j1.fire, j2.grapple], [true, false, false]);
@@ -394,20 +404,14 @@ test("RB da arma siguiente en el flanco", () => {
     assert.equal(input.poll()[0].weaponStep, 0);
 });
 
-test("Q (toque corto) y R en J1; Ctrl derecho y Numpad + en J2", () => {
+test("Q (toque corto) da el arma anterior y R la siguiente", () => {
     key("KeyQ");
-    key("ControlRight");
     input.poll(1);
     unkey("KeyQ");
-    unkey("ControlRight");
-    let [j1, j2] = input.poll(1.1);
-    assert.deepEqual([j1.weaponStep, j2.weaponStep], [-1, -1]);
+    assert.equal(input.poll(1.1)[0].weaponStep, -1);
     key("KeyR");
-    key("NumpadAdd");
-    [j1, j2] = input.poll(1.2);
-    assert.deepEqual([j1.weaponStep, j2.weaponStep], [1, 1]);
-    [j1, j2] = input.poll(1.3);
-    assert.deepEqual([j1.weaponStep, j2.weaponStep], [0, 0]);
+    assert.equal(input.poll(1.2)[0].weaponStep, 1);
+    assert.equal(input.poll(1.3)[0].weaponStep, 0);
 });
 
 test("Q apretada sin soltar en el mismo poll da -1 al soltar rápido", () => {
@@ -426,16 +430,15 @@ test("la cruceta elige el arma por posición: arriba 1, derecha 2, abajo 3, izqu
     }
 });
 
-test("las teclas numéricas eligen el arma: 1-4 en J1 y Num 1-4 en J2", () => {
+test("las teclas 1-4 eligen el arma directa", () => {
     key("Digit3");
-    key("Numpad4");
-    const [j1, j2] = input.poll();
-    assert.deepEqual([j1.weapon, j2.weapon], [3, 4]);
+    assert.equal(input.poll()[0].weapon, 3);
+    key("Digit4");
+    assert.equal(input.poll()[0].weapon, 4);
 });
 
 test("el teclado no pisa al gamepad, en ninguna intención, y al revés", () => {
     const cases = [
-        ["fire", [7], "Space", "fire"],
         ["grapple", [2], "KeyE", "grapple"],
         ["up", [], "KeyW", "up"],
     ];
@@ -456,12 +459,12 @@ test("el teclado no pisa al gamepad, en ninguna intención, y al revés", () => 
     unkey("KeyW");
     assert.equal(input.poll()[0].up, true, "stick arriba con la tecla suelta");
     pads = [padWith(0)];
-    key("KeyW");
+    key("Space");
     assert.equal(input.poll()[0].jump, true);
-    unkey("KeyW");
+    unkey("Space");
 });
 
-test("los gamepads se asignan por orden de conexión y se combinan con el teclado del jugador", () => {
+test("el gamepad asignado se combina con el teclado del mismo jugador", () => {
     pads = [padWith(1), padWith(7)];
     key("KeyF");
     const [j1, j2] = input.poll();
@@ -521,26 +524,20 @@ test("un toque corto de LB no abre la rueda ni da wheelPick", () => {
 
 test("wheel con el teclado: elige lo que apunta (mouse en J1), nunca las teclas de movimiento", () => {
     key("KeyQ");
-    key("ControlRight");
     input.poll(10);
     key("KeyD");
     key("KeyW");
-    key("ArrowLeft");
     mouseMove(300, 40);
     let [j1, j2] = input.poll(11);
     assert.deepEqual(j1.wheel, { open: true, x: 0, y: 0, pointer: { x: 300, y: 40 } });
-    assert.deepEqual(j2.wheel, { open: true, x: 0, y: 0 });
+    assert.equal(j2.wheel, null);
     assert.equal(j1.left, false);
     assert.equal(j1.right, true);
-    assert.equal(j2.left, true);
     unkey("KeyQ");
-    unkey("ControlRight");
     [j1, j2] = input.poll(11.1);
     assert.deepEqual(j1.wheelPick, { x: 0, y: 0, pointer: { x: 300, y: 40 } });
-    assert.equal(j2.wheelPick, "cancel");
     unkey("KeyD");
     unkey("KeyW");
-    unkey("ArrowLeft");
 });
 
 test("wheel: el stick derecho gana sobre las teclas de dirección en la rueda abierta con la tecla", () => {
@@ -610,11 +607,11 @@ test("start es el flanco del botón 9 del gamepad, de un solo frame", () => {
     assert.equal(input.poll()[0].start, false);
 });
 
-test("Escape es start de los dos jugadores, solo en el frame en que se aprieta", () => {
+test("Escape es start del jugador con el teclado, solo en el frame en que se aprieta", () => {
     emit("keydown", { code: "Escape", preventDefault() {} });
     const [j1, j2] = input.poll();
     assert.equal(j1.start, true);
-    assert.equal(j2.start, true);
+    assert.equal(j2.start, false);
     emit("keyup", { code: "Escape" });
     assert.equal(input.poll()[0].start, false);
 });
@@ -625,4 +622,123 @@ test("el teclado no pisa a start del gamepad", () => {
     pads = [p];
     emit("keydown", { code: "KeyA", preventDefault() {} });
     assert.equal(input.poll()[0].start, true);
+});
+/** Cada intención del juego con cómo la produce el gamepad y cómo el teclado y mouse de J1; `done` dice cuándo se cumplió. */
+const PARITY = [
+    { intent: "left", pad: () => [padAxes([], [-1, 0, 0, 0])], keys: ["KeyA"], done: (s) => s.left },
+    { intent: "right", pad: () => [padAxes([], [1, 0, 0, 0])], keys: ["KeyD"], done: (s) => s.right },
+    { intent: "up", pad: () => [padAxes([], [0, -1, 0, 0])], keys: ["KeyW"], done: (s) => s.up },
+    { intent: "down", pad: () => [padAxes([], [0, 1, 0, 0])], keys: ["KeyS"], done: (s) => s.down },
+    { intent: "jump", pad: () => [padWith(0)], keys: ["Space"], done: (s) => s.jump && s.jumpHeld && s.action },
+    { intent: "drop", pad: () => [padAxes([0], [0, 0.9, 0, 0])], keys: ["KeyS", "Space"], done: (s) => s.drop && s.strongDown },
+    { intent: "roll", pad: () => [padWith(6, 0)], keys: ["ShiftLeft", "Space"], done: (s) => s.roll && s.block },
+    { intent: "action", pad: () => [padWith(7)], keys: ["Space"], done: (s) => s.action },
+    { intent: "start", pad: () => [padWith(9)], keys: ["Escape"], done: (s) => s.start },
+    { intent: "fire", pad: () => [padWith(7)], mouse: 0, done: (s) => s.fire },
+    { intent: "grapple", pad: () => [padWith(2)], keys: ["KeyE"], done: (s) => s.grapple },
+    { intent: "grapple (mouse)", pad: () => [padWith(2)], mouse: 2, done: (s) => s.grapple },
+    { intent: "block", pad: () => [padWith(6)], keys: ["ShiftRight"], done: (s) => s.block },
+    { intent: "punch", pad: () => [padWith(1)], keys: ["KeyF"], done: (s) => s.punch },
+    { intent: "kick", pad: () => [padAxes([1], [0, 0.9, 0, 0])], keys: ["KeyS", "KeyF"], done: (s) => s.kick && !s.punch },
+    { intent: "weapon 1", pad: () => [padWith(12)], keys: ["Digit1"], done: (s) => s.weapon === 1 },
+    { intent: "weapon 2", pad: () => [padWith(15)], keys: ["Digit2"], done: (s) => s.weapon === 2 },
+    { intent: "weapon 3", pad: () => [padWith(13)], keys: ["Digit3"], done: (s) => s.weapon === 3 },
+    { intent: "weapon 4", pad: () => [padWith(14)], keys: ["Digit4"], done: (s) => s.weapon === 4 },
+    { intent: "weaponStep +1", pad: () => [padWith(5)], keys: ["KeyR"], done: (s) => s.weaponStep === 1 },
+    {
+        intent: "weaponStep -1",
+        pad: () => [padWith(4)],
+        keys: ["KeyQ"],
+        release: true,
+        done: (s) => s.weaponStep === -1,
+    },
+    {
+        intent: "wheel",
+        pad: () => [padAxes([4], [0, 0, 0.8, 0])],
+        keys: ["KeyQ"],
+        hold: TAP_MAX + 0.1,
+        done: (s) => s.wheel?.open === true,
+    },
+    { intent: "aim", pad: () => [padAxes([], [0, 0, 1, 0])], mouseMove: true, done: (s) => s.aim !== null || s.pointer !== null },
+];
+
+const INTENTS = [
+    "left", "right", "up", "down", "jump", "drop", "roll", "action", "start", "fire", "grapple", "block", "punch", "kick",
+    "weapon 1", "weapon 2", "weapon 3", "weapon 4", "weaponStep +1", "weaponStep -1", "wheel", "aim",
+];
+
+/** Ejecuta un caso con un Input nuevo y devuelve el estado de J1 en el poll en que se cumple (o el último). */
+function runParity(c, device) {
+    for (const k of Object.keys(handlers)) delete handlers[k];
+    const local = new Input(2);
+    local.setAssignment(LEGACY);
+    pads = [pad(), pad()];
+    local.poll(10);
+    let state;
+    if (device === "pad") {
+        pads = c.pad();
+        state = local.poll(10.05)[0];
+        if (c.hold) state = local.poll(10.05 + c.hold)[0];
+        if (c.release) {
+            pads = [pad()];
+            state = local.poll(10.1)[0];
+        }
+    } else {
+        for (const code of c.keys ?? []) emit("keydown", { code, preventDefault() {} });
+        if (c.mouse !== undefined) emit("mousedown", { button: c.mouse });
+        if (c.mouseMove) emit("mousemove", { clientX: 5, clientY: 5 });
+        state = local.poll(10.05)[0];
+        if (c.hold) state = local.poll(10.05 + c.hold)[0];
+        if (c.release) {
+            for (const code of c.keys) emit("keyup", { code });
+            state = local.poll(10.1)[0];
+        }
+    }
+    return state;
+}
+
+test("paridad: cada intención que produce el gamepad también la produce el teclado de J1", () => {
+    for (const c of PARITY) {
+        assert.ok(c.done(runParity(c, "pad")), `${c.intent}: el gamepad no la produce`);
+        assert.ok(c.done(runParity(c, "keyboard")), `${c.intent}: el teclado y mouse de J1 no la producen`);
+    }
+    const covered = new Set(PARITY.map((c) => c.intent));
+    for (const intent of INTENTS) assert.ok(covered.has(intent), `la paridad no cubre ${intent}`);
+});
+
+test("paridad: las intenciones del estado de un jugador están todas en INTENTS o son de apoyo", () => {
+    const state = input.poll()[0];
+    const support = ["jumpHeld", "strongDown", "pointer", "wheelPick", "weapon", "weaponStep"];
+    for (const name of Object.keys(state)) {
+        assert.ok(INTENTS.includes(name) || support.includes(name), `intención sin cubrir en la paridad: ${name}`);
+    }
+});
+
+test("dispositivos: el teclado va primero y cada gamepad conectado tiene su flanco de x, Select, A, Start y B", () => {
+    pads = [pad(), pad()];
+    input.poll();
+    assert.deepEqual(input.devices.map((d) => d.id), ["keyboard", "pad:0", "pad:1"]);
+    pads = [padAxes([8], [-1, 0, 0, 0]), padWith(0, 9, 1)];
+    input.poll();
+    const [kb, a, b] = input.devices;
+    assert.equal(a.x, -1);
+    assert.equal(a.select, true);
+    assert.deepEqual([b.a, b.start, b.back, b.x], [true, true, true, 0]);
+    assert.equal(kb.x, 0);
+    input.poll();
+    assert.deepEqual([input.devices[1].x, input.devices[1].select, input.devices[2].a], [0, false, false]);
+    key("KeyD");
+    input.poll();
+    assert.equal(input.devices[0].x, 1);
+    unkey("KeyD");
+    key("ArrowLeft");
+    input.poll();
+    assert.equal(input.devices[0].x, -1);
+    unkey("ArrowLeft");
+    key("Enter");
+    key("Escape");
+    input.poll();
+    assert.deepEqual([input.devices[0].start, input.devices[0].back], [true, true]);
+    unkey("Enter");
+    unkey("Escape");
 });

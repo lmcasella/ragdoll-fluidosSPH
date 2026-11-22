@@ -21,6 +21,13 @@ const press = (game, button) => {
     game.setPad(0);
 };
 
+/** Del menú a la partida: confirma Jugar y después la pantalla de asignación (con la asignación por defecto de dos gamepads). */
+const begin = (game, button) => {
+    press(game, button);
+    game.frames(1);
+    press(game, button);
+};
+
 /** Mata al jugador `loser` y deja correr el fin de ronda; con `wait` avanza también la cuenta regresiva siguiente. */
 function endRound(game, loser, wait) {
     game.state.players[loser].hp = 0;
@@ -43,6 +50,12 @@ test("título, cuenta regresiva sin movimiento, rondas, fin de partida y revanch
     const titleX = torsoX(game, 0);
     game.setPad(0);
 
+    press(game, A);
+    assert.equal(match.state, "title", "Jugar abre la pantalla de asignación y no arranca");
+    game.frames(1);
+    press(game, A);
+    assert.equal(match.state, "title", "A suma al gamepad sin confirmar");
+    game.frames(1);
     press(game, A);
     assert.equal(match.state, "countdown");
     assert.equal(match.banner.title, "3");
@@ -74,7 +87,7 @@ test("título, cuenta regresiva sin movimiento, rondas, fin de partida y revanch
     game.frames(185);
     assert.equal(match.state, "matchOver");
     assert.equal(match.matchWinner, 0);
-    assert.equal(match.banner.subtitle, "2 – 0 · A revancha · Start menú");
+    assert.equal(match.banner.subtitle, "2 – 0 · A / Enter revancha · Start / Esc menú");
 
     press(game, A);
     game.frames(10);
@@ -89,7 +102,7 @@ test("título, cuenta regresiva sin movimiento, rondas, fin de partida y revanch
 test("Start en el fin de partida vuelve al título", async () => {
     const game = await intro();
     const { match } = game.state;
-    press(game, START);
+    begin(game, START);
     assert.equal(match.state, "countdown");
     game.frames(185);
     assert.equal(match.state, "playing");

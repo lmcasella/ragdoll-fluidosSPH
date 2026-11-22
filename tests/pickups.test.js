@@ -45,9 +45,9 @@ test("los puntos de aparición están 0,6 m sobre la cara superior de una plataf
     for (const p of LEVEL.pickups) {
         const platform = LEVEL.solids.find((s) => s.kind === "platform" && Math.abs(p.x - s.x) <= s.w / 2 && Math.abs(p.y - 0.6 - (s.y + s.h / 2)) < 1e-9);
         assert.ok(platform, `punto (${p.x}, ${p.y}) sin plataforma debajo`);
-        assert.ok(weaponById(p.weapon));
+        assert.ok(p.kind === "repair" || weaponById(p.weapon));
     }
-    assert.deepEqual(LEVEL.pickups.map((p) => p.weapon).sort(), [1, 2, 2, 3, 3, 4]);
+    assert.deepEqual(LEVEL.pickups.filter((p) => p.kind !== "repair").map((p) => p.weapon).sort(), [1, 2, 2, 3, 3, 4]);
     const game = await start();
     for (const player of game.state.players) {
         assert.deepEqual([...player.tanks], [[FLUID.WATER, weaponById(FLUID.WATER).tank]]);
@@ -97,6 +97,34 @@ test("recoger un arma que ya se tiene con el tanque a medias lo rellena", async 
     game.frames(3);
     assert.equal(players[0].tanks.get(FLUID.LAVA), weaponById(FLUID.LAVA).tank);
     assert.equal(lava.active, false);
+});
+
+test("con el tanque lleno del mismo líquido el robot atraviesa el punto caminando con el pad y el punto sigue en el mapa", async () => {
+    const game = await start();
+    const { players } = game.state;
+    const lava = pointOf(game, FLUID.LAVA, 0);
+    players[0].tanks.set(FLUID.LAVA, weaponById(FLUID.LAVA).tank);
+    place(game, 0, lava.x - 1.2, lava.y + 0.3);
+    game.setPad(0, { axes: [1, 0, 0, 0] });
+    game.frames(90);
+    game.setPad(0);
+    game.frames(10);
+    assert.ok(players[0].torso.GetPosition().get_x() > lava.x + 0.3, "el robot pasó por encima del punto");
+    assert.equal(lava.active, true);
+    assert.equal(players[0].tanks.get(FLUID.LAVA), weaponById(FLUID.LAVA).tank);
+    assert.equal(players[1].tanks.has(FLUID.LAVA), false);
+});
+
+test("si un robot con el tanque lleno y otro sin el arma tocan el punto, lo toma el que no la tiene", async () => {
+    const game = await start();
+    const { players } = game.state;
+    const acid = pointOf(game, FLUID.ACID);
+    players[0].tanks.set(FLUID.ACID, weaponById(FLUID.ACID).tank);
+    place(game, 0, acid.x, acid.y + 0.3);
+    place(game, 1, acid.x, acid.y + 0.3);
+    game.frames(3);
+    assert.equal(players[1].tanks.get(FLUID.ACID), weaponById(FLUID.ACID).tank);
+    assert.equal(acid.active, false);
 });
 
 test("si los dos robots tocan el punto en el mismo paso lo toma uno solo", async () => {

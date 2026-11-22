@@ -7,21 +7,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { WEAPONS } from "../../js/weapons.js";
+import { inert } from "./inert.js";
+import { FakeElement } from "./fake-dom.js";
 
 const root = new URL("../../", import.meta.url);
 const require = createRequire(import.meta.url);
-
-// Objeto que acepta cualquier llamada y propiedad sin hacer nada (canvas, contexto 2D, nodos del DOM)
-function inert(stored = {}) {
-    const noop = () => undefined;
-    return new Proxy(noop, {
-        get: (_, prop) => (prop in stored ? stored[prop] : noop),
-        set: (_, prop, value) => {
-            stored[prop] = value;
-            return true;
-        },
-    });
-}
 
 export const FRAME_MS = 1000 / 60;
 
@@ -41,6 +31,7 @@ export function giveAllWeapons(game) {
  * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  * `options.storage` es el `localStorage` falso del juego (con `getItem` y `setItem`); sin él no hay almacenamiento.
  * `game.hudTexts` y `game.laserMoves` espían lo dibujado en el último frame (capas HUD y mira).
+ * Sin `intro`, la asignación de controles es la clásica de las pruebas: el teclado y el gamepad 0 en J1, el gamepad 1 en J2.
  * `options.map` es el mapa de la partida ("classic" por defecto, o "infinite"); se escribe en el menú antes de arrancar.
  */
 export async function loadGame(options = {}) {
@@ -63,10 +54,10 @@ export async function loadGame(options = {}) {
         addEventListener: (type, fn) => (handlers[type] ??= []).push(fn),
     };
     const elements = new Map();
-    const spy = { hudTexts: [], laserMoves: 0 };
+    const spy = { hudTexts: [], laserMoves: 0, arcs: 0 };
     const spies = {
         hudCanvas: { clearRect: () => (spy.hudTexts.length = 0), fillText: (text) => spy.hudTexts.push(String(text)) },
-        pickupCanvas: { clearRect: () => (spy.laserMoves = 0), moveTo: () => spy.laserMoves++ },
+        pickupCanvas: { clearRect: () => ((spy.laserMoves = 0), (spy.arcs = 0)), moveTo: () => spy.laserMoves++, arc: () => spy.arcs++ },
     };
     globalThis.document = {
         getElementById: (id) => {
@@ -76,6 +67,10 @@ export async function loadGame(options = {}) {
             }
             return elements.get(id);
         },
+        createElement: (tag) =>
+            tag === "canvas"
+                ? inert({ width: 0, height: 0, style: {}, getContext: () => inert({ createRadialGradient: () => inert() }) })
+                : new FakeElement(tag),
     };
 
     if (options.storage) globalThis.localStorage = options.storage;
@@ -118,6 +113,7 @@ export async function loadGame(options = {}) {
 
     if (!options.intro) {
         globalThis.game.menu.values.map = options.map ?? "classic";
+        globalThis.game.asignacion.assignment = { keyboard: 0, "pad:0": 0, "pad:1": 1 };
         globalThis.game.arrancarPartida();
         globalThis.game.match.state = "playing";
     }
@@ -142,6 +138,10 @@ export async function loadGame(options = {}) {
         get laserMoves() {
             return spy.laserMoves;
         },
+        /** Círculos `arc` del canvas de la capa de mira en el último frame (los puntos del debug). */
+        get arcs() {
+            return spy.arcs;
+        },
         get now() {
             return clock / 1000;
         },
@@ -162,6 +162,11 @@ export async function loadGame(options = {}) {
         // Gamepad k (0 = J1) con botones del mapeo "standard" y ejes [lx, ly, rx, ry]; sin argumentos, todo suelto
         setPad(k, { buttons = [], axes = [0, 0, 0, 0] } = {}) {
             padState[k] = { buttons, axes };
+            refreshPads();
+        },
+        /** Desconecta el gamepad k; los que siguen conectados se renumeran por posición. */
+        removePad(k) {
+            padState[k] = undefined;
             refreshPads();
         },
         emit(type, event = {}) {

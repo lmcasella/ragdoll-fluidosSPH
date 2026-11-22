@@ -5,16 +5,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
+import { canReach } from "../js/bot.js";
 import { FLUID } from "../js/weapons.js";
 
 const TOP = 300;
+
 const B = CLIMB.branches;
 
 function run(seed, top = TOP) {
     const generator = new ClimbGenerator(seed);
     const list = [];
     do list.push(generator.next());
-    while (list[list.length - 1].y < top);
+    while (list[list.length - 1].y < top || generator.pending > 0);
     return { generator, list };
 }
 
@@ -26,7 +28,7 @@ test("la base de la etapa 0 son de 3 a 5 plataformas anchas entre 4 y 7 m, repar
         assert.ok(base.length >= 3 && base.length <= 5, `semilla ${seed}: ${base.length}`);
         for (const p of base) {
             assert.ok(p.y >= 4 && p.y <= 7, `tope ${p.y}`);
-            assert.ok(p.w >= 3.2 && p.w <= 9, `ancho ${p.w}`);
+            assert.ok(p.w >= 8 && p.w <= 14, `ancho ${p.w}`);
             assert.ok(Math.abs(p.x - CLIMB.centerX) + p.w / 2 <= 28 + 1e-9);
         }
         const sorted = [...base].sort((a, b) => a.x - b.x);
@@ -34,15 +36,13 @@ test("la base de la etapa 0 son de 3 a 5 plataformas anchas entre 4 y 7 m, repar
     }
 });
 
-test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un apoyo con solapamiento >= 1,5 m y dy <= 3,3 m, y nada se pisa", () => {
+test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma es alcanzable desde otra de abajo (hueco <= 3 m, dy <= 3,3 m) y nada se pisa", () => {
     const violations = [];
     let count = 0;
     let fallbacks = 0;
-    let relaxed = 0;
     for (let seed = 1; seed <= 50; seed++) {
         const { generator, list } = run(seed);
         fallbacks += generator.fallbacks;
-        relaxed += generator.relaxed;
         const all = [...generator.base.map((p) => ({ ...p, index: -1 })), ...list];
         list.forEach((p) => {
             count++;
@@ -51,8 +51,8 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un
             if (Math.abs(p.x - CLIMB.centerX) + p.w / 2 > half + 1e-9) violations.push(`${where}: fuera de las paredes`);
             const supported = all.some((q) => {
                 const dy = p.y - q.y;
-                const overlap = Math.min(q.x + q.w / 2, p.x + p.w / 2) - Math.max(q.x - q.w / 2, p.x - p.w / 2);
-                return q !== p && dy >= B.dy[0] - 1e-9 && dy <= B.dy[1] + 1e-9 && overlap >= B.overlap - 1e-9;
+                const gap = Math.max(0, p.x - p.w / 2 - (q.x + q.w / 2), q.x - q.w / 2 - (p.x + p.w / 2));
+                return q !== p && canReach(dy, gap, CLIMB.reach);
             });
             if (!supported) violations.push(`${where}: sin apoyo`);
             for (const q of all) {
@@ -64,27 +64,40 @@ test("invariante de alcance en 50 semillas hasta 300 m: cada plataforma tiene un
             }
         });
     }
-    console.log(`alcance: ${count} plataformas en 50 semillas, ${fallbacks} de respaldo, ${relaxed} sin cupo de tramo, ${violations.length} violaciones`);
+    console.log(`alcance: ${count} plataformas en 50 semillas, ${fallbacks} de respaldo, ${violations.length} violaciones`);
     assert.deepEqual(violations.slice(0, 5), []);
     assert.equal(fallbacks, 0);
-    assert.ok(relaxed <= count / 1000, `sin cupo de tramo: ${relaxed}`);
 });
 
-test("variedad en 50 semillas: de 3 a 7 plataformas por tramo de 10 m y desviación de alturas > 0,5 m en tramos de 3 m", () => {
-    const bad = [];
+test("filas (#227): en 50 semillas cada cantidad de 1 a 4 es >= 10 % de las filas, nunca 3 seguidas iguales y con corrimiento de +-0,4 m", () => {
+    const tally = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    let rows = 0;
+    for (let seed = 1; seed <= 50; seed++) {
+        const groups = new Map();
+        for (const p of run(seed).list) groups.set(p.row, [...(groups.get(p.row) ?? []), p]);
+        const list = [...groups.values()];
+        list.forEach((row, i) => {
+            tally[row.length]++;
+            rows++;
+            assert.ok(row.length >= 1 && row.length <= 4, `semilla ${seed}: ${row.length}`);
+            if (i >= 2) assert.ok(!(list[i - 1].length === row.length && list[i - 2].length === row.length), `semilla ${seed} fila ${i}: 3 seguidas`);
+            assert.ok(Math.max(...row.map((p) => p.y)) - Math.min(...row.map((p) => p.y)) <= 2 * B.rows.shift + 1e-9);
+        });
+    }
+    const share = Object.fromEntries(Object.entries(tally).map(([n, c]) => [n, +((100 * c) / rows).toFixed(1)]));
+    console.log(`filas: ${rows} en 50 semillas, porcentaje por cantidad ${JSON.stringify(share)}`);
+    for (const n of [1, 2, 3, 4]) assert.ok(tally[n] >= 0.1 * rows, `cantidad ${n}: ${share[n]} %`);
+});
+
+test("variedad en 50 semillas: desviación de alturas > 0,4 m en tramos de 3 m", () => {
     const spreads = [];
     for (let seed = 1; seed <= 50; seed++) {
         const { generator, list } = run(seed);
-        const counts = new Map();
         const slabs = new Map();
         for (const p of [...generator.base.map((b) => ({ y: b.y })), ...list]) {
-            const k = Math.floor(p.y / B.tract);
-            counts.set(k, (counts.get(k) ?? 0) + 1);
             const s = Math.floor(p.y / 3);
             slabs.set(s, [...(slabs.get(s) ?? []), p.y]);
         }
-        const last = Math.max(...counts.keys());
-        for (const [k, n] of counts) if (k < last && (n < B.density[0] || n > B.density[1])) bad.push(`semilla ${seed} tramo ${k}: ${n}`);
         for (const tops of slabs.values()) {
             if (tops.length < 2) continue;
             const mean = tops.reduce((a, b) => a + b, 0) / tops.length;
@@ -93,11 +106,32 @@ test("variedad en 50 semillas: de 3 a 7 plataformas por tramo de 10 m y desviaci
     }
     const mean = spreads.reduce((a, b) => a + b, 0) / spreads.length;
     console.log(`variedad: desviación media de alturas en tramos de 3 m ${mean.toFixed(2)} m (${spreads.length} tramos con 2 o más)`);
-    assert.deepEqual(bad.slice(0, 5), []);
-    assert.ok(mean > 0.5, `desviación ${mean}`);
+    assert.ok(mean > 0.4, `desviación ${mean}`);
 });
 
-test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", () => {
+test("plataformas largas y pocas al principio, cortas y más al subir (#286): ancho etapa 0 >= 2,5 veces el de la 5 y menos plataformas por fila", () => {
+    const stat = (n) => {
+        const rows = new Map();
+        let width = 0;
+        let platforms = 0;
+        for (let seed = 1; seed <= 50; seed++) {
+            for (const p of run(seed, 100).list) {
+                if (p.stage !== n) continue;
+                rows.set(`${seed}:${p.row}`, (rows.get(`${seed}:${p.row}`) ?? 0) + 1);
+                width += p.w;
+                platforms++;
+            }
+        }
+        return { width: width / platforms, perRow: platforms / rows.size };
+    };
+    const first = stat(0);
+    const last = stat(5);
+    console.log(`etapa 0: ancho medio ${first.width.toFixed(2)} m, ${first.perRow.toFixed(2)} por fila; etapa 5: ancho medio ${last.width.toFixed(2)} m, ${last.perRow.toFixed(2)} por fila; razón ${(first.width / last.width).toFixed(2)}`);
+    assert.ok(first.width >= 2.5 * last.width, `razón ${first.width / last.width}`);
+    assert.ok(first.perRow < last.perRow, `por fila ${first.perRow} contra ${last.perRow}`);
+});
+
+test("el ancho medio baja con la etapa: de [8, 14] en la 0 a [2, 4] desde la 5", () => {
     const sums = new Map();
     for (let seed = 1; seed <= 50; seed++) {
         for (const p of run(seed, 150).list) {
@@ -112,7 +146,7 @@ test("el ancho medio baja con la etapa: de [5, 9] en la 0 a [2, 4] desde la 5", 
     console.log(`ancho medio por etapa: ${table.join(", ")}`);
     for (let n = 1; n <= 5; n++) assert.ok(mean(n) < mean(n - 1), `etapa ${n}`);
     for (let n = 0; n <= 9; n++) {
-        const [lo, hi] = [5 + (2 - 5) * Math.min(n, 5) / 5, 9 + (4 - 9) * Math.min(n, 5) / 5];
+        const [lo, hi] = [8 + (2 - 8) * Math.min(n, 5) / 5, 14 + (4 - 14) * Math.min(n, 5) / 5];
         const nominal = (lo + hi) / 2;
         assert.ok(Math.abs(mean(n) - nominal) < 0.35 * nominal, `etapa ${n}: ${mean(n)} contra ${nominal}`);
     }
@@ -129,6 +163,10 @@ test("armas: ninguna en la etapa 0 y una por plataforma cada period de la etapa,
         }
         const n = seen.get(p.stage) ?? 0;
         seen.set(p.stage, n + 1);
+        if (p.pickups.some((q) => q.kind === "repair")) {
+            assert.equal(p.pickups.length, 1, "la plataforma de la reparación no lleva arma");
+            continue;
+        }
         const entry = CLIMB.pickups[Math.min(p.stage - 1, CLIMB.pickups.length - 1)];
         assert.equal(p.pickups.length, n % entry.period === 0 ? 1 : 0);
         for (const w of p.pickups) {

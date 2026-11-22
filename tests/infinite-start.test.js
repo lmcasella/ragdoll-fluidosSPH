@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { WEAPONS, FLUID } from "../js/weapons.js";
+import { HUD } from "../js/hud.js";
 import { CLIMB, StagePrizes } from "../js/climb.js";
 
 const FIRE = 7;
@@ -60,8 +61,11 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
     game.frames(90);
     assert.equal(game.state.particleSystem.GetParticleCount(), 0);
     assert.equal(game.laserMoves, 0, "ninguna mira láser");
-    assert.ok(game.hudTexts.some((t) => t.startsWith("J1 Salud: 100%") && !t.includes("·")), `HUD: ${game.hudTexts}`);
-    assert.ok(!game.hudTexts.includes("VACÍO"));
+    const panel = game.state.hud.panels[0];
+    assert.equal(panel.num.textContent, "100");
+    assert.ok(panel.row2.classes.has("none"), "sin arma: el puño y sin tanque");
+    assert.ok(panel.iconHolder.innerHTML.includes("ic-puno"));
+    assert.ok(!/VAC[ÍI]O|Sin arma/i.test(panel.el.allText), "sin texto de arma");
 });
 
 test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) equipada con el tanque lleno y vuelve la mira", async () => {
@@ -93,7 +97,7 @@ test("Infinito: el bot de J2 sin arma, en la etapa 1, va a buscar el punto de ap
     const game = await infinite("?bot=2&seed=1");
     assert.equal(game.state.players[1].weapon, null);
     assert.ok(game.state.pickups.points.every((p) => p.y >= CLIMB.stageHeight), "la etapa 0 no tiene armas");
-    const [first] = game.state.pickups.points;
+    const first = game.state.pickups.points.find((p) => p.kind !== "repair");
     const near = platformsOfStage(game, 1).find((s) => Math.abs(s.x - first.x) < s.w / 2 + 3 && Math.abs(s.y + s.h / 2 - first.y + CLIMB.pickupLift) < 1e-6);
     place(game, 1, near.x + near.w / 2 - 0.4, near.y + near.h / 2 + 0.9 + game.state.climb.offsetY);
     let at = null;
@@ -107,7 +111,7 @@ test("Infinito: el bot de J2 sin arma, en la etapa 1, va a buscar el punto de ap
     assert.ok(p2.tanks.get(p2.weapon) > 0);
 });
 
-test("Premio por etapa: el primero que se apoya en la etapa 1 recupera la vida y llena los tanques; el segundo, la misma ronda y la ronda nueva", async () => {
+test("Premio por etapa: el primero que se apoya en la etapa 1 baja el daño a 0 % y llena los tanques; el segundo, la misma ronda y la ronda nueva", async () => {
     const game = await infinite();
     const { players, stagePrizes } = game.state;
     const [first, second] = bareOfStage(game, 1);
@@ -125,7 +129,8 @@ test("Premio por etapa: el primero que se apoya en la etapa 1 recupera la vida y
     assert.equal(players[0].tanks.get(FLUID.WATER), tankOf(FLUID.WATER));
     assert.equal(players[0].tanks.get(FLUID.HONEY), tankOf(FLUID.HONEY));
     assert.equal(stagePrizes.banner.text, "ETAPA 1 · J1");
-    assert.ok(game.hudTexts.includes("ETAPA 1 · J1"), `HUD: ${game.hudTexts}`);
+    assert.ok(!game.state.hud.prize.el.hidden, "ficha del premio en el HUD");
+    assert.equal(game.state.hud.prize.badge.textContent, "J1");
 
     standOn(game, 1, second);
     game.frames(40);
@@ -153,19 +158,19 @@ test("Premio por etapa: el cartel desaparece al cumplirse el tiempo de la tabla"
     const [platform] = bareOfStage(game, 1);
     standOn(game, 0, platform);
     game.frames(40);
-    assert.ok(game.hudTexts.includes("ETAPA 1 · J1"));
-    game.frames(Math.ceil(CLIMB.stagePrize.banner * 60) + 10);
-    assert.ok(!game.hudTexts.includes("ETAPA 1 · J1"), `HUD: ${game.hudTexts}`);
+    assert.ok(!game.state.hud.prize.el.hidden);
+    game.frames(Math.ceil((CLIMB.stagePrize.banner + HUD.prize.leave) * 60) + 10);
+    assert.ok(game.state.hud.prize.el.hidden, "la ficha sale al cumplirse el tiempo de la tabla");
 });
 
 test("StagePrizes: apply es el único lugar que aplica el evento, con los valores de la tabla", () => {
     const prizes = new StagePrizes({ stagePrize: { banner: 2, repair: "full", refill: false }, stageHeight: 15 });
-    const player = { hp: 10, tanks: new Map([[FLUID.WATER, 0]]) };
+    const player = { repaired: false, repair() { this.repaired = true; }, tanks: new Map([[FLUID.WATER, 0]]) };
     prizes.events.push({ k: 0, stage: 3 });
     const applied = prizes.apply([player], 10);
     assert.deepEqual(applied, [{ k: 0, stage: 3 }]);
-    assert.equal(player.hp, 100);
+    assert.equal(player.repaired, true);
     assert.equal(player.tanks.get(FLUID.WATER), 0, "sin refill no se llenan los tanques");
-    assert.deepEqual(prizes.banner, { text: "ETAPA 3 · J1", until: 12 });
+    assert.deepEqual(prizes.banner, { text: "ETAPA 3 · J1", k: 0, until: 12 });
     assert.equal(prizes.events.length, 0);
 });

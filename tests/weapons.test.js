@@ -22,7 +22,7 @@ test("la tabla de armas tiene los valores del diseño", () => {
     assert.deepEqual(row(FLUID.WATER), [155, 14, 0.035, 600, 0, 1]);
     assert.deepEqual(row(FLUID.ACID), [155, 14, 0.035, 272, 20, 1]);
     assert.deepEqual(row(FLUID.LAVA), [111, 10, 0.017, 180, 12, 1]);
-    assert.deepEqual(row(FLUID.HONEY), [100, 18, 0.017, 152, 0, 1]);
+    assert.deepEqual(row(FLUID.HONEY), [200, 18, 0.017, 304, 0, 1]);
     assert.equal(WEAPONS[0].id, FLUID.WATER, "el agua es la primera fila");
     assert.deepEqual(WEAPONS[0].color, [90, 170, 255]);
     assert.deepEqual(LOADOUT.weapons, [FLUID.WATER], "solo el agua; el resto se recoge en el mapa");
@@ -361,6 +361,6 @@ test("SHOT_SYSTEM es agua pura con la masa física de la rebanada", () => {
     assert.equal(SHOT_SYSTEM.surfaceTensionPressureStrength, 0);
     assert.equal(SHOT_SYSTEM.surfaceTensionNormalStrength, 0);
     for (const weapon of WEAPONS) assert.equal(weapon.flags & (1 << 7), 0, `${weapon.name} sin TENSILE`);
-    assert.equal(weaponById(FLUID.HONEY).flags, 1 << 5);
+    assert.equal(weaponById(FLUID.HONEY).flags, 0);
     assert.equal(MATERIALS.water.SG, 1.0);
 });
