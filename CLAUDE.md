@@ -18,18 +18,35 @@ Juego web 1v1 de robots ragdoll que pelean con fluidos SPH, para la materia Simu
 | Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los decide `planner` con la taxonomía de abajo y los opera `github-clerk`. |
 | `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Se actualiza en cada merge.** |
 | `README.md` | Cómo correr, probar y jugar. |
-| `docs/referencias.md` | Material de estudio: matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan. Durante la entrega se pone al día en una sola pasada antes de la presentación. |
+| `docs/referencias.md` | Material de estudio: índice en tablas de matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan y un enlace para leer más. Durante la entrega se pone al día en una sola pasada antes de la presentación. |
+
+### Reparto de la documentación
+
+Cada dato tiene un solo dueño. Los demás lugares lo nombran o lo enlazan, pero no lo copian. El GDD y los docstrings no se contradicen ni se repiten.
+
+| Dónde | Qué explica | Qué no pone |
+|---|---|---|
+| GDD (`docs/design/`) | Qué hace cada subsistema y por qué, con detalle y en palabras del juego: lo que se ve, las reglas, las decisiones y los criterios medibles. | Nombres de funciones o variables, detalles de implementación ni desarrollos matemáticos. Solo lleva la fórmula que define un criterio. |
+| Docstrings | Cómo lo resuelve ese código, de forma breve y concreta: qué recibe y devuelve, unidades, cuándo se llama, por qué está hecho así y qué limitación del motor esquiva. | Reglas del juego ni el porqué del diseño: remiten a la sección del GDD (por ejemplo, "ver `14-agua.md` §14.6"). |
+| `docs/referencias.md` | Leyes, algoritmos y autores, con dónde se usan y un enlace para leer más. | Historia ni diseño. |
+| Tablas de datos del código | Los valores de balance. | — (el GDD nombra la tabla y repite el número solo si es un criterio). |
+
+`architect` es dueño del GDD, `developer` escribe los docstrings con el código y `doc-writer` controla que no se contradigan.
 
 ### Formato de `docs/referencias.md`
 
-Cada entrada tiene solo esto, sin fechas, historia ni detalles:
+Es un índice en tablas, una por sección, que se lee de un vistazo:
 
-- **Nombre** — quién lo inventó o formuló.
-- Una línea de descripción.
-- Dónde se usa: `ruta:línea` (una o varias).
-- Opcional: un ejemplo de implementación corto.
+| Concepto | Autor | Qué es | Dónde se usa | Para leer |
+|---|---|---|---|---|
 
-Lo descartado va en su propia sección, con la misma entrada más una línea: "se optó por <otra solución> porque no funcionó (<motivo breve>)".
+- **Qué es:** una línea. Lleva fórmula solo si es la idea central.
+- **Dónde se usa:** `ruta:línea`; si son varias, separadas por coma.
+- **Para leer:** un enlace a una fuente pública (Wikipedia en español si existe, si no en inglés, o el artículo original). Lleva "—" si es un diseño propio.
+
+Lo descartado va en su propia tabla: `| Descartado | Autor | Se optó por | Motivo | Dónde se decidió | Para leer |`.
+
+Los ejemplos de implementación van solo como último recurso, cuando la línea de código no alcanza para entender la entrada. Se ponen al final del archivo, después de un `<hr>`, con el nombre de su fila.
 
 Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corrige el código, o `architect` actualiza el GDD.
 
@@ -59,7 +76,7 @@ Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corr
 1. **Gamepad primero.** Cada mecánica se diseña para stick y botones (Gamepad API, mapeo "standard"). El teclado y el mouse son respaldo, nunca la fuente principal: un input de respaldo no puede pisar al gamepad.
 2. **Sin atribución de IA** en commits, PRs, código ni documentos.
 3. **Idioma:** documentos, issues, commits y PRs en español. **Nombres de rama en inglés** y sin caracteres especiales (ni ñ ni acentos). En el código, seguir el idioma y estilo del archivo que se toca.
-4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves. Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
+4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves y con lo que dice el "Reparto de la documentación". Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
 5. **Confidencialidad:** sin credenciales, tokens ni datos privados en el repo.
 6. **Assets:** solo propios o con licencia libre. Las referencias de estilo (por ejemplo, Unreal Tournament) se usan como inspiración, nunca copiando archivos.
 
