@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.53.1] - 2026-11-21
+
+### Changed
+- `docs/referencias.md` pasa a ser un índice en tablas por sección, con un enlace para leer sobre cada concepto; `CLAUDE.md` fija qué explica el GDD, qué los docstrings y qué las referencias.
+
 ## [0.53.0] - 2026-11-21
 
 ### Added
