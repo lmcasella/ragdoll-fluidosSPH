@@ -5,6 +5,12 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-21
+
+### Added
+- Plataformas rompibles con aviso visual y reaparición en modos Clásico e Infinito, con evasión de los bots.
+- Fondo oscuro en el menú principal para mejorar la legibilidad de las opciones.
+
 ## [0.32.0] - 2026-11-20
 
 ### Added
