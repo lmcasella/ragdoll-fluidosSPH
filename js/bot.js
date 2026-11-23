@@ -72,7 +72,6 @@ export const BOT = {
     reserveRange: 3,
     evade: 0.5,
     stuck: { time: 1, radius: 0.4 },
-    breakable: { fleeCrack: 0.65 },
 };
 
 /**
@@ -215,6 +214,11 @@ export function lungeFits(x, side, node, room) {
     return end >= node.minX && end <= node.maxX;
 }
 
+/** Verdadero si la plataforma del nodo está armada (`crack > 0`) o rota: el bot la da por perdida. */
+export function isLost(node) {
+    return Boolean(node.solid?.broken) || (node.solid?.crack ?? 0) > 0;
+}
+
 /**
  * Dónde aterrizar desde el aire en `x` con los pies a `low` y velocidad vertical `vy`: entre las plataformas bajo los pies a las
  * que se llega en la caída (hueco horizontal ≤ `speed` × tiempo de caída hasta su tope), la más alta que quede sobre `line`
@@ -225,7 +229,7 @@ export function landingNode(nodes, x, low, vy, line, speed = AIR_SPEED) {
     let best = null;
     let nearest = null;
     nodes.forEach((n, index) => {
-        if (n.solid?.broken || n.top > low + LANDING_SLACK) return;
+        if (isLost(n) || n.top > low + LANDING_SLACK) return;
         const gap = Math.max(0, n.minX - x, x - n.maxX);
         const fall = Math.max(0, low - n.top);
         const time = (vy + Math.sqrt(vy * vy + 2 * GRAVITY * fall)) / GRAVITY;
@@ -454,7 +458,7 @@ export class Bot {
         let best = null;
         let bestDistance = Infinity;
         this.nav.nodes.forEach((n) => {
-            if (n.solid?.broken) return;
+            if (isLost(n)) return;
             const distance = Math.hypot(Math.max(0, n.minX - x, x - n.maxX), n.top - y);
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -691,19 +695,17 @@ export class Bot {
     }
 
     /**
-     * Si la plataforma de apoyo está por romperse (`crack >= breakable.fleeCrack`), salta a una vecina sana y segura
+     * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), salta a una vecina sana y segura
      * (prefiriendo subir). Devuelve verdadero si usó el movimiento.
      */
     fleeBreakable(me, cur) {
         if (cur === null) return false;
-        const solid = this.nav.nodes[cur].solid;
-        const limit = this.config.breakable?.fleeCrack ?? 0.65;
-        if (!solid?.breakable || (solid.crack ?? 0) < limit) return false;
+        if ((this.nav.nodes[cur].solid?.crack ?? 0) <= 0) return false;
         const { nodes, edges } = this.nav;
         let best = null;
         for (const to of edges[cur]) {
             const n = nodes[to];
-            if (n.solid?.broken || n.top < this.minTop) continue;
+            if (isLost(n) || n.top < this.minTop) continue;
             if (best === null || n.top > nodes[best].top) best = to;
         }
         if (best === null) {
@@ -845,7 +847,7 @@ export class Bot {
         let target = null;
         let bestDistance = Infinity;
         this.nav.nodes.forEach((n, i) => {
-            if (n.solid?.broken || n.top <= a.top + EPS) return;
+            if (isLost(n) || n.top <= a.top + EPS) return;
             const distance = Math.hypot(Math.max(0, n.minX - px, px - n.maxX), n.top - py);
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -1138,7 +1140,7 @@ export class Bot {
         const dist = nodes.map(() => Infinity);
         const parent = nodes.map(() => -2);
         const done = nodes.map(() => false);
-        const safeUp = nodes.map((a, i) => edges[i].some((to, k) => !nodes[to].solid?.broken && margins[i][k] >= minMargin && nodes[to].top > a.top + EPS));
+        const safeUp = nodes.map((a, i) => edges[i].some((to, k) => !isLost(nodes[to]) && margins[i][k] >= minMargin && nodes[to].top > a.top + EPS));
         dist[from] = 0;
         parent[from] = -1;
         for (;;) {
@@ -1147,7 +1149,7 @@ export class Bot {
             if (node < 0) break;
             done[node] = true;
             edges[node].forEach((to, k) => {
-                if (nodes[to].solid?.broken || nodes[to].top < this.minTop || dist[node] + costs[node][k] >= dist[to]) return;
+                if (isLost(nodes[to]) || nodes[to].top < this.minTop || dist[node] + costs[node][k] >= dist[to]) return;
                 const rising = nodes[to].top > nodes[node].top + EPS;
                 if (margins[node][k] < minMargin && !(rising && !safeUp[node])) return;
                 dist[to] = dist[node] + costs[node][k];
@@ -1249,7 +1251,7 @@ export class Bot {
         let safe = false;
         const low = me.lowestPoint() - this.offsetY;
         const vy = me.torso.GetLinearVelocity().get_y();
-        if (dest !== null && (this.nav.nodes[dest].solid?.broken || (vy < 0 && this.nav.nodes[dest].top > low + LANDING_SLACK))) dest = null;
+        if (dest !== null && (isLost(this.nav.nodes[dest]) || (vy < 0 && this.nav.nodes[dest].top > low + LANDING_SLACK))) dest = null;
         if (dest === null) {
             const landing = landingNode(this.nav.nodes, px, low, vy, this.minTop);
             if (landing.index === null) return landing;
