@@ -27,6 +27,8 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   `period` plataformas de la etapa y los `weights` por nombre de `FLUID`;
  * - `repairPerStage`: ítems de reparación (#156) por etapa `n ≥ 1`, sobre la primera plataforma cuyo tope llega a la mitad
  *   de la etapa (fila central), que en ese caso no lleva arma;
+ * - `breakable`: plataformas rompibles (#301) desde la etapa `fromStage`: la probabilidad en la etapa `n ≥ fromStage` es
+ *   `min(max, chance + perStage · (n − fromStage))`, con `time` (s) de cuenta; una plataforma con arma o reparación nunca lo es;
  * - `flood`: `surface` (m) del agua al empezar, `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del
  *   fondo efectivo, `catchUp` (alcance: a la velocidad se suma `min(max, rate · max(0, d − gap))` m/s, con `d` la distancia
  *   en m de la superficie a la altura de apoyo del robot vivo más bajo, sin contar saltos; `gap` en m, `rate` en 1/s, `max` en m/s) y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
@@ -77,7 +79,7 @@ export const CLIMB = {
     ahead: 30,
     loadout: { weapon: null, weapons: [] },
     stagePrize: { banner: 1.5, repair: "full", refill: true },
-    breakable: { fromStage: 2, chance: 0.2, time: 3 },
+    breakable: { fromStage: 2, chance: 0.2, perStage: 0.1, max: 0.9, time: 3 },
 };
 
 
@@ -492,10 +494,12 @@ export class ClimbGenerator {
         const { x, w, y, row } = this.queue.shift();
         const stage = stageOf(y, this.config);
         const brk = this.config.breakable;
-        const breakable = brk && stage >= brk.fromStage && this.breakableRandom() < brk.chance ? brk.time : false;
+        const roll = brk && stage >= brk.fromStage ? this.breakableRandom() : 1;
         const weapons = this.pickupsOf(x, y, stage);
         const repairs = this.repairsOf(x, y, stage);
         const pickups = repairs.length > 0 ? repairs : weapons;
+        const chance = brk ? Math.min(brk.max, brk.chance + brk.perStage * (stage - brk.fromStage)) : 0;
+        const breakable = pickups.length === 0 && roll < chance ? brk.time : false;
         return { index: this.index++, row, x, w, y, stage, pickups, breakable };
     }
 }
@@ -641,7 +645,7 @@ export class Climb {
         fixture.SetFriction(0.8);
         if (oneWay) this.platforms.addPlatform(fixture, { moving: true });
         const solid = oneWay ? { x, y, w, h, kind, oneWay, ...(breakable ? { breakable } : {}) } : { x, y, w, h, kind };
-        if (breakable && this.breakable) this.breakable.add(fixture, solid, breakable);
+        if (breakable && this.breakable) this.breakable.add(fixture, solid);
         this.items.push({ fixture, oneWay, breakable: Boolean(breakable), kind, top: y + h / 2, solid });
         this.data.solids.push(solid);
     }

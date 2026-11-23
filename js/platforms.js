@@ -78,6 +78,20 @@ export class OneWayPlatforms {
     }
 
     /**
+     * Borra los pares y las bajadas de `fixture` en todos los dueños (registrados e implícitos) sin sacarla del registro
+     * ni perder su `moving`, y hace `Refilter` de los dueños afectados. Sirve para que una plataforma que vuelve a ser
+     * sólida no conserve un par "sólido" de antes: el próximo `update` lo recalcula desde la posición actual.
+     */
+    forget(fixture) {
+        const ptr = Box2D.getPointer(fixture);
+        const owners = [...this.owners.values(), ...this.implicit.values()];
+        for (const owner of owners) {
+            const had = owner.drops.delete(ptr);
+            if (owner.pairs.delete(ptr) || had) this.refilter(owner);
+        }
+    }
+
+    /**
      * Registra `bodies` (iterable de `b2Body`) como el dueño `key`. Con una clave que ya existe reemplaza los cuerpos y
      * conserva la bajada en curso y los pares ya registrados (el robot que gira se vuelve a crear en el mismo lugar y, si
      * los pares se perdieran, quedaría fantasma al hundirse unos centímetros bajo el tope al recrearse).

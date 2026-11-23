@@ -5,10 +5,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
-## [0.54.0] - 2026-11-22
+## [0.54.0] - 2026-11-23
 
 ### Added
-- Plataformas rompibles en Clásico e Infinito: se agrietan y vibran al sostener un robot, se rompen al cumplirse su tiempo, reaparecen tras un intervalo y los bots las detectan para escapar antes de que cedan.
+- Plataformas rompibles: un toque de un robot arma la cuenta, la plataforma tiembla y se pone roja, y se rompe al cumplirse el tiempo aunque el robot se baje. Rota no sostiene a nadie y reaparece a los 4 s sin dejar robots encajados. En Clásico son las dos plataformas chicas de los costados de la pileta; en Infinito aparecen desde la etapa 2, con una probabilidad que sube con cada etapa (20 % y +10 % por etapa, hasta 90 %). Una plataforma con arma o reparación nunca es rompible. Al terminar la partida o volver al título quedan todas enteras. Los bots dan por perdida una plataforma en cuanto empieza a romperse.
 
 ## [0.53.1] - 2026-11-21
 

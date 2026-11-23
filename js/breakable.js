@@ -1,23 +1,25 @@
 /**
  * Valores de las plataformas rompibles. `defaultTime` (s) es el aguante si el sólido declara `breakable: true` sin
- * duración propia; `respawn` (s) es cuánto tarda en reaparecer; `recoverRate` (s/s) es qué tan rápido se recupera al
- * quedar vacía; `slack` (m) es la holgura para detectar apoyo sobre el tope.
+ * duración propia; `respawn` (s) es cuánto tarda en reaparecer; `slack` (m) es la holgura para detectar apoyo sobre el
+ * tope.
  */
 export const BREAKABLE = {
     defaultTime: 1.5,
     respawn: 4,
-    recoverRate: 0.5,
     slack: { x: 0.3, y: 0.35 },
 };
 
 /**
- * Plataformas que se rompen al sostener un robot durante `duration` s y reaparecen luego de `respawn` s.
+ * Plataformas que se rompen `duration` s después del primer toque de un robot apoyado y reaparecen `respawn` s después.
  * Al romperse, la fixture pasa a sensor (`SetSensor(true)` + `Refilter()`) para no destruir memoria nativa ni
- * invalidar punteros de cuerpos. Escribe `crack` (0 a 1) y `broken` en el objeto `solid` para que `render.js`
- * dibuje el temblor y el estado roto sin acoplarse a este módulo.
+ * invalidar punteros de cuerpos. Al reaparecer (y en `reset`) pide a `OneWayPlatforms` que olvide los pares de esa
+ * fixture antes de volverla sólida: con la histéresis de `js/platforms.js`, un par que quedó sólido antes de la rotura
+ * dejaría a un robot superpuesto chocando desde adentro. Escribe `crack` (0 a 1) y `broken` en el objeto `solid` para que
+ * `render.js` dibuje el temblor y el estado roto sin acoplarse a este módulo. Ver `05-escenario.md` §5.4.
  */
 export class BreakablePlatforms {
-    constructor(config = BREAKABLE) {
+    constructor(platforms, config = BREAKABLE) {
+        this.platforms = platforms;
         this.config = config;
         this.entries = new Map();
     }
@@ -36,6 +38,7 @@ export class BreakablePlatforms {
             fixture,
             solid,
             duration,
+            armed: false,
             timer: 0,
             respawnAt: 0,
         });
@@ -51,60 +54,71 @@ export class BreakablePlatforms {
         this.entries.clear();
     }
 
-    /** Restaura todas las plataformas al estado intacto (nueva ronda). */
+    /** Vuelve la plataforma a sólida: los dueños olvidan sus pares y se recalculan los contactos. */
+    restore(entry) {
+        entry.solid.broken = false;
+        this.platforms.forget(entry.fixture);
+        entry.fixture.SetSensor(false);
+        entry.fixture.Refilter();
+    }
+
+    /** Restaura todas las plataformas al estado intacto (nueva ronda, fin de partida). */
     reset() {
         for (const entry of this.entries.values()) {
+            const wasBroken = entry.solid.broken;
+            entry.armed = false;
             entry.timer = 0;
             entry.respawnAt = 0;
             entry.solid.crack = 0;
-            if (entry.solid.broken) {
-                entry.solid.broken = false;
-                entry.fixture.SetSensor(false);
-                entry.fixture.Refilter();
-            }
+            if (wasBroken) this.restore(entry);
         }
     }
 
-    /** Avanza temporizadores, rompe las vencidas y restaura las que cumplieron su `respawn`. Llamar tras `stepWorld`. */
+    /**
+     * Arma la cuenta con el primer robot apoyado, la deja correr aunque se baje, rompe las vencidas y restaura las que
+     * cumplieron su `respawn`. `crack` es el tiempo transcurrido sobre `duration` (0 sin armar). Llamar tras `stepWorld`.
+     */
     update(players, dt, now) {
-        const { slack, recoverRate, respawn } = this.config;
+        const { respawn } = this.config;
         for (const entry of this.entries.values()) {
             const { fixture, solid } = entry;
             if (solid.broken) {
                 if (now >= entry.respawnAt) {
-                    solid.broken = false;
-                    solid.crack = 0;
+                    entry.armed = false;
                     entry.timer = 0;
-                    fixture.SetSensor(false);
-                    fixture.Refilter();
+                    solid.crack = 0;
+                    this.restore(entry);
                 }
                 continue;
             }
-            const aabb = fixture.GetAABB(0);
-            const minX = aabb.get_lowerBound().get_x();
-            const maxX = aabb.get_upperBound().get_x();
-            const top = aabb.get_upperBound().get_y();
-            let occupied = false;
-            for (const player of players) {
-                if (player.dead || !player.grounded) continue;
-                const px = player.torso.GetPosition().get_x();
-                if (px < minX - slack.x || px > maxX + slack.x) continue;
-                if (Math.abs(player.lowestPoint() - top) <= slack.y) {
-                    occupied = true;
-                    break;
-                }
-            }
-            entry.timer = occupied
-                ? entry.timer + dt
-                : Math.max(0, entry.timer - dt * recoverRate);
+            if (!entry.armed && this.occupied(fixture, players)) entry.armed = true;
+            if (!entry.armed) continue;
+            entry.timer += dt;
             solid.crack = Math.min(1, entry.timer / entry.duration);
             if (entry.timer >= entry.duration) {
                 solid.broken = true;
                 solid.crack = 0;
+                entry.armed = false;
                 entry.respawnAt = now + respawn;
                 fixture.SetSensor(true);
                 fixture.Refilter();
             }
         }
+    }
+
+    /** Verdadero si algún robot vivo y apoyado está sobre el tope de `fixture`. */
+    occupied(fixture, players) {
+        const { slack } = this.config;
+        const aabb = fixture.GetAABB(0);
+        const minX = aabb.get_lowerBound().get_x();
+        const maxX = aabb.get_upperBound().get_x();
+        const top = aabb.get_upperBound().get_y();
+        for (const player of players) {
+            if (player.dead || !player.grounded) continue;
+            const px = player.torso.GetPosition().get_x();
+            if (px < minX - slack.x || px > maxX + slack.x) continue;
+            if (Math.abs(player.lowestPoint() - top) <= slack.y) return true;
+        }
+        return false;
     }
 }

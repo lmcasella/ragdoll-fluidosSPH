@@ -233,7 +233,7 @@
             let currentMap = "classic";
             const platforms = new OneWayPlatforms(world);
             classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
-            const breakable = new BreakablePlatforms();
+            const breakable = new BreakablePlatforms(platforms);
             classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
             const raycaster = getRaycaster(world);
 
@@ -513,9 +513,10 @@
             /** Verdadero en el frame en que suena jugar: el "3" de la cuenta no suena encima. */
             let cuentaMuda = false;
 
-            /** Sonido de las transiciones de `Match`: empezar y revancha suenan como jugar, y volver al menú desde el fin de partida como volver. */
+            /** Sonido de las transiciones de `Match`: empezar y revancha suenan como jugar, y volver al menú desde el fin de partida como volver. Al entrar en `matchOver` o `title` deja enteras las plataformas rompibles. */
             function sonarTransicion() {
                 if (match.state === lastUiState) return;
+                if (match.state === "matchOver" || match.state === "title") breakable.reset();
                 if (match.state === "countdown" && (lastUiState === "title" || lastUiState === "matchOver")) {
                     audio.playUi("play", uiNow);
                     cuentaMuda = true;
