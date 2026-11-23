@@ -316,6 +316,7 @@ export class Bot {
         this.goal = this.goal === null ? null : same(this.goal);
         this.foeNode = this.foeNode === null ? null : same(this.foeNode);
         this.refuge = this.refuge === null ? null : same(this.refuge);
+        this.flee = null;
         this.replanAt = 0;
         this.cache = null;
     }
@@ -346,6 +347,7 @@ export class Bot {
         this.replanAt = 0;
         this.foeNode = null;
         this.refuge = null;
+        this.flee = null;
         this.threat = null;
         this.threatAt = 0;
         this.threatDelay = 0;
@@ -707,16 +709,21 @@ export class Bot {
 
     /**
      * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), sigue la ruta hacia la plataforma más alta alcanzable
-     * (sin volver atrás a la de donde vino). Sin ruta, salta a la vecina sana más alta cuyo salto tenga margen de
+     * (sin volver atrás a la de donde vino) y mantiene ese destino mientras siga apoyado en la misma plataforma y el destino
+     * no se pierda, para no cambiar de lado a mitad de la cuenta. Sin ruta, salta a la vecina sana más alta cuyo salto tenga margen de
      * `FLEE_MARGIN` o más (una rompible cuenta 1 m menos) o, si ninguna lo tiene, a la de más margen. Devuelve verdadero si
      * usó el movimiento.
      */
     fleeBreakable(me, cur) {
         if (cur === null) return false;
-        if ((this.nav.nodes[cur].solid?.crack ?? 0) <= 0) return false;
+        if ((this.nav.nodes[cur].solid?.crack ?? 0) <= 0) {
+            this.flee = null;
+            return false;
+        }
         const { nodes, edges, margins } = this.nav;
-        const goal = this.highest(cur);
-        const step = goal === cur ? -1 : this.nextStep(cur, goal);
+        const kept = this.flee !== null && this.flee.from === cur && !isLost(nodes[this.flee.to]) ? this.flee.to : -1;
+        const goal = kept >= 0 ? cur : this.highest(cur);
+        const step = kept >= 0 ? kept : goal === cur ? -1 : this.nextStep(cur, goal);
         let best = step >= 0 ? step : null;
         let bestScore = -Infinity;
         if (best === null) {
@@ -735,6 +742,7 @@ export class Bot {
             this.desperate(me, cur, true);
             return true;
         }
+        this.flee = { from: cur, to: best };
         this.committed = best;
         this.stepToward(me, nodes[cur], nodes[best], true, true);
         return true;
@@ -1218,7 +1226,7 @@ export class Bot {
     /**
      * Va hasta la plataforma `goal` por la ruta del grafo: camina hasta el punto de salto y salta, se deja caer de un
      * borde o baja con abajo + A desde una atravesable. En el aire corrige hacia el destino sin soltar el stick hasta
-     * estar sobre él; apoyado, nunca usa el control de aire.
+     * estar sobre él; apoyado, nunca usa el control de aire. Si ya está en la meta, se aparta de los bordes.
      */
     navigate(me, cur, goal) {
         const px = me.torso.GetPosition().get_x();
@@ -1227,7 +1235,10 @@ export class Bot {
             else this.airControl(me, px);
             return;
         }
-        if (goal === null || goal === cur) return;
+        if (goal === null || goal === cur) {
+            if (goal === cur && me.grounded) this.inward(me, cur);
+            return;
+        }
         const next = this.nextStep(cur, goal);
         if (next < 0) return;
         this.committed = next;
