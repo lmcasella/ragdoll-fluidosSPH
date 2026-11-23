@@ -79,3 +79,13 @@ Pedido del usuario (remapeo del 18/11; issue #149, requisito del ascenso infinit
 - `drop` sobre una plataforma cruza los pies en ≤ 0,3 s y al robot entero en ≤ 0,6 s (caída libre de 1,6 m desde el reposo: 0,57 s), y no vuelve a subir.
 - Sobre el piso de las islas, `drop` salta (9 m/s).
 - Los robots siguen chocando entre sí y con el piso y las paredes. Las partículas siguen apoyadas en las plataformas.
+
+## 5.4 Plataformas rompibles (#301)
+
+Una plataforma atravesable puede ser rompible. El primer toque de un robot arranca la cuenta: la plataforma tiembla y se pone roja, y al terminar se rompe aunque el robot ya se haya bajado. Sin pisarla no se recupera. Rota, no sostiene robots ni fluidos y no se dibuja. A los 4 s reaparece. Al volver no deja a ningún robot encajado: el que está debajo la atraviesa como a cualquier atravesable y el que está encima se apoya.
+
+- **Sin objetos encima:** una plataforma con un arma o una reparación nunca es rompible.
+- **Clásico:** las dos plataformas chicas de los costados de la pileta (x 21 y x 35), con 2 s de cuenta. La central es firme.
+- **Infinito:** ver [16.4](16-ascenso.md#164-armas-e-ítem-de-reparación).
+- **Bot:** una plataforma que empezó a romperse está perdida: se baja y no la elige como destino ni para aterrizar.
+- **Fin de partida:** al terminar la partida o volver al título, todas quedan enteras.
