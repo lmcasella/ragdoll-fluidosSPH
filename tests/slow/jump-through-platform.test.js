@@ -78,6 +78,18 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
  * Exige además que el apogeo de los pies supere 3,5 m sobre el punto de partida (sin corte el salto sube unos 4,2 m).
  */
 async function infiniteJumps(seed) {
+    const { CLIMB } = await import("../../js/climb.js");
+    const breakable = CLIMB.breakable;
+    CLIMB.breakable = null;
+    try {
+        await infiniteJumpsSolid(seed);
+    } finally {
+        CLIMB.breakable = breakable;
+    }
+}
+
+/** Cuerpo de `infiniteJumps` con las rompibles apagadas: este test prueba el salto a través de plataformas, no las rompibles (#301). */
+async function infiniteJumpsSolid(seed) {
     globalThis.location = { search: `?seed=${seed}` };
     const game = await loadGame({ map: "infinite" });
     for (const p of game.state.players) Object.assign(p, { drown: noop, hurt: noop, burn: noop, takeDamage: noop });
