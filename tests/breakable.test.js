@@ -116,6 +116,59 @@ test("Clásico: un toque de un frame rompe la plataforma a los 2 s, rota no sost
     assert.equal(players.length, 2);
 });
 
+test("saltar desde abajo a través de una rompible no la arma: se arma recién al pisarla desde arriba", async () => {
+    const game = await idleGame();
+    const { platforms } = game.state;
+    const owner = platforms.owners.get(0);
+    const plat = addBox(game, 7.5, FLOOR_TOP + 1.4, 2, 2);
+    place(game, 0, 7.5, FLOOR_TOP + 0.02);
+    game.frames(30);
+
+    game.setPad(0, { buttons: [0] });
+    let crossed = false;
+    let landed = false;
+    for (let i = 0; i < 180 && !landed; i++) {
+        game.frame();
+        if (i === 5) game.setPad(0);
+        const low = platforms.measure(owner).low;
+        if (low < plat.top - BREAKABLE.below) {
+            assert.equal(plat.solid.crack, 0, `se armó mientras cruzaba desde abajo (punto más bajo ${low.toFixed(2)} m, tope ${plat.top} m)`);
+        } else {
+            crossed = true;
+        }
+        if (crossed && plat.solid.crack > 0) landed = true;
+    }
+    assert.ok(crossed, "el salto no pasó el tope");
+    assert.ok(landed, "no se armó al pisarla desde arriba");
+    assert.ok(Math.abs(platforms.measure(owner).low - plat.top) < 0.1, "se armó sin estar apoyado en el tope");
+});
+
+/** Salta desde el piso con A durante 8 frames y devuelve el punto más bajo máximo (m) en 100 frames; con `plat`, falla si se arma. */
+function jumpFromFloor(game, plat) {
+    const { platforms } = game.state;
+    const owner = platforms.owners.get(0);
+    let max = 0;
+    game.setPad(0, { buttons: [0] });
+    for (let i = 0; i < 100; i++) {
+        game.frame();
+        if (i === 8) game.setPad(0);
+        const low = platforms.measure(owner).low;
+        max = Math.max(max, low);
+        if (plat) assert.equal(plat.solid.crack, 0, `se armó con un salto que no llegó a subir (punto más bajo ${low.toFixed(2)} m, tope ${plat.top.toFixed(2)} m)`);
+    }
+    return max;
+}
+
+test("un salto que llega justo debajo del tope y vuelve a caer no arma la rompible", async () => {
+    const apex = jumpFromFloor(await idleGame());
+    const game = await idleGame();
+    const plat = addBox(game, 7.5, apex + 0.05, 2, 2);
+    jumpFromFloor(game, plat);
+    const { platforms } = game.state;
+    assert.ok(platforms.measure(platforms.owners.get(0)).low < FLOOR_TOP + 0.1, "no volvió al piso");
+    assert.equal(plat.solid.broken, false);
+});
+
 test("una plataforma que reaparece con un robot parado debajo y el torso dentro no lo deja encajado", async () => {
     const game = await idleGame();
     const { platforms } = game.state;

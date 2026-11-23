@@ -1,12 +1,12 @@
 /**
  * Valores de las plataformas rompibles. `defaultTime` (s) es el aguante si el sólido declara `breakable: true` sin
- * duración propia; `respawn` (s) es cuánto tarda en reaparecer; `slack` (m) es la holgura para detectar apoyo sobre el
- * tope.
+ * duración propia; `respawn` (s) es cuánto tarda en reaparecer; `below` (m) es cuánto puede estar el punto más bajo del
+ * robot bajo el tope para que su contacto cuente como pisada (la tolerancia de `ONE_WAY`).
  */
 export const BREAKABLE = {
     defaultTime: 1.5,
     respawn: 4,
-    slack: { x: 0.3, y: 0.35 },
+    below: 0.05,
 };
 
 /**
@@ -106,18 +106,22 @@ export class BreakablePlatforms {
         }
     }
 
-    /** Verdadero si algún robot vivo y apoyado está sobre el tope de `fixture`. */
+    /**
+     * Verdadero si algún robot vivo pisa `fixture`: una pieza suya la toca (contacto real, que `OneWayPlatforms` no
+     * genera mientras el robot la cruza desde abajo) y su punto más bajo está a `below` m o menos bajo el tope.
+     */
     occupied(fixture, players) {
-        const { slack } = this.config;
-        const aabb = fixture.GetAABB(0);
-        const minX = aabb.get_lowerBound().get_x();
-        const maxX = aabb.get_upperBound().get_x();
-        const top = aabb.get_upperBound().get_y();
+        const target = Box2D.getPointer(fixture);
+        const top = fixture.GetAABB(0).get_upperBound().get_y();
         for (const player of players) {
-            if (player.dead || !player.grounded) continue;
-            const px = player.torso.GetPosition().get_x();
-            if (px < minX - slack.x || px > maxX + slack.x) continue;
-            if (Math.abs(player.lowestPoint() - top) <= slack.y) return true;
+            if (player.dead || player.lowestPoint() < top - this.config.below) continue;
+            for (const body of player.rag.bodies.values()) {
+                for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+                    const contact = edge.get_contact();
+                    if (!contact.IsTouching()) continue;
+                    if (Box2D.getPointer(contact.GetFixtureA()) === target || Box2D.getPointer(contact.GetFixtureB()) === target) return true;
+                }
+            }
         }
         return false;
     }
