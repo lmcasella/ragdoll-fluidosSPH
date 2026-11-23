@@ -112,7 +112,7 @@ const AIR_SPEED = 5;
 const LANDING_SLACK = 0.3;
 
 /** Margen de salto mínimo (0 a 1, `jumpMargin`) para que un escape de una plataforma que se rompe cuente como seguro. */
-const FLEE_MARGIN = 0.5;
+const FLEE_MARGIN = 0.3;
 
 /** Cuenta (`crack`) desde la que una plataforma armada deja de servir como destino de un salto en el aire. */
 const AIR_CRACK = 0.8;
@@ -706,26 +706,31 @@ export class Bot {
     }
 
     /**
-     * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), salta a la vecina sana más alta cuyo salto tenga margen
-     * de `FLEE_MARGIN` o más (una rompible cuenta 1 m menos); si ninguna lo tiene, a la de más margen. Devuelve verdadero si
+     * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), sigue la ruta hacia la plataforma más alta alcanzable
+     * (sin volver atrás a la de donde vino). Sin ruta, salta a la vecina sana más alta cuyo salto tenga margen de
+     * `FLEE_MARGIN` o más (una rompible cuenta 1 m menos) o, si ninguna lo tiene, a la de más margen. Devuelve verdadero si
      * usó el movimiento.
      */
     fleeBreakable(me, cur) {
         if (cur === null) return false;
         if ((this.nav.nodes[cur].solid?.crack ?? 0) <= 0) return false;
         const { nodes, edges, margins } = this.nav;
-        let best = null;
+        const goal = this.highest(cur);
+        const step = goal === cur ? -1 : this.nextStep(cur, goal);
+        let best = step >= 0 ? step : null;
         let bestScore = -Infinity;
-        edges[cur].forEach((to, k) => {
-            const n = nodes[to];
-            if (isLost(n) || n.top < this.minTop) return;
-            const margin = margins[cur][k];
-            const score = margin >= FLEE_MARGIN ? 100 + n.top - (n.solid?.breakable ? 1 : 0) : margin;
-            if (score > bestScore) {
-                best = to;
-                bestScore = score;
-            }
-        });
+        if (best === null) {
+            edges[cur].forEach((to, k) => {
+                const n = nodes[to];
+                if (isLost(n) || n.top < this.minTop) return;
+                const margin = margins[cur][k];
+                const score = margin >= FLEE_MARGIN ? 100 + n.top - (n.solid?.breakable ? 1 : 0) : margin;
+                if (score > bestScore) {
+                    best = to;
+                    bestScore = score;
+                }
+            });
+        }
         if (best === null) {
             this.desperate(me, cur, true);
             return true;
