@@ -27,6 +27,8 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   `period` plataformas de la etapa y los `weights` por nombre de `FLUID`;
  * - `repairPerStage`: ítems de reparación (#156) por etapa `n ≥ 1`, sobre la primera plataforma cuyo tope llega a la mitad
  *   de la etapa (fila central), que en ese caso no lleva arma;
+ * - `breakable`: plataformas rompibles (#301) desde la etapa `fromStage`: la probabilidad en la etapa `n ≥ fromStage` es
+ *   `min(max, chance + perStage · (n − fromStage))`, con `time` (s) de cuenta; una plataforma con arma o reparación nunca lo es;
  * - `flood`: `surface` (m) del agua al empezar, `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del
  *   fondo efectivo, `catchUp` (alcance: a la velocidad se suma `min(max, rate · max(0, d − gap))` m/s, con `d` la distancia
  *   en m de la superficie a la altura de apoyo del robot vivo más bajo, sin contar saltos; `gap` en m, `rate` en 1/s, `max` en m/s) y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
@@ -77,6 +79,7 @@ export const CLIMB = {
     ahead: 30,
     loadout: { weapon: null, weapons: [] },
     stagePrize: { banner: 1.5, repair: "full", refill: true },
+    breakable: { fromStage: 2, chance: 0.2, perStage: 0.1, max: 0.9, time: 3 },
 };
 
 
@@ -200,6 +203,7 @@ export class ClimbGenerator {
     constructor(seed, config = CLIMB) {
         this.config = config;
         this.random = seededRandom(seed);
+        this.breakableRandom = seededRandom((seed ^ 0x517cc1b7) >>> 0);
         this.index = 0;
         this.fallbacks = 0;
         this.items = [];
@@ -489,10 +493,14 @@ export class ClimbGenerator {
         if (this.queue.length === 0) this.buildRow();
         const { x, w, y, row } = this.queue.shift();
         const stage = stageOf(y, this.config);
+        const brk = this.config.breakable;
+        const roll = brk && stage >= brk.fromStage ? this.breakableRandom() : 1;
         const weapons = this.pickupsOf(x, y, stage);
         const repairs = this.repairsOf(x, y, stage);
         const pickups = repairs.length > 0 ? repairs : weapons;
-        return { index: this.index++, row, x, w, y, stage, pickups };
+        const chance = brk ? Math.min(brk.max, brk.chance + brk.perStage * (stage - brk.fromStage)) : 0;
+        const breakable = pickups.length === 0 && roll < chance ? brk.time : false;
+        return { index: this.index++, row, x, w, y, stage, pickups, breakable };
     }
 }
 /**
@@ -507,10 +515,11 @@ export class ClimbGenerator {
  * callback. Después de destruir, quien llama invalida `wallContact` y rehace el grafo del bot con `level`.
  */
 export class Climb {
-    constructor({ world, platforms, pickups, config = CLIMB, base = LEVEL }) {
+    constructor({ world, platforms, pickups, breakable = null, config = CLIMB, base = LEVEL }) {
         this.world = world;
         this.platforms = platforms;
         this.pickups = pickups;
+        this.breakable = breakable;
         this.config = config;
         this.base = base;
         const bodyDef = new Box2D.b2BodyDef();
@@ -626,21 +635,23 @@ export class Climb {
     /** Plataforma `{ x, w, y }` (`y` el tope) como caja atravesable de alto `branches.thickness`. */
     addPlatform(p) {
         const { thickness } = this.config.branches;
-        this.addBox(p.x, p.y - thickness / 2, p.w, thickness, "platform", true);
+        this.addBox(p.x, p.y - thickness / 2, p.w, thickness, "platform", true, p.breakable);
     }
 
-    addBox(x, y, w, h, kind, oneWay) {
+    addBox(x, y, w, h, kind, oneWay, breakable = false) {
         this.vector.Set(x, y);
         this.shape.SetAsBox(w / 2, h / 2, this.vector, 0);
         const fixture = this.body.CreateFixture(this.shape, 0);
         fixture.SetFriction(0.8);
         if (oneWay) this.platforms.addPlatform(fixture, { moving: true });
-        const solid = oneWay ? { x, y, w, h, kind, oneWay } : { x, y, w, h, kind };
-        this.items.push({ fixture, oneWay, kind, top: y + h / 2, solid });
+        const solid = oneWay ? { x, y, w, h, kind, oneWay, ...(breakable ? { breakable } : {}) } : { x, y, w, h, kind };
+        if (breakable && this.breakable) this.breakable.add(fixture, solid);
+        this.items.push({ fixture, oneWay, breakable: Boolean(breakable), kind, top: y + h / 2, solid });
         this.data.solids.push(solid);
     }
 
     destroyItem(item) {
+        if (item.breakable && this.breakable) this.breakable.remove(item.fixture);
         if (item.oneWay) this.platforms.removePlatform(item.fixture);
         this.body.DestroyFixture(item.fixture);
     }
@@ -693,7 +704,7 @@ export class StagePrizes {
         const low = player.lowestPoint();
         let best = null;
         for (const s of solids) {
-            if (s.kind !== "platform") continue;
+            if (s.kind !== "platform" || s.broken) continue;
             const top = s.y + s.h / 2;
             if (Math.abs(x - s.x) > s.w / 2 + SUPPORT_SLACK.x || Math.abs(low - top - offsetY) > SUPPORT_SLACK.y) continue;
             if (best === null || top > best) best = top;

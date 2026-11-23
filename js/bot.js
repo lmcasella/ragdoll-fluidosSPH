@@ -24,7 +24,8 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `reach`: regla de alcance del salto: subir hasta `up.dy` con hueco hasta `up.gap`, o hasta `short.dy` con hueco
  *   hasta `short.gap`; `downGap` es el hueco máximo al bajar o cruzar a nivel;
  * - `through`: subida vertical a través de una plataforma que solapa por encima: `overlap` (m) horizontal mínimo;
- *   `cost`: costo de cada arista del grafo, menor para `through` que para un salto diagonal (`jump`);
+ *   `cost`: costo de cada arista del grafo, menor para `through` que para un salto diagonal (`jump`); `breakable` se suma al
+ *   entrar a una plataforma rompible en la ruta, para preferir las firmes;
  * - `jump`: `distance` (a cuánto del destino salta), `edge` (a cuánto del borde salta aunque esté lejos), `inset` (margen
  *   dentro del destino donde suelta el stick), `dropBelow` (desnivel desde el que ya no salta sino que se deja caer),
  *   `align` (tolerancia al alinearse bajo un destino), `settle` (velocidad horizontal máxima, m/s, para saltar en vertical bajo un destino) y
@@ -59,7 +60,7 @@ export const BOT = {
     engage: { dy: 8, dx: 14 },
     reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
     through: { overlap: 1.5 },
-    cost: { through: 0.6, jump: 1 },
+    cost: { through: 0.6, jump: 1, breakable: 3 },
     jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3, settle: 0.6, foeClear: { dx: 1, dy: 4.5 } },
     highBonus: 4,
     hopCost: 0.3,
@@ -110,6 +111,12 @@ const UNSTICK_PHASE = 0.5;
 const AIR_SPEED = 5;
 const LANDING_SLACK = 0.3;
 
+/** Margen de salto mínimo (0 a 1, `jumpMargin`) para que un escape de una plataforma que se rompe cuente como seguro. */
+const FLEE_MARGIN = 0.3;
+
+/** Cuenta (`crack`) desde la que una plataforma armada deja de servir como destino de un salto en el aire. */
+const AIR_CRACK = 0.8;
+
 /** Generador pseudoaleatorio determinista (mulberry32): mismo `seed`, misma secuencia. */
 export function seededRandom(seed) {
     let a = seed >>> 0;
@@ -136,7 +143,7 @@ export function buildNav(level = LEVEL, config = BOT) {
         if (s.kind !== "floor" && s.kind !== "platform") continue;
         const top = s.y + s.h / 2;
         if (top <= floorTop) continue;
-        nodes.push({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top, oneWay: !!s.oneWay });
+        nodes.push({ minX: s.x - s.w / 2, maxX: s.x + s.w / 2, top, oneWay: !!s.oneWay, solid: s });
     }
     const { up } = config.reach;
     const { through, cost } = config;
@@ -215,6 +222,15 @@ export function lungeFits(x, side, node, room) {
 }
 
 /**
+ * Verdadero si la plataforma del nodo está rota o armada con la cuenta pasada de `limit` (`crack`, 0 a 1): el bot la da por
+ * perdida. Con `limit` 0, cualquier plataforma armada. En el aire usa `AIR_CRACK`: subir desde abajo la arma, y soltar el
+ * destino por eso lo haría errar un salto bueno.
+ */
+export function isLost(node, limit = 0) {
+    return Boolean(node.solid?.broken) || (node.solid?.crack ?? 0) > limit;
+}
+
+/**
  * Dónde aterrizar desde el aire en `x` con los pies a `low` y velocidad vertical `vy`: entre las plataformas bajo los pies a las
  * que se llega en la caída (hueco horizontal ≤ `speed` × tiempo de caída hasta su tope), la más alta que quede sobre `line`
  * (`safe` verdadero) y, si ninguna llega a la línea, la más alta que se alcance (`safe` falso); a igual altura, la de menor hueco.
@@ -224,7 +240,7 @@ export function landingNode(nodes, x, low, vy, line, speed = AIR_SPEED) {
     let best = null;
     let nearest = null;
     nodes.forEach((n, index) => {
-        if (n.top > low + LANDING_SLACK) return;
+        if (isLost(n, AIR_CRACK) || n.top > low + LANDING_SLACK) return;
         const gap = Math.max(0, n.minX - x, x - n.maxX);
         const fall = Math.max(0, low - n.top);
         const time = (vy + Math.sqrt(vy * vy + 2 * GRAVITY * fall)) / GRAVITY;
@@ -300,6 +316,7 @@ export class Bot {
         this.goal = this.goal === null ? null : same(this.goal);
         this.foeNode = this.foeNode === null ? null : same(this.foeNode);
         this.refuge = this.refuge === null ? null : same(this.refuge);
+        this.flee = null;
         this.replanAt = 0;
         this.cache = null;
     }
@@ -330,6 +347,7 @@ export class Bot {
         this.replanAt = 0;
         this.foeNode = null;
         this.refuge = null;
+        this.flee = null;
         this.threat = null;
         this.threatAt = 0;
         this.threatDelay = 0;
@@ -453,6 +471,7 @@ export class Bot {
         let best = null;
         let bestDistance = Infinity;
         this.nav.nodes.forEach((n) => {
+            if (isLost(n)) return;
             const distance = Math.hypot(Math.max(0, n.minX - x, x - n.maxX), n.top - y);
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -555,6 +574,12 @@ export class Bot {
             overlay();
             return;
         }
+
+        if (this.fleeBreakable(me, cur)) {
+            overlay();
+            return;
+        }
+
         if (!foe) {
             this.navigate(me, cur, this.highest(cur));
             return;
@@ -683,6 +708,47 @@ export class Bot {
     }
 
     /**
+     * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), sigue la ruta hacia la plataforma más alta alcanzable
+     * (sin volver atrás a la de donde vino) y mantiene ese destino mientras siga apoyado en la misma plataforma y el destino
+     * no se pierda, para no cambiar de lado a mitad de la cuenta. Sin ruta, salta a la vecina sana más alta cuyo salto tenga margen de
+     * `FLEE_MARGIN` o más (una rompible cuenta 1 m menos) o, si ninguna lo tiene, a la de más margen. Devuelve verdadero si
+     * usó el movimiento.
+     */
+    fleeBreakable(me, cur) {
+        if (cur === null) return false;
+        if ((this.nav.nodes[cur].solid?.crack ?? 0) <= 0) {
+            this.flee = null;
+            return false;
+        }
+        const { nodes, edges, margins } = this.nav;
+        const kept = this.flee !== null && this.flee.from === cur && !isLost(nodes[this.flee.to]) ? this.flee.to : -1;
+        const goal = kept >= 0 ? cur : this.highest(cur);
+        const step = kept >= 0 ? kept : goal === cur ? -1 : this.nextStep(cur, goal);
+        let best = step >= 0 ? step : null;
+        let bestScore = -Infinity;
+        if (best === null) {
+            edges[cur].forEach((to, k) => {
+                const n = nodes[to];
+                if (isLost(n) || n.top < this.minTop) return;
+                const margin = margins[cur][k];
+                const score = margin >= FLEE_MARGIN ? 100 + n.top - (n.solid?.breakable ? 1 : 0) : margin;
+                if (score > bestScore) {
+                    best = to;
+                    bestScore = score;
+                }
+            });
+        }
+        if (best === null) {
+            this.desperate(me, cur, true);
+            return true;
+        }
+        this.flee = { from: cur, to: best };
+        this.committed = best;
+        this.stepToward(me, nodes[cur], nodes[best], true, true);
+        return true;
+    }
+
+    /**
      * Capa de movimiento (stick izquierdo) con la plataforma sobre la línea segura: evadir, buscar un arma y, si no, ir a la meta.
      * En Infinito (`game.climbing`) la meta es la plataforma más alta alcanzable y solo persigue al rival si su plataforma
      * está sobre la línea segura y está dentro de `engage` (aunque haya que bajar); en el clásico persigue siempre.
@@ -754,14 +820,15 @@ export class Bot {
         const dist = this.distances(cur);
         const { nodes } = this.nav;
         const kept = this.refuge;
-        let best = kept !== null && kept !== cur && dist[kept] !== Infinity && nodes[kept].top >= line ? kept : null;
+        let best = kept !== null && kept !== cur && dist[kept] !== Infinity && nodes[kept].top >= line && nodes[kept].top >= nodes[cur].top + SAME_LEVEL ? kept : null;
         if (best === null) {
             nodes.forEach((n, i) => {
-                if (dist[i] === Infinity || n.top < line || n.top < nodes[cur].top) return;
+                if (dist[i] === Infinity || n.top < line || n.top < nodes[cur].top + SAME_LEVEL) return;
                 if (best === null || dist[i] < dist[best] || (dist[i] === dist[best] && n.top > nodes[best].top)) best = i;
             });
         }
-        const goal = best ?? this.highest(cur);
+        const top = this.highest(cur);
+        const goal = best ?? (nodes[top].top >= nodes[cur].top + SAME_LEVEL ? top : cur);
         this.refuge = goal === cur ? null : goal;
         if (goal === cur) this.desperate(me, cur, false);
         else this.navigate(me, cur, goal);
@@ -812,7 +879,7 @@ export class Bot {
         let target = null;
         let bestDistance = Infinity;
         this.nav.nodes.forEach((n, i) => {
-            if (n.top <= a.top + EPS) return;
+            if (isLost(n) || n.top <= a.top + EPS) return;
             const distance = Math.hypot(Math.max(0, n.minX - px, px - n.maxX), n.top - py);
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -1105,7 +1172,7 @@ export class Bot {
         const dist = nodes.map(() => Infinity);
         const parent = nodes.map(() => -2);
         const done = nodes.map(() => false);
-        const safeUp = nodes.map((a, i) => edges[i].some((to, k) => margins[i][k] >= minMargin && nodes[to].top > a.top + EPS));
+        const safeUp = nodes.map((a, i) => edges[i].some((to, k) => !isLost(nodes[to]) && margins[i][k] >= minMargin && nodes[to].top > a.top + EPS));
         dist[from] = 0;
         parent[from] = -1;
         for (;;) {
@@ -1114,10 +1181,11 @@ export class Bot {
             if (node < 0) break;
             done[node] = true;
             edges[node].forEach((to, k) => {
-                if (nodes[to].top < this.minTop || dist[node] + costs[node][k] >= dist[to]) return;
+                const step = costs[node][k] + (nodes[to].solid?.breakable ? this.config.cost.breakable : 0);
+                if (isLost(nodes[to]) || nodes[to].top < this.minTop || dist[node] + step >= dist[to]) return;
                 const rising = nodes[to].top > nodes[node].top + EPS;
                 if (margins[node][k] < minMargin && !(rising && !safeUp[node])) return;
-                dist[to] = dist[node] + costs[node][k];
+                dist[to] = dist[node] + step;
                 parent[to] = node;
             });
         }
@@ -1143,7 +1211,7 @@ export class Bot {
         const slack = player.grounded ? this.config.survival.edge.guard : 0.3;
         let best = null;
         this.nav.nodes.forEach((n, i) => {
-            if (x < n.minX - slack || x > n.maxX + slack || Math.abs(low - n.top) > 0.35) return;
+            if (n.solid?.broken || x < n.minX - slack || x > n.maxX + slack || Math.abs(low - n.top) > 0.35) return;
             if (best === null || n.top > this.nav.nodes[best].top) best = i;
         });
         return best;
@@ -1158,7 +1226,7 @@ export class Bot {
     /**
      * Va hasta la plataforma `goal` por la ruta del grafo: camina hasta el punto de salto y salta, se deja caer de un
      * borde o baja con abajo + A desde una atravesable. En el aire corrige hacia el destino sin soltar el stick hasta
-     * estar sobre él; apoyado, nunca usa el control de aire.
+     * estar sobre él; apoyado, nunca usa el control de aire. Si ya está en la meta, se aparta de los bordes.
      */
     navigate(me, cur, goal) {
         const px = me.torso.GetPosition().get_x();
@@ -1167,7 +1235,10 @@ export class Bot {
             else this.airControl(me, px);
             return;
         }
-        if (goal === null || goal === cur) return;
+        if (goal === null || goal === cur) {
+            if (goal === cur && me.grounded) this.inward(me, cur);
+            return;
+        }
         const next = this.nextStep(cur, goal);
         if (next < 0) return;
         this.committed = next;
@@ -1216,7 +1287,7 @@ export class Bot {
         let safe = false;
         const low = me.lowestPoint() - this.offsetY;
         const vy = me.torso.GetLinearVelocity().get_y();
-        if (dest !== null && vy < 0 && this.nav.nodes[dest].top > low + LANDING_SLACK) dest = null;
+        if (dest !== null && (isLost(this.nav.nodes[dest], AIR_CRACK) || (vy < 0 && this.nav.nodes[dest].top > low + LANDING_SLACK))) dest = null;
         if (dest === null) {
             const landing = landingNode(this.nav.nodes, px, low, vy, this.minTop);
             if (landing.index === null) return landing;

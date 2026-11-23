@@ -80,6 +80,7 @@
             import { Camera } from "./js/camera.js";
             import { LEVEL, buildLevel } from "./js/level.js";
             import { OneWayPlatforms } from "./js/platforms.js";
+            import { BreakablePlatforms } from "./js/breakable.js";
             import { Flood, RisingFlood, supportHeight } from "./js/flood.js";
             import { CLIMB, Climb, StagePrizes } from "./js/climb.js";
             import { ShallowWater } from "./js/water.js";
@@ -232,6 +233,8 @@
             let currentMap = "classic";
             const platforms = new OneWayPlatforms(world);
             classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+            const breakable = new BreakablePlatforms(platforms);
+            classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
             const raycaster = getRaycaster(world);
 
             function lowestPoint(rag) {
@@ -401,20 +404,23 @@
                 flood.dispose();
                 if (map === "infinite") {
                     classic.oneWayFixtures.forEach((fixture) => platforms.removePlatform(fixture));
+                    breakable.clear();
                     world.DestroyBody(classic.ground);
                     damage.killSensors.clear();
                     pickups.dispose();
                     pickups = new Pickups(world, damage, []);
                     water.setStart({ surface: CLIMB.flood.surface });
                     flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY, lowestAlive);
-                    climb = new Climb({ world, platforms, pickups });
+                    climb = new Climb({ world, platforms, pickups, breakable });
                     damage.drownSurface = drownSurface;
                 } else {
                     climb.dispose();
                     climb = null;
+                    breakable.clear();
                     pickups.dispose();
                     classic = buildLevel(world);
                     classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+                    classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
                     damage.killSensors = classic.killSensors;
                     pickups = new Pickups(world, damage, LEVEL.pickups);
                     water.setStart(null);
@@ -507,9 +513,10 @@
             /** Verdadero en el frame en que suena jugar: el "3" de la cuenta no suena encima. */
             let cuentaMuda = false;
 
-            /** Sonido de las transiciones de `Match`: empezar y revancha suenan como jugar, y volver al menú desde el fin de partida como volver. */
+            /** Sonido de las transiciones de `Match`: empezar y revancha suenan como jugar, y volver al menú desde el fin de partida como volver. Al entrar en `matchOver` o `title` deja enteras las plataformas rompibles. */
             function sonarTransicion() {
                 if (match.state === lastUiState) return;
+                if (match.state === "matchOver" || match.state === "title") breakable.reset();
                 if (match.state === "countdown" && (lastUiState === "title" || lastUiState === "matchOver")) {
                     audio.playUi("play", uiNow);
                     cuentaMuda = true;
@@ -553,6 +560,7 @@
                 thermal.reset();
                 viscosity.reset();
                 pickups.reset();
+                breakable.reset();
                 emitter.reset();
                 debug.resetVolume();
                 melee.reset();
@@ -729,7 +737,7 @@
             // Solo para las pruebas en Node (tests/helpers/game.js)
             if (globalThis.__TEST_HOOKS__) {
                 globalThis.game = {
-                    asignacion, ayuda, pausa, screens, hud, world, platforms, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
+                    asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
                     get flood() { return flood; },
                     get pickups() { return pickups; },
                     get climb() { return climb; },
@@ -907,6 +915,7 @@
                     debug.mark("flotación");
                     stepWorld(world, instances);
                     platforms.update(now);
+                    if (match.state === "playing") breakable.update(players, STEP_SETTINGS.dt, now);
                     store.afterStep();
                     buoyancy.releaseSplashes();
                     debug.mark("física");
@@ -1049,7 +1058,7 @@
                 const offsetY = climb ? climb.offsetY : 0;
                 ctx.save();
                 ctx.translate(0, offsetY);
-                drawLevel(ctx, climb ? climb.level : LEVEL, scale);
+                drawLevel(ctx, climb ? climb.level : LEVEL, scale, now);
                 ctx.restore();
                 collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
                 debug.mark("dibujo");

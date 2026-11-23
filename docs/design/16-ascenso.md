@@ -54,6 +54,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 - Armas por etapa: etapa 0, ninguna (ni los puntos de `LEVEL.pickups` del clásico ni plataformas generadas de 10 a 15 m locales); etapa 1, agua; etapa 2, agua y miel con lava ocasional; etapa 3, lava; etapa 4 en adelante, ácido y lava.
 - Etapa `n ≥ 1`: una plataforma lleva un arma si `índice de la plataforma dentro de su etapa % period === 0`, en `(x de la plataforma, tope + 0,6)` (un sorteo con `weights`).
 - Reparación ✅ #156: un ítem por etapa `n ≥ 1` (`repairPerStage`), sobre la primera plataforma generada de la etapa cuyo tope llega a la mitad de la etapa (fila central), en `(x, tope + 0,6)`; esa plataforma no lleva arma. Deja la vida en 100 (en el Clásico suma 35) y levanta al robot en nocaut (#275); reaparece a los 20 s (`docs/design/04-fluidos.md` §4.2).
+- Plataformas rompibles (#301, [5.4](05-escenario.md#54-plataformas-rompibles-301)): desde la etapa 2, con 3 s de cuenta. La probabilidad de que una plataforma sea rompible es 20 % en la etapa 2 y sube 10 % por etapa hasta un tope de 90 % (etapa 9 en adelante), para que el ascenso sea cada vez más difícil. Las plataformas con arma o reparación nunca son rompibles.
 
 ## 16.5 Agua
 

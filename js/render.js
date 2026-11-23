@@ -232,13 +232,36 @@ function mix(base, k, wet = 0) {
 /** Radio del ícono de un arma recogible, en metros (el sensor mide 0,5 m). */
 const PICKUP_ICON_RADIUS = 0.4;
 
-export function drawLevel(ctx, level, scale) {
-    ctx.fillStyle = "#2b2b38";
-    ctx.strokeStyle = "#555566";
+const SOLID_FILL = "#2b2b38";
+const SOLID_STROKE = "#555566";
+const BREAKABLE_FILL = [120, 82, 54];
+const BREAKABLE_WARN = [220, 75, 45];
+const BREAKABLE_STROKE = "#e0a96d";
+const BREAKABLE_SHAKE = 0.06;
+
+/** Dibuja los sólidos del nivel; las plataformas rompibles cambian de color, vibran con `crack` y se omiten mientras están rotas. */
+export function drawLevel(ctx, level, scale, now = 0) {
     ctx.lineWidth = 2 / scale;
     for (const s of level.solids) {
-        ctx.fillRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
-        ctx.strokeRect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+        if (s.broken) continue;
+        const x = s.x - s.w / 2;
+        const y = s.y - s.h / 2;
+        if (s.breakable) {
+            const crack = s.crack ?? 0;
+            const shake = crack > 0 ? Math.sin(now * 55) * BREAKABLE_SHAKE * crack : 0;
+            const r = Math.round(BREAKABLE_FILL[0] + (BREAKABLE_WARN[0] - BREAKABLE_FILL[0]) * crack);
+            const g = Math.round(BREAKABLE_FILL[1] + (BREAKABLE_WARN[1] - BREAKABLE_FILL[1]) * crack);
+            const b = Math.round(BREAKABLE_FILL[2] + (BREAKABLE_WARN[2] - BREAKABLE_FILL[2]) * crack);
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.strokeStyle = BREAKABLE_STROKE;
+            ctx.fillRect(x + shake, y, s.w, s.h);
+            ctx.strokeRect(x + shake, y, s.w, s.h);
+        } else {
+            ctx.fillStyle = SOLID_FILL;
+            ctx.strokeStyle = SOLID_STROKE;
+            ctx.fillRect(x, y, s.w, s.h);
+            ctx.strokeRect(x, y, s.w, s.h);
+        }
     }
 }
 
@@ -677,7 +700,10 @@ function buildGrid(reach) {
 // los rigs actuales no los usan.
 export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
     surfaceCount = 0;
-    for (const s of solids) addSurface(0, s.x, s.y + offsetY, 0, s.w / 2, s.h / 2, 0);
+    for (const s of solids) {
+        if (s.broken) continue;
+        addSurface(0, s.x, s.y + offsetY, 0, s.w / 2, s.h / 2, 0);
+    }
     for (const player of players) {
         for (const item of player.renderItems) {
             if (item.type === "polygon") continue;
