@@ -24,7 +24,8 @@ import { WEAPONS, weaponById } from "./weapons.js";
  * - `reach`: regla de alcance del salto: subir hasta `up.dy` con hueco hasta `up.gap`, o hasta `short.dy` con hueco
  *   hasta `short.gap`; `downGap` es el hueco máximo al bajar o cruzar a nivel;
  * - `through`: subida vertical a través de una plataforma que solapa por encima: `overlap` (m) horizontal mínimo;
- *   `cost`: costo de cada arista del grafo, menor para `through` que para un salto diagonal (`jump`);
+ *   `cost`: costo de cada arista del grafo, menor para `through` que para un salto diagonal (`jump`); `breakable` se suma al
+ *   entrar a una plataforma rompible en la ruta, para preferir las firmes;
  * - `jump`: `distance` (a cuánto del destino salta), `edge` (a cuánto del borde salta aunque esté lejos), `inset` (margen
  *   dentro del destino donde suelta el stick), `dropBelow` (desnivel desde el que ya no salta sino que se deja caer),
  *   `align` (tolerancia al alinearse bajo un destino), `settle` (velocidad horizontal máxima, m/s, para saltar en vertical bajo un destino) y
@@ -59,7 +60,7 @@ export const BOT = {
     engage: { dy: 8, dx: 14 },
     reach: { up: { dy: 3.3, gap: 2 }, short: { dy: 2, gap: 3.5 }, downGap: 3.5 },
     through: { overlap: 1.5 },
-    cost: { through: 0.6, jump: 1 },
+    cost: { through: 0.6, jump: 1, breakable: 3 },
     jump: { distance: 2.5, edge: 0.6, inset: 0.6, dropBelow: -1, align: 0.3, settle: 0.6, foeClear: { dx: 1, dy: 4.5 } },
     highBonus: 4,
     hopCost: 0.3,
@@ -109,6 +110,12 @@ const UNSTICK_PHASE = 0.5;
 /** Velocidad horizontal (m/s) que se supone en el aire para elegir dónde aterrizar, y holgura (m) sobre los pies del tope que cuenta como debajo. */
 const AIR_SPEED = 5;
 const LANDING_SLACK = 0.3;
+
+/** Margen de salto mínimo (0 a 1, `jumpMargin`) para que un escape de una plataforma que se rompe cuente como seguro. */
+const FLEE_MARGIN = 0.5;
+
+/** Cuenta (`crack`) desde la que una plataforma armada deja de servir como destino de un salto en el aire. */
+const AIR_CRACK = 0.8;
 
 /** Generador pseudoaleatorio determinista (mulberry32): mismo `seed`, misma secuencia. */
 export function seededRandom(seed) {
@@ -214,9 +221,13 @@ export function lungeFits(x, side, node, room) {
     return end >= node.minX && end <= node.maxX;
 }
 
-/** Verdadero si la plataforma del nodo está armada (`crack > 0`) o rota: el bot la da por perdida. */
-export function isLost(node) {
-    return Boolean(node.solid?.broken) || (node.solid?.crack ?? 0) > 0;
+/**
+ * Verdadero si la plataforma del nodo está rota o armada con la cuenta pasada de `limit` (`crack`, 0 a 1): el bot la da por
+ * perdida. Con `limit` 0, cualquier plataforma armada. En el aire usa `AIR_CRACK`: subir desde abajo la arma, y soltar el
+ * destino por eso lo haría errar un salto bueno.
+ */
+export function isLost(node, limit = 0) {
+    return Boolean(node.solid?.broken) || (node.solid?.crack ?? 0) > limit;
 }
 
 /**
@@ -229,7 +240,7 @@ export function landingNode(nodes, x, low, vy, line, speed = AIR_SPEED) {
     let best = null;
     let nearest = null;
     nodes.forEach((n, index) => {
-        if (isLost(n) || n.top > low + LANDING_SLACK) return;
+        if (isLost(n, AIR_CRACK) || n.top > low + LANDING_SLACK) return;
         const gap = Math.max(0, n.minX - x, x - n.maxX);
         const fall = Math.max(0, low - n.top);
         const time = (vy + Math.sqrt(vy * vy + 2 * GRAVITY * fall)) / GRAVITY;
@@ -695,19 +706,26 @@ export class Bot {
     }
 
     /**
-     * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), salta a una vecina sana y segura
-     * (prefiriendo subir). Devuelve verdadero si usó el movimiento.
+     * Si la plataforma de apoyo ya empezó a romperse (`crack > 0`), salta a la vecina sana más alta cuyo salto tenga margen
+     * de `FLEE_MARGIN` o más (una rompible cuenta 1 m menos); si ninguna lo tiene, a la de más margen. Devuelve verdadero si
+     * usó el movimiento.
      */
     fleeBreakable(me, cur) {
         if (cur === null) return false;
         if ((this.nav.nodes[cur].solid?.crack ?? 0) <= 0) return false;
-        const { nodes, edges } = this.nav;
+        const { nodes, edges, margins } = this.nav;
         let best = null;
-        for (const to of edges[cur]) {
+        let bestScore = -Infinity;
+        edges[cur].forEach((to, k) => {
             const n = nodes[to];
-            if (isLost(n) || n.top < this.minTop) continue;
-            if (best === null || n.top > nodes[best].top) best = to;
-        }
+            if (isLost(n) || n.top < this.minTop) return;
+            const margin = margins[cur][k];
+            const score = margin >= FLEE_MARGIN ? 100 + n.top - (n.solid?.breakable ? 1 : 0) : margin;
+            if (score > bestScore) {
+                best = to;
+                bestScore = score;
+            }
+        });
         if (best === null) {
             this.desperate(me, cur, true);
             return true;
@@ -789,14 +807,15 @@ export class Bot {
         const dist = this.distances(cur);
         const { nodes } = this.nav;
         const kept = this.refuge;
-        let best = kept !== null && kept !== cur && dist[kept] !== Infinity && nodes[kept].top >= line ? kept : null;
+        let best = kept !== null && kept !== cur && dist[kept] !== Infinity && nodes[kept].top >= line && nodes[kept].top >= nodes[cur].top + SAME_LEVEL ? kept : null;
         if (best === null) {
             nodes.forEach((n, i) => {
-                if (dist[i] === Infinity || n.top < line || n.top < nodes[cur].top) return;
+                if (dist[i] === Infinity || n.top < line || n.top < nodes[cur].top + SAME_LEVEL) return;
                 if (best === null || dist[i] < dist[best] || (dist[i] === dist[best] && n.top > nodes[best].top)) best = i;
             });
         }
-        const goal = best ?? this.highest(cur);
+        const top = this.highest(cur);
+        const goal = best ?? (nodes[top].top >= nodes[cur].top + SAME_LEVEL ? top : cur);
         this.refuge = goal === cur ? null : goal;
         if (goal === cur) this.desperate(me, cur, false);
         else this.navigate(me, cur, goal);
@@ -1149,10 +1168,11 @@ export class Bot {
             if (node < 0) break;
             done[node] = true;
             edges[node].forEach((to, k) => {
-                if (isLost(nodes[to]) || nodes[to].top < this.minTop || dist[node] + costs[node][k] >= dist[to]) return;
+                const step = costs[node][k] + (nodes[to].solid?.breakable ? this.config.cost.breakable : 0);
+                if (isLost(nodes[to]) || nodes[to].top < this.minTop || dist[node] + step >= dist[to]) return;
                 const rising = nodes[to].top > nodes[node].top + EPS;
                 if (margins[node][k] < minMargin && !(rising && !safeUp[node])) return;
-                dist[to] = dist[node] + costs[node][k];
+                dist[to] = dist[node] + step;
                 parent[to] = node;
             });
         }
@@ -1251,7 +1271,7 @@ export class Bot {
         let safe = false;
         const low = me.lowestPoint() - this.offsetY;
         const vy = me.torso.GetLinearVelocity().get_y();
-        if (dest !== null && (isLost(this.nav.nodes[dest]) || (vy < 0 && this.nav.nodes[dest].top > low + LANDING_SLACK))) dest = null;
+        if (dest !== null && (isLost(this.nav.nodes[dest], AIR_CRACK) || (vy < 0 && this.nav.nodes[dest].top > low + LANDING_SLACK))) dest = null;
         if (dest === null) {
             const landing = landingNode(this.nav.nodes, px, low, vy, this.minTop);
             if (landing.index === null) return landing;
