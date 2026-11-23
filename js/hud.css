@@ -322,7 +322,7 @@
 
 .hud .gauge {
     position: absolute;
-    left: calc(1810 * var(--u));
+    right: calc(16 * var(--u));
     top: calc(128 * var(--u));
     width: calc(94 * var(--u));
     height: calc(840 * var(--u));

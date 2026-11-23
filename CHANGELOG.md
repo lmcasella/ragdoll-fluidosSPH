@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-11-23
+
+### Fixed
+- El medidor del agua de Infinito queda pegado al borde derecho de la pantalla, alineado con el panel de J2, también en pantallas más anchas que 16:9.
+
 ## [0.54.0] - 2026-11-23
 
 ### Added
