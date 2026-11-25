@@ -1,6 +1,6 @@
 ---
 name: next
-description: Elige el issue abierto más relevante para trabajar a continuación, explica por qué y, al confirmar, crea su rama convencional desde main.
+description: Elige el issue abierto más relevante para trabajar a continuación, explica por qué y, al confirmar, crea su rama convencional desde la rama de integración.
 ---
 
 # /next
@@ -41,8 +41,10 @@ Pedir confirmación al usuario antes de hacer cualquier otra cosa.
 
 ## 5. Al confirmar
 
+La rama sale de la rama de integración que indica `CLAUDE.md` (no de la rama de producción).
+
 ```powershell
-git switch main
+git switch <rama-de-integracion>
 git pull --ff-only
 git switch -c <tipo>/issue-<número>-<descripcion-corta>
 gh issue edit <número> --add-assignee "@me"

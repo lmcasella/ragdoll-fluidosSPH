@@ -5,6 +5,9 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+### Changed
+- Flujo de ramas `main ← dev ← rama de trabajo`: cada paso de `dev` a `main` publica un release con su tag, y el deploy falla si la versión no subió.
+
 ## [0.54.2] - 2026-11-25
 
 ### Changed

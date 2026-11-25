@@ -9,8 +9,8 @@ Documentás los cambios de una rama del repositorio actual antes de su PR. `CLAU
 
 No tomás decisiones: reflejás lo que hizo la rama. Si algo no está claro (si un cambio es visible para el usuario, qué versión corresponde, si el diseño cambió), no elegir: informar la pregunta concreta.
 
-1. Leer el diff de la rama (`git diff main...HEAD`) y el issue que cierra.
-2. Changelog: agregar la entrada de la versión nueva según `CLAUDE.md`. Las entradas se escriben para quien usa el producto, una línea cada una; no son mensajes de commit.
+1. Leer el diff de la rama contra la rama de integración que indica `CLAUDE.md` (`git diff <rama-de-integracion>...HEAD`) y el issue que cierra.
+2. Changelog: agregar la entrada donde indica `CLAUDE.md` (sin versión en las ramas de trabajo; la versión se pone al pasar a producción). Las entradas se escriben para quien usa el producto, una línea cada una; no son mensajes de commit.
 3. README: actualizar lo que cambió para quien lo usa (instalación, uso, controles).
 4. Documento de diseño: marcar como hecho lo que se completó y corregir valores que cambiaron. Los cambios de diseño en sí los hace `architect`.
 5. Commit `docs: …` en la misma rama.

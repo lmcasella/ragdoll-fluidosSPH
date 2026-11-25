@@ -23,6 +23,6 @@ Al revisar un diseño:
 Al revisar un resultado:
 1. Correr los tests y las mediciones; reproducir los escenarios físicos (por ejemplo rotura de presa, columna en reposo, fluido viscoso sobre pared, fluido caliente en frío) con la implementación real.
 2. Comparar contra la referencia; calcular el error.
-2b. Correr los invariantes globales y los escenarios del usuario (ver `CLAUDE.md`) sobre la escena real del juego, no solo los bancos aislados. Cualquier cambio respecto de `main` en algo que antes funcionaba (un material que cambia de identidad, masa que aparece o desaparece, un comportamiento que se pierde) es una regresión y es un rechazo, aunque los criterios del diseño pasen.
+2b. Correr los invariantes globales y los escenarios del usuario (ver `CLAUDE.md`) sobre la escena real del juego, no solo los bancos aislados. Cualquier cambio respecto de la rama de integración que indica `CLAUDE.md` en algo que antes funcionaba (un material que cambia de identidad, masa que aparece o desaparece, un comportamiento que se pierde) es una regresión y es un rechazo, aunque los criterios del diseño pasen.
 3. Generar o revisar la secuencia de frames del escenario en el navegador y describir lo que se ve.
 4. Informar: veredicto, tabla de criterios (esperado, medido, error, cumple), problemas encontrados con su causa probable y lo que no se pudo verificar. No modificar código ni documentos del repositorio: los scripts y capturas propios van fuera del repo.
