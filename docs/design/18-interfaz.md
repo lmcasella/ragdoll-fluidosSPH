@@ -6,6 +6,8 @@ Todas las medidas están en **px de referencia sobre 1920 × 1080** y escalan co
 
 Capas: canvas del juego → canvas de partículas → **capa de interfaz (HTML)** con `pointer-events: none` salvo en menús.
 
+El HUD y los menús quedan en HTML + CSS aunque el juego pase a dibujarse en un solo canvas: son texto y layout, que el navegador resuelve mejor y que ya escalan con `--u` (decisión del 24/11).
+
 ## 0. Principios
 
 1. **Íconos y estados antes que palabras.** Una palabra queda solo si sin ella no se entiende la acción. Hoy quedan: el logo, "J1"/"J2" en las insignias, "¡YA!", los nombres de acción en la pantalla de controles y las unidades "%" y "m".

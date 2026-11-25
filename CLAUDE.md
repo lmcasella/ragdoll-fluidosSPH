@@ -75,10 +75,26 @@ Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corr
 
 1. **Gamepad primero.** Cada mecánica se diseña para stick y botones (Gamepad API, mapeo "standard"). El teclado y el mouse son respaldo, nunca la fuente principal: un input de respaldo no puede pisar al gamepad.
 2. **Sin atribución de IA** en commits, PRs, código ni documentos.
-3. **Idioma:** documentos, issues, commits y PRs en español. **Nombres de rama en inglés** y sin caracteres especiales (ni ñ ni acentos). En el código, seguir el idioma y estilo del archivo que se toca.
+3. **Idioma:** los nombres van en inglés y los textos en español. En inglés: nombres de código (variables, funciones, clases, archivos, carpetas) y de ramas, sin caracteres especiales. En español: docstrings, documentos, issues, commits, PRs y textos que ve el jugador.
 4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves y con lo que dice el "Reparto de la documentación". Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
 5. **Confidencialidad:** sin credenciales, tokens ni datos privados en el repo.
 6. **Assets:** solo propios o con licencia libre. Las referencias de estilo (por ejemplo, Unreal Tournament) se usan como inspiración, nunca copiando archivos.
+
+### Reglas de código
+
+Valen para todo lo nuevo y para todo lo que se toca, aunque el código de alrededor no las cumpla.
+
+- **Código para personas:** se escribe para que lo lea un compañero, no para que sea corto.
+- **Sin números mágicos:** un número es mágico si el contexto no dice qué es. Va en una constante con nombre y unidad. Varios números seguidos (por ejemplo, los argumentos de una llamada) pasan a parámetros con nombre.
+- **Nombres claros:** sin abreviaciones ni nombres de uno o dos caracteres, salvo índices de bucle cortos y coordenadas (`x`, `y`).
+- **KISS, DRY y SOLID:** la solución más simple que funcione, sin lógica duplicada y con una sola responsabilidad por módulo y por función.
+- **Composición antes que herencia.**
+- **Patrones de diseño con nombre:** si se usa uno, se lo nombra en el docstring y, si es de arquitectura, en la tabla de patrones.
+- **Archivos chicos por subsistema:** sin tope fijo de líneas, pero un archivo que hace varias cosas se parte.
+- **Cálculos comunes en `src/core/`:** matemática, geometría, numérica, azar, constantes y fórmulas físicas y el adaptador de Box2D viven ahí y no se repiten en cada módulo.
+- **Librerías de terceros:** solo si ahorran código contando sus dependencias y están mejor hechas que lo propio. Se marcan como de terceros en el docstring y en `docs/referencias.md`.
+- **Docstrings breves:** lo que dice la regla 4 y el "Reparto de la documentación", en pocas líneas.
+- **Render solo con PIXI en un solo canvas.** El HUD y los menús quedan en HTML + CSS (`docs/design/18-interfaz.md`).
 
 ## Arquitectura y patrones
 
@@ -153,8 +169,9 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 2. **Diseño corto:** la sesión principal (game designer, en Opus) decide y escribe el diseño en el brief de `developer`: qué hace, controles, valores y criterios medibles. Si cambia el GDD, lo edita ella misma con un cambio mínimo en `docs/design/`. No se lanzan `architect`, `chemist` ni `physics-analyst`, salvo que la tarea cree un módulo nuevo o rompa un patrón, y en ese caso una sola pasada acotada.
 3. **Implementar** con `developer`, un agente nuevo con brief corto. Cada punto de control es un commit convencional. Escribe también la entrada de `CHANGELOG.md` y lo mínimo de `README.md`.
 4. **Verificar:** la suite rápida mientras se trabaja y la completa (`node --test "tests/**/*.test.js"`) en verde antes del PR, sin regresiones de lo que funcionaba en `main`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
-5. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama. Después del merge se comprueba con `gh issue view <n>` que el issue quedó cerrado. `Refs #<n>` solo para issues paraguas; si un issue queda abierto a propósito (arreglo parcial, falta la prueba del usuario), se avisa al usuario en ese momento y se anota en el issue.
-6. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`.
+5. **Revisión de reglas:** antes de cada PR, la sesión principal revisa el diff contra las "Reglas de código" y lo devuelve a `developer` si no cumple.
+6. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama. Después del merge se comprueba con `gh issue view <n>` que el issue quedó cerrado. `Refs #<n>` solo para issues paraguas; si un issue queda abierto a propósito (arreglo parcial, falta la prueba del usuario), se avisa al usuario en ese momento y se anota en el issue.
+7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`.
 
 **Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: la sesión principal crea el issue con `gh`.
 

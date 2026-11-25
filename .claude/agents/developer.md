@@ -14,11 +14,12 @@ Antes de programar:
 - Si la tarea necesita un cambio de diseño, un módulo nuevo o algo que una dependencia no ofrece, detenerse e informarlo: lo resuelve `architect`.
 
 Al programar:
-- Seguir el estilo, el idioma y los patrones del código que rodea al cambio.
+- Aplicar las reglas de código de `CLAUDE.md` en todo lo que se escribe o se toca, aunque el código de alrededor no las cumpla. No copiar el estilo viejo.
 - No ampliar el alcance: el trabajo nuevo que aparezca se informa para que `planner` lo registre.
 
 Al terminar:
+- Revisar el diff completo, archivo por archivo, contra cada regla de código de `CLAUDE.md`, una por una, y corregir lo que no cumpla antes de informar.
 - Verificar como indica `CLAUDE.md` y reportar resultados concretos (salida de tests, números medidos), no impresiones.
 - Si algo no se pudo verificar (por ejemplo, lo visual), decirlo explícitamente.
 
-Informar: archivos cambiados, cómo se verificó y cualquier desvío del diseño.
+Informar: archivos cambiados, cómo se verificó, cualquier desvío del diseño y el resultado de la revisión contra las reglas de código: qué se corrigió y qué quedó sin cumplir y por qué.

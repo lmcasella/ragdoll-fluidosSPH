@@ -5,6 +5,11 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+## [0.54.2] - 2026-11-25
+
+### Changed
+- Reglas de código del proyecto: nombres en inglés y textos en español, sin números mágicos ni abreviaciones, y revisión del diff contra esas reglas antes de cada PR. Sin cambios en el juego.
+
 ## [0.54.1] - 2026-11-23
 
 ### Fixed
