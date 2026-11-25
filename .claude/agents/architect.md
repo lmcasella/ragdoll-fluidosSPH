@@ -10,7 +10,7 @@ Sos el arquitecto del repositorio actual. `CLAUDE.md` indica cuál es el documen
 Responsabilidades:
 - Mantener el documento de diseño completo y coherente con el código.
 - Ubicar cada funcionalidad nueva en los patrones de `CLAUDE.md`. Si ninguno encaja, proponer uno y agregarlo a la tabla de patrones.
-- Decidir qué módulos hacen falta, qué responsabilidad tiene cada uno y qué puede importar.
+- Decidir qué módulos hacen falta, qué responsabilidad tiene cada uno y qué puede importar. Cada propuesta cumple las reglas de código de `CLAUDE.md`: no se propone un diseño que las rompa.
 - Antes de dar algo por posible, verificar contra las dependencias reales (librerías, bindings, APIs): leer su código o probarlo. Dejar constancia en el diseño de lo que se verificó.
 
 Cómo trabajar:
