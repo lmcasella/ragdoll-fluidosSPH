@@ -16,7 +16,7 @@ Juego web 1v1 de robots ragdoll que pelean con fluidos SPH, para la materia Simu
 |---|---|
 | `DESIGN.md` | **Índice del GDD.** El diseño vive en `docs/design/`, un archivo por tema (`DESIGN.md` §N es el archivo listado para N). Leer solo el archivo que hace falta. Los cambios de comportamiento empiezan acá. |
 | Issues de GitHub | **Backlog.** Una tarea por issue y un milestone por hito del cronograma (`DESIGN.md` §11). Los decide `planner` con la taxonomía de abajo y los opera `github-clerk`. |
-| `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Se actualiza en cada merge.** |
+| `CHANGELOG.md` | Cambios visibles para el usuario ([Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)). Define la versión del deploy. **Cada PR suma su entrada; cada release le pone versión.** |
 | `README.md` | Cómo correr, probar y jugar. |
 | `docs/referencias.md` | Material de estudio: índice en tablas de matemáticos, conceptos, leyes y algoritmos usados o descartados, con dónde se usan y un enlace para leer más. Durante la entrega se pone al día en una sola pasada antes de la presentación. |
 
@@ -123,8 +123,14 @@ Antes de implementar una funcionalidad, ubicarla en estos patrones. Si no encaja
 
 ### Ramas: [Conventional Branch](https://conventional-branch.github.io/)
 
-- **Un issue, una rama**, siempre desde `main` actualizado. Nunca commitear directo en `main`.
-- **Refactor y mejora visual para el 1/12:** las ramas salen de `dev` y sus PRs van a `dev`. `dev` se mergea a `main` una sola vez, cuando todo está estable para presentar. Como GitHub solo cierra issues al mergear en la rama por defecto, al mergear en `dev` el issue se cierra a mano con `gh issue close <n> --comment "Mergeado en dev (#<pr>)"`.
+- **Flujo `main ← dev ← rama de trabajo`:**
+  - `main` es la **rama de producción**: lo que está publicado. Solo recibe merges de `dev` (o un `hotfix/`).
+  - `dev` es la **rama de integración**: todas las ramas de trabajo salen de `dev` actualizado y sus PRs van a `dev` (`gh pr create --base dev`).
+  - Nunca se commitea directo en `main` ni en `dev`.
+- **Un issue, una rama** de trabajo.
+- **Cerrar issues a mano:** GitHub solo cierra con `Closes #<n>` al mergear en la rama por defecto (`main`). Al mergear en `dev`, el issue se cierra con `gh issue close <n> --comment "Mergeado en dev (#<pr>)"`.
+- **Release:** cada merge de `dev` a `main` es un deploy y cada deploy es un release con su tag. Se hace con un PR `dev → main` titulado `chore(infra): release vX.Y.Z`, que en `dev` pasa el `## [Unreleased]` del changelog a `## [X.Y.Z] - AAAA-MM-DD`. Al mergearlo, el CI crea el tag `vX.Y.Z`, el release de GitHub y el deploy. Si el tag ya existe, el CI falla y no publica.
+- **Hotfix:** sale de `main`, va a `main` con su versión de parche y después se mergea `main` en `dev`.
 - Formato: `<tipo>/issue-<número>-<descripcion-corta>`, en inglés, minúsculas y guiones.
 
 | Tipo | Uso |
@@ -155,26 +161,26 @@ Antes de implementar una funcionalidad, ubicarla en estos patrones. Si no encaja
 
 ### Changelog y versión
 
-Cada PR agrega su entrada en `CHANGELOG.md` bajo un encabezado `## [x.y.z] - AAAA-MM-DD` nuevo, que define el tag del deploy. La versión sale del tipo del PR:
+Cada PR a `dev` agrega su entrada en `CHANGELOG.md` bajo `## [Unreleased]`, sin versión. El PR de release (`dev → main`) convierte ese bloque en `## [x.y.z] - AAAA-MM-DD`, que define el tag del deploy. La versión sale de lo que junta el release:
 
-| Tipo de PR | Sube |
+| El release incluye | Sube |
 |---|---|
-| `feat` | La versión menor |
-| Cualquier otro tipo | El parche |
+| Al menos un `feat` | La versión menor |
+| Solo otros tipos | El parche |
 
 ## Flujo de trabajo
 
-Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el cuerpo del PR dice `Closes #<n>`.
+Una tarea es un issue. Se **cierra cuando su PR se mergea en `dev`**, a mano (ver "Convenciones de Git").
 
 **Etapa actual: prototipado y entrega (hasta el 24/11).** El objetivo es un juego completo y jugable, no un producto pulido. Cada tarea gasta lo mínimo: **un solo agente (`developer`) por tarea**; todo lo demás lo hace la sesión principal directamente.
 
 1. **Elegir:** `/next` recomienda un issue y crea su rama al confirmar.
 2. **Diseño corto:** la sesión principal (game designer, en Opus) decide y escribe el diseño en el brief de `developer`: qué hace, controles, valores y criterios medibles. Si cambia el GDD, lo edita ella misma con un cambio mínimo en `docs/design/`. No se lanzan `architect`, `chemist` ni `physics-analyst`, salvo que la tarea cree un módulo nuevo o rompa un patrón, y en ese caso una sola pasada acotada.
-3. **Implementar** con `developer`, un agente nuevo con brief corto. Cada punto de control es un commit convencional. Escribe también la entrada de `CHANGELOG.md` y lo mínimo de `README.md`.
-4. **Verificar:** la suite rápida mientras se trabaja y la completa (`node --test "tests/**/*.test.js"`) en verde antes del PR, sin regresiones de lo que funcionaba en `main`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
+3. **Implementar** con `developer`, un agente nuevo con brief corto. Cada punto de control es un commit convencional. Escribe también la entrada de `CHANGELOG.md` bajo `## [Unreleased]` y lo mínimo de `README.md`.
+4. **Verificar:** la suite rápida mientras se trabaja y la completa (`node --test "tests/**/*.test.js"`) en verde antes del PR, sin regresiones de lo que funcionaba en `dev`. Para gameplay, una prueba en Node con LiquidFun real y gamepad simulado. Las fallas que reporta el usuario se reproducen primero en un test.
 5. **Revisión de reglas:** antes de cada PR, la sesión principal revisa el diff contra las "Reglas de código" y lo devuelve a `developer` si no cumple.
-6. **PR y merge:** push y PR con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama. Después del merge se comprueba con `gh issue view <n>` que el issue quedó cerrado. `Refs #<n>` solo para issues paraguas; si un issue queda abierto a propósito (arreglo parcial, falta la prueba del usuario), se avisa al usuario en ese momento y se anota en el issue.
-7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `main`.
+6. **PR y merge:** push y PR a `dev` con título igual al commit convencional, `Closes #<n>`, merge commit y se borra la rama. Después del merge se cierra el issue a mano y se comprueba con `gh issue view <n>` que quedó cerrado. `Refs #<n>` solo para issues paraguas; si un issue queda abierto a propósito (arreglo parcial, falta la prueba del usuario), se avisa al usuario en ese momento y se anota en el issue.
+7. **Avisar al usuario cuando hay algo para probar.** Prueba todo junto en `dev` (local); lo publicado en `main` se toca solo con un release.
 
 **Trabajo nuevo** que aparece durante una tarea no se hace en la rama actual: la sesión principal crea el issue con `gh`.
 
@@ -185,8 +191,8 @@ Una tarea es un issue. Se **cierra cuando su PR se mergea en `main`**, porque el
 - El juego hace lo que pide el issue y lo que decidió el game designer.
 - Los tests pasan, sin regresiones, y la funcionalidad se ejercitó en Node con gamepad simulado.
 - Respeta los patrones de arquitectura y las reglas de memoria nativa.
-- `CHANGELOG.md` tiene la entrada de la versión nueva.
-- La rama, los commits y el título del PR siguen las convenciones, y el PR cierra su issue.
+- `CHANGELOG.md` tiene la entrada bajo `## [Unreleased]`.
+- La rama, los commits y el título del PR siguen las convenciones, el PR va a `dev` y el issue quedó cerrado.
 
 ## Agentes y skills
 
