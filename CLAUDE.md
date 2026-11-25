@@ -75,7 +75,9 @@ Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corr
 
 1. **Gamepad primero.** Cada mecánica se diseña para stick y botones (Gamepad API, mapeo "standard"). El teclado y el mouse son respaldo, nunca la fuente principal: un input de respaldo no puede pisar al gamepad.
 2. **Sin atribución de IA** en commits, PRs, código ni documentos.
-3. **Idioma:** los nombres van en inglés y los textos en español. En inglés: nombres de código (variables, funciones, clases, archivos, carpetas) y de ramas, sin caracteres especiales. En español: docstrings, documentos, issues, commits, PRs y textos que ve el jugador.
+3. **Idioma:**
+   - **En inglés, sin ñ ni acentos:** los identificadores del código (variables, constantes, funciones, métodos, clases, propiedades, claves de las tablas de datos), los nombres de archivos y carpetas, y los nombres de ramas.
+   - **En español:** los docstrings, los documentos (`docs/`, `README.md`, `CHANGELOG.md`), los issues, los mensajes de commit, los PRs y todo lo que el jugador lee en pantalla (menús, HUD, carteles, nombres de armas).
 4. **Comentarios:** el código no se comenta. Lo que haga falta explicar (una decisión, una limitación del motor, una unidad) va en docstrings JSDoc válidos (`/** … */`) de funciones, clases, constantes exportadas y tablas de datos, breves y con lo que dice el "Reparto de la documentación". Nada de comentarios de línea (`//`) ni de bloque sueltos, nada de código comentado ni TODOs: el trabajo pendiente va a un issue.
 5. **Confidencialidad:** sin credenciales, tokens ni datos privados en el repo.
 6. **Assets:** solo propios o con licencia libre. Las referencias de estilo (por ejemplo, Unreal Tournament) se usan como inspiración, nunca copiando archivos.
@@ -86,7 +88,7 @@ Valen para todo lo nuevo y para todo lo que se toca, aunque el código de alrede
 
 - **Código para personas:** se escribe para que lo lea un compañero, no para que sea corto.
 - **Sin números mágicos:** un número es mágico si el contexto no dice qué es. Va en una constante con nombre y unidad. Varios números seguidos (por ejemplo, los argumentos de una llamada) pasan a parámetros con nombre.
-- **Nombres claros:** sin abreviaciones ni nombres de uno o dos caracteres, salvo índices de bucle cortos y coordenadas (`x`, `y`).
+- **Identificadores claros** (variables, funciones, métodos, clases): sin abreviaciones ni nombres de uno o dos caracteres, salvo índices de bucle cortos y coordenadas (`x`, `y`).
 - **KISS, DRY y SOLID:** la solución más simple que funcione, sin lógica duplicada y con una sola responsabilidad por módulo y por función.
 - **Composición antes que herencia.**
 - **Patrones de diseño con nombre:** si se usa uno, se lo nombra en el docstring y, si es de arquitectura, en la tabla de patrones.
@@ -122,6 +124,7 @@ Antes de implementar una funcionalidad, ubicarla en estos patrones. Si no encaja
 ### Ramas: [Conventional Branch](https://conventional-branch.github.io/)
 
 - **Un issue, una rama**, siempre desde `main` actualizado. Nunca commitear directo en `main`.
+- **Refactor y mejora visual para el 1/12:** las ramas salen de `dev` y sus PRs van a `dev`. `dev` se mergea a `main` una sola vez, cuando todo está estable para presentar. Como GitHub solo cierra issues al mergear en la rama por defecto, al mergear en `dev` el issue se cierra a mano con `gh issue close <n> --comment "Mergeado en dev (#<pr>)"`.
 - Formato: `<tipo>/issue-<número>-<descripcion-corta>`, en inglés, minúsculas y guiones.
 
 | Tipo | Uso |
