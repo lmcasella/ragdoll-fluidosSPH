@@ -2,8 +2,6 @@
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 import { MATERIALS } from "../fluids/materials.js";
 import { shortCircuitDps } from "../ragdoll/ActiveRagdoll.js";
-import { CanvasLayer } from "./canvasLayer.js";
-import { THRESHOLD_GAIN, THRESHOLD_OFFSET } from "./thresholdFilter.js";
 
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];
@@ -24,8 +22,8 @@ const PARTICLE_AREA = Math.PI * PARTICLE_RADIUS ** 2;
  */
 export const METABALL_RADIUS = 2.2 * PARTICLE_RADIUS;
 
-/** Umbral de alfa del filtro de `thresholdFilter.js`: el alfa de salida es 0 hasta aquí (0,5 con ganancia 20 y desplazamiento −10). */
-export const METABALL_THRESHOLD = -THRESHOLD_OFFSET / THRESHOLD_GAIN;
+/** Umbral de alfa del filtro `#goo` de `index.html` (alfa · 20 − 10 > 0, es decir alfa > 0,5). */
+export const METABALL_THRESHOLD = 0.5;
 
 /**
  * Perfil radial del campo (Wyvill): `(1 − q²)²` con `q = d / R`, 1 en el centro y 0 desde `q` = 1, con derivada nula en ambos extremos.
@@ -117,23 +115,14 @@ export class MetaballSprites {
 }
 
 /**
- * Una capa (`CanvasLayer` con el filtro de umbral de `thresholdFilter.js`) por material presente en el frame, para que
- * materiales distintos no se fundan entre sí. Las capas se crean al primer uso, en `parent` y ordenadas por el id del material.
+ * Una capa (canvas DOM con el filtro `#goo` por CSS) por material presente en el frame, para que materiales
+ * distintos no se fundan entre sí. Los canvas se crean al primer uso, antes de `anchor`, con `z-index` = id del material.
  * `apply(ctx)` pone la cámara en cada contexto usado.
  */
 export class FluidLayers {
-    /**
-     * @param {object} options
-     * @param {Document} options.doc crea los canvas fuera de pantalla
-     * @param {PIXI.Container} options.parent contenedor de los sprites de las capas
-     * @param {PIXI.Filter} options.filter filtro de umbral que se aplica a cada capa
-     * @param {function(CanvasRenderingContext2D): void} options.apply pone la cámara en un contexto
-     */
-    constructor({ doc, parent, filter, apply }) {
+    constructor(doc, anchor, apply) {
         this.doc = doc;
-        this.parent = parent;
-        this.parent.sortableChildren = true;
-        this.filter = filter;
+        this.anchor = anchor;
         this.apply = apply;
         this.layers = new Map();
         this.width = 0;
@@ -144,37 +133,48 @@ export class FluidLayers {
     resize(width, height) {
         this.width = width;
         this.height = height;
-        for (const { layer } of this.layers.values()) layer.resize(width, height);
+        for (const layer of this.layers.values()) {
+            layer.canvas.width = width;
+            layer.canvas.height = height;
+        }
     }
 
     begin() {
-        for (const entry of this.layers.values()) entry.used = false;
+        for (const layer of this.layers.values()) layer.used = false;
     }
 
     /** Contexto de la capa de `kind`: la crea si falta y, en el primer pedido del frame, la muestra, la limpia y le pone la cámara. */
     contextFor(kind) {
-        let entry = this.layers.get(kind);
-        if (entry === undefined) {
-            const layer = new CanvasLayer({ doc: this.doc, name: `fluidLayer${kind}`, parent: this.parent, width: this.width, height: this.height });
-            layer.sprite.zIndex = kind;
-            layer.sprite.filters = [this.filter];
-            entry = { layer, used: false };
-            this.layers.set(kind, entry);
+        let layer = this.layers.get(kind);
+        if (layer === undefined) {
+            const canvas = this.doc.createElement("canvas");
+            canvas.className = "fluidLayer";
+            canvas.style.zIndex = String(kind);
+            canvas.width = this.width;
+            canvas.height = this.height;
+            this.anchor.before(canvas);
+            layer = { canvas, ctx: canvas.getContext("2d"), used: false, shown: true };
+            this.layers.set(kind, layer);
         }
-        if (!entry.used) {
-            entry.used = true;
-            entry.layer.sprite.visible = true;
-            entry.layer.clear();
-            this.apply(entry.layer.ctx);
+        if (!layer.used) {
+            layer.used = true;
+            if (!layer.shown) {
+                layer.canvas.style.display = "";
+                layer.shown = true;
+            }
+            layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+            this.apply(layer.ctx);
         }
-        return entry.layer.ctx;
+        return layer.ctx;
     }
 
-    /** Sube la textura de las capas usadas en este frame y oculta las que no se usaron. */
+    /** Oculta las capas que no se usaron en este frame. */
     end() {
-        for (const { layer, used } of this.layers.values()) {
-            if (used) layer.upload();
-            else layer.sprite.visible = false;
+        for (const layer of this.layers.values()) {
+            if (layer.used || !layer.shown) continue;
+            layer.canvas.style.display = "none";
+            layer.shown = false;
         }
     }
 
@@ -231,6 +231,39 @@ function mix(base, k, wet = 0) {
 
 /** Radio del ícono de un arma recogible, en metros (el sensor mide 0,5 m). */
 const PICKUP_ICON_RADIUS = 0.4;
+
+const SOLID_FILL = "#2b2b38";
+const SOLID_STROKE = "#555566";
+const BREAKABLE_FILL = [120, 82, 54];
+const BREAKABLE_WARN = [220, 75, 45];
+const BREAKABLE_STROKE = "#e0a96d";
+const BREAKABLE_SHAKE = 0.06;
+
+/** Dibuja los sólidos del nivel; las plataformas rompibles cambian de color, vibran con `crack` y se omiten mientras están rotas. */
+export function drawLevel(ctx, level, scale, now = 0) {
+    ctx.lineWidth = 2 / scale;
+    for (const s of level.solids) {
+        if (s.broken) continue;
+        const x = s.x - s.w / 2;
+        const y = s.y - s.h / 2;
+        if (s.breakable) {
+            const crack = s.crack ?? 0;
+            const shake = crack > 0 ? Math.sin(now * 55) * BREAKABLE_SHAKE * crack : 0;
+            const r = Math.round(BREAKABLE_FILL[0] + (BREAKABLE_WARN[0] - BREAKABLE_FILL[0]) * crack);
+            const g = Math.round(BREAKABLE_FILL[1] + (BREAKABLE_WARN[1] - BREAKABLE_FILL[1]) * crack);
+            const b = Math.round(BREAKABLE_FILL[2] + (BREAKABLE_WARN[2] - BREAKABLE_FILL[2]) * crack);
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.strokeStyle = BREAKABLE_STROKE;
+            ctx.fillRect(x + shake, y, s.w, s.h);
+            ctx.strokeRect(x + shake, y, s.w, s.h);
+        } else {
+            ctx.fillStyle = SOLID_FILL;
+            ctx.strokeStyle = SOLID_STROKE;
+            ctx.fillRect(x, y, s.w, s.h);
+            ctx.strokeRect(x, y, s.w, s.h);
+        }
+    }
+}
 
 /** Tuerca del ítem de reparación (#156): lados del hexágono, radio del agujero relativo al del ícono y colores `[r, g, b]`. */
 export const NUT = { sides: 6, hole: 0.4, fill: [190, 200, 210], edge: [80, 220, 120] };
@@ -781,7 +814,7 @@ export const DROP_STRETCH = { time: 0.01, minSpeed: 1, max: 0.2 };
  * Dibuja las partículas de `particleSystem` como un sprite de campo cada una (ver `metaballPeak`) en la capa de su material
  * (`layers.contextFor(kind)`, `kind` = `store.kind` o 0 sin `store`), con el color propio de la partícula. `skin` (`SHOT_DRAW`) acerca las
  * partículas junto a un cuerpo a su superficie (ver `skinPosition`). La forma la decide `dropShape`. Dentro de la capa
- * los sprites se combinan en `source-over` y el filtro de umbral recorta el campo por el umbral. Una gota en movimiento
+ * los sprites se combinan en `source-over` y el filtro `#goo` recorta el campo por el umbral. Una gota en movimiento
  * se estira a lo largo de su velocidad (`DROP_STRETCH`).
  */
 export function drawParticles(layers, particleSystem, skin = null, store = null) {

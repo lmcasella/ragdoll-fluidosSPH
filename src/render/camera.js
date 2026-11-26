@@ -5,10 +5,8 @@
  */
 const MARGIN_X = 6;
 const MARGIN_Y = 4;
+const MAX_ZOOM = 1.6;
 const SMOOTHING = 4;
-
-/** Escala máxima de la cámara, en px/m: el zoom máximo es esta escala sobre `pixelsPerMeter`. */
-const MAX_SCALE = 64;
 
 /** Alto máximo (m) que muestra la cámara cuando el mundo no tiene techo. */
 export const MAX_VIEW_HEIGHT = 40;
@@ -70,7 +68,7 @@ export class Camera {
             this.viewW / (needW * this.ppm),
             this.viewH / (needH * this.ppm),
         );
-        const zoom = Math.min(Math.max(fitPlayers, fitWorld), MAX_SCALE / this.ppm);
+        const zoom = Math.min(Math.max(fitPlayers, fitWorld), MAX_ZOOM);
 
         const halfW = this.viewW / (2 * this.ppm * zoom);
         const halfH = this.viewH / (2 * this.ppm * zoom);
@@ -84,23 +82,10 @@ export class Camera {
         this.y += (y - this.y) * t;
     }
 
-    /**
-     * Deja un contexto 2D dibujando en metros, Y hacia arriba, con la escala y la posición de la cámara.
-     * @param {CanvasRenderingContext2D} ctx
-     */
+    // Deja el contexto dibujando en metros, Y hacia arriba
     apply(ctx) {
         const s = this.scale;
         ctx.setTransform(s, 0, 0, -s, this.viewW / 2 - this.x * s, this.viewH / 2 + this.y * s);
-    }
-
-    /**
-     * Pone la cámara en un contenedor PIXI cuya geometría está en px a `pixelsPerMeter`: el zoom con Y invertida
-     * y la posición que deja el punto de la cámara en el centro de la vista (igual que `apply`).
-     * @param {PIXI.Container} container
-     */
-    applyTo(container) {
-        container.scale.set(this.zoom, -this.zoom);
-        container.position.set(this.viewW / 2 - this.x * this.scale, this.viewH / 2 + this.y * this.scale);
     }
 
     /** Píxeles de pantalla `{ x, y }` (Y hacia abajo) de un punto del mundo en metros; inversa de `toWorld`. */
