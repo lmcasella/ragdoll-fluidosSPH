@@ -20,8 +20,8 @@ import {
 } from "../helpers/invariants-run.js";
 import { UnionArea, CELL, polygonArea } from "../helpers/drawn-area.js";
 
-const { ShallowWater } = await import("../../js/water.js");
-const { waterOutline, dropShape, SHOT_DRAW } = await import("../../js/render.js");
+const { ShallowWater } = await import("../../src/water/water.js");
+const { waterOutline, dropShape, SHOT_DRAW } = await import("../../src/render/render.js");
 
 const run = await runStandardScene();
 const num = (v, digits = 3) => Number(v).toPrecision(digits);

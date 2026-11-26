@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { createFakeAudioContext } from "./helpers/fake-audio.js";
 
-const { UI_SOUNDS, UI_VOLUME } = await import("../js/audio.js");
-const { MENU } = await import("../js/menu.js");
+const { UI_SOUNDS, UI_VOLUME } = await import("../src/audio/audio.js");
+const { MENU } = await import("../src/ui/menu.js");
 
 const A = 0;
 const B = 1;

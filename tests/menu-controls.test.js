@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { HELP, HelpScreen, MENU } = await import("../js/menu.js");
+const { HELP, HelpScreen, MENU } = await import("../src/ui/menu.js");
 
 const A = 0;
 const B = 1;

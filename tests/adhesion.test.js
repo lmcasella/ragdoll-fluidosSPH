@@ -1,16 +1,16 @@
 // Adherencia de la miel a los cuerpos (#77, #214, docs/design/14-agua.md §14.10): LiquidFun real, determinista. Techo, pared,
-// chorro y conservación con escenas sin robots (tests/helpers/film-scene.js), y el gameplay con el script de index.html y
+// chorro y conservación con escenas sin robots (tests/helpers/film-scene.js), y el gameplay con el script de index.js y
 // un gamepad simulado.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newScene, addBox, fill, eachParticle, setVelocity, DT, RADIUS, SPACING, REST_DISTANCE, G } from "./helpers/film-scene.js";
 import { loadGame } from "./helpers/game.js";
 
-const { FLUID, WEAPONS, ShotEmitter, weaponById } = await import("../js/weapons.js");
-const { ORIGIN } = await import("../js/particleStore.js");
-const { PARTICLE } = await import("../js/particles.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
-const { mixtureViscosity } = await import("../js/adhesion.js");
+const { FLUID, WEAPONS, ShotEmitter, weaponById } = await import("../src/combat/weapons.js");
+const { ORIGIN } = await import("../src/fluids/particleStore.js");
+const { PARTICLE } = await import("../src/fluids/particles.js");
+const { MATERIALS, SIGMA_W } = await import("../src/fluids/materials.js");
+const { mixtureViscosity } = await import("../src/fluids/adhesion.js");
 
 const HONEY_MASS = MATERIALS.honey.SG * SIGMA_W * SPACING * SPACING;
 const WEIGHT = HONEY_MASS * G;

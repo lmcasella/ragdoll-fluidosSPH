@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadGame } from "./helpers/game.js";
 
-const { withoutJointTracks } = await import("../js/clips.js");
+const { withoutJointTracks } = await import("../src/robot/clips.js");
 
 const MAX_ERROR = 15;
 const MEAN_ERROR = 5;

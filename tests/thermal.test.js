@@ -8,12 +8,12 @@ import { thermalScene, DT } from "./helpers/thermal-bench.js";
 import { fillStore } from "./helpers/water-bench.js";
 import { loadGame } from "./helpers/game.js";
 
-const { FLUID } = await import("../js/weapons.js");
-const { PARTICLE } = await import("../js/particles.js");
-const { SINK } = await import("../js/particleStore.js");
-const { MATERIALS, REACTIONS, SIGMA_W } = await import("../js/materials.js");
-const { THERMAL } = await import("../js/thermal.js");
-const { PAIR_REST_WEIGHT } = await import("../js/viscosity.js");
+const { FLUID } = await import("../src/combat/weapons.js");
+const { PARTICLE } = await import("../src/fluids/particles.js");
+const { SINK } = await import("../src/fluids/particleStore.js");
+const { MATERIALS, REACTIONS, SIGMA_W } = await import("../src/fluids/materials.js");
+const { THERMAL } = await import("../src/fluids/thermal.js");
+const { PAIR_REST_WEIGHT } = await import("../src/fluids/viscosity.js");
 const { stepWorld } = await import("../lib/ragimporter.js");
 
 const fmt = (n, digits = 3) => Number(n).toFixed(digits);

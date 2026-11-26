@@ -13,12 +13,12 @@ globalThis.PIXI ??= {
 };
 
 const { stepWorld } = await import("../../lib/ragimporter.js");
-const { createParticleSystem } = await import("../../js/particles.js");
-const { ShotEmitter, SHOT_SYSTEM, FLUID } = await import("../../js/weapons.js");
-const { ParticleStore, ORIGIN } = await import("../../js/particleStore.js");
-const { WallContact } = await import("../../js/wallContact.js");
-const { Contacts } = await import("../../js/contacts.js");
-const { SIGMA_W } = await import("../../js/materials.js");
+const { createParticleSystem } = await import("../../src/fluids/particles.js");
+const { ShotEmitter, SHOT_SYSTEM, FLUID } = await import("../../src/combat/weapons.js");
+const { ParticleStore, ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { WallContact } = await import("../../src/fluids/wallContact.js");
+const { Contacts } = await import("../../src/fluids/contacts.js");
+const { SIGMA_W } = await import("../../src/fluids/materials.js");
 
 /**
  * Bancos de #69 (docs/design/14-agua.md §14.16, P1 a P5): LiquidFun real, determinista, con `SHOT_SYSTEM` y
@@ -105,7 +105,7 @@ function positionsOf(system) {
 }
 
 /**
- * Contorno inelástico del juego (`js/wallContact.js`) para `system`: todos los bancos lo usan igual que la raíz de
+ * Contorno inelástico del juego (`src/fluids/wallContact.js`) para `system`: todos los bancos lo usan igual que la raíz de
  * composición, como pseudo-instancia de `stepWorld`.
  */
 export function wallFor(system, store = new ParticleStore(system, SHOT_SYSTEM)) {

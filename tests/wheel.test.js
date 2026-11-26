@@ -1,10 +1,10 @@
 /**
- * Rueda de armas de punta a punta: el script de index.html con LiquidFun real y gamepad simulado.
+ * Rueda de armas de punta a punta: el script de index.js con LiquidFun real y gamepad simulado.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FLUID } from "../js/weapons.js";
-import { TAP_MAX } from "../js/Input.js";
+import { FLUID } from "../src/combat/weapons.js";
+import { TAP_MAX } from "../src/input/Input.js";
 import { loadGame } from "./helpers/game.js";
 
 async function start() {

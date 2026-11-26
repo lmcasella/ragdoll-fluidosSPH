@@ -8,13 +8,13 @@ import { newWorld, addSolids, wallFor, DT, A_P } from "./helpers/water-bench.js"
 import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { SHOT_SYSTEM, FLUID } = await import("../js/weapons.js");
-const { ParticleStore, ORIGIN, SINK } = await import("../js/particleStore.js");
-const { Evaporation, EVAPORATION } = await import("../js/evaporation.js");
-const { Contacts } = await import("../js/contacts.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
-const { LEVEL } = await import("../js/level.js");
+const { createParticleSystem } = await import("../src/fluids/particles.js");
+const { SHOT_SYSTEM, FLUID } = await import("../src/combat/weapons.js");
+const { ParticleStore, ORIGIN, SINK } = await import("../src/fluids/particleStore.js");
+const { Evaporation, EVAPORATION } = await import("../src/fluids/evaporation.js");
+const { Contacts } = await import("../src/fluids/contacts.js");
+const { MATERIALS, SIGMA_W } = await import("../src/fluids/materials.js");
+const { LEVEL } = await import("../src/level/level.js");
 
 const F_EVAP = MATERIALS.water.evaporationScale;
 const PERIMETER = 2 * Math.sqrt(Math.PI * A_P);

@@ -4,8 +4,8 @@
  * de `2 r` de la superficie del campo (H4), el desplazamiento horizontal del conjunto apoyado (H6) y la velocidad
  * de las columnas bajo la capa. Llamar `sample()` una vez por paso fijo.
  */
-const { LEVEL } = await import("../../js/level.js");
-const { FLUID } = await import("../../js/weapons.js");
+const { LEVEL } = await import("../../src/level/level.js");
+const { FLUID } = await import("../../src/combat/weapons.js");
 
 /** Banda sobre el fondo (m) que cuenta como apoyada. */
 export const BOTTOM_BAND = 0.5;

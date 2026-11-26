@@ -7,15 +7,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadGame } from "./helpers/game.js";
-import { Debug, DEBUG_ROWS, FLUID_MODES, relativeError } from "../js/debug.js";
-import { ShallowWater, WATER_FIELD } from "../js/water.js";
-import { SIGMA_W, MATERIALS } from "../js/materials.js";
+import { Debug, DEBUG_ROWS, FLUID_MODES, relativeError } from "../src/core/debug.js";
+import { ShallowWater, WATER_FIELD } from "../src/water/water.js";
+import { SIGMA_W, MATERIALS } from "../src/fluids/materials.js";
 import { newWorld, addSolids, wallFor, DT } from "./helpers/water-bench.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { SHOT_SYSTEM, FLUID, WEAPONS } = await import("../js/weapons.js");
-const { ParticleStore, ORIGIN } = await import("../js/particleStore.js");
+const { createParticleSystem } = await import("../src/fluids/particles.js");
+const { SHOT_SYSTEM, FLUID, WEAPONS } = await import("../src/combat/weapons.js");
+const { ParticleStore, ORIGIN } = await import("../src/fluids/particleStore.js");
 
 /** `performance.now` real: `loadGame` reemplaza el global por un reloj falso. */
 const realNow = performance.now.bind(performance);
@@ -236,8 +236,9 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a un canvas sin #go
     assert.ok(game.arcs >= arcs0 + count);
 
     const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-    assert.match(html, /\.fluidLayer\s*\{[^}]*filter:\s*url\("#goo"\)/);
-    assert.doesNotMatch(html.match(/#pickupCanvas\s*\{[^}]*\}/)[0], /filter/);
+    const css = readFileSync(new URL("../src/ui/layout.css", import.meta.url), "utf8");
+    assert.match(css, /\.fluidLayer\s*\{[^}]*filter:\s*url\("#goo"\)/);
+    assert.doesNotMatch(css.match(/#pickupCanvas\s*\{[^}]*\}/)[0], /filter/);
     assert.match(html, /<canvas id="pickupCanvas">/);
 });
 
@@ -305,7 +306,7 @@ const sampleData = () => ({
     ],
 });
 
-/** Un frame completo de uso del monitor: lo que `index.html` le pide en el loop. */
+/** Un frame completo de uso del monitor: lo que `index.js` le pide en el loop. */
 function frameOf(debug, ctx, refs, data) {
     debug.begin();
     for (let i = 0; i < 15; i++) debug.mark("x");

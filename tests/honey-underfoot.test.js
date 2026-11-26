@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { ORIGIN } from "../js/particleStore.js";
-import { PARTICLE } from "../js/particles.js";
-import { FLUID, weaponById } from "../js/weapons.js";
+import { ORIGIN } from "../src/fluids/particleStore.js";
+import { PARTICLE } from "../src/fluids/particles.js";
+import { FLUID, weaponById } from "../src/combat/weapons.js";
 
 /**
  * #214: un robot sobre un charco de miel de 3 capas. Mide altura de los pies, `isGrounded`, torso, velocidad media y

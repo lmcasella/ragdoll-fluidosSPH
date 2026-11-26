@@ -2,8 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { drawRobot, sparkCount, H2_BUBBLES } = await import("../js/render.js");
-const { MATERIALS } = await import("../js/materials.js");
+const { drawRobot, sparkCount, H2_BUBBLES } = await import("../src/render/render.js");
+const { MATERIALS } = await import("../src/fluids/materials.js");
 
 const FPS = 60;
 

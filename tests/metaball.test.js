@@ -14,7 +14,7 @@ const {
     MetaballSprites,
     SHOT_DRAW: DRAW,
     PARTICLE_RADIUS,
-} = await import("../js/render.js");
+} = await import("../src/render/render.js");
 
 /** Alfa de `n` capas de alfa `a` en `source-over`: `1 − Π(1 − a_i)`. */
 const over = (...alphas) => 1 - alphas.reduce((acc, a) => acc * (1 - a), 1);

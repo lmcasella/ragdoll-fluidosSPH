@@ -1,7 +1,7 @@
 /** Aterrizaje sintético sobre una plataforma atravesable (#171): crea la plataforma, deja caer al robot 0 y mide las piezas dentro. */
 import { loadGame } from "./game.js";
 
-const { ONE_WAY } = await import("../../js/platforms.js");
+const { ONE_WAY } = await import("../../src/level/platforms.js");
 
 const PLATFORM = { x: 45, y: 20, w: 6, h: 0.4 };
 const FALL_SPEED = 25;

@@ -5,10 +5,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ClimbGenerator, CLIMB } from "../../js/climb.js";
-import { canReach } from "../../js/bot.js";
-import { Camera } from "../../js/camera.js";
-import { LEVEL } from "../../js/level.js";
+import { ClimbGenerator, CLIMB } from "../../src/level/climb.js";
+import { canReach } from "../../src/ai/bot.js";
+import { Camera } from "../../src/render/camera.js";
+import { LEVEL } from "../../src/level/level.js";
 import { loadGame } from "../helpers/game.js";
 
 const TOP = 200;

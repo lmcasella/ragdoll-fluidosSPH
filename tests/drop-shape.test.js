@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 
-const { dropShape, SHOT_DRAW: DRAW } = await import("../js/render.js");
+const { dropShape, SHOT_DRAW: DRAW } = await import("../src/render/render.js");
 
 const WATER = 4;
 

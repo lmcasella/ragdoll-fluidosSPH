@@ -78,7 +78,7 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
  * Exige además que el apogeo de los pies supere 3,5 m sobre el punto de partida (sin corte el salto sube unos 4,2 m).
  */
 async function infiniteJumps(seed) {
-    const { CLIMB } = await import("../../js/climb.js");
+    const { CLIMB } = await import("../../src/level/climb.js");
     const breakable = CLIMB.breakable;
     CLIMB.breakable = null;
     try {

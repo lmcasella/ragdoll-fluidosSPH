@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { Hud, HUD, HUD_STATES, heatColor, heatOfHp, gaugeTop, spreadMarkers, formatClock } from "../js/hud.js";
+import { Hud, HUD, HUD_STATES, heatColor, heatOfHp, gaugeTop, spreadMarkers, formatClock } from "../src/ui/hud.js";
 import { fakeDocument } from "./helpers/fake-dom.js";
 
 const player = (over = {}) => ({
@@ -108,7 +108,7 @@ test("la rampa de calor interpola de blanco a rojo y nunca usa amarillo", () => 
         const [r, g, b] = heatColor(t).match(/\d+/g).map(Number);
         assert.ok(!(r > 240 && g > 200 && b < 120), `amarillo en t=${t}: ${heatColor(t)}`);
     }
-    const css = readFileSync(new URL("../js/ui.css", import.meta.url), "utf8");
+    const css = readFileSync(new URL("../src/ui/ui.css", import.meta.url), "utf8");
     for (const [i, [, rgb]] of HUD.heatStops.entries()) {
         const hex = `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
         assert.ok(css.includes(`--heat-${i}: ${hex};`), `--heat-${i} en ui.css`);
@@ -394,7 +394,7 @@ test("el HUD solo se muestra en cuenta regresiva, partida, fin de ronda y fin de
 });
 
 test("el CSS oculta con display none tanto la raíz de la capa como sus partes", () => {
-    const css = readFileSync(new URL("../js/ui.css", import.meta.url), "utf8");
+    const css = readFileSync(new URL("../src/ui/ui.css", import.meta.url), "utf8");
     assert.match(css, /\.ui\.off,\s*\.ui \.off\s*\{\s*display:\s*none\s*!important/);
 });
 

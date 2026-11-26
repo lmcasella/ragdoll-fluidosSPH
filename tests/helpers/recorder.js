@@ -1,8 +1,8 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { LEVEL } from "../../js/level.js";
-import { WEAPONS } from "../../js/weapons.js";
-import { fieldColor } from "../../js/render.js";
+import { LEVEL } from "../../src/level/level.js";
+import { WEAPONS } from "../../src/combat/weapons.js";
+import { fieldColor } from "../../src/render/render.js";
 
 const CIRCLE = 0;
 const POLYGON = 2;

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { LEVEL } from "../js/level.js";
+import { LEVEL } from "../src/level/level.js";
 
 /** Botón B del mapeo "standard": golpe. */
 const B = 1;

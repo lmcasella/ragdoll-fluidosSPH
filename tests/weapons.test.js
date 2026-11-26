@@ -6,11 +6,11 @@ const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../vendor/liquidfun.js");
 
 const { WEAPONS, FLUID, LOADOUT, SHOT_SYSTEM, weaponById, particleDamage, equipLoadout, cycleWeapon, wheelSector, wheelWeapon, ShotEmitter } =
-    await import("../js/weapons.js");
-const { DamageSystem } = await import("../js/damage.js");
-const { SIGMA_W, MATERIALS } = await import("../js/materials.js");
-const { ParticleStore } = await import("../js/particleStore.js");
-const { getRaycaster } = await import("../js/raycast.js");
+    await import("../src/combat/weapons.js");
+const { DamageSystem } = await import("../src/combat/damage.js");
+const { SIGMA_W, MATERIALS } = await import("../src/fluids/materials.js");
+const { ParticleStore } = await import("../src/fluids/particleStore.js");
+const { getRaycaster } = await import("../src/core/raycast.js");
 
 const DT = 1 / 60;
 

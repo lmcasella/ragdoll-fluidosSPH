@@ -1,13 +1,13 @@
 import "./water-bench.js";
 
 const { stepWorld } = await import("../../lib/ragimporter.js");
-const { createParticleSystem } = await import("../../js/particles.js");
-const { SHOT_SYSTEM } = await import("../../js/weapons.js");
-const { ParticleStore, ORIGIN } = await import("../../js/particleStore.js");
-const { ShallowWater } = await import("../../js/water.js");
-const { Immersion } = await import("../../js/immersion.js");
-const { Thermal } = await import("../../js/thermal.js");
-const { Viscosity } = await import("../../js/viscosity.js");
+const { createParticleSystem } = await import("../../src/fluids/particles.js");
+const { SHOT_SYSTEM } = await import("../../src/combat/weapons.js");
+const { ParticleStore, ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { ShallowWater } = await import("../../src/water/water.js");
+const { Immersion } = await import("../../src/water/immersion.js");
+const { Thermal } = await import("../../src/fluids/thermal.js");
+const { Viscosity } = await import("../../src/fluids/viscosity.js");
 const { newWorld, addSolids, wallFor, DT } = await import("./water-bench.js");
 
 /**

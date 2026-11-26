@@ -1,12 +1,12 @@
-// Disparo y persistencia de la miel (#41, #110): el script de index.html con LiquidFun real y gamepads simulados.
+// Disparo y persistencia de la miel (#41, #110): el script de index.js con LiquidFun real y gamepads simulados.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
-const { FLUID, weaponById } = await import("../js/weapons.js");
-const { ORIGIN, SINK } = await import("../js/particleStore.js");
-const { PARTICLE } = await import("../js/particles.js");
+const { FLUID, weaponById } = await import("../src/combat/weapons.js");
+const { ORIGIN, SINK } = await import("../src/fluids/particleStore.js");
+const { PARTICLE } = await import("../src/fluids/particles.js");
 
 const RT = 7;
 const J2 = 1;

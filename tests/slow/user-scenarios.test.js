@@ -1,5 +1,5 @@
 /**
- * Escenarios del usuario del 19/11 (#109) sobre la escena real: el script de `index.html` con LiquidFun real y
+ * Escenarios del usuario del 19/11 (#109) sobre la escena real: el script de `index.js` con LiquidFun real y
  * gamepad simulado. U1 (gotas sobre una isla seca, #111), U2 (tanque de miel en la pileta, #110), U3 (tanque de
  * ácido en la pileta, #98) y U4 (lluvia y disparos durante 30 s, #101). Cada prueba mide lo que existe hoy y, si
  * un criterio falla, se marca `todo` con el issue que lo arregla y el valor medido contra el esperado. Con
@@ -14,13 +14,13 @@ import { recordGame } from "../helpers/recorder.js";
 import { HoneyProbe } from "../helpers/honey-probe.js";
 import { runStandardScene, AREA_TOLERANCE, PARTICLE_AREA_TOLERANCE, AREA_SHARE, AREA_HARD_LIMIT, MATERIAL_NAMES, STEPS_PER_SECOND } from "../helpers/invariants-run.js";
 
-const { LEVEL } = await import("../../js/level.js");
-const { MATERIALS, SIGMA_W } = await import("../../js/materials.js");
-const { SINK, ORIGIN } = await import("../../js/particleStore.js");
-const { FLUID, weaponById } = await import("../../js/weapons.js");
-const { PARTICLE } = await import("../../js/particles.js");
-const { WATER_FIELD } = await import("../../js/water.js");
-const render = await import("../../js/render.js");
+const { LEVEL } = await import("../../src/level/level.js");
+const { MATERIALS, SIGMA_W } = await import("../../src/fluids/materials.js");
+const { SINK, ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { FLUID, weaponById } = await import("../../src/combat/weapons.js");
+const { PARTICLE } = await import("../../src/fluids/particles.js");
+const { WATER_FIELD } = await import("../../src/water/water.js");
+const render = await import("../../src/render/render.js");
 
 /** Carpeta de grabación (vacía: no se graba) y frames entre registros grabados. */
 const RECORD_DIR = process.env.USER_SCENARIOS_RECORD ?? "";

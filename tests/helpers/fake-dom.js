@@ -1,7 +1,7 @@
 import { inert } from "./inert.js";
 
 /**
- * Elemento del DOM falso para probar `js/hud.js` en Node: guarda `className` (con `classList`), `style`, `textContent`,
+ * Elemento del DOM falso para probar `src/ui/hud.js` en Node: guarda `className` (con `classList`), `style`, `textContent`,
  * `innerHTML` y los hijos. `getContext` devuelve un contexto inerte, como los canvas de `loadGame`.
  */
 export class FakeElement {

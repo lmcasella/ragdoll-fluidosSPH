@@ -14,7 +14,7 @@ Object.defineProperty(globalThis, "navigator", {
     configurable: true,
 });
 
-const { Input, TAP_MAX } = await import("../js/Input.js");
+const { Input, TAP_MAX } = await import("../src/input/Input.js");
 
 const emit = (type, e = {}) => handlers[type].forEach((fn) => fn(e));
 const mouseMove = (x, y) => emit("mousemove", { clientX: x, clientY: y });
@@ -285,7 +285,7 @@ test("B golpea en el flanco; F con el teclado", () => {
 });
 
 test("ninguna tecla Numpad en los controles de juego y no queda el esquema de J2", async () => {
-    const mod = await import("../js/Input.js");
+    const mod = await import("../src/input/Input.js");
     const codes = Object.values(mod.KEYBOARD_LAYOUT).flat();
     assert.deepEqual(codes.filter((code) => code.startsWith("Numpad")), []);
     assert.equal(mod.KEYBOARD_LAYOUTS, undefined);

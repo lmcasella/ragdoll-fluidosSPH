@@ -1,5 +1,5 @@
 /**
- * Lector de contactos nativos (docs/design/14-agua.md §14.8, #73): `js/contacts.js` encuentra los offsets de los
+ * Lector de contactos nativos (docs/design/14-agua.md §14.8, #73): `src/fluids/contacts.js` encuentra los offsets de los
  * buffers partícula-partícula y partícula-cuerpo con LiquidFun real, los informa en `stats` y se desactiva si no los halla.
  */
 import { test } from "node:test";
@@ -7,10 +7,10 @@ import assert from "node:assert/strict";
 import { restBench, newWorld, addSolids, wallFor, DT } from "./helpers/water-bench.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { SHOT_SYSTEM, FLUID } = await import("../js/weapons.js");
-const { ParticleStore, ORIGIN } = await import("../js/particleStore.js");
-const { Contacts, EXPECTED_OFFSETS } = await import("../js/contacts.js");
+const { createParticleSystem } = await import("../src/fluids/particles.js");
+const { SHOT_SYSTEM, FLUID } = await import("../src/combat/weapons.js");
+const { ParticleStore, ORIGIN } = await import("../src/fluids/particleStore.js");
+const { Contacts, EXPECTED_OFFSETS } = await import("../src/fluids/contacts.js");
 
 /** Cae una columna de `count` partículas sobre un piso estático y la deja `seconds` s; devuelve el sistema. */
 function scene(count, seconds) {

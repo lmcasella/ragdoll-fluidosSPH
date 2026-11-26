@@ -1,9 +1,9 @@
 /**
- * Remapeo del gamepad de punta a punta: el script de index.html con LiquidFun real y gamepad simulado.
+ * Remapeo del gamepad de punta a punta: el script de index.js con LiquidFun real y gamepad simulado.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { WEAPONS } from "../js/weapons.js";
+import { WEAPONS } from "../src/combat/weapons.js";
 import { loadGame, giveAllWeapons } from "./helpers/game.js";
 
 async function start() {

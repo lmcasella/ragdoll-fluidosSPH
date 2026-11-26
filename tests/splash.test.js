@@ -5,9 +5,9 @@ import { fillField, DT } from "./helpers/water-scene.js";
 import { loadGame } from "./helpers/game.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { SINK, ORIGIN } = await import("../js/particleStore.js");
-const { FLUID } = await import("../js/weapons.js");
-const { LEVEL } = await import("../js/level.js");
+const { SINK, ORIGIN } = await import("../src/fluids/particleStore.js");
+const { FLUID } = await import("../src/combat/weapons.js");
+const { LEVEL } = await import("../src/level/level.js");
 
 /** Mueve todos los cuerpos de `player` `(dx, dy)` y los deja en reposo. */
 function teleport(player, dx, dy) {

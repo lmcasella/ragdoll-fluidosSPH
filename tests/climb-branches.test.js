@@ -4,9 +4,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../js/climb.js";
-import { canReach } from "../js/bot.js";
-import { FLUID } from "../js/weapons.js";
+import { ClimbGenerator, CLIMB, halfWidth, stageOf } from "../src/level/climb.js";
+import { canReach } from "../src/ai/bot.js";
+import { FLUID } from "../src/combat/weapons.js";
 
 const TOP = 300;
 
