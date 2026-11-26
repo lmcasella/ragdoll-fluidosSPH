@@ -53,6 +53,20 @@ export class FakeElement {
         return child;
     }
 
+    /** Inserta `child` como primer hijo, como `Element.prepend`. */
+    prepend(child) {
+        child.parent = this;
+        this.children.unshift(child);
+        return child;
+    }
+
+    /** Todos los nodos con la etiqueta `tag` de este subárbol, en orden. */
+    findAllByTag(tag, out = []) {
+        if (this.tag === tag) out.push(this);
+        for (const child of this.children) child.findAllByTag(tag, out);
+        return out;
+    }
+
     getContext() {
         return inert({ createRadialGradient: () => inert(), createLinearGradient: () => inert() });
     }
