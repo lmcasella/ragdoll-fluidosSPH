@@ -16,15 +16,3 @@ canvas {
     left: 0;
     display: block;
 }
-.fluidLayer {
-    pointer-events: none;
-    filter: url("#goo");
-}
-#pickupCanvas {
-    pointer-events: none;
-    z-index: 10;
-}
-#hudCanvas {
-    pointer-events: none;
-    z-index: 50;
-}

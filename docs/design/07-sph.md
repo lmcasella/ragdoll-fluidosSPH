@@ -63,12 +63,12 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 
 - **Hoy** ✅:
   - cada partícula es un círculo de color sólido en un canvas 2D;
-  - cada partícula es un sprite de campo (perfil (1 − (d/R)²)², R = 2,2 radios) y un filtro SVG "goo" con solo el umbral de alfa (0,5) funde las gotas vecinas (#213);
-  - cada material tiene su propia capa (canvas DOM con el filtro), así que materiales distintos no se funden entre sí.
+  - cada partícula es un sprite de campo (perfil (1 − (d/R)²)², R = 2,2 radios) y un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas (#213);
+  - cada material tiene su propia capa (un sprite de la escena con el filtro), así que materiales distintos no se funden entre sí.
 
   El resultado son **manchas planas**, sin brillo ni volumen, y no escala a miles de partículas.
-- **Diseño** 🔨 #26 (revisado con #62): **Canvas2D, sin WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).
-  - Se mantiene el filtro goo (desenfoque más umbral de transparencia) sobre un canvas de partículas, que es lo que funde las gotas.
+- **Diseño** 🔨 #26 (revisado con #62): **PIXI v8 con sus filtros y filtros propios como `PIXI.Filter`, sin contexto WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).
+  - Se mantiene el filtro goo (desenfoque más umbral de transparencia) sobre las capas de partículas, que es lo que funde las gotas (hoy el umbral es un `PIXI.Filter` propio).
   - Mejoras sobre lo de hoy: un color por material y por temperatura (lo escribe la térmica), brillo propio en lava y fuego con un segundo canvas aditivo (`globalCompositeOperation = "lighter"`), y borde más claro por un segundo pase con el umbral corrido.
   - Presupuesto: ≤ 2 ms con GPU hasta ~4.000 círculos (relevamiento `F` de #62; el costo escala con la cantidad de círculos, no con el goo).
   - Se descartó el metaball en shader (`metaball.frag.glsl`): exige WebGL propio, que el usuario descartó para el examen.
