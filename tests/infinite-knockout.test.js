@@ -8,7 +8,7 @@ import { loadGame } from "./helpers/game.js";
 import { BUTTON } from "./helpers/duel.js";
 import { FLUID } from "../src/combat/weapons.js";
 
-const { KNOCKOUT, MAX_HP } = await import("../src/robot/ActiveRagdoll.js");
+const { KNOCKOUT, MAX_HP } = await import("../src/ragdoll/ActiveRagdoll.js");
 const { REPAIR } = await import("../src/level/pickups.js");
 
 const FRAME = 1 / 60;

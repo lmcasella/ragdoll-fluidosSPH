@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { BUTTON } from "./helpers/duel.js";
 import { LEVEL } from "../src/level/level.js";
-import { RECOVER } from "../src/robot/ActiveRagdoll.js";
+import { RECOVER } from "../src/ragdoll/ActiveRagdoll.js";
 
 async function solo() {
     const game = await loadGame();

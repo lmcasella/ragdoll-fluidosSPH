@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BUTTON, AIM_RIGHT, AIM_LEFT, startDuel } from "./helpers/duel.js";
 
-const { ROLL } = await import("../src/robot/ActiveRagdoll.js");
+const { ROLL } = await import("../src/ragdoll/ActiveRagdoll.js");
 
 const DT = 1 / 60;
 const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));

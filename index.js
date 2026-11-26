@@ -3,7 +3,7 @@ import {
     stepWorld,
     STEP_SETTINGS,
 } from "./lib/ragimporter.js";
-import { ActiveRagdoll } from "./src/robot/ActiveRagdoll.js";
+import { ActiveRagdoll } from "./src/ragdoll/ActiveRagdoll.js";
 import { Input } from "./src/input/Input.js";
 import { Bot, botConfig } from "./src/ai/bot.js";
 import { Menu, ControlsScreen, HelpScreen, PAUSE } from "./src/ui/menu.js";
@@ -27,7 +27,7 @@ import { Hud } from "./src/ui/hud.js";
 import { Screens, versionLabel } from "./src/ui/screens.js";
 import { Melee, MELEE } from "./src/combat/melee.js";
 import { getRaycaster } from "./src/core/raycast.js";
-import { withReversedClip, withoutJointTracks } from "./src/robot/clips.js";
+import { withReversedClip, withoutJointTracks } from "./src/ragdoll/clips.js";
 import { DamageSystem } from "./src/combat/damage.js";
 import { createParticleSystem } from "./src/fluids/particles.js";
 import { ParticleStore, SINK } from "./src/fluids/particleStore.js";

@@ -117,7 +117,7 @@ La regla tiene tres partes, cada una en el sistema que le corresponde: **detecci
 
 > **Retirado.** `STICKY` ya no existe: la miel frena por física, con adherencia viscosa ([14-agua](14-agua.md)). Lo que sigue es historia.
 
-Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `move()` (3 m/s, salto 3, fricción 0,95). Los valores son datos: `STICKY`, exportado desde `src/robot/ActiveRagdoll.js` junto a las demás constantes de estado.
+Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `move()` (3 m/s, salto 3, fricción 0,95). Los valores son datos: `STICKY`, exportado desde `src/ragdoll/ActiveRagdoll.js` junto a las demás constantes de estado.
 
 | Clave | Valor | Efecto | Libre / pegado |
 |---|---|---|---|

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { WALK_ANIM } = await import("../src/robot/ActiveRagdoll.js");
+const { WALK_ANIM } = await import("../src/ragdoll/ActiveRagdoll.js");
 
 const DT = 1 / 60;
 
