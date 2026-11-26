@@ -8,7 +8,6 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ### Changed
 - Flujo de ramas `main ← dev ← rama de trabajo`: cada paso de `dev` a `main` publica un release con su tag, y el deploy falla si la versión no subió.
 - El código se reorganizó en `src/` por subsistema y el arranque pasó de `index.html` a `index.js`. Sin cambios para el jugador.
-- El juego se dibuja en un solo canvas con PIXI y el umbral que funde las gotas pasa de un filtro SVG a un shader propio. Se ve igual.
 
 ## [0.54.2] - 2026-11-25
 

@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
-import { installFakePixi } from "./helpers/fake-pixi.js";
 
 const {
     DROP_STRETCH,
@@ -57,7 +56,7 @@ function fakeDoc() {
                 draws,
                 getContext: () => ({
                     draws,
-                    resetTransform() {},
+                    setTransform() {},
                     clearRect() {},
                     createRadialGradient: () => ({ addColorStop() {} }),
                     fillRect() {},
@@ -71,13 +70,6 @@ function fakeDoc() {
         },
     };
     return doc;
-}
-
-/** `FluidLayers` sobre un contenedor del `PIXI` falso, con un filtro de relleno y la cámara sin efecto. */
-function newLayers(doc) {
-    installFakePixi();
-    const parent = new PIXI.Container();
-    return { parent, layers: new FluidLayers({ doc, parent, filter: {}, apply: () => {} }) };
 }
 
 function fakeSystem(kinds, colors) {
@@ -108,17 +100,18 @@ function run(layers, kinds, colors) {
 
 test("drawParticles: una capa por material presente y sin mezclar materiales", () => {
     const doc = fakeDoc();
-    const { layers, parent } = newLayers(doc);
+    const anchor = { before() {} };
+    const layers = new FluidLayers(doc, anchor, () => {});
     const kinds = [4, 4, 3, 6, 4, 3];
     const white = [200, 200, 200];
     run(layers, kinds, kinds.map(() => white));
-    const layerSprites = parent.children;
-    assert.equal(layerSprites.length, 3, "un sprite por material presente");
-    const byZ = Object.fromEntries(layerSprites.map((sprite) => [sprite.zIndex, sprite.texture.canvas.draws.length]));
+    const layerCanvases = doc.created.filter((c) => c.style.zIndex !== undefined);
+    assert.equal(layerCanvases.length, 3);
+    const byZ = Object.fromEntries(layerCanvases.map((c) => [c.style.zIndex, c.draws.length]));
     assert.deepEqual(byZ, { 3: 2, 4: 3, 6: 1 });
     run(layers, [4, 4], [white, white]);
-    assert.equal(layerSprites.find((sprite) => sprite.zIndex === 3).visible, false, "el material que no se usa queda oculto");
-    assert.equal(layerSprites.find((sprite) => sprite.zIndex === 4).visible, true);
+    assert.equal(layerCanvases.find((c) => c.style.zIndex === "3").style.display, "none");
+    assert.equal(layerCanvases.find((c) => c.style.zIndex === "4").style.display, undefined);
 });
 
 test("los sprites se cachean por material y color cuantizado y respetan el tope", () => {
@@ -133,7 +126,8 @@ test("los sprites se cachean por material y color cuantizado y respetan el tope"
 
 test("costo de drawParticles con 4.000 partículas y 5 materiales (diagnóstico, sin objetos por partícula)", (t) => {
     const doc = fakeDoc();
-    const { layers } = newLayers(doc);
+    const anchor = { before() {} };
+    const layers = new FluidLayers(doc, anchor, () => {});
     const n = 4000;
     const kinds = Array.from({ length: n }, (_, i) => 1 + (i % 5));
     const colors = Array.from({ length: n }, (_, i) => [((i * 7) % 20) * 12, ((i * 13) % 20) * 12, ((i * 29) % 20) * 12]);

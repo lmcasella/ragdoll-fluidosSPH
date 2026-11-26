@@ -4,7 +4,7 @@ Rediseño de los fluidos para que **se simulen** con su física y no se imiten c
 
 - **Estado:** ✅ en `main`: campo de alturas e inundación (#70, #71), flotación (#72), evaporación (#73), térmica y fases (#75), adherencia (#77), debug (estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos; #29) y los arreglos #98, #100 y #110. 🔨 sin hacer: mezcla por concentración (#76, no existe `src/fluids/mixing.js`), las capas de debug de temperatura, concentración y contactos (#78) y, de la reacción de los cuerpos sobre el agua (#74), la reacción vertical y la presión de casco.
 - **Relevamiento medido** (18/11, no versionado): scripts, tablas y videos en el scratchpad del issue. Acá se citan los números usados.
-- **Restricciones:** `lib/` no se toca (`stepWorld` sigue con 8 subpasos para los ragdolls); render con PIXI v8 con sus filtros y filtros propios como `PIXI.Filter`, sin contexto WebGL propio; el código no se comenta (solo JSDoc).
+- **Restricciones:** `lib/` no se toca (`stepWorld` sigue con 8 subpasos para los ragdolls); render en Canvas2D, sin WebGL propio; el código no se comenta (solo JSDoc).
 - **Cada parte** tiene variables con unidades, ecuaciones, módulo, qué reemplaza y criterios físicos ([14.16](#1416-criterios-de-aceptación)). `physics-analyst` aprueba el diseño antes de implementar y valida cada resultado sobre video.
 
 ## 14.1 Unidades, rebanada 2D y materiales

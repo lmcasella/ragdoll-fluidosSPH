@@ -1,13 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadGame } from "./helpers/game.js";
 
-const { FLUID } = await import("../src/combat/weapons.js");
-const { ORIGIN } = await import("../src/fluids/particleStore.js");
-
-const page = readFileSync(new URL("../index.js", import.meta.url), "utf8");
-const thresholdFilterSource = readFileSync(new URL("../src/render/thresholdFilter.js", import.meta.url), "utf8");
+const PAGE_FILES = ["../index.html", "../src/ui/layout.css", "../index.js"];
+const page = PAGE_FILES.map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
 
 /** Primer argumento de la llamada a `fn(` en `index.js`. */
 function firstArg(fn) {
@@ -16,57 +12,37 @@ function firstArg(fn) {
     return call[1];
 }
 
-/** Crea 20 gotas de agua en el aire para que aparezca una capa de fluido. */
-function spawnWater(game) {
-    const def = new Box2D.b2ParticleDef();
-    const at = new Box2D.b2Vec2(0, 0);
-    for (let k = 0; k < 20; k++) {
-        at.set_x(k * 0.1);
-        at.set_y(5);
-        def.set_position(at);
-        game.state.store.create(def, { kind: FLUID.WATER, origin: ORIGIN.SHOT });
-    }
-    Box2D.destroy(def);
-    Box2D.destroy(at);
+/** z-index de un canvas según `src/ui/layout.css`. */
+function zIndex(id) {
+    const rule = page.match(new RegExp(`#${id}\\s*\\{([^}]*)\\}`));
+    assert.ok(rule, `no hay regla CSS para #${id}`);
+    const z = rule[1].match(/z-index:\s*(\d+)/);
+    return z ? Number(z[1]) : 0;
 }
 
-/** Nombres de las capas de `scene.hud` de abajo a arriba: un sprite por capa 2D y `fluidParent` con sus capas de fluido. */
-function hudOrder(scene) {
-    const names = new Map(scene.layers.map((layer) => [layer.sprite, layer.canvas.id]));
-    return scene.hud.children.map((child) => (child === scene.fluidParent ? "fluid" : names.get(child)));
-}
-
-/** #53: el panel de debug, la mira y los golpes se dibujan por encima de las partículas, y estas por encima del nivel y los robots. */
-test("de abajo a arriba: nivel, principal, fluidos, superpuesta y panel de debug", async () => {
-    const game = await loadGame();
-    const { scene } = game.state;
-    assert.deepEqual(hudOrder(scene), ["mainLayer", "fluid", "overlayLayer", "panelLayer"]);
-    assert.deepEqual(scene.application.stage.children, [scene.world, scene.hud], "el nivel va debajo de todo lo de pantalla");
+/** #53: el HUD, la mira y los golpes se dibujan por encima de las partículas. Verificación estática del HTML. */
+test("hudCanvas tiene el z-index más alto y no captura el mouse", () => {
+    const hud = zIndex("hudCanvas");
+    assert.ok(hud > zIndex("pickupCanvas"));
+    assert.ok(zIndex("pickupCanvas") > 6);
+    assert.match(page.match(/#hudCanvas\s*\{([^}]*)\}/)[1], /pointer-events:\s*none/);
+    assert.ok(page.indexOf('id="hudCanvas"') > page.indexOf('id="pickupCanvas"'));
 });
 
 test("drawAimLaser y drawHits reciben el contexto de la capa correcta", () => {
-    assert.equal(firstArg("drawAimLaser"), "overlayCtx");
-    assert.equal(firstArg("drawHits"), "overlayCtx");
-    assert.match(page, /overlayCtx\s*=\s*scene\.overlayLayer\.ctx/);
-    assert.match(page, /panelCtx\s*=\s*scene\.panelLayer\.ctx/);
+    assert.equal(firstArg("drawAimLaser"), "pickupCtx");
+    assert.equal(firstArg("drawHits"), "pickupCtx");
+    assert.match(page, /hudCtx\s*=\s*hudCanvas\.getContext/);
+    assert.match(page, /\[canvas, pickupCanvas, hudCanvas\]/);
 });
 
-test("las capas de fluido van entre la principal y la superpuesta, con el filtro de umbral y sin desenfoque", async () => {
-    const game = await loadGame();
-    const { scene, fluidLayers } = game.state;
-    spawnWater(game);
-    game.frames(2);
-    assert.ok(fluidLayers.layers.size > 0, "hay capas de fluido");
-    assert.equal(scene.fluidParent.sortableChildren, true, "las capas de fluido se ordenan por material");
-    for (const { layer } of fluidLayers.layers.values()) {
-        assert.equal(layer.sprite.filters.length, 1);
-        assert.ok(layer.sprite.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro es el de umbral");
-    }
-    assert.doesNotMatch(thresholdFilterSource, /gaussian|blur/i);
-    assert.deepEqual(hudOrder(scene), ["mainLayer", "fluid", "overlayLayer", "panelLayer"]);
+test("las capas de fluidos van antes del canvas de recogibles, con el filtro goo y sin desenfoque", () => {
+    assert.match(page.match(/\.fluidLayer\s*\{([^}]*)\}/)[1], /filter:\s*url\("#goo"\)/);
+    assert.match(page, /new FluidLayers\(document, pickupCanvas/);
+    assert.doesNotMatch(page, /feGaussianBlur/);
 });
 
 test("la rueda de armas se dibuja después de la mira y los golpes", () => {
-    assert.ok(page.indexOf("drawWeaponWheel(") > page.indexOf("drawHits(overlayCtx"));
-    assert.ok(page.indexOf("drawHits(overlayCtx") > page.indexOf("drawAimLaser(overlayCtx"));
+    assert.ok(page.indexOf("drawWeaponWheel(") > page.indexOf("drawHits(pickupCtx"));
+    assert.ok(page.indexOf("drawHits(pickupCtx") > page.indexOf("drawAimLaser(pickupCtx"));
 });

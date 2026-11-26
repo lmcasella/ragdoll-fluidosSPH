@@ -8,9 +8,6 @@ import { Input } from "./src/input/Input.js";
 import { Bot, botConfig } from "./src/ai/bot.js";
 import { Menu, ControlsScreen, HelpScreen, PAUSE } from "./src/ui/menu.js";
 import { Camera } from "./src/render/camera.js";
-import { createScene } from "./src/render/scene.js";
-import { LevelView } from "./src/render/levelView.js";
-import { createThresholdFilter } from "./src/render/thresholdFilter.js";
 import { LEVEL, buildLevel } from "./src/level/level.js";
 import { OneWayPlatforms } from "./src/level/platforms.js";
 import { BreakablePlatforms } from "./src/level/breakable.js";
@@ -52,6 +49,7 @@ import {
     buildRenderItems,
     drawAimLaser,
     drawHits,
+    drawLevel,
     drawParticles,
     drawPickups,
     drawWater,
@@ -65,6 +63,7 @@ import {
 
 RagImporter.configure({ Box2D, PIXI });
 
+const PIXELS_PER_METER = 40;
 const LASER_RANGE = 25;
 const PLAYER_COLORS = ["#ff9933", "#33b5ff"];
 
@@ -127,25 +126,17 @@ const ROBOT_RIG = {
     defaultDamage: 0.75,
 };
 
-/** Px por metro de la geometría dibujada: la del JSON del robot, la única escala del juego (`docs/design/07-sph.md` §7.4). */
-const PIXELS_PER_METER = robotRag.json.units.pixelsPerMeter;
-
-const gameContainer = document.getElementById("gameContainer");
-const scene = await createScene({ container: gameContainer, doc: document, width: window.innerWidth, height: window.innerHeight });
-const mainCtx = scene.mainLayer.ctx;
-const overlayCtx = scene.overlayLayer.ctx;
-const panelCtx = scene.panelLayer.ctx;
-const fluidLayers = new FluidLayers({
-    doc: document,
-    parent: scene.fluidParent,
-    filter: createThresholdFilter(),
-    apply: (layerCtx) => camera.apply(layerCtx),
-});
-const levelView = new LevelView({ parent: scene.world, pixelsPerMeter: PIXELS_PER_METER });
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const pickupCanvas = document.getElementById("pickupCanvas");
+const fluidLayers = new FluidLayers(document, pickupCanvas, (layerCtx) => camera.apply(layerCtx));
+const pickupCtx = pickupCanvas.getContext("2d");
+const hudCanvas = document.getElementById("hudCanvas");
+const hudCtx = hudCanvas.getContext("2d");
 
 const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
-const hud = new Hud(document, gameContainer);
-const screens = new Screens(document, gameContainer);
+const hud = new Hud(document, document.getElementById("gameContainer"));
+const screens = new Screens(document, document.getElementById("gameContainer"));
 fetch("version.json", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : null))
     .catch(() => null)
@@ -154,9 +145,12 @@ fetch("version.json", { cache: "no-store" })
     });
 
 function resize() {
-    scene.resize(window.innerWidth, window.innerHeight);
+    for (const c of [canvas, pickupCanvas, hudCanvas]) {
+        c.width = window.innerWidth;
+        c.height = window.innerHeight;
+    }
     fluidLayers.resize(window.innerWidth, window.innerHeight);
-    camera.resize(window.innerWidth, window.innerHeight);
+    camera.resize(canvas.width, canvas.height);
 }
 resize();
 window.addEventListener("resize", resize);
@@ -673,7 +667,7 @@ function datosDebug(frameDt) {
 // Solo para las pruebas en Node (tests/helpers/game.js)
 if (globalThis.__TEST_HOOKS__) {
     globalThis.game = {
-        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, scene, levelView, camera, arrancarPartida,
+        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, arrancarPartida,
         get flood() { return flood; },
         get pickups() { return pickups; },
         get climb() { return climb; },
@@ -982,12 +976,20 @@ function loop(nowMs) {
     const scale = camera.scale;
     const bottom = camera.y - camera.viewH / (2 * scale);
 
-    for (const layer of scene.layers) layer.clear();
-    camera.apply(mainCtx);
-    camera.apply(overlayCtx);
-    camera.applyTo(scene.world);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pickupCtx.setTransform(1, 0, 0, 1, 0, 0);
+    pickupCtx.clearRect(0, 0, pickupCanvas.width, pickupCanvas.height);
+    hudCtx.setTransform(1, 0, 0, 1, 0, 0);
+    hudCtx.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+
+    camera.apply(ctx);
+    camera.apply(pickupCtx);
     const offsetY = climb ? climb.offsetY : 0;
-    levelView.update(climb ? climb.level : LEVEL, offsetY, now);
+    ctx.save();
+    ctx.translate(0, offsetY);
+    drawLevel(ctx, climb ? climb.level : LEVEL, scale, now);
+    ctx.restore();
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
     debug.mark("dibujo");
     if (debug.metaballOn) drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
@@ -997,19 +999,19 @@ function loop(nowMs) {
     }
     debug.mark("fluidos");
     players.forEach((player, k) => {
-        drawRobot(mainCtx, player, PLAYER_COLORS[k], scale, now);
+        drawRobot(ctx, player, PLAYER_COLORS[k], scale, now);
     });
-    drawWater(mainCtx, water, scale, climb ? { floor: flood.floor, bottom } : null);
-    overlayCtx.save();
-    overlayCtx.translate(0, pickups.offsetY);
-    drawPickups(overlayCtx, pickups.points, WEAPONS);
-    overlayCtx.restore();
+    drawWater(ctx, water, scale, climb ? { floor: flood.floor, bottom } : null);
+    pickupCtx.save();
+    pickupCtx.translate(0, pickups.offsetY);
+    drawPickups(pickupCtx, pickups.points, WEAPONS);
+    pickupCtx.restore();
     players.forEach((player, k) => {
-        drawAimLaser(overlayCtx, laserDe(player), PLAYER_COLORS[k], scale);
+        drawAimLaser(pickupCtx, laserDe(player), PLAYER_COLORS[k], scale);
     });
-    drawHits(overlayCtx, melee.hits, scale, now);
+    drawHits(pickupCtx, melee.hits, scale, now);
     if (debug.fluidMode !== "metaball") {
-        debug.drawPoints(overlayCtx, {
+        debug.drawPoints(pickupCtx, {
             heap: Box2D.HEAPF32,
             bytes: Box2D.HEAPU8,
             pos: Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2,
@@ -1020,7 +1022,7 @@ function loop(nowMs) {
     }
     if (debug.active) {
         debug.frame(datosDebug(frameDt));
-        debug.drawLayer(overlayCtx, scale, {
+        debug.drawLayer(pickupCtx, scale, {
             particles: {
                 heap: Box2D.HEAPF32,
                 pos: Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2,
@@ -1037,7 +1039,7 @@ function loop(nowMs) {
         if (!wheel || player.dead || owned.length === 0) return;
         const pos = player.torso.GetPosition();
         drawWeaponWheel(
-            overlayCtx,
+            pickupCtx,
             pos.get_x(),
             pos.get_y(),
             owned.map((w) => ({
@@ -1054,8 +1056,7 @@ function loop(nowMs) {
     for (const event of hud.events) if (!(cuentaMuda && event === "count")) audio.playUi(event, uiNow);
     hud.events.length = 0;
     cuentaMuda = false;
-    debug.drawPanel(panelCtx, scene.panelLayer.width, scene.panelLayer.height);
-    scene.render();
+    debug.drawPanel(hudCtx, hudCanvas.width, hudCanvas.height);
     if (match.state === "title") {
         screens.update({
             screen: SCREEN_NAMES[pantalla],
