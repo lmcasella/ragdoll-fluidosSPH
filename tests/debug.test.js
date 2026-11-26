@@ -5,7 +5,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { loadGame } from "./helpers/game.js";
 import { Debug, DEBUG_ROWS, FLUID_MODES, relativeError } from "../src/core/debug.js";
 import { ShallowWater, WATER_FIELD } from "../src/water/water.js";
@@ -196,7 +195,7 @@ test("D1 las opciones elegidas siguen activas con el menú cerrado y sus trazos 
     assert.equal(hasStats(game), false, "las estadísticas solo se ven con el menú abierto");
 });
 
-test("D5 en puntos no se dibuja el metaball y los puntos van a un canvas sin #goo; ambos dibuja las dos cosas", async () => {
+test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpuesta, sin el filtro de umbral; ambos dibuja las dos cosas", async () => {
     const game = await loadGame();
     const { debug, store, fluidLayers } = game.state;
     game.frames(5);
@@ -211,7 +210,7 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a un canvas sin #go
     Box2D.destroy(def);
     Box2D.destroy(at);
     const count = game.state.particleSystem.GetParticleCount();
-    const shown = () => [...fluidLayers.layers.values()].filter((l) => l.shown).length;
+    const shown = () => [...fluidLayers.layers.values()].filter((entry) => entry.layer.sprite.visible).length;
 
     game.frames(2);
     assert.equal(debug.fluidMode, "metaball");
@@ -235,11 +234,9 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a un canvas sin #go
     assert.ok(shown() > 0, "ambos: también el metaball");
     assert.ok(game.arcs >= arcs0 + count);
 
-    const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-    const css = readFileSync(new URL("../src/ui/layout.css", import.meta.url), "utf8");
-    assert.match(css, /\.fluidLayer\s*\{[^}]*filter:\s*url\("#goo"\)/);
-    assert.doesNotMatch(css.match(/#pickupCanvas\s*\{[^}]*\}/)[0], /filter/);
-    assert.match(html, /<canvas id="pickupCanvas">/);
+    const filtered = [...fluidLayers.layers.values()].every((entry) => entry.layer.sprite.filters.length === 1);
+    assert.ok(filtered, "las capas de fluido llevan el filtro de umbral");
+    assert.equal(game.state.scene.overlayLayer.sprite.filters, null, "la capa de los puntos va sin filtro");
 });
 
 const fake = () => {
