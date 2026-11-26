@@ -1,7 +1,7 @@
 // Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
-import { MATERIALS } from "./materials.js";
-import { shortCircuitDps } from "./ActiveRagdoll.js";
+import { MATERIALS } from "../fluids/materials.js";
+import { shortCircuitDps } from "../robot/ActiveRagdoll.js";
 
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];
@@ -187,7 +187,7 @@ export class FluidLayers {
  * Dibujo de las gotas de disparo y de lluvia: un solo círculo por partícula, de área física `area` = A_p en m²,
  * igual para toda partícula de un material (sin trazos: la velocidad y el origen no cambian el dibujo).
  * `snapReach` y `snapFullReach` (m) acercan el círculo de las partículas junto a un cuerpo a su superficie: la fila de contacto física queda a
- * 0,192 m. `kinds` se indexa por `store.kind` (ids de `FLUID` en `js/weapons.js`: 1 ácido, 2 lava, 3 miel, 4 agua, 5 piedra, con el k de la lava) y
+ * 0,192 m. `kinds` se indexa por `store.kind` (ids de `FLUID` en `src/combat/weapons.js`: 1 ácido, 2 lava, 3 miel, 4 agua, 5 piedra, con el k de la lava) y
  * dice, por material, `radiusScale` (k que multiplica a `√(A_p/π)`, con tope `maxRadius` en m). Los k se midieron con el fluido en reposo (|v| < 1 m/s) en la
  * escena estándar de `tests/helpers/invariants-run.js` (60 s, un muestreo cada 20 pasos): el k que hace que la
  * unión de círculos (con `skinPosition`) mida N · A_p, por bisección; resultado ponderado por N: agua 1,040

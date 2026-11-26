@@ -1,6 +1,6 @@
 # 5. Escenario
 
-Código: `js/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `js/camera.js`.
+Código: `src/level/level.js` (`LEVEL`, `buildLevel`, `fillPool`), `src/render/camera.js`.
 
 ## 5.1 Mapa y cámara
 
@@ -56,7 +56,7 @@ Pedido del usuario (remapeo del 18/11; issue #149, requisito del ascenso infinit
 
 ### Diseño
 
-- **Módulo nuevo `js/platforms.js`**, clase `OneWayPlatforms(world, level, players)`. Instala un `JSContactFilter` en el mundo (hay uno solo por mundo).
+- **Módulo nuevo `src/level/platforms.js`**, clase `OneWayPlatforms(world, level, players)`. Instala un `JSContactFilter` en el mundo (hay uno solo por mundo).
 - **`ShouldCollide(A, B)`:**
   - Primero reproduce la regla por defecto de Box2D con `GetFilterData` de las dos fixtures (`groupIndex` igual y distinto de 0; si no, `categoryBits`/`maskBits`). Así no cambia ningún filtro que ya use RagImporter.
   - Si un lado es una plataforma atravesable (punteros guardados al crear el nivel) y el otro es una pieza de robot, devuelve `false` cuando el par está **fantasma**: el borde inferior de la pieza (`GetAABB`) está por debajo del tope de la plataforma menos 0,05 m (viene de abajo o la está cruzando), o ese robot tiene activa una **bajada**.

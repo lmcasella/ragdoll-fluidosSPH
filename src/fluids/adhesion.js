@@ -1,6 +1,6 @@
-import { FLUID } from "./weapons.js";
+import { FLUID } from "../combat/weapons.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
-import { KIND_MATERIAL } from "./immersion.js";
+import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
 
 /** Densidad del agua (kg/m³). */
@@ -33,7 +33,7 @@ const COVER_DOT = 0.2;
 
 /**
  * Fluidos que forman película sobre un cuerpo: los que tienen miel (`X > 0`). Con la `μ` del agua o del ácido el efecto es
- * despreciable (`k ~ 1e-5`). La lava y la piedra tienen su propia viscosidad de contacto (`js/viscosity.js`).
+ * despreciable (`k ~ 1e-5`). La lava y la piedra tienen su propia viscosidad de contacto (`src/fluids/viscosity.js`).
  */
 const FILM_KINDS = new Set([FLUID.HONEY]);
 
@@ -53,7 +53,7 @@ export function mixtureViscosity(X) {
 /**
  * Adherencia de la miel a los cuerpos (docs/design/14-agua.md §14.10, #77, #214). Corre por subpaso como pseudo-instancia
  * de `stepWorld` (`update(substep)`), registrada después de `WallContact`. Lee los contactos partícula–cuerpo que calcula
- * LiquidFun (`js/contacts.js`) y, para cada partícula de miel con contacto, usa el de mayor peso: la película
+ * LiquidFun (`src/fluids/contacts.js`) y, para cada partícula de miel con contacto, usa el de mayor peso: la película
  * actúa contra cualquier cuerpo (estático, cinemático o dinámico) sobre la velocidad relativa `v_r = v_p − v_cuerpo(q)` en el
  * punto de anclaje `q` (la proyección de la partícula sobre la superficie), con la `μ_ef(X)` de `mixtureViscosity` y
  * `b = σ_w / ρ_w`:

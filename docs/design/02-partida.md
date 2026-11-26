@@ -1,6 +1,6 @@
 # 2. Loop de partida
 
-Código: `js/round.js` (`Match`), integrado en `index.html`.
+Código: `src/match/round.js` (`Match`), integrado en `index.js`.
 
 1. **Ronda** ✅: los robots aparecen en extremos opuestos del mapa. Gana el último que quede en pie.
 2. **Fin de ronda** ✅: un robot pierde cuando su vida llega a 0 o cuando cae a la pileta ([05-escenario](05-escenario.md#52-pileta)). Al quedar uno solo:
@@ -15,7 +15,7 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
    - **Cuenta regresiva:** antes de cada ronda, la primera incluida, hay 3 s en el estado `countdown` con el cartel "3", "2", "1". Sin movimiento, disparos, golpes ni peligros, y `roundTime` no avanza. Al pasar a `playing` se muestra "¡YA!" durante 0,6 s.
    - **Fin de partida:** el cartel muestra el marcador ("2 – 1") y "A revancha · Start menú". Durante el primer segundo se ignoran los botones, para que nadie pida la revancha sin querer. La revancha pasa a `countdown`; Start vuelve a `title`.
    - **Teclado de respaldo** para `start`: Escape (cualquiera de los dos jugadores). En el gamepad es el botón 9 (Start) del mapeo standard.
-   - **Menú principal** #154: la pantalla de título se amplía con un menú (`js/menu.js`, tabla `MENU`; `Menu` consume las intenciones de `Input.menu`). Una opción por fila; izquierda/derecha cambia el valor:
+   - **Menú principal** #154: la pantalla de título se amplía con un menú (`src/ui/menu.js`, tabla `MENU`; `Menu` consume las intenciones de `Input.menu`). Una opción por fila; izquierda/derecha cambia el valor:
 
      | Opción | Valores | Default |
      |---|---|---|
@@ -24,7 +24,7 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
      | Mapa | Infinito · Clásico (mapa de testing) ([16](16-ascenso.md), #25) | Infinito |
      | Jugar | — | — |
 
-     Presets de dificultad (`DIFFICULTY` en `js/bot.js`, junto a `BOT`):
+     Presets de dificultad (`DIFFICULTY` en `src/ai/bot.js`, junto a `BOT`):
 
      | Preset | Reacción (s) | Error de puntería (rad) | Defensa |
      |---|---|---|---|
@@ -37,7 +37,7 @@ Código: `js/round.js` (`Match`), integrado en `index.html`.
 
 ## 2.1 Inundación ✅ #22
 
-Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj de ronda en `Match` (`js/round.js`).
+Código: `src/water/flood.js` (`Flood`), datos en `LEVEL.flood` (`src/level/level.js`), reloj de ronda en `Match` (`src/match/round.js`).
 
 > **Solo en el mapa Clásico.** En Infinito no llueve: el agua sube desde los 5 s, sin techo, con `RisingFlood`, y el robot con el torso bajo la superficie se ahoga ([16.5](16-ascenso.md#165-agua)).
 
@@ -75,7 +75,7 @@ Código: `js/flood.js` (`Flood`), datos en `LEVEL.flood` (`js/level.js`), reloj 
 
 **`Flood.level` y `floodLevel()`.** La función pura `floodLevel(t)` devuelve el nivel de la curva: 3 m (`pool.surface`) hasta los 60 s. En cambio, el getter `Flood.level`, que usa el corte de disparos (y `Flood.surfaceAt`, que consume `DamageSystem.process`), vale **`-Infinity` mientras la inundación no empezó** (antes de los 60 s). Así la pileta, cuyo agua llega a 3 m, no moja a nadie antes de la muerte súbita.
 
-**Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye **toda** el agua del nivel (lluvia y pileta, que pudo salpicar fuera del hueco), vuelve a llenar la pileta con `fillPoolWater` y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.html`, que corre entre frames, fuera de todo callback. La marca sirve para contar y escurrir las gotas en `Flood.step`.
+**Reinicio.** Cada gota de lluvia lleva la marca **−1** en el buffer de `userData` (la pileta queda en 0). Es negativa para no chocar con los ids de disparo (1, 2, 3…) si más adelante los disparos pasan a este sistema ([07-sph](07-sph.md#72-sistemas-de-partículas)). `Flood.reset()` destruye **toda** el agua del nivel (lluvia y pileta, que pudo salpicar fuera del hueco), vuelve a llenar la pileta con `fillPoolWater` y pone en cero su contador y su caudal acumulado. Se llama desde `reiniciarRonda()` de `index.js`, que corre entre frames, fuera de todo callback. La marca sirve para contar y escurrir las gotas en `Flood.step`.
 
 **Al jugador:**
 - HUD: reloj de ronda arriba al centro; desde los 50 s, "Inundación en N"; desde los 60 s, "¡INUNDACIÓN!".

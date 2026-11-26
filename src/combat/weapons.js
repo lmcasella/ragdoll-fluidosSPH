@@ -1,6 +1,6 @@
-import { PARTICLE } from "./particles.js";
-import { ORIGIN } from "./particleStore.js";
-import { SIGMA_W } from "./materials.js";
+import { PARTICLE } from "../fluids/particles.js";
+import { ORIGIN } from "../fluids/particleStore.js";
+import { SIGMA_W } from "../fluids/materials.js";
 
 /**
  * Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
@@ -44,7 +44,7 @@ export const WEAPONS = [
 
 /**
  * Inventario inicial de cada robot: `weapon` arranca equipada y `weapons` son los tanques llenos. El resto de las
- * armas se recoge en los puntos de aparición del mapa (`js/pickups.js`).
+ * armas se recoge en los puntos de aparición del mapa (`src/level/pickups.js`).
  */
 export const LOADOUT = { weapon: FLUID.WATER, weapons: [FLUID.WATER] };
 const byId = new Map(WEAPONS.map((w) => [w.id, w]));

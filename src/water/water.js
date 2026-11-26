@@ -1,5 +1,5 @@
-import { LEVEL } from "./level.js";
-import { MATERIALS, SIGMA_W } from "./materials.js";
+import { LEVEL } from "../level/level.js";
+import { MATERIALS, SIGMA_W } from "../fluids/materials.js";
 
 /** Gravedad del mundo (m/s²), la misma de `b2World`. */
 const G = 10;

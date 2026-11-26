@@ -32,7 +32,7 @@ export const SIGMA_W = 12.0;
  * contacto directo del vapor sobre líquidos (agua y ácido) y sobre piedra: el extremo superior de los rangos de las
  * fichas 7 (10⁴–10⁶) y 37 (5·10³–2·10⁴).
  * Adherencia (#77, #214): `honey.viscosityScale` es el factor `F` de la viscosidad efectiva `μ_ef = F · μ` que usan la
- * película miel–cuerpo (`js/adhesion.js`) y los hilos miel–miel (`js/viscosity.js`). Es una similitud viscosa-gravitatoria,
+ * película miel–cuerpo (`src/fluids/adhesion.js`) y los hilos miel–miel (`src/fluids/viscosity.js`). Es una similitud viscosa-gravitatoria,
  * una aproximación nombrada: con partículas de 9 cm la miel real escurre y se desprende en ~0,02 s, y `F = 100` iguala a esa
  * escala los tiempos de escurrido y de desprendimiento de una película real de 2–3 mm (inestabilidad de Rayleigh–Taylor de
  * película, Fermigier et al. 1992).
@@ -92,7 +92,7 @@ export const K_MU = 4 * Math.PI;
  * fila de esta tabla. Hoy son las de las fases (docs/design/14-agua.md §14.8, #75 y #112): `solidify` (la lava sin
  * entalpía de fusión pasa a piedra), `remelt` (la piedra que supera `solidus + L_f` vuelve a lava), `boil` (el agua
  * que llega a `e_v` pasa a vapor) y `condense` (el vapor que baja a `e_l` vuelve a agua); las decide la entalpía de
- * la partícula, en `js/thermal.js`.
+ * la partícula, en `src/fluids/thermal.js`.
  */
 export const REACTIONS = [
     { id: "solidify", from: { lava: 1 }, to: { stone: 1 } },

@@ -1,6 +1,6 @@
 # 3. Robots
 
-Código: `js/ActiveRagdoll.js` (un jugador), rig `ROBOT_RIG` en `index.html`, modelo `assets/robot.rag.json` (13 cuerpos, clips `walk`, `jump`, `dead`, `punch`, `aim`, `run_2`).
+Código: `src/robot/ActiveRagdoll.js` (un jugador), rig `ROBOT_RIG` en `index.js`, modelo `assets/robot.rag.json` (13 cuerpos, clips `walk`, `jump`, `dead`, `punch`, `aim`, `run_2`).
 
 ✅ #104: el modelo pasa al rig v5 (mismos cuerpos y fixtures, articulaciones renombradas y 19 clips) con combos, bloqueo, roll y estados de salto. Diseño completo en [3.7](#37-rig-v5-combos-bloqueo-roll-y-estados-de-salto--104); las secciones de abajo describen lo que hay hoy en `main` y señalan qué reemplaza #104.
 
@@ -10,14 +10,14 @@ Código: `js/ActiveRagdoll.js` (un jugador), rig `ROBOT_RIG` en `index.html`, mo
 |---|---|---|
 | Caminar | Fija la velocidad horizontal de la raíz. Sin input, frena ×0,85 por paso. Pegado (miel, ✅ #41): frena ×0,5 (hoy, con miel, ×0,95) | 6 m/s; pegado 0,6 m/s (`STICKY.speed` 0,1; hoy 3 con miel). Medido: el torso avanza 0,74 m en 1 s con el stick (el clip de caminar aporta ~0,64 m/s aun con `speed` en 0), 0,19 × lo que sin miel |
 | Saltar (dirección arriba; ✅ con el remapeo: A, intención `jump`, [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)) | Solo apoyado: piso por raycast desde los pies ([08-raycast](08-raycast.md)). Se aplica la velocidad a **todos** los cuerpos | 9 m/s (≈ 4 m de altura); pegado 2,7 m/s (`STICKY.jump` 0,3) con 2 g, ≈ 0,18 m (hoy 3 m/s con miel); hace falta estar apoyado 5 pasos seguidos |
-| Pegado (miel), **retirado**: la miel frena por física ([14-agua](14-agua.md)) | Historia: estado `stickyTimer` (s), renovado por `stick()` cada paso que toca miel y 0,3 s después. Suma gravedad extra a todas las piezas | `STICKY` en `js/ActiveRagdoll.js`: `speed` 0,1, `brake` 0,5, `jump` 0,3, `down` 10 m/s², `grace` 0,3 s. Reemplaza `honeyTimer`. Regla en [04-fluidos](04-fluidos.md#miel-pegajosa-regla-compartida--41) |
+| Pegado (miel), **retirado**: la miel frena por física ([14-agua](14-agua.md)) | Historia: estado `stickyTimer` (s), renovado por `stick()` cada paso que toca miel y 0,3 s después. Suma gravedad extra a todas las piezas | `STICKY` en `src/robot/ActiveRagdoll.js`: `speed` 0,1, `brake` 0,5, `jump` 0,3, `down` 10 m/s², `grace` 0,3 s. Reemplaza `honeyTimer`. Regla en [04-fluidos](04-fluidos.md#miel-pegajosa-regla-compartida--41) |
 | Girar | Al cambiar el lado de la mira, se vuelve a generar el ragdoll espejado (`flipX`), conservando posición, velocidades y estado. RagImporter no permite espejar una instancia viva | — |
-| Caminar hacia atrás | Si se camina en contra de la mira, se reproduce `walk_back`: una copia de `walk` con las claves invertidas, generada al cargar (`js/clips.js`) | Provisorio hasta Gann4Life/RagAssembler2D#231 |
+| Caminar hacia atrás | Si se camina en contra de la mira, se reproduce `walk_back`: una copia de `walk` con las claves invertidas, generada al cargar (`src/robot/clips.js`) | Provisorio hasta Gann4Life/RagAssembler2D#231 |
 | Apuntar | El hombro (`joint_11`) gira para que **la línea del cañón** pase por el objetivo (corrige el paralaje). El codo queda en reposo y el override va con fuerza 1, así que ningún clip mueve la cadena del arma | Error medido: 0,3–0,9° quieto, ~4,5° de media caminando, ≤ 12° en el salto (✅ #57, ver abajo). Exacto: #8 |
 | Animación | Máquina de estados: `dead` > `punch` > `jump` > `walk` / `walk_back` > reposo. Los cambios son sin fundido (la librería aún no los tiene). ✅ #104 la reemplaza por la máquina de [3.7.3](#373-máquina-de-estados-de-clips) | — |
 | Velocidad del clip de caminar ✅ #58 | Una vez por paso fijo, `play(clip, { speed })` con \|vx\| del torso / `WALK_ANIM.refSpeed`, acotada a `[minSpeed, maxSpeed]` y suavizada (`smoothing`); la guarda `animSpeed` del robot | `WALK_ANIM` = `refSpeed` 5,1 m/s (antes 4,7; el \|vx\| sostenido al caminar a 6 m/s pedidos), `minSpeed` 0,1, `maxSpeed` 1,25, `smoothing` 0,1. Medido (`tests/walk-anim.test.js`): normal ≈ 1 (0,97 con \|vx\| 4,9 m/s); pegado ≈ 0,1 (mínimo); salto máximo entre pasos 0,026 |
 
-**Apuntar en el salto ✅ #57.** Causa medida: el clip `jump` trae claves de hombro y codo (`joint_11`/`joint_11_copy` llegan a 2,94 y 2,42 rad en t = 0,3 s, el brazo "tirado hacia arriba"). El override de mira gana en ángulo y velocidad, pero RagImporter suma `shortestDelta(clip, override)` al ángulo del clip sin normalizar: si el clip y la mira difieren más de π (mira abajo, por ejemplo −0,46 rad contra 2,94), el motor recibe un error de ~2π y, como el hombro no tiene límites, da la vuelta casi completa por el otro lado. Solución en el juego: `withoutJointTracks` (`js/clips.js`) quita al cargar las pistas de `aimJoints` y `aimHold` del clip `jump`; las piernas y el torso conservan la animación. No se tocó `lib/` ni el rig. El impulso de 9 m/s a todas las piezas se mantiene: es lo que hace saltar al robot (sin el de los brazos, el torso sube 1,9 m en vez de 4,0).
+**Apuntar en el salto ✅ #57.** Causa medida: el clip `jump` trae claves de hombro y codo (`joint_11`/`joint_11_copy` llegan a 2,94 y 2,42 rad en t = 0,3 s, el brazo "tirado hacia arriba"). El override de mira gana en ángulo y velocidad, pero RagImporter suma `shortestDelta(clip, override)` al ángulo del clip sin normalizar: si el clip y la mira difieren más de π (mira abajo, por ejemplo −0,46 rad contra 2,94), el motor recibe un error de ~2π y, como el hombro no tiene límites, da la vuelta casi completa por el otro lado. Solución en el juego: `withoutJointTracks` (`src/robot/clips.js`) quita al cargar las pistas de `aimJoints` y `aimHold` del clip `jump`; las piernas y el torso conservan la animación. No se tocó `lib/` ni el rig. El impulso de 9 m/s a todas las piezas se mantiene: es lo que hace saltar al robot (sin el de los brazos, el torso sube 1,9 m en vez de 4,0).
 
 | Mira (Y arriba) | Error medio en el aire, antes → después | Error máximo, antes → después | Subida del torso, antes → después |
 |---|---|---|---|
@@ -47,7 +47,7 @@ Propuesta para el robot, sin urgencia (no hace falta si el juego quita las pista
 
 ## 3.3 Daño ✅
 
-**Una sola barra de vida (100)**, pero el daño entra por partes del cuerpo (`js/damage.js`):
+**Una sola barra de vida (100)**, pero el daño entra por partes del cuerpo (`src/combat/damage.js`):
 
 | Parte | Multiplicador |
 |---|---|
@@ -164,7 +164,7 @@ Diseño mínimo ("hacerse el muerto", Y, intención `ragdoll`):
 - **Estado nuevo** `ragdoll` en la máquina de clips de `ActiveRagdoll`, con prioridad `dead` > `ragdoll` > `punch` > `jump` > `walk` (con #104: `dead` > `ragdoll` > `reaction` > el resto de [3.7.3](#373-máquina-de-estados-de-clips)). Reproduce el clip `dead` (ya existe y deja al robot flojo) sin bajar la vida, y suelta los overrides de mira. No escribe motores ni toca la librería: usa el mismo mecanismo que la muerte.
 - **Entrada y salida:** Y entra; otro Y, o `RAGDOLL.maxTime` (3 s), sale. Después hay `RAGDOLL.cooldown` (2 s). Sin control mientras dura.
 - **Tacle:** mientras dura, si una pieza del robot flojo choca al rival con velocidad de acercamiento sobre la normal ≥ `RAGDOLL.tackleSpeed` (6 m/s, menor que los 11 m/s del impacto general), el rival recibe `(v − 6) × 2` × multiplicador de la parte. Va por la misma cola de `BeginContact` de `DamageSystem`. Quien está flojo recibe el daño de impacto normal.
-- Datos `RAGDOLL` en `js/ActiveRagdoll.js`.
+- Datos `RAGDOLL` en `src/robot/ActiveRagdoll.js`.
 
 ## 3.7 Rig v5, combos, bloqueo, roll y estados de salto ✅ #104
 
@@ -216,17 +216,17 @@ El arma va en el brazo **trasero** (`back_*`): `b_3` cuelga de `b_13` por `j_10`
 
 | Lugar | Qué referencia | Cambio |
 |---|---|---|
-| `index.html:166-167` | `AIM_JOINTS = ["joint_11", "joint_11_copy"]`, `AIM_HOLD = ["joint_10", "joint_10_copy"]` | `["back_shoulder", "front_shoulder"]` y `["back_elbow", "front_elbow"]` |
-| `index.html:169` | `withoutJointTracks(json, ["jump"], …)` y `withReversedClip(…, "walk", "walk_back")` | Lista de clips sin pistas de mira ([3.7.3](#373-máquina-de-estados-de-clips)) y `withReversedClip(…, "roll", "roll_back")` |
-| `index.html:176-182` | `ROBOT_RIG.clips` (`walk`, `walkBack`, `jump`, `dead`, `punch`) | Tabla de claves de [3.7.3](#373-máquina-de-estados-de-clips); se suman `arms` y `melee` |
-| `index.html:309-358` | `golpear` y constantes `PUNCH_*` | Se mueve a `js/melee.js` ([3.7.7](#377-ubicación-en-los-patrones)) |
-| `js/ActiveRagdoll.js:12-15`, `81-120`, `434-448` | `PUNCH_TIME`, `PUNCH_ACTIVE`, `PUNCH_COOLDOWN`, `punch()`, estados `"punch"`, `"jump"` | Máquina de [3.7.3](#373-máquina-de-estados-de-clips) |
-| `js/ActiveRagdoll.js:86`, `315`, `318` | `rig.aimJoints` / `rig.aimHold` | Ninguno (indirecto) |
-| `js/clips.js:38` | Filtra por `name` | Ninguno (genérico) |
+| `index.js:96-97` | `AIM_JOINTS = ["joint_11", "joint_11_copy"]`, `AIM_HOLD = ["joint_10", "joint_10_copy"]` | `["back_shoulder", "front_shoulder"]` y `["back_elbow", "front_elbow"]` |
+| `index.js:99` | `withoutJointTracks(json, ["jump"], …)` y `withReversedClip(…, "walk", "walk_back")` | Lista de clips sin pistas de mira ([3.7.3](#373-máquina-de-estados-de-clips)) y `withReversedClip(…, "roll", "roll_back")` |
+| `index.js:106-112` | `ROBOT_RIG.clips` (`walk`, `walkBack`, `jump`, `dead`, `punch`) | Tabla de claves de [3.7.3](#373-máquina-de-estados-de-clips); se suman `arms` y `melee` |
+| `index.js:239-288` | `golpear` y constantes `PUNCH_*` | Se mueve a `src/combat/melee.js` ([3.7.7](#377-ubicación-en-los-patrones)) |
+| `src/robot/ActiveRagdoll.js:12-15`, `81-120`, `434-448` | `PUNCH_TIME`, `PUNCH_ACTIVE`, `PUNCH_COOLDOWN`, `punch()`, estados `"punch"`, `"jump"` | Máquina de [3.7.3](#373-máquina-de-estados-de-clips) |
+| `src/robot/ActiveRagdoll.js:86`, `315`, `318` | `rig.aimJoints` / `rig.aimHold` | Ninguno (indirecto) |
+| `src/robot/clips.js:38` | Filtra por `name` | Ninguno (genérico) |
 | `tests/aim-jump.test.js:84-88` | Rig real con `joint_10…`, `joint_11…` y el clip `jump` | Nombres v5 y la lista nueva de clips |
 | `tests/punch.test.js:39-45` | `clipState === "punch"`, `isPunching()` | Pasa a medir el combo (R6, R7) |
 | `tests/walk-anim.test.js:37` | Clip `walk` | Mismo nombre; se vuelve a medir `refSpeed` |
-| `js/render.js`, `js/damage.js`, `js/grapple.js` (🔨) | Solo `id` de cuerpos | Ninguno |
+| `src/render/render.js`, `src/combat/damage.js`, `js/grapple.js` (🔨) | Solo `id` de cuerpos | Ninguno |
 
 ### 3.7.2 Masas y fixtures v4 vs v5
 
@@ -276,7 +276,7 @@ Vive en `ActiveRagdoll` (patrón "máquinas de estado"): un solo método resuelv
 - **Giro durante el roll:** el giro regenera el ragdoll en la pose de reposo; a mitad de una vuelta perdería la rotación. Mientras dura el roll, la raíz de composición **difiere** el giro hasta que termina. En los demás estados el giro sigue como hoy.
 - **`copyStateFrom`** copia también el estado de la máquina (estado, instante de entrada, ataque en curso, golpe del combo en espera, conectado, enfriamientos, `fallHigh` trabado), para que un giro no corte un combo ni una reacción.
 
-**Datos** (exportados de `js/ActiveRagdoll.js`, como `STICKY` y `WALK_ANIM`):
+**Datos** (exportados de `src/robot/ActiveRagdoll.js`, como `STICKY` y `WALK_ANIM`):
 
 | Tabla | Clave | Valor | Motivo |
 |---|---|---|---|
@@ -291,7 +291,7 @@ Vive en `ActiveRagdoll` (patrón "máquinas de estado"): un solo método resuelv
 
 ### 3.7.4 Ataques melee (datos en `MELEE`)
 
-Tabla `MELEE` en el módulo nuevo `js/melee.js`. La raíz de composición la pasa a `ActiveRagdoll` dentro del rig (`ROBOT_RIG.melee`), así `ActiveRagdoll` no importa el módulo (lo mismo que con `WEAPONS`).
+Tabla `MELEE` en el módulo nuevo `src/combat/melee.js`. La raíz de composición la pasa a `ActiveRagdoll` dentro del rig (`ROBOT_RIG.melee`), así `ActiveRagdoll` no importa el módulo (lo mismo que con `WEAPONS`).
 
 | Ataque | Clip | `duration` | Ventana activa | Origen de los rayos | Dirección base | Alcance | Abanico | Daño | Empuje (lado, arriba) | Aturdimiento | `reaction` |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -342,7 +342,7 @@ Además, para todos: impulso de 5 N·s en el punto de impacto (como hoy), daño 
   - al atacante no le pasa nada: ni retroceso ni aturdimiento (decidido el 19/11 para la entrega; premiar el bloqueo queda como idea de pulido).
 - **Rotura de guardia (#136):** un golpe cuya fila de `MELEE` tiene `breaksGuard: true` (solo `combo3`) que cumple las dos condiciones de arriba no queda bloqueado: sin daño, el receptor sale de `block`, queda aturdido `MELEE.guardBreakStun` = 0,7 s (no puede volver a `block` aunque mantenga LT, porque el bloqueo exige no estar aturdido), no recibe el `push` de la fila (el código no lo aplica), sí el impulso en el punto y la reacción de la fila; el ataque cuenta como conectado. Evento de feedback `blockBreak` (sonido `block_break_1..3`, sin `hit`, `hurt` ni `block`) y `kind: "blockBreak"` en `hits`: 8 líneas radiales de 0,15 a 0,8 m en 0,35 s, naranja.
 - **Qué no frena:** chorros de fluido, quemaduras, cortocircuito, pileta, impacto fuerte por `BeginContact` (caídas, choques) y el gancho.
-- **Feedback:** `Melee` agrega a su lista `hits` un evento `{ x, y, time, kind }` con `kind` = `"hit"`, `"block"` o `"blockBreak"` (#136: como `"block"`, pero 8 líneas de 0,15 a 0,8 m en 0,35 s, en naranja). `render.js` (`drawHits`) dibuja `"hit"` como hoy (destello blanco de 0,2 s) y `"block"` como 6 líneas radiales que salen del punto de contacto, de 0,15 a 0,45 m, en 0,25 s, en blanco azulado. Datos `HIT_FX` en `render.js`. La lista reemplaza a `golpes` de `index.html`.
+- **Feedback:** `Melee` agrega a su lista `hits` un evento `{ x, y, time, kind }` con `kind` = `"hit"`, `"block"` o `"blockBreak"` (#136: como `"block"`, pero 8 líneas de 0,15 a 0,8 m en 0,35 s, en naranja). `render.js` (`drawHits`) dibuja `"hit"` como hoy (destello blanco de 0,2 s) y `"block"` como 6 líneas radiales que salen del punto de contacto, de 0,15 a 0,45 m, en 0,25 s, en blanco azulado. Datos `HIT_FX` en `render.js`. La lista reemplaza a `golpes` de `index.js`.
 
 ### 3.7.6 Roll
 
@@ -356,15 +356,15 @@ Además, para todos: impulso de 5 N·s en el punto de impacto (como hoy), daño 
 
 | Patrón | Cómo se aplica |
 |---|---|
-| Sistemas por módulo | **Módulo nuevo `js/melee.js`** (`Melee`, datos `MELEE`): resolución de los ataques melee (rayos, daño, bloqueo, empuje, reacción y feedback). Un motivo de cambio: el combate cuerpo a cuerpo. Sale de `index.html` (`golpear` y las constantes `PUNCH_*`). Constructor `Melee(raycaster, damage, config = MELEE)`; `damage` solo para `ownerOf`. `resolve(players, now)` una vez por paso fijo después de `stepWorld` (donde hoy corre `golpear`). Expone `hits` (eventos de feedback) y `reset()` (ronda nueva). **No importa nada**: recibe el raycaster, el sistema de daño y los jugadores |
+| Sistemas por módulo | **Módulo nuevo `src/combat/melee.js`** (`Melee`, datos `MELEE`): resolución de los ataques melee (rayos, daño, bloqueo, empuje, reacción y feedback). Un motivo de cambio: el combate cuerpo a cuerpo. Sale de `index.js` (`golpear` y las constantes `PUNCH_*`). Constructor `Melee(raycaster, damage, config = MELEE)`; `damage` solo para `ownerOf`. `resolve(players, now)` una vez por paso fijo después de `stepWorld` (donde hoy corre `golpear`). Expone `hits` (eventos de feedback) y `reset()` (ronda nueva). **No importa nada**: recibe el raycaster, el sistema de daño y los jugadores |
 | Máquinas de estado | La de clips de `ActiveRagdoll` ([3.7.3](#373-máquina-de-estados-de-clips)): estados y transiciones en un solo método. `ActiveRagdoll` decide **qué** ataque está activo y en qué ventana (`activeAttack(now)` devuelve la fila de `MELEE` o `null`); `Melee` decide **qué pasa** al conectar y llama a `victim.hit(…)` / `victim.blocked(…)`, que fijan la reacción |
 | Datos en tablas | `MELEE` (ataques, combo), `AIR` y `ROLL`; claves de clips y `arms` en `ROBOT_RIG`. Un ataque nuevo es una fila de `MELEE` y una clave de clip |
 | Intención, no dispositivo | `Input` suma `block`, `roll` y `kick` ([10.2](10-controles.md#102-intenciones-de-input)); `ActiveRagdoll` no lee dispositivos |
 | Paso fijo | `roll` es movimiento: se aplica en `move()` una vez por paso y usa el mismo flanco pendiente que `jump` (`jumpPending` pasa a guardar también `roll`). `punch` y `kick` son golpes: se aceptan una vez por frame (como hoy `player.punch(now)`). La resolución de los rayos, una vez por paso después de `stepWorld` |
 | Juntar durante el paso, actuar después | El melee no usa callbacks de Box2D: son rayos después de `stepWorld`. Los eventos de feedback se encolan en `Melee.hits` y los consume `render.js` al dibujar |
-| Memoria nativa | `Melee` crea en el constructor los dos `b2Vec2` de trabajo que hoy crea `index.html` (impulso y punto) y los libera en `dispose()`. Nada nativo por golpe |
+| Memoria nativa | `Melee` crea en el constructor los dos `b2Vec2` de trabajo que hoy crea `index.js` (impulso y punto) y los libera en `dispose()`. Nada nativo por golpe |
 | Contrato de RagImporter | Solo `play`, `stop`, `setJointAngle`, `clearJointOverride` y velocidades de cuerpos, como hoy. No se escriben motores ni se tocan joints. `lib/` no cambia |
-| Raíz de composición | `index.html` crea `Melee`, arma `ROBOT_RIG` (claves, `arms`, `melee`), difiere el giro durante el roll, pasa `!player.armsBusy` al emisor y `melee.hits` a `drawHits` |
+| Raíz de composición | `index.js` crea `Melee`, arma `ROBOT_RIG` (claves, `arms`, `melee`), difiere el giro durante el roll, pasa `!player.armsBusy` al emisor y `melee.hits` a `drawHits` |
 
 ### 3.7.8 Verificado en la librería
 

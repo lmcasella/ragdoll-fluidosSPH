@@ -562,7 +562,7 @@ Sin química. Contacto mecánico y eléctrico (acero contra acero conduce). Si l
 
 ## 15.5 Lo que el modelo actual no representa
 
-Comparación con el código en `main` (`js/materials.js`, `js/immersion.js`, `js/water.js`) y con el diseño de [14](14-agua.md). Es una lista de diferencias con la física, no de tareas: qué se lleva al juego lo decide el diseño.
+Comparación con el código en `main` (`src/fluids/materials.js`, `src/water/immersion.js`, `src/water/water.js`) y con el diseño de [14](14-agua.md). Es una lista de diferencias con la física, no de tareas: qué se lleva al juego lo decide el diseño.
 
 **Campo de agua y mezcla**
 1. ✅ **La miel en el campo** (resuelto por #110). La miel ya no se absorbe: es inmiscible con el campo, se hunde como partícula y forma una capa en el fondo ([fichas 4](#4-agua--miel) y [12](#12-agua-campo--miel)). Lo que no se representa es la disolución por agitación (#76). El campo conserva el trazador `M` sin fuente y su efecto sobre `ρ` y `μ` (`densityAt`, fricción con `ν(X)`).

@@ -1,6 +1,6 @@
 # 8. Raycast
 
-Código: `js/raycast.js` (`Raycaster`, uno por mundo con `getRaycaster`), sobre `world.RayCast` con `JSRayCastCallback` (*verificado*). Usa un solo callback y vectores reutilizados: no reserva memoria nativa por rayo.
+Código: `src/core/raycast.js` (`Raycaster`, uno por mundo con `getRaycaster`), sobre `world.RayCast` con `JSRayCastCallback` (*verificado*). Usa un solo callback y vectores reutilizados: no reserva memoria nativa por rayo.
 
 El valor que devuelve el callback define el modo, como enseña la materia:
 

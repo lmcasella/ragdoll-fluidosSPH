@@ -11,8 +11,8 @@
  * hallado difiere del esperado se avisa una vez con `console.warn`; si no se encuentra, `failed` queda en
  * verdadero y quien depende de los contactos se desactiva. El puntero `data` se relee en cada lectura.
  * No crea objetos nativos. `weights` suma pesos por partícula; `pairs` y `bodies` copian los contactos a arreglos
- * propios (`pairA/B/W`, `bodyIndex/Ptr/W/Nx/Ny`) para quien necesite recorrerlos uno por uno (`js/thermal.js`,
- * `js/viscosity.js`, `js/adhesion.js`).
+ * propios (`pairA/B/W`, `bodyIndex/Ptr/W/Nx/Ny`) para quien necesite recorrerlos uno por uno (`src/fluids/thermal.js`,
+ * `src/fluids/viscosity.js`, `src/fluids/adhesion.js`).
  */
 
 const SEARCH_WORDS = 600;

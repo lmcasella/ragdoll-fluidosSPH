@@ -3,7 +3,7 @@ import { ICONS, WEAPON_ICONS, icon, padGlyph, keyGlyph, hint, make, html, flag, 
 
 /**
  * Menú principal, pantalla de controles y asignación de controles en HTML y CSS (#216, docs/design/18-interfaz.md
- * §3.1 a §3.3, estilos en `js/screens.css`). Módulo de vista: solo refleja el estado que le pasa `index.html` (`Menu.view`,
+ * §3.1 a §3.3, estilos en `src/ui/screens.css`). Módulo de vista: solo refleja el estado que le pasa `index.js` (`Menu.view`,
  * `HelpScreen.view`, `ControlsScreen.view`) y nunca decide ni lee dispositivos. Medidas en px de referencia sobre 1920 × 1080.
  */
 

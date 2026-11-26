@@ -1,8 +1,8 @@
-import { MATERIALS, SIGMA_W, K_MU } from "./materials.js";
-import { bodyShapes } from "./bodyShapes.js";
-import { FLUID, weaponById, particleFlags } from "./weapons.js";
-import { ORIGIN } from "./particleStore.js";
-import { seededRandom } from "./bot.js";
+import { MATERIALS, SIGMA_W, K_MU } from "../fluids/materials.js";
+import { bodyShapes } from "../fluids/bodyShapes.js";
+import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
+import { ORIGIN } from "../fluids/particleStore.js";
+import { seededRandom } from "../ai/bot.js";
 
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
@@ -83,7 +83,7 @@ function clip(src, n, dst, a, b, c) {
  *
  * No modela la reacción vertical sobre el campo ni la masa agregada. `config.dragScale` y `config.viscousK` en 0 apagan el
  * arrastre de presión y el viscoso. Cada pieza expone `area` (suma de las áreas de sus fixtures) y `submerged` (área
- * sumergida del último `apply`), en m², y, para el monitor de `js/debug.js`, `cx` y `cy` (centro de masa en el mundo, m),
+ * sumergida del último `apply`), en m², y, para el monitor de `src/core/debug.js`, `cx` y `cy` (centro de masa en el mundo, m),
  * `buoyancy` y `drag` (fuerza media del último paso, N, `{ x, y }`: el arrastre incluye el viscoso y el tope). Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
  */
 export class Buoyancy {

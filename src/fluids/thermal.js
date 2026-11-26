@@ -1,6 +1,6 @@
 import { MATERIALS, REACTIONS, SIGMA_W } from "./materials.js";
-import { KIND_MATERIAL } from "./immersion.js";
-import { FLUID } from "./weapons.js";
+import { KIND_MATERIAL } from "../water/immersion.js";
+import { FLUID } from "../combat/weapons.js";
 import { PARTICLE } from "./particles.js";
 import { Contacts } from "./contacts.js";
 import { ORIGIN, SINK } from "./particleStore.js";
@@ -63,7 +63,7 @@ function seriesCapacity(a, b) {
  * fusión a `solidus` entre `e_s` y `e_s + L_f` y líquido por encima con `c_lava`. La masa de cada partícula es
  * `SG · σ_w · A_p` con `A_p = (1,5 r)²` del radio del sistema.
  *
- * Por paso: (1) intercambio entre vecinas por los contactos de `js/contacts.js`, `Q = K w ΔT` aplicado como suma de
+ * Por paso: (1) intercambio entre vecinas por los contactos de `src/fluids/contacts.js`, `Q = K w ΔT` aplicado como suma de
  * pares antisimétrica, con el limitador de igualar temperaturas dividido por el número de vecinas (basalto contra
  * otro fluido `K = h_b D b`; entre basaltos conducción `k b`; entre fluidos de la misma familia `b (k + ρ c C_s |Δv| D)`,
  * con `C_s` en `MATERIALS.heat`); (2) basalto sumergido (`immersion.submerged`) contra su columna, `h_b P b`, con el
@@ -110,7 +110,7 @@ function seriesCapacity(a, b) {
  * columnas sin salir de ninguna partícula. No cuenta lo que se destruye con otra causa que la absorción o la
  * evaporación (recorte, fuera del mundo, daño).
  *
- * Lo que dejan para `js/viscosity.js`: `temp[i]`, `slotOf[i]` y `kindOf[i]` por índice de partícula del último
+ * Lo que dejan para `src/fluids/viscosity.js`: `temp[i]`, `slotOf[i]` y `kindOf[i]` por índice de partícula del último
  * paso, `walled[slot]` (piedra inmóvil) y los contactos (`contacts.pairA/B/W`, `stats.pairs`).
  */
 export class Thermal {

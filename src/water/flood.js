@@ -1,9 +1,9 @@
-import { LEVEL } from "./level.js";
-import { FLUID, weaponById, particleFlags } from "./weapons.js";
-import { ORIGIN } from "./particleStore.js";
-import { SIGMA_W } from "./materials.js";
-import { seededRandom } from "./bot.js";
-import { CLIMB, halfWidth, stageOf } from "./climb.js";
+import { LEVEL } from "../level/level.js";
+import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
+import { ORIGIN } from "../fluids/particleStore.js";
+import { SIGMA_W } from "../fluids/materials.js";
+import { seededRandom } from "../ai/bot.js";
+import { CLIMB, halfWidth, stageOf } from "../level/climb.js";
 
 /** Paso (m) de integración del ancho libre. */
 const SLICE = 0.05;

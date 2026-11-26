@@ -2,7 +2,7 @@ import { ICONS, WEAPON_ICONS, icon, padGlyph, keyGlyph, make, text, html, style,
 
 /**
  * HUD de partida en HTML y CSS sobre el canvas (#216, docs/design/18-interfaz.md §3.4 a §3.10, estilos en
- * `js/hud.css`). Módulo hoja: no importa ningún sistema del juego; `index.html` le pasa datos planos una vez por frame
+ * `src/ui/hud.css`). Módulo hoja: no importa ningún sistema del juego; `index.js` le pasa datos planos una vez por frame
  * (ver `Hud.update`). Los elementos se crean una sola vez y por frame solo se escriben los textos, anchos y clases que
  * cambiaron. Medidas en px de referencia sobre 1920 × 1080 (en el CSS, `--u`); solo las posiciones sobre los robots
  * llegan en píxeles de pantalla.

@@ -32,7 +32,7 @@ El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego toda
 
 ## 10.2 Intenciones de `Input`
 
-`Input` (`js/Input.js`) sigue siendo el único que lee dispositivos (patrón "intención, no dispositivo"). Estado por jugador en cada `poll()`:
+`Input` (`src/input/Input.js`) sigue siendo el único que lee dispositivos (patrón "intención, no dispositivo"). Estado por jugador en cada `poll()`:
 
 | Campo | Tipo | Cuándo es verdadero o qué trae |
 |---|---|---|
@@ -66,7 +66,7 @@ El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego toda
 - ✅ #104: `block` es un O entre LT y la tecla; soltar la tecla no corta el bloqueo si LT sigue apretado. `roll` y `kick` se derivan después de combinar todas las fuentes, como `drop`: LT del gamepad + W del teclado también rueda.
 - ✅ #104: el flanco de `roll` se guarda hasta el próximo paso fijo con el mismo mecanismo que `jump` y `drop` (`jumpPending`), porque es movimiento ([03 §3.7.7](03-robots.md#377-ubicación-en-los-patrones)).
 
-**Conflictos revisados (#104):** LT (`buttons[6]`) no tenía uso. `ShiftLeft` y `ShiftRight` no tienen otro uso en esta tabla ni en `KEYBOARD_LAYOUT` (`js/Input.js`). S + F no choca con `drop` (S + W); Shift + W es `roll` y gana sobre `jump`. Y queda reservado para el modo ragdoll (M5). **Bloqueo en Shift:** el bloqueo de teclado es Shift, izquierdo o derecho (`KEYBOARD_LAYOUT` y `js/menu.js`).
+**Conflictos revisados (#104):** LT (`buttons[6]`) no tenía uso. `ShiftLeft` y `ShiftRight` no tienen otro uso en esta tabla ni en `KEYBOARD_LAYOUT` (`src/input/Input.js`). S + F no choca con `drop` (S + W); Shift + W es `roll` y gana sobre `jump`. Y queda reservado para el modo ragdoll (M5). **Bloqueo en Shift:** el bloqueo de teclado es Shift, izquierdo o derecho (`KEYBOARD_LAYOUT` y `src/ui/menu.js`).
 
 ## 10.3 Disparo mantenido ✅ #13
 
@@ -74,7 +74,7 @@ El remapeo base está hecho ✅; el gancho 🔨 no tiene efecto en el juego toda
 
 | Campo | Tipo | Quién lo usa |
 |---|---|---|
-| `fire` | **Mantenido**: verdadero en cada `poll()` mientras alguna fuente lo tenga apretado | Emisor de chorros (`js/weapons.js`) |
+| `fire` | **Mantenido**: verdadero en cada `poll()` mientras alguna fuente lo tenga apretado | Emisor de chorros (`src/combat/weapons.js`) |
 | `action` | **Flanco**: verdadero solo en el `poll()` en que se apretó | `Match` (revancha). No dispara |
 
 - **Fuentes de `fire`:** con el remapeo, solo `buttons[7]` (RT) del gamepad, porque A pasa a ser salto. También la tecla de disparo en `held` y, solo para el J1, el botón izquierdo del mouse (`mousedown` → verdadero, `mouseup` → falso; `blur` lo limpia).

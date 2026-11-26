@@ -1,5 +1,5 @@
 import { MATERIALS, SIGMA_W } from "./materials.js";
-import { KIND_MATERIAL } from "./immersion.js";
+import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
 import { SINK } from "./particleStore.js";
 
@@ -26,7 +26,7 @@ const KIND_SLOTS = 256;
  * `stats`: `enabled`, `evaporated` (partículas destruidas por `φ ≥ 1`), `mass` (kg de agua pasados al aire) y
  * `latent` (J, negativo: el calor latente `−L_v m dφ` que aporta el aire y debe sumarse a `E_perdida` cuando el
  * monitor exista) y `vapor` (J que lleva el vapor, `m dφ (e + L_v)` con la entalpía `e` de la partícula al evaporar,
- * solo con `store.thermal`: es el término `Σ m φ e_v` del monitor de energía de `js/thermal.js`), más `contacts`
+ * solo con `store.thermal`: es el término `Σ m φ e_v` del monitor de energía de `src/fluids/thermal.js`), más `contacts`
  * (offsets hallados por `Contacts`).
  */
 export class Evaporation {

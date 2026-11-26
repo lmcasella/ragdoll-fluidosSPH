@@ -116,7 +116,7 @@ export class WallContact {
 
     /**
      * Un subpaso, antes de `world.Step`. La normal del contacto apunta de la partícula al cuerpo, así que la
-     * componente saliente es `−(v − v_b)·n`. Deja para quien corre después en el mismo subpaso (`js/adhesion.js`)
+     * componente saliente es `−(v − v_b)·n`. Deja para quien corre después en el mismo subpaso (`src/fluids/adhesion.js`)
      * `skipped` (el buffer de contactos estaba descartado y no se leyó) y `escaped[i]` (1 si a la partícula `i` se le
      * impuso la salida lateral del escape).
      * @param {number} substep Duración del subpaso en segundos.

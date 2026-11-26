@@ -20,7 +20,7 @@ export const KEYBOARD_LAYOUT = {
     weapons: ["Digit1", "Digit2", "Digit3", "Digit4"],
 };
 
-/** Teclas que abren y cierran el menú de debug (`js/debug.js`). */
+/** Teclas que abren y cierran el menú de debug (`src/core/debug.js`). */
 export const DEBUG_KEYS = ["F3"];
 
 /** Botones del gamepad que, apretados a la vez, abren y cierran el menú de debug: L3 y R3 (clic de los dos sticks). */

@@ -1,7 +1,7 @@
 /**
  * Piezas comunes de la interfaz HTML (docs/design/18-interfaz.md): el sprite de íconos, los glifos de botones y las
- * funciones que escriben en el DOM solo lo que cambió. Módulo hoja: lo usan `js/hud.js` (partida) y `js/screens.js`
- * (menús). Los estilos están en `js/ui.css`.
+ * funciones que escriben en el DOM solo lo que cambió. Módulo hoja: lo usan `src/ui/hud.js` (partida) y `src/ui/screens.js`
+ * (menús). Los estilos están en `src/ui/ui.css`.
  */
 
 /** Armas en el orden de la cruceta: arriba, derecha, abajo, izquierda (el de la posición en `WEAPONS`). */

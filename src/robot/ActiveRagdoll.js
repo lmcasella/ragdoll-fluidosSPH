@@ -1,5 +1,5 @@
-import { getRaycaster } from "./raycast.js";
-import { MATERIALS } from "./materials.js";
+import { getRaycaster } from "../core/raycast.js";
+import { MATERIALS } from "../fluids/materials.js";
 
 /** Salud máxima de un robot. */
 export const MAX_HP = 100;
@@ -37,7 +37,7 @@ const JUMP_SPEED = 9;
  * sube; `fastFall` es la fracción de la gravedad que se suma por paso con el stick abajo mientras cae.
  */
 export const JUMP = { cut: 0.5, fastFall: 0.3 };
-/** Gravedad del mundo (m/s²), la misma con la que se crea en `index.html`. */
+/** Gravedad del mundo (m/s²), la misma con la que se crea en `index.js`. */
 const GRAVITY = 10;
 const WALK_FRICTION = 0.85;
 
@@ -98,7 +98,7 @@ const BUSY_STATES = new Set([
 /**
  * rig: { rootBody: id del cuerpo raíz, aimJoints: nombres de articulaciones que apuntan,
  *        aimHold: articulaciones de los codos, aimOffset: ángulo de reposo del arma relativo al padre,
- *        clips: estado → clave de clip, melee: tabla `MELEE` (js/melee.js),
+ *        clips: estado → clave de clip, melee: tabla `MELEE` (src/combat/melee.js),
  *        feet: ids de los pies (rayos de piso), gun: { body, muzzle: [x, y] local },
  *        damage: { [bodyId]: multiplicador }, defaultDamage: multiplicador del resto }
  */

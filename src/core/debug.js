@@ -1,6 +1,6 @@
 /**
  * Monitor de física (#29, docs/design/14-agua.md §14.12 y §14.17). Módulo hoja: no importa ningún sistema del juego;
- * `index.html` le pasa datos planos una vez por frame y las referencias que la capa necesita para dibujar.
+ * `index.js` le pasa datos planos una vez por frame y las referencias que la capa necesita para dibujar.
  *
  * - `alpha`: peso de la muestra nueva en el promedio móvil exponencial de todo número del panel;
  * - `maxArrows`: tope de flechas de velocidad de partículas por frame;
@@ -83,7 +83,7 @@ export class Debug {
         this.bots = [];
     }
 
-    /** Verdadero si las estadísticas o alguna capa están en sí: `index.html` arma los datos solo entonces. */
+    /** Verdadero si las estadísticas o alguna capa están en sí: `index.js` arma los datos solo entonces. */
     get active() {
         return this.stats || this.anyLayer;
     }
@@ -94,7 +94,7 @@ export class Debug {
         return layers.velocidades || layers.fuerzas || layers.columnas || layers.bots;
     }
 
-    /** Falso en el modo `"puntos"`: `index.html` no dibuja entonces los fluidos como metaball. */
+    /** Falso en el modo `"puntos"`: `index.js` no dibuja entonces los fluidos como metaball. */
     get metaballOn() {
         return this.fluidMode !== "puntos";
     }

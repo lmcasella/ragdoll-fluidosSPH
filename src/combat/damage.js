@@ -1,12 +1,12 @@
 // Daño por contactos. Un único JSContactListener del mundo (RagImporter no lo usa):
 //  - BeginContact: impactos entre cuerpos; la velocidad de acercamiento se mide sobre la normal del contacto.
 //  - BeginParticleBodyContact: cada partícula informa qué parte del cuerpo tocó (requiere CONTACT_LISTENER_PARTICLE).
-//  - La miel no usa contactos: la adherencia por cercanía vive en js/adhesion.js.
+//  - La miel no usa contactos: la adherencia por cercanía vive en src/fluids/adhesion.js.
 // Regla de la materia: "juntá durante el paso, actuá después". Los callbacks solo encolan; process() aplica el daño.
 
 import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
-import { SINK } from "./particleStore.js";
-import { MATERIALS } from "./materials.js";
+import { SINK } from "../fluids/particleStore.js";
+import { MATERIALS } from "../fluids/materials.js";
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -35,7 +35,7 @@ export class DamageSystem {
         this.killSensors = new Set(); // punteros de fixtures sensor que destruyen al robot (pileta)
         /** `(x) => η` (m) de la superficie bajo la cual se ahoga un robot (tope del torso), o `null` si no hay (mapa clásico). */
         this.drownSurface = null;
-        /** Puntero de fixture sensor → función que recibe el puntero del cuerpo que lo tocó; solo debe encolar (ver `js/pickups.js`). */
+        /** Puntero de fixture sensor → función que recibe el puntero del cuerpo que lo tocó; solo debe encolar (ver `src/level/pickups.js`). */
         this.sensorHooks = new Map();
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };

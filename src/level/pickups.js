@@ -1,4 +1,4 @@
-import { WEAPONS } from "./weapons.js";
+import { WEAPONS } from "../combat/weapons.js";
 
 /** Segundos de juego hasta que un punto de aparición vuelve a estar disponible después de recogerse. */
 export const PICKUP_RESPAWN = 15;

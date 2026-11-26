@@ -4,10 +4,10 @@
  * `DestroyParticle` deja una zombi que el motor compacta al principio del siguiente `Step`, y los índices
  * cambian. Por eso `userData` guarda solo `slot + 1` (el 0 es "sin slot") y el estado por partícula vive en
  * arreglos tipados indexados por slot (`vx`, `vy` guardan la velocidad del último subpaso para el contorno
- * inelástico, `js/wallContact.js`). El slot de una destruida se libera en `afterStep()`.
+ * inelástico, `src/fluids/wallContact.js`). El slot de una destruida se libera en `afterStep()`.
  * Libro de masa: `created[kind]` cuenta las creaciones y `destroyed[cause][kind]` las destrucciones por causa.
  * Térmica (#75): `enthalpy[slot]` es la entalpía específica (J/kg, 0 a 0 °C), que nace con `enthalpyInit[kind]` o
- * con `props.enthalpy`; `thermal` lo pone en verdadero `js/thermal.js` al ocuparse de ellas, y `generation[slot]`
+ * con `props.enthalpy`; `thermal` lo pone en verdadero `src/fluids/thermal.js` al ocuparse de ellas, y `generation[slot]`
  * sube con cada `create` para que quien guarde estado por slot sepa que es de otra partícula.
  * Recorte (#160): si los fotogramas se vuelven lentos se destruyen las más viejas con `SINK.PERF`.
  */

@@ -1,8 +1,8 @@
-import { FLUID } from "./weapons.js";
+import { FLUID } from "../combat/weapons.js";
 
 // Nivel en metros, Y hacia arriba, independiente del tamaño de la ventana.
 // Alturas entre plataformas <= 3,5 m: el salto (9 m/s) llega a unos 4 m.
-// El hueco central es la pileta: agua del campo de alturas (js/water.js) y un sensor que destruye al robot que se hunde.
+// El hueco central es la pileta: agua del campo de alturas (src/water/water.js) y un sensor que destruye al robot que se hunde.
 export const LEVEL = {
     bounds: { minX: 0, maxX: 56, minY: 0, maxY: 32 },
     // Rectángulos sólidos: { x, y } = centro, w × h

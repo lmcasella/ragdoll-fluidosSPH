@@ -1,6 +1,6 @@
-import { FLUID } from "./weapons.js";
-import { MATERIALS, SIGMA_W } from "./materials.js";
-import { SINK } from "./particleStore.js";
+import { FLUID } from "../combat/weapons.js";
+import { MATERIALS, SIGMA_W } from "../fluids/materials.js";
+import { SINK } from "../fluids/particleStore.js";
 
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
@@ -37,7 +37,7 @@ export const KIND_MATERIAL = {
  * `submerged`, `columns` y `count` listan las inmersas (índice y celda) y valen hasta el próximo `stepWorld`.
  * `stats` suma lo absorbido (`absorbed`, `volume` en m²), el impulso vertical, los recortes por masa reducida
  * (`capped`) y el calor de la pérdida inelástica que se sumó a las columnas (`inelastic`, J). Con `store.thermal`
- * (`js/thermal.js`) la energía que lleva la partícula es la de su entalpía propia, no la del agua ambiente.
+ * (`src/fluids/thermal.js`) la energía que lleva la partícula es la de su entalpía propia, no la del agua ambiente.
  * El vapor (`STEAM`, miscible) se absorbe como el agua con su entalpía, salvo sobre una columna a 100 °C
  * (`passes`): ahí no condensa y sigue subiendo (#112).
  */

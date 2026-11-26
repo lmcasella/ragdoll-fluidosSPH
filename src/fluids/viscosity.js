@@ -1,5 +1,5 @@
 import { MATERIALS, SIGMA_W } from "./materials.js";
-import { FLUID } from "./weapons.js";
+import { FLUID } from "../combat/weapons.js";
 import { mixtureViscosity } from "./adhesion.js";
 
 const STATIC = 0;

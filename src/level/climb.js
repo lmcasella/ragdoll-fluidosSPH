@@ -1,6 +1,6 @@
 import { LEVEL } from "./level.js";
-import { BOT, canReach, seededRandom } from "./bot.js";
-import { FLUID, refillTanks } from "./weapons.js";
+import { BOT, canReach, seededRandom } from "../ai/bot.js";
+import { FLUID, refillTanks } from "../combat/weapons.js";
 
 /**
  * Valores del ascenso infinito (docs/design/16-ascenso.md §16.2). Distancias en m, tiempos en s. Las alturas de la tabla y
@@ -14,7 +14,7 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   `rows`: `spacing` [mín, máx] (m) entre una fila y la anterior, `counts` peso de cada cantidad de plataformas por fila
  *   (`first` en la etapa 0 y `last` desde la `width.stages`, lineal entre ellas; un peso 0 no se sortea), `shift` (m) de corrimiento vertical de cada plataforma a ± de la altura de su fila, `maxRun` filas seguidas con la misma
  *   cantidad como máximo, `singleWidth` `{ first, last }` [mín, máx] (m) de ancho de la plataforma de una fila de 1, interpolado por etapa como `width` (un descanso
- *   que deja apoyar dos en la fila siguiente) con el alcance de salto de `reach` (`canReach` de `js/bot.js`) como regla de vecina;
+ *   que deja apoyar dos en la fila siguiente) con el alcance de salto de `reach` (`canReach` de `src/ai/bot.js`) como regla de vecina;
  *   `tries` sorteos de fila; `transition`: una plataforma a menos de esto bajo un cambio de etapa ya
  *   usa el ancho de la etapa de arriba; `minWidth`; `tail`: con probabilidad `chance` el ancho se multiplica por `long` o
  *   por `short`; `window` (m) hacia abajo que se recuerda; `width`: rango de ancho en la etapa 0 y en la `stages`, lineal entre
@@ -33,7 +33,7 @@ import { FLUID, refillTanks } from "./weapons.js";
  *   fondo efectivo, `catchUp` (alcance: a la velocidad se suma `min(max, rate · max(0, d − gap))` m/s, con `d` la distancia
  *   en m de la superficie a la altura de apoyo del robot vivo más bajo, sin contar saltos; `gap` en m, `rate` en 1/s, `max` en m/s) y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
  * - `ahead`: cuánto por encima de la cámara se genera;
- * - `loadout`: equipo inicial del mapa (el clásico usa `LOADOUT` de `js/weapons.js`): sin arma ni tanques, solo melee;
+ * - `loadout`: equipo inicial del mapa (el clásico usa `LOADOUT` de `src/combat/weapons.js`): sin arma ni tanques, solo melee;
  * - `stagePrize`: premio del primer robot que se apoya en una plataforma de la etapa `n ≥ 1`, una vez por etapa y por
  *   ronda: `banner` (s) que dura el cartel, `repair` (`"full"`: vida al máximo) y `refill` (todos sus tanques llenos).
  */

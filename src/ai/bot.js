@@ -1,7 +1,7 @@
-import { LEVEL } from "./level.js";
-import { PAD } from "./Input.js";
-import { getRaycaster } from "./raycast.js";
-import { WEAPONS, weaponById } from "./weapons.js";
+import { LEVEL } from "../level/level.js";
+import { PAD } from "../input/Input.js";
+import { getRaycaster } from "../core/raycast.js";
+import { WEAPONS, weaponById } from "../combat/weapons.js";
 
 /**
  * Valores del bot de prueba (#151). Distancias en m, tiempos en s, ángulos en rad.
@@ -322,7 +322,7 @@ export class Bot {
     }
 
     /**
-     * Solo lectura, para el monitor de `js/debug.js`: `goal` (plataforma a la que va) y `target` (plataforma del rival),
+     * Solo lectura, para el monitor de `src/core/debug.js`: `goal` (plataforma a la que va) y `target` (plataforma del rival),
      * cada una como punto `{ x, y }` en el mundo (centro y tope) o `null`, `action` (lo que aprieta este frame) y `mode`
      * (modo de supervivencia).
      */
