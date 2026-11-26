@@ -2,7 +2,7 @@
 
 Rediseño de los fluidos para que **se simulen** con su física y no se imiten con reglas de juego (pedido del usuario, 18/11). La dirección la eligió el usuario y no se reabre: campo de alturas con Saint-Venant 1D para el agua del nivel, partículas chicas de agua pura para los disparos, absorción de partículas en el campo, flotación de Arquímedes por pieza, térmica con fases, mezcla por concentración, adherencia, arranque asentado y herramientas de debug.
 
-- **Estado:** ✅ en `main`: campo de alturas e inundación (#70, #71), flotación (#72), evaporación (#73), térmica y fases (#75), adherencia (#77), debug (estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos; #29) y los arreglos #98, #100 y #110. 🔨 sin hacer: mezcla por concentración (#76, no existe `js/mixing.js`), las capas de debug de temperatura, concentración y contactos (#78) y, de la reacción de los cuerpos sobre el agua (#74), la reacción vertical y la presión de casco.
+- **Estado:** ✅ en `main`: campo de alturas e inundación (#70, #71), flotación (#72), evaporación (#73), térmica y fases (#75), adherencia (#77), debug (estadísticas, velocidades, fuerzas, columnas, bots y modos de fluidos; #29) y los arreglos #98, #100 y #110. 🔨 sin hacer: mezcla por concentración (#76, no existe `src/fluids/mixing.js`), las capas de debug de temperatura, concentración y contactos (#78) y, de la reacción de los cuerpos sobre el agua (#74), la reacción vertical y la presión de casco.
 - **Relevamiento medido** (18/11, no versionado): scripts, tablas y videos en el scratchpad del issue. Acá se citan los números usados.
 - **Restricciones:** `lib/` no se toca (`stepWorld` sigue con 8 subpasos para los ragdolls); render en Canvas2D, sin WebGL propio; el código no se comenta (solo JSDoc).
 - **Cada parte** tiene variables con unidades, ecuaciones, módulo, qué reemplaza y criterios físicos ([14.16](#1416-criterios-de-aceptación)). `physics-analyst` aprueba el diseño antes de implementar y valida cada resultado sobre video.
@@ -538,7 +538,7 @@ El diseño de reacciones de #30 ([04-fluidos §4.4](04-fluidos.md#44-reacciones-
 
 ## 14.9 Mezcla por concentración y viscosidad
 
-**Módulo nuevo `js/mixing.js`.** Usa `src/fluids/contacts.js` y `store.solute`.
+**Módulo nuevo `src/fluids/mixing.js`.** Usa `src/fluids/contacts.js` y `store.solute`.
 
 - **Variable:** fracción másica de miel `X` por partícula (1 en la miel disparada, 0 en el agua). En la columna, la variable es el volumen de miel `M` ([14.3](#143-campo-de-alturas-saint-venant-1d-shallowwater)), con `X_v = M/h`.
 - **Intercambio:** `F_ab = ρ̄ b · D_eff · w · (X_b − X_a)` (kg/s), que se aplica como `X_a += F dt/m_a` y `X_b −= F dt/m_b`. Conserva `Σ m X` exactamente y usa el mismo limitador que la térmica.
@@ -635,7 +635,7 @@ Por frame, fuera del paso: `emitter.fire` (`store.create`), `limpiarParticulas` 
 | `src/fluids/contacts.js` (nuevo, hoja) | Lector del buffer nativo de contactos | — |
 | `src/fluids/evaporation.js` (nuevo) | Evaporación de agua detenida (D7) | `materials.js`, `contacts.js` |
 | `src/fluids/thermal.js` (nuevo) | Entalpía, fases, vapor, columnas | `materials.js`, `contacts.js`, `particles.js` (flags) |
-| `js/mixing.js` (nuevo) | Soluto, viscosidad, flag `VISCOUS` | `materials.js`, `contacts.js`, `particles.js` |
+| `src/fluids/mixing.js` (nuevo) | Soluto, viscosidad, flag `VISCOUS` | `materials.js`, `contacts.js`, `particles.js` |
 | `src/fluids/adhesion.js` (nuevo) | Películas viscosas sobre cuerpos | `materials.js`, `bodyShapes.js` |
 | `src/core/debug.js` (nuevo) | Panel y capas | — (recibe `stats` por parámetro) |
 | `src/fluids/wallContact.js` (✅ #100) | Condición de borde del fluido contra los sólidos, por subpaso: recorte inelástico y escape entre dos sólidos | — (recibe `system`, `store` y `SHOT_SYSTEM` por constructor) |

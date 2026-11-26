@@ -82,7 +82,7 @@ Mecánica nueva para la entrega (X, intención `grapple`). Un rayo en la direcci
 
 ### Ubicación en los patrones
 
-- **Módulo nuevo `js/grapple.js`**, clase `Grapple(world, ground, raycaster, damage, config = GRAPPLE)`. Un solo motivo de cambio: la cuerda.
+- **Módulo nuevo `src/robot/grapple.js`**, clase `Grapple(world, ground, raycaster, damage, config = GRAPPLE)`. Un solo motivo de cambio: la cuerda.
   - `ground` es el cuerpo estático del nivel que devuelve `buildLevel`.
   - `raycaster` es el servicio compartido `getRaycaster(world)`.
   - `damage` se usa solo para `ownerOf(bodyPtr)`, para saber si el punto es de un robot.
@@ -226,7 +226,7 @@ El arma va en el brazo **trasero** (`back_*`): `b_3` cuelga de `b_13` por `j_10`
 | `tests/aim-jump.test.js:84-88` | Rig real con `joint_10…`, `joint_11…` y el clip `jump` | Nombres v5 y la lista nueva de clips |
 | `tests/punch.test.js:39-45` | `clipState === "punch"`, `isPunching()` | Pasa a medir el combo (R6, R7) |
 | `tests/walk-anim.test.js:37` | Clip `walk` | Mismo nombre; se vuelve a medir `refSpeed` |
-| `src/render/render.js`, `src/combat/damage.js`, `js/grapple.js` (🔨) | Solo `id` de cuerpos | Ninguno |
+| `src/render/render.js`, `src/combat/damage.js`, `src/robot/grapple.js` (🔨) | Solo `id` de cuerpos | Ninguno |
 
 ### 3.7.2 Masas y fixtures v4 vs v5
 
