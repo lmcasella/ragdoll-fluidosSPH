@@ -103,11 +103,20 @@ const BUSY_STATES = new Set([
  *        damage: { [bodyId]: multiplicador }, defaultDamage: multiplicador del resto }
  */
 export class ActiveRagdoll {
-    constructor(def, physicsWorld, startX, startY, rig, flipX = false) {
+    /**
+     * @param {RagDef} def definición del robot
+     * @param {*} physicsWorld `Box2D.b2World`
+     * @param {number} startX posición inicial, en m
+     * @param {number} startY posición inicial, en m
+     * @param {object} rig tabla de ids y ajustes del robot (ver arriba)
+     * @param {boolean} [flipX] robot espejado
+     * @param {PIXI.Container|null} [viewParent] contenedor donde cuelga `rag.view`, en px con la Y hacia abajo; `null` no la cuelga
+     */
+    constructor(def, physicsWorld, startX, startY, rig, flipX = false, viewParent = null) {
         this.world = physicsWorld;
         this.rig = rig;
         this.flipX = flipX;
-        this.rag = def.spawn(physicsWorld, { x: startX, y: startY, flipX });
+        this.rag = def.spawn(physicsWorld, { x: startX, y: startY, flipX, parent: viewParent });
         this.torso = this.rag.bodies.get(rig.rootBody);
         this.scratch = new Box2D.b2Vec2(0, 0);
         this.raycaster = getRaycaster(physicsWorld);

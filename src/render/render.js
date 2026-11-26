@@ -1,19 +1,9 @@
 // Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 import { MATERIALS } from "../fluids/materials.js";
-import { shortCircuitDps } from "../ragdoll/ActiveRagdoll.js";
 import { CanvasLayer } from "./canvasLayer.js";
 import { THRESHOLD_GAIN, THRESHOLD_OFFSET } from "./thresholdFilter.js";
 
-const FLASH_COLOR = [255, 40, 40];
-const WET_COLOR = [40, 220, 255];
-const WET_BLINK_HZ = 4;
-// Chispas del cortocircuito: se repiten por tick de reloj, no por frame, para que se vean como destellos
-const SPARK_TICK_HZ = 12;
-const SPARKS_PER_FRAME = 3;
-const SPARK_SEGMENTS = 3;
-const SPARK_SEGMENT_LENGTH = 0.3; // m; con 0,12 m quedaban dentro del cuerpo y no se veían al zoom de juego
-const SPARK_COLORS = ["#fff27a", "#e8ffff"];
 /** Radio dibujado de las gotas: `√(A_p / π)` con `A_p = (1,5 · 0,06 m)²` el área física de una partícula (0,0508 m), para que el área dibujada sea la física (I3). */
 export const PARTICLE_RADIUS = (1.5 * 0.06) / Math.sqrt(Math.PI);
 const PARTICLE_AREA = Math.PI * PARTICLE_RADIUS ** 2;
@@ -214,21 +204,6 @@ const DEFAULT_KIND = { radiusScale: 1 };
 // m que el agua acercada se mete bajo la superficie del cuerpo para que no quede una línea de fondo entre los dos
 const SKIN_OVERLAP = 0.02;
 
-function hexToRgb(hex) {
-    const n = parseInt(hex.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-function mix(base, k, wet = 0) {
-    let r = base[0] + (FLASH_COLOR[0] - base[0]) * k;
-    let g = base[1] + (FLASH_COLOR[1] - base[1]) * k;
-    let b = base[2] + (FLASH_COLOR[2] - base[2]) * k;
-    r += (WET_COLOR[0] - r) * wet;
-    g += (WET_COLOR[1] - g) * wet;
-    b += (WET_COLOR[2] - b) * wet;
-    return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
-}
-
 /** Radio del ícono de un arma recogible, en metros (el sensor mide 0,5 m). */
 const PICKUP_ICON_RADIUS = 0.4;
 
@@ -374,176 +349,6 @@ export function buildRenderItems(rag, json, flipX) {
     return items;
 }
 
-// Hash entero a [0, 1): da piezas y ángulos repetibles sin Math.random
-function hash01(n) {
-    n = Math.imul(n ^ (n >>> 15), 0x2c1b3c6d);
-    n = Math.imul(n ^ (n >>> 12), 0x297a2d39);
-    return ((n ^ (n >>> 15)) >>> 0) / 4294967296;
-}
-
-/**
- * Chispas por destello según el daño del cortocircuito: `SPARKS_PER_FRAME` con agua limpia y proporcional al dps
- * (el ácido al 8 % da unas 5 veces más).
- */
-export function sparkCount(dps) {
-    return Math.max(1, Math.round((SPARKS_PER_FRAME * dps) / shortCircuitDps(MATERIALS.water.sigmaE)));
-}
-
-/**
- * Burbujas de H2 (docs/design/15-quimica.md §15.5b), solo dibujo en metros y segundos. `perPiece` (1/s) es la tasa
- * por pieza con ácido puro y se escala con σ/σ del ácido; nacen sobre la superficie de la pieza, suben `rise` (m/s),
- * miden de `minRadius` a `maxRadius` (m) y desaparecen a los `life` s. `capacity` es el máximo vivo por robot.
- */
-export const H2_BUBBLES = { perPiece: 20, rise: 0.3, life: 0.5, minRadius: 0.02, maxRadius: 0.04, capacity: 256 };
-const BUBBLE_STRIDE = 5;
-const bubbleStates = new WeakMap();
-const surface = [0, 0];
-
-function bubbleState(player) {
-    let state = bubbleStates.get(player);
-    if (!state) {
-        state = { data: new Float32Array(H2_BUBBLES.capacity * BUBBLE_STRIDE), cursor: 0, acc: 0, last: -1, seed: 0 };
-        bubbleStates.set(player, state);
-    }
-    return state;
-}
-
-/** Punto (x, y) del mundo sobre el borde de la pieza `item`, elegido con `u`, `v` en [0, 1); queda en `surface`. */
-function surfacePoint(item, u, v) {
-    let lx;
-    let ly;
-    if (item.type === "circle") {
-        lx = Math.cos(u * Math.PI * 2) * item.radius;
-        ly = Math.sin(u * Math.PI * 2) * item.radius;
-    } else if (item.type === "box") {
-        const side = Math.floor(u * 4);
-        const t = v * 2 - 1;
-        lx = side === 0 ? item.hw : side === 1 ? -item.hw : t * item.hw;
-        ly = side === 2 ? item.hh : side === 3 ? -item.hh : t * item.hh;
-    } else {
-        const verts = item.vertices;
-        const a = verts[Math.floor(u * verts.length) % verts.length];
-        const b = verts[(Math.floor(u * verts.length) + 1) % verts.length];
-        lx = a[0] + (b[0] - a[0]) * v;
-        ly = a[1] + (b[1] - a[1]) * v;
-    }
-    const ca = Math.cos(item.angle);
-    const sa = Math.sin(item.angle);
-    const bx = item.cx + lx * ca - ly * sa;
-    const by = item.cy + lx * sa + ly * ca;
-    const pos = item.body.GetPosition();
-    const angle = item.body.GetAngle();
-    const cb = Math.cos(angle);
-    const sb = Math.sin(angle);
-    surface[0] = pos.get_x() + bx * cb - by * sb;
-    surface[1] = pos.get_y() + bx * sb + by * cb;
-}
-
-function drawBubbles(ctx, player, scale, now) {
-    const items = player.renderItems;
-    const sigma = player.wetSigma;
-    const emitting = player.wet && !player.dead && sigma > MATERIALS.water.sigmaE;
-    let state = bubbleStates.get(player);
-    if (!state && !emitting) return;
-    state ??= bubbleState(player);
-    const dt = state.last < 0 ? 0 : Math.min(now - state.last, 0.1);
-    state.last = now;
-    const { data } = state;
-    const { life, rise, capacity } = H2_BUBBLES;
-    if (emitting && dt > 0) {
-        state.acc += H2_BUBBLES.perPiece * items.length * Math.min(1, sigma / MATERIALS.acid.sigmaE) * dt;
-        while (state.acc >= 1) {
-            state.acc -= 1;
-            const seed = state.seed++ * 7;
-            surfacePoint(items[Math.floor(hash01(seed) * items.length)], hash01(seed + 1), hash01(seed + 2));
-            const at = state.cursor * BUBBLE_STRIDE;
-            state.cursor = (state.cursor + 1) % capacity;
-            data[at] = surface[0];
-            data[at + 1] = surface[1];
-            data[at + 2] = H2_BUBBLES.minRadius + hash01(seed + 3) * (H2_BUBBLES.maxRadius - H2_BUBBLES.minRadius);
-            data[at + 3] = 0;
-            data[at + 4] = 1;
-        }
-    }
-    ctx.lineWidth = 1 / scale;
-    for (let at = 0; at < data.length; at += BUBBLE_STRIDE) {
-        if (data[at + 4] === 0) continue;
-        data[at + 3] += dt;
-        if (data[at + 3] >= life) {
-            data[at + 4] = 0;
-            continue;
-        }
-        data[at + 1] += rise * dt;
-        ctx.globalAlpha = 1 - data[at + 3] / life;
-        ctx.fillStyle = "rgba(235, 255, 235, 0.35)";
-        ctx.strokeStyle = "#f2fff2";
-        ctx.beginPath();
-        ctx.arc(data[at], data[at + 1], data[at + 2], 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-}
-
-function drawSparks(ctx, player, scale, now) {
-    const items = player.renderItems;
-    if (items.length === 0) return;
-    const tick = Math.floor(now * SPARK_TICK_HZ);
-    ctx.lineWidth = 3 / scale;
-    const sparks = sparkCount(player.shortCircuitDps);
-    for (let s = 0; s < sparks; s++) {
-        const seed = tick * 97 + s * 13;
-        const pos = items[Math.floor(hash01(seed) * items.length)].body.GetPosition();
-        let x = pos.get_x();
-        let y = pos.get_y();
-        let angle = hash01(seed + 1) * Math.PI * 2;
-        ctx.strokeStyle = SPARK_COLORS[s % SPARK_COLORS.length];
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        for (let seg = 0; seg < SPARK_SEGMENTS; seg++) {
-            angle += (hash01(seed + 2 + seg) - 0.5) * 2.4;
-            x += Math.cos(angle) * SPARK_SEGMENT_LENGTH;
-            y += Math.sin(angle) * SPARK_SEGMENT_LENGTH;
-            ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    }
-}
-export function drawRobot(ctx, player, color, scale, now) {
-    const base = hexToRgb(color);
-    // Mojado: tinte cian que parpadea
-    const wet = player.wet && !player.dead ? 0.35 + 0.35 * Math.sin(now * WET_BLINK_HZ * Math.PI * 2) : 0;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1.5 / scale;
-    for (const item of player.renderItems) {
-        const pos = item.body.GetPosition();
-        const x = pos.get_x();
-        const y = pos.get_y();
-        const angle = item.body.GetAngle();
-
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-        ctx.translate(item.cx, item.cy);
-        ctx.rotate(item.angle);
-        ctx.fillStyle = mix(base, player.flashAmount(item.bodyId, now), wet);
-        ctx.beginPath();
-        if (item.type === "box") {
-            ctx.rect(-item.hw, -item.hh, item.hw * 2, item.hh * 2);
-        } else if (item.type === "circle") {
-            ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
-        } else if (item.type === "polygon") {
-            item.vertices.forEach(([vx, vy], k) => (k === 0 ? ctx.moveTo(vx, vy) : ctx.lineTo(vx, vy)));
-            ctx.closePath();
-        }
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-    }
-    if (player.wet && !player.dead) drawSparks(ctx, player, scale, now);
-    drawBubbles(ctx, player, scale, now);
-}
-
 // Mira láser: desde la boca del arma hasta el primer impacto (o el alcance máximo)
 export function drawAimLaser(ctx, laser, color, scale) {
     if (!laser) return;
@@ -663,8 +468,15 @@ function buildGrid(reach) {
     }
 }
 
-// Piezas de los robots (las mismas formas que dibuja drawRobot) y sólidos del nivel. Los polígonos se omiten:
-// los rigs actuales no los usan.
+/**
+ * Arma la lista de superficies sólidas, en metros del mundo, con las piezas de los robots (las mismas formas que dibuja
+ * `RagdollShapes`) y los sólidos del nivel, y la grilla que las indexa. Los polígonos se omiten: los rigs actuales no los usan.
+ * @param {object[]} players robots con `renderItems`
+ * @param {object[]} solids sólidos del nivel
+ * @param {number} reach alcance del acercamiento del agua, en m
+ * @param {number} offsetY desplazamiento vertical de los sólidos, en m
+ * @returns {number} cantidad de superficies
+ */
 export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
     surfaceCount = 0;
     for (const s of solids) {
@@ -880,9 +692,6 @@ export function waterOutline(water, out) {
     return out;
 }
 
-const outline = {};
-const stopColor = [0, 0, 0];
-
 /**
  * Color del agua del campo en `x` (puro, sin `ctx`): llena `out` y lo devuelve con el RGB entero. Falso color de
  * la fracción másica de H2SO4 `w` (docs/design/14-agua.md §14.3, Render): `f = 1 − 10^(−α w / w_a)`, con
@@ -895,71 +704,4 @@ export function fieldColor(water, x, out = [0, 0, 0]) {
     const f = 1 - 10 ** ((-tintAbsorbance * water.acidFractionAt(x)) / species.H2SO4);
     for (let k = 0; k < 3; k++) out[k] = Math.round(color[k] + f * (tint[k] - color[k]));
     return out;
-}
-
-/**
- * Degradado horizontal de `fieldColor` para el tramo mojado entre las caras `left` y `right` (m), con una parada
- * en cada cara y una en el centro de cada `step`-ésima celda. Devuelve `null` si ninguna celda del tramo tiene
- * ácido (`A` = 0), y el tramo se rellena con `draw.color`.
- */
-function tintedFill(ctx, water, left, right, step) {
-    const { x0, dx, A } = water;
-    const first = Math.round((left - x0) / dx);
-    const end = Math.round((right - x0) / dx) - 1;
-    let acid = false;
-    for (let c = first; c <= end && !acid; c++) acid = A[c] > 0;
-    if (!acid) return null;
-    const gradient = ctx.createLinearGradient(left, 0, right, 0);
-    const width = right - left;
-    const stop = (x) => {
-        fieldColor(water, x, stopColor);
-        gradient.addColorStop(Math.min(1, Math.max(0, (x - left) / width)), `rgb(${stopColor[0]}, ${stopColor[1]}, ${stopColor[2]})`);
-    };
-    stop(left);
-    for (let c = first; c <= end; c += step) stop(x0 + (c + 0.5) * dx);
-    stop(right);
-    return gradient;
-}
-
-/**
- * Dibuja el campo de alturas (docs/design/14-agua.md §14.3, Render): un polígono relleno por tramo mojado, del
- * lecho a `η`, con la línea de superficie encima. Va después de los robots, con la opacidad de
- * `water.config.draw`, para que las piezas sumergidas se vean bajo el agua. Los tramos con ácido se rellenan con
- * un degradado horizontal de `fieldColor`, con una parada cada `draw.colorStep` celdas y en las dos caras; la
- * geometría no cambia. Los datos de dibujo son `WATER_FIELD.draw`; el contexto ya tiene la cámara aplicada.
- * `deep` (opcional, `{ floor, bottom }` en metros): con `floor > 0` pinta además un rectángulo del color del agua entre las
- * caras del span, de `floor` a `bottom` (borde inferior de la cámara), para que no se vea el fondo efectivo.
- */
-export function drawWater(ctx, water, scale, deep = null) {
-    const { alpha, color, lineColor, lineWidth, colorStep } = water.config.draw;
-    waterOutline(water, outline);
-    const { xs, ys } = outline;
-    const flat = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-    if (deep && deep.floor > 0 && deep.bottom < deep.floor) {
-        const left = water.x0 + water.i0 * water.dx;
-        ctx.fillStyle = flat;
-        ctx.globalAlpha = alpha;
-        ctx.fillRect(left, deep.bottom, (water.i1 - water.i0) * water.dx, deep.floor - deep.bottom);
-    }
-    ctx.strokeStyle = `rgb(${lineColor[0]}, ${lineColor[1]}, ${lineColor[2]})`;
-    ctx.lineWidth = lineWidth / scale;
-    ctx.lineJoin = "round";
-    for (let s = 0; s < outline.count; s++) {
-        const first = outline.start[s];
-        const last = first + outline.size[s];
-        ctx.fillStyle = tintedFill(ctx, water, xs[first], xs[first + outline.surface[s]], colorStep) ?? flat;
-        ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        ctx.moveTo(xs[first], ys[first]);
-        for (let v = first + 1; v < last; v++) ctx.lineTo(xs[v], ys[v]);
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.beginPath();
-        ctx.moveTo(xs[first + 1], ys[first + 1]);
-        const top = first + 1 + outline.surface[s];
-        for (let v = first + 2; v < top; v++) ctx.lineTo(xs[v], ys[v]);
-        ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
 }

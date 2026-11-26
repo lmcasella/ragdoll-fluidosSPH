@@ -18,22 +18,37 @@ class FakePoint {
 export class FakeContainer {
     constructor() {
         this.children = [];
+        this.parent = null;
         this.position = new FakePoint();
         this.scale = new FakePoint(1, 1);
+        this.rotation = 0;
+        this.tint = 0xffffff;
         this.visible = true;
         this.zIndex = 0;
         this.filters = null;
         this.sortableChildren = false;
+        this.destroyed = false;
     }
 
     addChild(...children) {
-        this.children.push(...children);
+        for (const child of children) {
+            child.parent = this;
+            this.children.push(child);
+        }
         return children[0];
     }
 
-    removeChild() {}
+    removeChild(child) {
+        const index = this.children.indexOf(child);
+        if (index >= 0) this.children.splice(index, 1);
+        child.parent = null;
+    }
 
-    destroy() {}
+    /** Marca el contenedor como destruido y, con `{ children: true }`, también a sus hijos, como PIXI. */
+    destroy(options) {
+        this.destroyed = true;
+        if (options?.children) for (const child of this.children) child.destroy(options);
+    }
 }
 
 class FakeTextureSource {
@@ -90,16 +105,32 @@ class FakeSprite extends FakeContainer {
         this.renderedHeight = this.texture.source.height;
     }
 }
+/**
+ * `Graphics` falso: cuenta cuántos se construyeron (`constructed`) y guarda lo trazado desde el último `clear`:
+ * `circles` (`x`, `y`, `radius`), `polygons` (lista plana de puntos), `lineTos`, `fills` y `strokes` (los estilos recibidos).
+ */
 class FakeGraphics extends FakeContainer {
+    static constructed = 0;
+
     constructor() {
         super();
+        FakeGraphics.constructed++;
         this.clears = 0;
+        this.reset();
+    }
+
+    reset() {
         this.rectangles = 0;
+        this.circles = [];
+        this.polygons = [];
+        this.lineTos = 0;
+        this.fills = [];
+        this.strokes = [];
     }
 
     clear() {
         this.clears++;
-        this.rectangles = 0;
+        this.reset();
         return this;
     }
 
@@ -108,12 +139,55 @@ class FakeGraphics extends FakeContainer {
         return this;
     }
 
-    fill() {
+    circle(x, y, radius) {
+        this.circles.push({ x, y, radius });
         return this;
     }
 
-    stroke() {
+    poly(points) {
+        this.polygons.push([...points]);
         return this;
+    }
+
+    moveTo() {
+        return this;
+    }
+
+    lineTo() {
+        this.lineTos++;
+        return this;
+    }
+
+    closePath() {
+        return this;
+    }
+
+    fill(style) {
+        this.fills.push(style);
+        return this;
+    }
+
+    stroke(style) {
+        this.strokes.push(style);
+        return this;
+    }
+}
+
+/** `FillGradient` falso: guarda sus opciones y las paradas de color en el orden en que se agregan. */
+class FakeFillGradient {
+    constructor(options) {
+        this.options = options;
+        this.colorStops = [];
+        this.destroyed = false;
+    }
+
+    addColorStop(offset, color) {
+        this.colorStops.push({ offset, color });
+        return this;
+    }
+
+    destroy() {
+        this.destroyed = true;
     }
 }
 
@@ -152,6 +226,7 @@ export function installFakePixi() {
         Sprite: FakeSprite,
         Texture: FakeTexture,
         Graphics: FakeGraphics,
+        FillGradient: FakeFillGradient,
         Filter: FakeFilter,
         GlProgram: { from: (options) => options },
     };
