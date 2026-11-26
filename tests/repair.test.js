@@ -9,7 +9,7 @@ import { loadGame } from "./helpers/game.js";
 const { FLUID } = await import("../src/combat/weapons.js");
 const { LEVEL } = await import("../src/level/level.js");
 const { REPAIR, PICKUP_RESPAWN } = await import("../src/level/pickups.js");
-const { MAX_HP } = await import("../src/robot/ActiveRagdoll.js");
+const { MAX_HP } = await import("../src/ragdoll/ActiveRagdoll.js");
 const { Bot, BOT } = await import("../src/ai/bot.js");
 const { ClimbGenerator, CLIMB } = await import("../src/level/climb.js");
 

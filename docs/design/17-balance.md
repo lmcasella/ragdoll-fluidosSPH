@@ -6,10 +6,10 @@ Valores con los que se juega hoy, en palabras simples. Si otro archivo del dise�
 
 | Qué | Valor | Dónde está |
 |---|---|---|
-| Vida | 100 | `src/robot/ActiveRagdoll.js:5` |
-| Caminar | 6 m/s | `src/robot/ActiveRagdoll.js:47` |
-| Salto | 9 m/s hacia arriba | `src/robot/ActiveRagdoll.js:48` |
-| Roll | dura 0,8 s, 4 m/s, se repite cada 0,5 s | `src/robot/ActiveRagdoll.js:75` |
+| Vida | 100 | `src/ragdoll/ActiveRagdoll.js:5` |
+| Caminar | 6 m/s | `src/ragdoll/ActiveRagdoll.js:47` |
+| Salto | 9 m/s hacia arriba | `src/ragdoll/ActiveRagdoll.js:48` |
+| Roll | dura 0,8 s, 4 m/s, se repite cada 0,5 s | `src/ragdoll/ActiveRagdoll.js:75` |
 | Caída fuerte | a partir de 11 m/s de choque, 2 de daño por cada m/s de más | `src/combat/damage.js:18-20` |
 | Daño según la pieza | cabeza ×1,5; pecho y pelvis ×1; brazos y piernas ×0,75 | `index.js:117-118` |
 
@@ -57,6 +57,6 @@ El vapor y la piedra que salen de las reacciones no dañan. Los valores están e
 
 | Qué | Valor | Dónde está |
 |---|---|---|
-| Nocaut | con la vida en 0 el robot queda inconsciente 5 s la primera vez en la ronda, 3 s más cada vez siguiente (hasta 18 s), y se levanta con 50 de vida; solo el agua mata | `src/robot/ActiveRagdoll.js:7-12` |
+| Nocaut | con la vida en 0 el robot queda inconsciente 5 s la primera vez en la ronda, 3 s más cada vez siguiente (hasta 18 s), y se levanta con 50 de vida; solo el agua mata | `src/ragdoll/ActiveRagdoll.js:7-12` |
 | Agua que sube | arranca a los 5 s, a 0,25 m/s, y va 0,04 m/s más rápido por etapa | `src/level/climb.js:69` |
-| Reparación | deja la vida en 100 y levanta al robot en nocaut (en el Clásico suma 35) | `src/robot/ActiveRagdoll.js` (`repair`) |
+| Reparación | deja la vida en 100 y levanta al robot en nocaut (en el Clásico suma 35) | `src/ragdoll/ActiveRagdoll.js` (`repair`) |

@@ -1,7 +1,7 @@
 // Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
 // Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
 import { MATERIALS } from "../fluids/materials.js";
-import { shortCircuitDps } from "../robot/ActiveRagdoll.js";
+import { shortCircuitDps } from "../ragdoll/ActiveRagdoll.js";
 
 const FLASH_COLOR = [255, 40, 40];
 const WET_COLOR = [40, 220, 255];

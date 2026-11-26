@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { ActiveRagdoll, shortCircuitDps } = await import("../src/robot/ActiveRagdoll.js");
+const { ActiveRagdoll, shortCircuitDps } = await import("../src/ragdoll/ActiveRagdoll.js");
 const { MATERIALS } = await import("../src/fluids/materials.js");
 
 // Estado mínimo para probar el cortocircuito sin física
