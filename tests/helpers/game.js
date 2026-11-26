@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 import { WEAPONS } from "../../src/combat/weapons.js";
 import { inert } from "./inert.js";
 import { FakeElement } from "./fake-dom.js";
+import { installFakePixi } from "./fake-pixi.js";
 
 const root = new URL("../../", import.meta.url);
 const require = createRequire(import.meta.url);
@@ -30,22 +31,15 @@ export function giveAllWeapons(game) {
  * elección por defecto del menú (o la que pidan `?bot=` y `localStorage`), para que las pruebas de gameplay no pasen
  * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  * `options.storage` es el `localStorage` falso del juego (con `getItem` y `setItem`); sin él no hay almacenamiento.
- * `game.hudTexts` y `game.laserMoves` espían lo dibujado en el último frame (capas HUD y mira).
+ * `game.hudTexts` y `game.laserMoves` espían lo dibujado en el último frame (panel de debug y capa superpuesta de la mira).
+ * El `PIXI` es el falso de `tests/helpers/fake-pixi.js`; el DOM falso tiene `document.querySelectorAll` por etiqueta.
  * Sin `intro`, la asignación de controles es la clásica de las pruebas: el teclado y el gamepad 0 en J1, el gamepad 1 en J2.
  * `options.map` es el mapa de la partida ("classic" por defecto, o "infinite"); se escribe en el menú antes de arrancar.
  */
 export async function loadGame(options = {}) {
     globalThis.__TEST_HOOKS__ = true;
     globalThis.Box2D = require("../../vendor/liquidfun.js");
-    globalThis.PIXI = {
-        Container: class {
-            addChild(child) {
-                return child;
-            }
-            removeChild() {}
-            destroy() {}
-        },
-    };
+    installFakePixi();
 
     const handlers = {};
     globalThis.window = {
@@ -53,24 +47,27 @@ export async function loadGame(options = {}) {
         innerHeight: 720,
         addEventListener: (type, fn) => (handlers[type] ??= []).push(fn),
     };
-    const elements = new Map();
     const spy = { hudTexts: [], laserMoves: 0, arcs: 0 };
     const spies = {
-        hudCanvas: { clearRect: () => (spy.hudTexts.length = 0), fillText: (text) => spy.hudTexts.push(String(text)) },
-        pickupCanvas: { clearRect: () => ((spy.laserMoves = 0), (spy.arcs = 0)), moveTo: () => spy.laserMoves++, arc: () => spy.arcs++ },
+        panelLayer: { clearRect: () => (spy.hudTexts.length = 0), fillText: (text) => spy.hudTexts.push(String(text)) },
+        overlayLayer: { clearRect: () => ((spy.laserMoves = 0), (spy.arcs = 0)), moveTo: () => spy.laserMoves++, arc: () => spy.arcs++ },
     };
+    class FakeCanvas extends FakeElement {
+        constructor() {
+            super("canvas");
+        }
+
+        getContext() {
+            return inert({ createRadialGradient: () => inert(), createLinearGradient: () => inert(), ...spies[this.id] });
+        }
+    }
+    const body = new FakeElement("body");
+    const gameContainer = body.appendChild(new FakeElement("div"));
     globalThis.document = {
-        getElementById: (id) => {
-            if (!elements.has(id)) {
-                const context = inert({ createLinearGradient: () => inert(), ...spies[id] });
-                elements.set(id, inert({ width: 0, height: 0, getContext: () => context }));
-            }
-            return elements.get(id);
-        },
-        createElement: (tag) =>
-            tag === "canvas"
-                ? inert({ width: 0, height: 0, style: {}, getContext: () => inert({ createRadialGradient: () => inert() }) })
-                : new FakeElement(tag),
+        body,
+        getElementById: (id) => (id === "gameContainer" ? gameContainer : inert()),
+        createElement: (tag) => (tag === "canvas" ? new FakeCanvas() : new FakeElement(tag)),
+        querySelectorAll: (tag) => body.findAllByTag(tag),
     };
 
     if (options.storage) globalThis.localStorage = options.storage;
