@@ -1,11 +1,11 @@
-// Armas recogibles (#14, docs/design/04-fluidos.md §4.2): el script de index.html con LiquidFun real.
+// Armas recogibles (#14, docs/design/04-fluidos.md §4.2): el script de index.js con LiquidFun real.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { FLUID, weaponById } = await import("../js/weapons.js");
-const { LEVEL } = await import("../js/level.js");
-const { PICKUP_RESPAWN } = await import("../js/pickups.js");
+const { FLUID, weaponById } = await import("../src/combat/weapons.js");
+const { LEVEL } = await import("../src/level/level.js");
+const { PICKUP_RESPAWN } = await import("../src/level/pickups.js");
 
 async function start() {
     const game = await loadGame();

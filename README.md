@@ -25,7 +25,7 @@ El juego está pensado para gamepad; el teclado y el mouse son respaldo y valen 
 
 **Asignación de controles.** Al elegir Jugar se abre una pantalla con tres columnas, J1, la bandeja del medio (sin jugar) y J2, y cada dispositivo conectado (teclado y mouse, gamepad 1, gamepad 2) como una ficha en una de ellas; el teclado es solo de J1. Cada dispositivo se mueve con su propio stick o cruceta (el teclado, con A/D o las flechas). Select o A de un gamepad lo suman y lo resaltan; un gamepad que no apretó nada todavía aparece atenuado. Start, Enter o A (en un gamepad ya sumado) empiezan la partida; B o Escape vuelven al menú. Por defecto: sin gamepads, el teclado en J1; con uno, el teclado en J1 y el gamepad en J2; con dos, gamepad 1 en J1, gamepad 2 en J2 y el teclado en J1. Al conectar o desconectar un gamepad la pantalla se actualiza, y la última asignación se recuerda en el navegador. Un jugador sin ningún dispositivo lo maneja el bot con la dificultad del menú; si ninguno tiene dispositivo, juegan dos bots.
 
-El bot juega con un gamepad virtual. Si hay un gamepad real asignado a ese jugador, el bot no escribe. `?bot=2` o `?bot=1,2` en la URL (por ejemplo `http://localhost:8080/?bot=2`) fuerzan los bots y saltan la pantalla de asignación. Los valores del bot (distancias, demora de reacción, error de puntería) están en la tabla `BOT` de `js/bot.js`, y los presets de dificultad en `DIFFICULTY`.
+El bot juega con un gamepad virtual. Si hay un gamepad real asignado a ese jugador, el bot no escribe. `?bot=2` o `?bot=1,2` en la URL (por ejemplo `http://localhost:8080/?bot=2`) fuerzan los bots y saltan la pantalla de asignación. Los valores del bot (distancias, demora de reacción, error de puntería) están en la tabla `BOT` de `src/ai/bot.js`, y los presets de dificultad en `DIFFICULTY`.
 
 El juego tiene sonido y música (archivos en `audio/`): el navegador no lo deja arrancar hasta que se toca una tecla, se hace clic o se aprieta un botón del gamepad. Los disparos y los fluidos todavía no suenan.
 
@@ -67,6 +67,6 @@ Para revisar la física sobre secuencias de frames, en un script de Node se carg
 
 Los ragdolls se cargan con RagImporter (`lib/`, copiado de [ragassembler2d](https://github.com/Gann4Life/ragassembler2d) commit `d067775`) desde archivos `.rag.json` (formato v4) en `assets/`:
 
-- `assets/robot.rag.json`: los dos jugadores (robot de 13 cuerpos con clips `walk`, `jump`, `dead` y `punch`), manejados por `js/ActiveRagdoll.js`. El mapeo del rig (cuerpo raíz, hombros que apuntan, pies, arma, clips) está en `ROBOT_RIG` de `index.html`. La tabla de armas (caudal, velocidad, tanque) está en `js/weapons.js`.
+- `assets/robot.rag.json`: los dos jugadores (robot de 13 cuerpos con clips `walk`, `jump`, `dead` y `punch`), manejados por `src/robot/ActiveRagdoll.js`. El mapeo del rig (cuerpo raíz, hombros que apuntan, pies, arma, clips) está en `ROBOT_RIG` de `index.js`. La tabla de armas (caudal, velocidad, tanque) está en `src/combat/weapons.js`.
 
 `vendor/liquidfun.js` (build Emscripten, namespace `Box2D`) y `vendor/pixi.min.js` son los que exige RagImporter. El mundo usa metros con Y hacia arriba y se avanza con `stepWorld`.

@@ -6,9 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { FLUID } = await import("../js/weapons.js");
-const { ORIGIN } = await import("../js/particleStore.js");
-const { PARTICLE } = await import("../js/particles.js");
+const { FLUID } = await import("../src/combat/weapons.js");
+const { ORIGIN } = await import("../src/fluids/particleStore.js");
+const { PARTICLE } = await import("../src/fluids/particles.js");
 
 /** Corre `fn` capturando los `console.warn` que empiezan con `contacts.js`. */
 function withWarnings(fn) {

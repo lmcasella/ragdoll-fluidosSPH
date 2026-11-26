@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "../helpers/game.js";
 
-const { BOT, buildNav } = await import("../../js/bot.js");
+const { BOT, buildNav } = await import("../../src/ai/bot.js");
 
 const PLATFORM_WIDTH = 8;
 const THICKNESS = 0.4;

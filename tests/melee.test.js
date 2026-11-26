@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BUTTON, AIM_RIGHT, AIM_LEFT, startDuel, run } from "./helpers/duel.js";
 
-const { MELEE } = await import("../js/melee.js");
-const { FLUID } = await import("../js/weapons.js");
+const { MELEE } = await import("../src/combat/melee.js");
+const { FLUID } = await import("../src/combat/weapons.js");
 
 const DT = 1 / 60;
 const GAP = 0.8;

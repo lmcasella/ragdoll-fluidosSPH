@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { WEAPONS, FLUID } = await import("../js/weapons.js");
+const { WEAPONS, FLUID } = await import("../src/combat/weapons.js");
 
 const tankOf = (id) => WEAPONS.find((w) => w.id === id).tank;
 

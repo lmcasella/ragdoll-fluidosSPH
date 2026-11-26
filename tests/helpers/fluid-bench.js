@@ -15,10 +15,10 @@ globalThis.PIXI ??= {
 };
 
 const { stepWorld } = await import("../../lib/ragimporter.js");
-const { createParticleSystem } = await import("../../js/particles.js");
-const { ShotEmitter } = await import("../../js/weapons.js");
-const { ParticleStore } = await import("../../js/particleStore.js");
-const { WallContact } = await import("../../js/wallContact.js");
+const { createParticleSystem } = await import("../../src/fluids/particles.js");
+const { ShotEmitter } = await import("../../src/combat/weapons.js");
+const { ParticleStore } = await import("../../src/fluids/particleStore.js");
+const { WallContact } = await import("../../src/fluids/wallContact.js");
 
 const DT = 1 / 60;
 /** Una partícula llegó al piso si su y es <= `IMPACT_HEIGHT · r` (en reposo queda a ~1,65 r); una gota es aislada si su vecina más cercana está a más de `ISOLATED_DISTANCE · r`. */

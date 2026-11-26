@@ -4,10 +4,10 @@ import { fillField, DT, G } from "./helpers/water-scene.js";
 import { loadGame } from "./helpers/game.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { ShallowWater } = await import("../js/water.js");
-const { Buoyancy } = await import("../js/buoyancy.js");
-const { bodyShapes } = await import("../js/bodyShapes.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
+const { ShallowWater } = await import("../src/water/water.js");
+const { Buoyancy } = await import("../src/water/buoyancy.js");
+const { bodyShapes } = await import("../src/fluids/bodyShapes.js");
+const { MATERIALS, SIGMA_W } = await import("../src/fluids/materials.js");
 
 const B = SIGMA_W / 1000;
 const RHO = 1000;
@@ -26,7 +26,7 @@ function makePool(depth, config = {}) {
         water,
         buoyancy,
         bodies: new Map(),
-        /** Un paso fijo en el orden de `index.html`: empuje y arrastre, mundo y campo. */
+        /** Un paso fijo en el orden de `index.js`: empuje y arrastre, mundo y campo. */
         step(stepWater = true) {
             buoyancy.apply(DT);
             stepWorld(world, []);

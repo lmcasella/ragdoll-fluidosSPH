@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { thermalScene } from "./helpers/thermal-bench.js";
-import { THERMAL } from "../js/thermal.js";
-import { FLUID } from "../js/weapons.js";
+import { THERMAL } from "../src/fluids/thermal.js";
+import { FLUID } from "../src/combat/weapons.js";
 
 /** Cuenta las partículas vivas del material `kind`. */
 function count(scene, kind) {

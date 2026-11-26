@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { shotBench } from "./helpers/fluid-bench.js";
 
-const { WEAPONS, SHOT_SYSTEM } = await import("../js/weapons.js");
-const { createParticleSystem, PARTICLE } = await import("../js/particles.js");
+const { WEAPONS, SHOT_SYSTEM } = await import("../src/combat/weapons.js");
+const { createParticleSystem, PARTICLE } = await import("../src/fluids/particles.js");
 
 const fmt = (metrics) => JSON.stringify(metrics, (_, v) => (typeof v === "number" ? Number(v.toFixed(3)) : v));
 
@@ -34,7 +34,7 @@ test("miel: con el viscousStrength final el charco es más angosto que con 0,25 
     assert.ok(final.restSpeedP95 < 0.1, `restSpeedP95 ${final.restSpeedP95.toFixed(3)}`);
 });
 
-test("lava y miel: sin flags de viscosidad ni tensión, como el agua (la viscosidad de la miel es de js/adhesion.js y js/viscosity.js)", () => {
+test("lava y miel: sin flags de viscosidad ni tensión, como el agua (la viscosidad de la miel es de src/fluids/adhesion.js y src/fluids/viscosity.js)", () => {
     assert.equal(LAVA.flags, PARTICLE.WATER);
     assert.equal(HONEY.flags, PARTICLE.WATER);
 });

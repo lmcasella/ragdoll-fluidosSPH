@@ -1,4 +1,4 @@
-// Gameplay del chorro con tanque: el script de index.html con LiquidFun real y gamepads simulados
+// Gameplay del chorro con tanque: el script de index.js con LiquidFun real y gamepads simulados
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame, giveAllWeapons } from "./helpers/game.js";

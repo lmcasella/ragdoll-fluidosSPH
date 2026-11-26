@@ -6,10 +6,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { BUTTON } from "./helpers/duel.js";
-import { FLUID } from "../js/weapons.js";
+import { FLUID } from "../src/combat/weapons.js";
 
-const { KNOCKOUT, MAX_HP } = await import("../js/ActiveRagdoll.js");
-const { REPAIR } = await import("../js/pickups.js");
+const { KNOCKOUT, MAX_HP } = await import("../src/robot/ActiveRagdoll.js");
+const { REPAIR } = await import("../src/level/pickups.js");
 
 const FRAME = 1 / 60;
 const AIM_RIGHT = [0, 0, 1, 0];

@@ -5,9 +5,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { WEAPONS, FLUID } from "../js/weapons.js";
-import { HUD } from "../js/hud.js";
-import { CLIMB, StagePrizes } from "../js/climb.js";
+import { WEAPONS, FLUID } from "../src/combat/weapons.js";
+import { HUD } from "../src/ui/hud.js";
+import { CLIMB, StagePrizes } from "../src/level/climb.js";
 
 const FIRE = 7;
 const AIM_RIGHT = [0, 0, 1, 0];

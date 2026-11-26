@@ -5,15 +5,15 @@ import { shotBench } from "../helpers/fluid-bench.js";
 import { loadGame } from "../helpers/game.js";
 import { fillField } from "../helpers/water-scene.js";
 
-const { WEAPONS, SHOT_SYSTEM, FLUID } = await import("../../js/weapons.js");
-const { ORIGIN } = await import("../../js/particleStore.js");
-const { LEVEL } = await import("../../js/level.js");
+const { WEAPONS, SHOT_SYSTEM, FLUID } = await import("../../src/combat/weapons.js");
+const { ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { LEVEL } = await import("../../src/level/level.js");
 
 const fmt = (value) => JSON.stringify(value, (_, v) => (typeof v === "number" ? Number(v.toFixed(3)) : v));
 
 /**
  * Criterios de #69 (docs/design/14-agua.md §14.16, P1 a P5) con LiquidFun real y el contorno inelástico del juego
- * (`js/wallContact.js`).
+ * (`src/fluids/wallContact.js`).
  */
 /**
  * Asentado de P1 en segundos, igual para los tres h₀. La precondición de reposo es la velocidad cuadrática media

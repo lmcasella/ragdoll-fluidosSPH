@@ -4,8 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RisingFlood, supportHeight } from "../js/flood.js";
-import { CLIMB, stageOf } from "../js/climb.js";
+import { RisingFlood, supportHeight } from "../src/water/flood.js";
+import { CLIMB, stageOf } from "../src/level/climb.js";
 import { loadGame } from "./helpers/game.js";
 
 const DT = 1 / 60;

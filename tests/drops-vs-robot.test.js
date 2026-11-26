@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { ORIGIN } from "../js/particleStore.js";
-import { FLUID } from "../js/weapons.js";
+import { ORIGIN } from "../src/fluids/particleStore.js";
+import { FLUID } from "../src/combat/weapons.js";
 
 /**
  * Gotas contra el robot (#100, docs/design/14-agua.md §14.16, criterios C4, C4b, C5, C8 y C13): el script de
- * `index.html` con LiquidFun real y un gamepad simulado. Cada test imprime lo medido, con el escape encendido y, en
+ * `index.js` con LiquidFun real y un gamepad simulado. Cada test imprime lo medido, con el escape encendido y, en
  * C4, también apagado (el comportamiento anterior: solo el recorte inelástico).
  */
 

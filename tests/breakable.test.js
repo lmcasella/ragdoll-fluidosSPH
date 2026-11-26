@@ -1,14 +1,14 @@
 /**
  * Plataformas rompibles (#301, docs/design/05-escenario.md §5.4 y 16-ascenso.md §16.4): un toque arma la cuenta, la
  * plataforma se rompe y reaparece sin encajar robots, el generador de Infinito sigue la tabla de probabilidades y los
- * cambios de mapa y el fin de partida las dejan enteras. Escena real de index.html con LiquidFun real y gamepad simulado.
+ * cambios de mapa y el fin de partida las dejan enteras. Escena real de index.js con LiquidFun real y gamepad simulado.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { LEVEL } from "../js/level.js";
-import { BREAKABLE } from "../js/breakable.js";
-import { ClimbGenerator, CLIMB } from "../js/climb.js";
+import { LEVEL } from "../src/level/level.js";
+import { BREAKABLE } from "../src/level/breakable.js";
+import { ClimbGenerator, CLIMB } from "../src/level/climb.js";
 
 const STEP = 1 / 60;
 const FLOOR_TOP = 4;

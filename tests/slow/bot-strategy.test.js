@@ -7,10 +7,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "../helpers/game.js";
 
-const { PAD } = await import("../../js/Input.js");
-const { Bot } = await import("../../js/bot.js");
-const { weaponById, refillTanks } = await import("../../js/weapons.js");
-const { CLIMB } = await import("../../js/climb.js");
+const { PAD } = await import("../../src/input/Input.js");
+const { Bot } = await import("../../src/ai/bot.js");
+const { weaponById, refillTanks } = await import("../../src/combat/weapons.js");
+const { CLIMB } = await import("../../src/level/climb.js");
 
 const SEEDS = [1, 2, 3];
 const FRAMES = 60 * 60;

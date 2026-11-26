@@ -14,6 +14,6 @@ La materia usa Phaser Box2D (v3, API por ids). Nosotros usamos LiquidFun, que es
 | Cuerpos cinemáticos | Plataformas móviles | 🔨 #33 |
 | Impulsos (`ApplyLinearImpulse`) | Golpe: impulso en el punto de impacto + empuje de todo el robot por velocidad ([03-robots](03-robots.md#32-golpe-melee-)) | ✅ |
 
-**Contact listener:** el mundo tiene uno solo (`JSContactListener` en `js/damage.js`). RagImporter no lo usa, así que queda para el juego. Cualquier sistema nuevo que necesite contactos se engancha ahí, no instala otro.
+**Contact listener:** el mundo tiene uno solo (`JSContactListener` en `src/combat/damage.js`). RagImporter no lo usa, así que queda para el juego. Cualquier sistema nuevo que necesite contactos se engancha ahí, no instala otro.
 
 **Memoria nativa:** reglas en `CLAUDE.md` (patrón "Memoria nativa").

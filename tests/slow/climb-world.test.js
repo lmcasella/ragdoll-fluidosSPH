@@ -10,9 +10,9 @@ import { loadGame } from "../helpers/game.js";
 const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../../vendor/liquidfun.js");
 
-const { Climb, CLIMB, stageOf } = await import("../../js/climb.js");
-const { OneWayPlatforms } = await import("../../js/platforms.js");
-const { Pickups } = await import("../../js/pickups.js");
+const { Climb, CLIMB, stageOf } = await import("../../src/level/climb.js");
+const { OneWayPlatforms } = await import("../../src/level/platforms.js");
+const { Pickups } = await import("../../src/level/pickups.js");
 
 /**
  * Dirección donde dlmalloc ubica un bloque de 1 MiB: con el heap casi libre sale del tope, así que lo que se filtre

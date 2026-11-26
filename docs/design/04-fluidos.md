@@ -1,6 +1,6 @@
 # 4. Fluidos
 
-Código: tabla de armas y emisor de chorros en `js/weapons.js` (✅ #13), daño en `js/damage.js`, pileta en `js/level.js`.
+Código: tabla de armas y emisor de chorros en `src/combat/weapons.js` (✅ #13), daño en `src/combat/damage.js`, pileta en `src/level/level.js`.
 
 ## 4.1 Armas
 
@@ -39,7 +39,7 @@ Cada partícula guarda en `userData` el id de su disparo, que en `DamageSystem.s
 
 #### Tope de partículas del sistema de disparos
 
-- El sistema de disparos se crea con `maxCount` 1.500 (12.000 desde #100, [14.6](14-agua.md#146-disparos-con-agua-pura)) y `destroyByAge(false)` ✅. Desde #40 ✅, estos valores pasan a `SHOT_SYSTEM` (`js/weapons.js`) junto con las fuerzas del sistema, y `index.html` lo crea con `createParticleSystem(world, SHOT_SYSTEM)` ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)).
+- El sistema de disparos se crea con `maxCount` 1.500 (12.000 desde #100, [14.6](14-agua.md#146-disparos-con-agua-pura)) y `destroyByAge(false)` ✅. Desde #40 ✅, estos valores pasan a `SHOT_SYSTEM` (`src/combat/weapons.js`) junto con las fuerzas del sistema, y `index.js` lo crea con `createParticleSystem(world, SHOT_SYSTEM)` ([07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40)).
   - **Presupuesto:** en 6 s, un jugador no puede emitir más que sus tanques llenos, salvo que recoja armas. Con el inventario completo son 600 partículas (300 + 135 + 90 + 75), 1.200 con dos jugadores. Desde #160 las partículas no vencen: el tope es `maxCount` (si se llega, el emisor corta sin descontar el tanque) y, bajo carga, el recorte `PERF`. Junto con las 5.500 del agua del nivel, el total queda por debajo del techo de 8.000 ([09-arquitectura](09-arquitectura.md#93-presupuestos-y-métricas)). En memoria, es muy poco frente a las 20.000 medidas.
   - **Al llegar al tope:** el emisor compara `GetParticleCount()` con el tope antes de cada partícula. Si no hay lugar, **corta la emisión de ese frame sin descontar el tanque**, y también corta si `CreateParticle` devuelve un índice negativo. No se recicla la partícula más vieja.
   - **Por qué no usar `destroyByAge` del motor** (que viene activo por defecto): `DestroyOldestParticle` necesita el buffer de vencimientos, que solo existe si alguna partícula tiene `lifetime`. El build no expone `SetParticleLifetime`, `SetDestructionByAge` ni `GetDestructionByAge` en el sistema (*verificado* en `vendor/liquidfun.js`, 18/11: sí están `b2ParticleDef.set_lifetime`, `b2ParticleSystemDef.set_maxCount` y `set_destroyByAge`). Dejarlo activo sin vencimientos es comportamiento indefinido. *Verificado* con LiquidFun real (`tests/weapons.test.js`): con `maxCount` y `destroyByAge(false)`, `CreateParticle` devuelve **−1** al llegar al tope, el conteo se queda en el tope y el sistema sigue avanzando sin romperse. El emisor ni siquiera llega a pedirlo: compara antes con `GetMaxParticleCount()`.
@@ -48,7 +48,7 @@ Cada partícula guarda en `userData` el id de su disparo, que en `DamageSystem.s
 
 Con chorro continuo, el daño se define como **daño por segundo con el chorro entero sobre el rival** (`dps` en la tabla). Las armas de daño por contacto lo convierten a daño por partícula con `dps / caudal`: si se cambia el caudal, el DPS no cambia. Las armas que aplican un estado (agua, lava, miel) no dañan por partícula: el estado renovado da el DPS (la miel, ninguno: solo pega), con sus constantes en `ActiveRagdoll`. Para esas armas, la columna DPS es una referencia de balance.
 
-#### Tabla de armas (datos en `WEAPONS`, `js/weapons.js`)
+#### Tabla de armas (datos en `WEAPONS`, `src/combat/weapons.js`)
 
 > **Caudales y tanques de esta tabla son históricos.** Los valores actuales están en [17-balance](17-balance.md#armas).
 
@@ -65,7 +65,7 @@ El orden de la tabla es el orden del ciclo de armas (LB / RB) y de las teclas nu
 
 - **Balance:** un tanque de ácido entero sobre el rival saca ~30 de vida, menos de un tercio, y el golpe melee saca 8. El agua es débil en daño (~3/s, hasta ~15 con un tanque, por los 3 s de mojado) y fuerte en control: empuja, deja charcos y prepara el arco eléctrico (#31). Por eso tiene el tanque más grande.
 - La columna "Dura" es `tanque / caudal`. Las velocidades dan un alcance útil de ~6 m para el agua y el ácido, y de ~3–4 m para la lava, que cae en arco. La miel, con `viscousStrength` 1,0 y 8 m/s, llegaba a solo 2,15 m de la boca (3,65 m con 0,25): el sistema espeso la frena en el aire. #41 sube su velocidad a **18 m/s** y llega a **~3,0 m** (medido con J1 disparando 1,5 s a nivel; barrido de velocidad en [07 §7.5](07-sph.md#75-parámetros-por-sistema--40)). Sigue siendo el arma de menor alcance. Con la velocidad alta el chorro sale casi recto y cae al llegar.
-- **Flags** ✅ #40: son las constantes `PARTICLE` de `js/particles.js` (`TENSILE` = `b2_tensileParticle`, etc.). El emisor les suma `CONTACT_LISTENER`. La fuerza de cada término (tensión superficial, viscosidad, damping) es del sistema de disparos (`SHOT_SYSTEM` en `js/weapons.js`); cada arma elige con sus flags qué términos recibe. Valores, justificación y banco de pruebas en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40).
+- **Flags** ✅ #40: son las constantes `PARTICLE` de `src/fluids/particles.js` (`TENSILE` = `b2_tensileParticle`, etc.). El emisor les suma `CONTACT_LISTENER`. La fuerza de cada término (tensión superficial, viscosidad, damping) es del sistema de disparos (`SHOT_SYSTEM` en `src/combat/weapons.js`); cada arma elige con sus flags qué términos recibe. Valores, justificación y banco de pruebas en [07-sph §7.5](07-sph.md#75-parámetros-por-sistema--40).
 - **En el agua del nivel** ✅ #39: cada fila suma `immersion: { buoyancy, drag }`. `buoyancy` = ρ_agua / ρ_fluido (adimensional) y `drag` = frenado lineal en 1/s. Los aplica el puente de [07-sph §7.6](07-sph.md#76-puente-agua--disparos--39). Un arma nueva solo agrega su fila.
 
   | Arma | `buoyancy` | `drag` (1/s) | Bajo el agua |
@@ -117,7 +117,7 @@ La regla tiene tres partes, cada una en el sistema que le corresponde: **detecci
 
 > **Retirado.** `STICKY` ya no existe: la miel frena por física, con adherencia viscosa ([14-agua](14-agua.md)). Lo que sigue es historia.
 
-Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `move()` (3 m/s, salto 3, fricción 0,95). Los valores son datos: `STICKY`, exportado desde `js/ActiveRagdoll.js` junto a las demás constantes de estado.
+Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `move()` (3 m/s, salto 3, fricción 0,95). Los valores son datos: `STICKY`, exportado desde `src/robot/ActiveRagdoll.js` junto a las demás constantes de estado.
 
 | Clave | Valor | Efecto | Libre / pegado |
 |---|---|---|---|
@@ -128,7 +128,7 @@ Reemplaza a `honeyTimer` (60 pasos), `applyHoney()` y los valores sueltos de `mo
 | `grace` | **0,3** s | Cuánto dura después de la última vez que tocó miel | — |
 
 - **`stick()`** deja `stickyTimer = STICKY.grace` (renueva). `get sticky()` es `stickyTimer > 0`. `updateStatus(dt)` lo baja con `dt` (segundos, no pasos). Se copia en `copyStateFrom` al girar.
-- **En `move(input, dt)`:** `move` recibe el `dt` del paso fijo (`index.html` pasa `STEP_SETTINGS.dt`; por defecto 1/60). Con `sticky`: primero la gravedad extra, después caminar con `6 × speed` o frenar con `brake`, y el salto con `9 × jump`, que pisa `vy` del paso. Así el salto sale entero en su paso y la gravedad extra lo acorta después.
+- **En `move(input, dt)`:** `move` recibe el `dt` del paso fijo (`index.js` pasa `STEP_SETTINGS.dt`; por defecto 1/60). Con `sticky`: primero la gravedad extra, después caminar con `6 × speed` o frenar con `brake`, y el salto con `9 × jump`, que pisa `vy` del paso. Así el salto sale entero en su paso y la gravedad extra lo acorta después.
 - **Aturdido:** el golpe sigue empujando libre (no se aplica `brake` ni caminar). Es intencional: un golpe puede sacar al rival del charco.
 - **En el aire:** si el chorro le pega en el aire, la gravedad extra lo baja más rápido. Es el "pegar al piso" del feedback.
 - **Feedback visual:** mientras `player.sticky` (y vivo), `drawRobot` mezcla el color de cada pieza con ámbar (`STICKY_COLOR` 255, 170, 30) con un parpadeo de 3 Hz (mezcla de 0,1 a 0,9), en el mismo estilo que el tinte cian del mojado ([Cortocircuito](#cortocircuito-regla-compartida--22)). Como depende solo del estado, se ve igual con la miel disparada y la del mapa. Verificado en navegador headless (capturas con `stick()` forzado cada frame): el robot alterna entre su color y un ocre/ámbar; se distingue del cian del mojado, que además lleva chispas.
@@ -186,13 +186,13 @@ El agua de la inundación y el arma de agua (#18) dañan igual, así que la regl
 
 ## 4.2 Recogida e inventario ✅
 
-- **Arranque** ✅ #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `js/weapons.js`):
+- **Arranque** ✅ #18: cada robot empieza cada ronda, y la revancha, con el **agua equipada y su tanque lleno**, más el golpe melee. El agua reemplaza al ácido como arma inicial. El inventario inicial es un dato (`LOADOUT` en `src/combat/weapons.js`):
   - **#13** ✅: todas las armas de la tabla con tanque lleno; arranca equipada la primera fila. Es provisorio, para poder probar.
   - **#18** ✅: arranca equipada el agua. Mientras #14 no esté, el resto de las armas sigue en el inventario inicial, así se pueden probar.
   - **#14** ✅: el inventario inicial queda **solo con el agua**; el ácido, la lava y la miel se recogen en el mapa (el fuego no existe todavía).
-- **Inventario en el jugador:** `player.weapon` (id del arma equipada) y `player.tanks` (`Map` id → partículas que quedan). Viven en `ActiveRagdoll` porque son estado del jugador: se copian en `copyStateFrom` al girar y se pierden al recrear el robot en cada ronda. `ActiveRagdoll` no conoce la tabla: el inventario lo carga la raíz de composición con `equipLoadout(robot)` de `js/weapons.js` al crear cada robot.
-- **Puntos de aparición** ✅ #14 (`LEVEL.pickups`, `js/pickups.js`): las armas están en puntos fijos del mapa, definidos como datos del nivel. Al tocar un arma (sensor de Box2D), se suma al inventario con el tanque lleno; si ya estaba, se rellena. Reaparece en su punto a los 15 s. **El agua también aparece como recogible**: es su única recarga dentro de la ronda (ver 12.1). Puntos (m, centro del ícono, 0,6 m sobre la plataforma): ácido (28; 14,2), lava (13; 10,9) y (43; 10,9), miel (4,5; 7,6) y (51,5; 7,6), agua (26; 8,4). Sensor de radio 0,5 m; al empezar cada ronda todos están disponibles.
-- **Ítem de reparación** ✅ #156 (`kind: "repair"` en `LEVEL.pickups`, `REPAIR` en `js/pickups.js`): suma `REPAIR.hp` = 35 de salud, con tope en la salud máxima (`MAX_HP`). Con la salud llena no se recoge y sigue activo. Reaparece a los `REPAIR.respawn` = 20 s de juego (las armas, a los 15 s). Ícono: tuerca hexagonal gris con borde verde. Punto del clásico: (30; 8,4), en la plataforma central de la pileta. El bot con menos de `BOT.repairHp` = 40 de salud lo busca si la ruta tiene `pickupReach` aristas o menos. Suena `pickup_5`.
+- **Inventario en el jugador:** `player.weapon` (id del arma equipada) y `player.tanks` (`Map` id → partículas que quedan). Viven en `ActiveRagdoll` porque son estado del jugador: se copian en `copyStateFrom` al girar y se pierden al recrear el robot en cada ronda. `ActiveRagdoll` no conoce la tabla: el inventario lo carga la raíz de composición con `equipLoadout(robot)` de `src/combat/weapons.js` al crear cada robot.
+- **Puntos de aparición** ✅ #14 (`LEVEL.pickups`, `src/level/pickups.js`): las armas están en puntos fijos del mapa, definidos como datos del nivel. Al tocar un arma (sensor de Box2D), se suma al inventario con el tanque lleno; si ya estaba, se rellena. Reaparece en su punto a los 15 s. **El agua también aparece como recogible**: es su única recarga dentro de la ronda (ver 12.1). Puntos (m, centro del ícono, 0,6 m sobre la plataforma): ácido (28; 14,2), lava (13; 10,9) y (43; 10,9), miel (4,5; 7,6) y (51,5; 7,6), agua (26; 8,4). Sensor de radio 0,5 m; al empezar cada ronda todos están disponibles.
+- **Ítem de reparación** ✅ #156 (`kind: "repair"` en `LEVEL.pickups`, `REPAIR` en `src/level/pickups.js`): suma `REPAIR.hp` = 35 de salud, con tope en la salud máxima (`MAX_HP`). Con la salud llena no se recoge y sigue activo. Reaparece a los `REPAIR.respawn` = 20 s de juego (las armas, a los 15 s). Ícono: tuerca hexagonal gris con borde verde. Punto del clásico: (30; 8,4), en la plataforma central de la pileta. El bot con menos de `BOT.repairHp` = 40 de salud lo busca si la ruta tiene `pickupReach` aristas o menos. Suena `pickup_5`.
 - **Rueda de armas** ✅ #15 (revisada con el remapeo del 18/11; controles en [10](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)):
   - mantener LB ≥ 0,25 s (`TAP_MAX`; Q de respaldo) abre un círculo con las armas del inventario, repartidas en sectores iguales desde arriba en sentido horario;
   - se elige con el **stick derecho** (W/A/S/D de respaldo) y se equipa al **soltar LB**; con el stick al centro se cancela;

@@ -1,5 +1,5 @@
 /**
- * Salto variable y caída rápida (#152) sobre la escena real: el script de `index.html` con LiquidFun real y gamepad
+ * Salto variable y caída rápida (#152) sobre la escena real: el script de `index.js` con LiquidFun real y gamepad
  * simulado. Alturas medidas como la elevación del punto más bajo del robot sobre su posición de reposo.
  */
 import { test } from "node:test";

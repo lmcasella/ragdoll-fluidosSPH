@@ -1,5 +1,5 @@
 import { loadGame } from "./game.js";
-import { LEVEL } from "../../js/level.js";
+import { LEVEL } from "../../src/level/level.js";
 
 /** Botones del mapeo "standard" que usan los duelos: A salta, B golpea, LT bloquea, RT dispara. */
 export const BUTTON = { A: 0, B: 1, LT: 6, RT: 7 };

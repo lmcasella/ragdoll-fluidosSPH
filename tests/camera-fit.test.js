@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Camera, MAX_VIEW_HEIGHT } from "../js/camera.js";
+import { Camera, MAX_VIEW_HEIGHT } from "../src/render/camera.js";
 
 const PPM = 20;
 const VIEW_W = 1280;

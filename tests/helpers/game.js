@@ -1,4 +1,4 @@
-// Ejecuta el script de index.html en Node, con LiquidFun real y todo lo del navegador simulado, para probar
+// Ejecuta el index.js en Node, con LiquidFun real y todo lo del navegador simulado, para probar
 // gameplay de punta a punta: `const game = await loadGame()`, `game.setPad(0, { buttons: [0] })`, `game.frames(60)`.
 // Hay un juego por llamada a loadGame; el estado del juego está en `game.state` (globalThis.game del script).
 import { createRequire } from "node:module";
@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { WEAPONS } from "../../js/weapons.js";
+import { WEAPONS } from "../../src/combat/weapons.js";
 import { inert } from "./inert.js";
 import { FakeElement } from "./fake-dom.js";
 
@@ -97,8 +97,7 @@ export async function loadGame(options = {}) {
         return { json: async () => (patch ? patch(JSON.parse(text)) : JSON.parse(text)) };
     };
 
-    const html = readFileSync(new URL("index.html", root), "utf8");
-    const source = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1].replace(
+    const source = readFileSync(new URL("index.js", root), "utf8").replace(
         /from "(\.\/[^"]+)"/g,
         (_, path) => `from "${new URL(path, root).href}"`,
     );

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Screens, versionLabel } from "../js/screens.js";
+import { Screens, versionLabel } from "../src/ui/screens.js";
 import { fakeDocument } from "./helpers/fake-dom.js";
 
 test("el menú tiene el elemento de versión y no es una fila navegable", () => {

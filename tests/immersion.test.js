@@ -7,9 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeScene, wavePulse, particle, A_P, DT, G, RADIUS } from "./helpers/water-scene.js";
 
-const { FLUID, SHOT_SYSTEM } = await import("../js/weapons.js");
-const { LEVEL } = await import("../js/level.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
+const { FLUID, SHOT_SYSTEM } = await import("../src/combat/weapons.js");
+const { LEVEL } = await import("../src/level/level.js");
+const { MATERIALS, SIGMA_W } = await import("../src/fluids/materials.js");
 
 const SG = new Map([[FLUID.WATER, MATERIALS.water.SG], [FLUID.ACID, MATERIALS.acid.SG], [FLUID.HONEY, MATERIALS.honey.SG], [FLUID.LAVA, MATERIALS.lava.SG]]);
 const SURFACE = LEVEL.pool.surface;

@@ -6,9 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { fillField } from "./helpers/water-scene.js";
-import { LEVEL } from "../js/level.js";
-import { FLUID } from "../js/weapons.js";
-import { MATERIALS } from "../js/materials.js";
+import { LEVEL } from "../src/level/level.js";
+import { FLUID } from "../src/combat/weapons.js";
+import { MATERIALS } from "../src/fluids/materials.js";
 
 const RT = 7;
 const SIGMA_W = MATERIALS.water.sigmaE;

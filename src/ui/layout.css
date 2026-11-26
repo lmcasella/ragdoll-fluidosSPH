@@ -1,0 +1,30 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #1a1a24;
+    font-family: "Segoe UI", sans-serif;
+    color: #eee;
+}
+#gameContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+}
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+}
+.fluidLayer {
+    pointer-events: none;
+    filter: url("#goo");
+}
+#pickupCanvas {
+    pointer-events: none;
+    z-index: 10;
+}
+#hudCanvas {
+    pointer-events: none;
+    z-index: 50;
+}

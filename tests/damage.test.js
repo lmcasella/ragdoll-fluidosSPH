@@ -5,8 +5,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 globalThis.Box2D = require("../vendor/liquidfun.js");
 
-const { DamageSystem } = await import("../js/damage.js");
-const { FLUID, weaponById, particleDamage } = await import("../js/weapons.js");
+const { DamageSystem } = await import("../src/combat/damage.js");
+const { FLUID, weaponById, particleDamage } = await import("../src/combat/weapons.js");
 
 // Regla de fuego amigo (docs/design/12-decisiones.md): el fluido propio no daña a su dueño
 // durante 0,4 s desde el disparo; después sí.

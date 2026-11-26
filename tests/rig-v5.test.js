@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { loadGame } from "./helpers/game.js";
 import { BUTTON, AIM_RIGHT, startDuel, spyRag } from "./helpers/duel.js";
 
-const { AIR } = await import("../js/ActiveRagdoll.js");
+const { AIR } = await import("../src/robot/ActiveRagdoll.js");
 
 const rigJson = JSON.parse(readFileSync(new URL("../assets/robot.rag.json", import.meta.url), "utf8"));
 

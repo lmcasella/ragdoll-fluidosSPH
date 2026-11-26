@@ -7,9 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { thermalScene, DT } from "./helpers/thermal-bench.js";
 
-const { FLUID } = await import("../js/weapons.js");
-const { SINK } = await import("../js/particleStore.js");
-const { MATERIALS, SIGMA_W } = await import("../js/materials.js");
+const { FLUID } = await import("../src/combat/weapons.js");
+const { SINK } = await import("../src/fluids/particleStore.js");
+const { MATERIALS, SIGMA_W } = await import("../src/fluids/materials.js");
 
 const fmt = (n, digits = 3) => Number(n).toFixed(digits);
 const A_P = (1.5 * 0.06) ** 2;

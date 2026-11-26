@@ -15,9 +15,9 @@ globalThis.PIXI = {
     },
 };
 
-const { ParticleStore, ORIGIN, SINK } = await import("../js/particleStore.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { SHOT_SYSTEM, FLUID } = await import("../js/weapons.js");
+const { ParticleStore, ORIGIN, SINK } = await import("../src/fluids/particleStore.js");
+const { createParticleSystem } = await import("../src/fluids/particles.js");
+const { SHOT_SYSTEM, FLUID } = await import("../src/combat/weapons.js");
 const { stepWorld } = await import("../lib/ragimporter.js");
 
 function scene(maxCount) {

@@ -5,8 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { CLIMB, ClimbGenerator, pickSpawns } from "../js/climb.js";
-import { seededRandom } from "../js/bot.js";
+import { CLIMB, ClimbGenerator, pickSpawns } from "../src/level/climb.js";
+import { seededRandom } from "../src/ai/bot.js";
 
 const noop = () => {};
 

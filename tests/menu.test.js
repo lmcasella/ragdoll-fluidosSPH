@@ -1,13 +1,13 @@
 /**
- * Menú principal (#154) y pantalla de asignación de controles (#223) sobre la escena real: el script de `index.html`
+ * Menú principal (#154) y pantalla de asignación de controles (#223) sobre la escena real: el script de `index.js`
  * con LiquidFun real, gamepads y teclado simulados.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { DIFFICULTY } = await import("../js/bot.js");
-const { MENU, Menu, CONTROLS, defaultAssignment } = await import("../js/menu.js");
+const { DIFFICULTY } = await import("../src/ai/bot.js");
+const { MENU, Menu, CONTROLS, defaultAssignment } = await import("../src/ui/menu.js");
 
 const A = 0;
 const B = 1;

@@ -2,7 +2,7 @@
 
 Estado: implementado (#25 y #169, natural y en movimiento). Decisiones de juego del game designer (19/11); diseño técnico de `architect`. Es el brief de `developer`: lo que no está acá no se decide en la implementación, se pregunta.
 
-Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood` en `js/flood.js`. Cambios en `water.js`, `immersion.js`, `buoyancy.js`, `render.js`, `pickups.js`, `bot.js`, `damage.js`, `camera.js`, `menu.js`, `index.html` y `tests/helpers/game.js`.
+Código nuevo: `src/level/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood` en `src/water/flood.js`. Cambios en `water.js`, `immersion.js`, `buoyancy.js`, `render.js`, `pickups.js`, `bot.js`, `damage.js`, `camera.js`, `menu.js`, `index.js` y `tests/helpers/game.js`.
 
 ## 16.1 Qué es
 
@@ -14,7 +14,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 - **El mapa baja:** todas las plataformas y paredes son fixtures de un solo cuerpo cinemático que baja a `CLIMB.scroll`. El agua sube con `RisingFlood` (ritmo bajado porque el descenso suma subida relativa) y se genera hacia arriba y se libera lo que queda hundido.
 - **Coordenadas locales:** las alturas de la tabla, del generador, de las etapas, de las armas, del premio y del grafo del bot son locales al cuerpo; la altura en el mundo es `local + offsetY` (`offsetY` = posición del cuerpo).
 
-## 16.2 Tabla `CLIMB` (`js/climb.js`, patrón Datos en tablas)
+## 16.2 Tabla `CLIMB` (`src/level/climb.js`, patrón Datos en tablas)
 
 | Clave | Valor | Uso |
 |---|---|---|
@@ -25,7 +25,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 | `branches` | ver 16.3 | Generador por ramas |
 | `spawn` | `{ distance: [4, 10], dy: 3, inset: 0.8, tries: 400, maxTop: 7 }` | Aparición (16.6) |
 | `scroll` | `{ base: 0.15, perStage: 0.02 }` | Velocidad de descenso (m/s) del cuerpo: `base + perStage · etapa más alta alcanzada` por un jugador |
-| `reach` | `BOT.reach` importado de `js/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | El grafo del bot usa la regla completa |
+| `reach` | `BOT.reach` importado de `src/ai/bot.js` (`up: { dy: 3.3, gap: 2 }`, `short: { dy: 2, gap: 3.5 }`) | El grafo del bot usa la regla completa |
 | `pickupLift` | 0.6 | Altura del ícono sobre el tope (m) |
 | `pickups` | `[{ period: 9, weights: { WATER: 1 } }, { period: 9, weights: { WATER: 0.45, HONEY: 0.45, LAVA: 0.1 } }, { period: 6, weights: { LAVA: 1 } }, { period: 3, weights: { ACID: 0.5, LAVA: 0.5 } }]` | Entrada `min(n − 1, 3)` para la etapa `n ≥ 1`; una arma sobre una de cada `period` plataformas de la etapa. Claves = nombres de `FLUID` |
 | `repairPerStage` | `1` | Ítems de reparación por etapa `n ≥ 1` (16.4) |
@@ -38,17 +38,17 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 **Paredes.** Por etapa `n`, dos rectángulos `kind: "wall"` sin `oneWay`: izquierda x ∈ [−20, 28 − half(n)], derecha x ∈ [28 + half(n), 76], y ∈ [15n, 15n + 15] (la etapa 0, desde −20).
 
-**Generador** (`ClimbGenerator(seed, config)`, JS puro, `seededRandom` de `js/bot.js`). Una sola secuencia consumida fila por fila: el mapa no depende de cuándo se genera. Tabla `branches`: `thickness` 0,4; `dy` [1,5; 3,3] (solo la fila de respaldo); `air` 1,8; `separation` 1; `sameHeight` 0,8; `rows` `{ spacing: [2.2, 3.2], counts: { first: { 1: 0.35, 2: 0.5, 3: 0.15, 4: 0 }, last: { 1: 0.1, 2: 0.25, 3: 0.35, 4: 0.3 } }, shift: 0.4, maxRun: 2, singleWidth: { first: [10, 14], last: [4, 5.5] } }`; `tries` 300; `transition` 3,5; `minWidth` 1,6; `tail` `{ chance: 0.1, long: 1.5, short: 0.6 }`; `window` 12; `width` `{ first: [8, 14], last: [2, 4], stages: 5 }`; `base` `{ count: [3, 5], top: [4, 7] }`.
+**Generador** (`ClimbGenerator(seed, config)`, JS puro, `seededRandom` de `src/ai/bot.js`). Una sola secuencia consumida fila por fila: el mapa no depende de cuándo se genera. Tabla `branches`: `thickness` 0,4; `dy` [1,5; 3,3] (solo la fila de respaldo); `air` 1,8; `separation` 1; `sameHeight` 0,8; `rows` `{ spacing: [2.2, 3.2], counts: { first: { 1: 0.35, 2: 0.5, 3: 0.15, 4: 0 }, last: { 1: 0.1, 2: 0.25, 3: 0.35, 4: 0.3 } }, shift: 0.4, maxRun: 2, singleWidth: { first: [10, 14], last: [4, 5.5] } }`; `tries` 300; `transition` 3,5; `minWidth` 1,6; `tail` `{ chance: 0.1, long: 1.5, short: 0.6 }`; `window` 12; `width` `{ first: [8, 14], last: [2, 4], stages: 5 }`; `base` `{ count: [3, 5], top: [4, 7] }`.
 
 - **Base:** la etapa 0 arranca con 3 a 5 plataformas anchas (ancho de la etapa 0), una por celda del ancho de 56 m, con tope al azar entre 4 y 7 m.
-- **Fila:** cada fila queda de 2,2 a 3,2 m sobre la anterior y lleva de 1 a 4 plataformas (pesos `rows.counts`, interpolados por etapa entre `first` y `last` como el ancho: pocas al principio, más al subir; nunca más de `rows.maxRun` filas seguidas con la misma cantidad); cada plataforma se corre en vertical a ± `rows.shift` de la altura de su fila. La plataforma de una fila de 1 tiene ancho `rows.singleWidth`, interpolado igual (un descanso largo al principio que deja alcanzar dos en la fila siguiente). Una plataforma vale si se alcanza desde otra de la fila anterior o de su misma fila con el salto real del robot, la misma regla de `BOT.reach` que usa `buildNav` (`canReach` de `js/bot.js`: `dy` ≤ 3,3 m con hueco ≤ 2 m, o `dy` ≤ 2 m con hueco ≤ 3,5 m; a nivel o hacia abajo, hueco ≤ 3,5 m); ya no se exige solapamiento ni subir en vertical.
+- **Fila:** cada fila queda de 2,2 a 3,2 m sobre la anterior y lleva de 1 a 4 plataformas (pesos `rows.counts`, interpolados por etapa entre `first` y `last` como el ancho: pocas al principio, más al subir; nunca más de `rows.maxRun` filas seguidas con la misma cantidad); cada plataforma se corre en vertical a ± `rows.shift` de la altura de su fila. La plataforma de una fila de 1 tiene ancho `rows.singleWidth`, interpolado igual (un descanso largo al principio que deja alcanzar dos en la fila siguiente). Una plataforma vale si se alcanza desde otra de la fila anterior o de su misma fila con el salto real del robot, la misma regla de `BOT.reach` que usa `buildNav` (`canReach` de `src/ai/bot.js`: `dy` ≤ 3,3 m con hueco ≤ 2 m, o `dy` ≤ 2 m con hueco ≤ 3,5 m; a nivel o hacia abajo, hueco ≤ 3,5 m); ya no se exige solapamiento ni subir en vertical.
 - **Rechazo:** `air` (de tope a tope) con otra que la cubra en x; `separation` con otra a su altura (± `sameHeight`); dentro de las paredes (`half(stageOf(top + transition))`, y a lo sumo el ancho de la etapa siguiente más `reach.up.gap` cuando `top + transition + dy` ya cambia de etapa).
 - **Alcance por construcción:** la x de cada plataforma sale de intervalos, no de sortear y rechazar: la unión de los alcances de las plataformas de las que puede saltarse, dentro de su celda del ancho entre paredes (si ahí no hay lugar, en todo el ancho), intersectada con el alcance de una plataforma de abajo sin vecina arriba que ya no llegaría a la fila siguiente (su tope se limita para que llegue), menos las zonas que violan `air` y `separation`. Una fila se vuelve a sortear (hasta `tries`) si alguna de esas plataformas queda sin vecina arriba, o si la que cierra una racha de `maxRun` no deja una fila siguiente posible. Así toda plataforma tiene una vecina alcanzable arriba y otra a su altura o abajo (`canReach`).
 - **Ancho por etapa `n`:** rango lineal de `[8, 14]` en la 0 (plataformas largas para no morir en los primeros segundos) a `[2, 4]` en la 5, y ahí queda; con probabilidad `tail.chance` el ancho se multiplica por `tail.long` o `tail.short` (mínimo `minWidth`).
 - **Armas:** etapa ≥ 1, una arma sobre la plataforma (`x`, tope + `pickupLift`) cada `period` plataformas de la etapa, sorteada por `weights`.
 - **Salida:** `base` = `[{ x, w, y }]` (`y` = tope) y `next()` → `{ index, row, x, w, y, stage, pickups: [{ x, y, weapon }] }`; `front` es el tope más alto generado.
 
-**Semilla.** Nueva por ronda (`Math.random`). Con `?seed=N` (el mismo parámetro de los bots, `botSeed` en `index.html`) **todas las rondas usan N**: el mapa es reproducible.
+**Semilla.** Nueva por ronda (`Math.random`). Con `?seed=N` (el mismo parámetro de los bots, `botSeed` en `index.js`) **todas las rondas usan N**: el mapa es reproducible.
 ## 16.4 Armas e ítem de reparación
 
 - Armas por etapa: etapa 0, ninguna (ni los puntos de `LEVEL.pickups` del clásico ni plataformas generadas de 10 a 15 m locales); etapa 1, agua; etapa 2, agua y miel con lava ocasional; etapa 3, lava; etapa 4 en adelante, ácido y lava.
@@ -58,7 +58,7 @@ Código nuevo: `js/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood
 
 ## 16.5 Agua
 
-### `RisingFlood` (`js/flood.js`)
+### `RisingFlood` (`src/water/flood.js`)
 
 Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, dt)`, `reset()`, `dispose()`) más el getter `floor`. JS puro: no crea partículas.
 
@@ -70,7 +70,7 @@ Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, 
   3. `water.rise(v · dt, η*)`.
 - **Sin lluvia en Infinito.** Con caudal `v · W` serían hasta 2.000 gotas/s cayendo desde la cámara: miles de partículas vivas sobre el tope de 12.000, y el recorte por rendimiento (#160) las borraría y rompería la curva. La fuente en el campo cuesta O(N) y entra en el libro de masa.
 
-### Cambios en `ShallowWater` (`js/water.js`)
+### Cambios en `ShallowWater` (`src/water/water.js`)
 
 - **`bed0`:** copia del lecho estático del constructor. `reset()` restaura `b` desde `bed0`, el span completo y los contadores nuevos. `setStart(start)`: `null` (lecho del nivel y pileta) o `{ surface }` (lecho plano en 0 y agua hasta `surface` en todo el ancho, el mapa Infinito); reinicia el campo.
 - **Span activo `[i0, i1)`** (por defecto `[0, N)`). `setSpan(x1, x2)` solo lo angosta. Las columnas de afuera quedan **congeladas**: conservan su contenido (`volume()` y las demás sumas siguen recorriendo `[0, N)`), pero no se integran, no se muestrean ni reciben depósitos. Las caras `i0` e `i1` son paredes reflectivas, iguales a los bordes actuales `f = 0` y `f = N`. `evaluate`, `attempt`, `settle`, `friction`, `consolidate`, `maxSpeed` y `step` operan solo sobre el span. `sample` y `deposit` recortan el índice al span en vez de a `[0, N)`.
@@ -90,7 +90,7 @@ Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, 
 - **`DamageSystem.drownSurface`:** función `(x) => η` o `null` (Clásico). En `process`, antes del mojado, para cada robot vivo: si el tope del torso (máximo `GetAABB(0).get_upperBound().get_y()` de las fixtures de `player.torso`) está por debajo de `drownSurface(x del torso)`, se aplica `player.drown(now)`.
 - La raíz pasa `(x) => water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : −Infinity`, que vale siempre, también antes de los 5 s: la pileta ahoga igual que hoy.
 
-## 16.6 Generar y liberar (`Climb`, `js/climb.js`)
+## 16.6 Generar y liberar (`Climb`, `src/level/climb.js`)
 
 ```
 new Climb({ world, platforms, pickups, config = CLIMB, base = LEVEL })
@@ -119,7 +119,7 @@ dispose()
 - **`menu.js`:** `map.default = "infinite"`; Infinito sin `disabled` ni `note`.
 - **`tests/helpers/game.js`:** `options.map`, default `"classic"`, se escribe en `game.menu.values.map` antes de `arrancarPartida()`. Los tests existentes siguen en Clásico.
 
-### Raíz de composición (`index.html`)
+### Raíz de composición (`index.js`)
 
 - **`aplicarMapa(map)`**, llamada en `arrancarPartida` antes de `ponerBots`. Si el mapa no cambió, no hace nada.
   - Clásico → Infinito: `removePlatform` de cada fixture de `buildLevel`, `world.DestroyBody(ground)`, `damage.killSensors.clear()`, `pickups.dispose()` y `new Pickups(world, damage, [])`, `flood.dispose()`, `water.setStart({ surface: 2 })` y `flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY)`, `climb = new Climb(...)`, `damage.drownSurface = ...` y `wallContact.invalidate()`.

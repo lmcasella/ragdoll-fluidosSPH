@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { SHOT_SYSTEM } = await import("../js/weapons.js");
-const { collectSurfaces, skinPosition, PARTICLE_RADIUS, SHOT_DRAW } = await import("../js/render.js");
+const { createParticleSystem } = await import("../src/fluids/particles.js");
+const { SHOT_SYSTEM } = await import("../src/combat/weapons.js");
+const { collectSurfaces, skinPosition, PARTICLE_RADIUS, SHOT_DRAW } = await import("../src/render/render.js");
 
 const SECONDS = 8;
 // Tolerancia del borde dibujado respecto de la superficie (m); el agua se mete SKIN_OVERLAP = 0,02 m bajo el cuerpo

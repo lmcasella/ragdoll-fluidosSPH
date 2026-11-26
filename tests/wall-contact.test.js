@@ -15,10 +15,10 @@ globalThis.PIXI ??= {
 };
 
 const { stepWorld } = await import("../lib/ragimporter.js");
-const { createParticleSystem } = await import("../js/particles.js");
-const { SHOT_SYSTEM } = await import("../js/weapons.js");
-const { ParticleStore } = await import("../js/particleStore.js");
-const { WallContact } = await import("../js/wallContact.js");
+const { createParticleSystem } = await import("../src/fluids/particles.js");
+const { SHOT_SYSTEM } = await import("../src/combat/weapons.js");
+const { ParticleStore } = await import("../src/fluids/particleStore.js");
+const { WallContact } = await import("../src/fluids/wallContact.js");
 
 /** Piso estático con la cara superior en y = 0 y un sistema de disparos sin gravedad. */
 function scene() {

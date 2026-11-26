@@ -1,5 +1,5 @@
 /**
- * Escena estándar de los invariantes globales (docs/design/14-agua.md §14.16 G, #108): el script de `index.html`
+ * Escena estándar de los invariantes globales (docs/design/14-agua.md §14.16 G, #108): el script de `index.js`
  * con LiquidFun real y gamepad simulado. Robots quietos hasta `flood.start − 10` s de ronda; la ventana dura 60 s
  * (o hasta el último paso anterior a `reiniciarRonda`, si la ronda termina antes), cada robot cambia de arma cada
  * 3 s en el orden de la tabla de armas y dispara sin soltar, con la mira barriendo de la otra punta de la isla
@@ -11,12 +11,12 @@ import { loadGame, giveAllWeapons } from "./game.js";
 import { UnionArea, polygonArea } from "./drawn-area.js";
 import { HoneyProbe } from "./honey-probe.js";
 
-const { LEVEL } = await import("../../js/level.js");
-const { MATERIALS, SIGMA_W, REACTIONS } = await import("../../js/materials.js");
-const { SINK, ORIGIN } = await import("../../js/particleStore.js");
-const { KIND_MATERIAL } = await import("../../js/immersion.js");
-const { FLUID, WEAPONS } = await import("../../js/weapons.js");
-const { SHOT_DRAW, collectSurfaces, dropShape, waterOutline } = await import("../../js/render.js");
+const { LEVEL } = await import("../../src/level/level.js");
+const { MATERIALS, SIGMA_W, REACTIONS } = await import("../../src/fluids/materials.js");
+const { SINK, ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { KIND_MATERIAL } = await import("../../src/water/immersion.js");
+const { FLUID, WEAPONS } = await import("../../src/combat/weapons.js");
+const { SHOT_DRAW, collectSurfaces, dropShape, waterOutline } = await import("../../src/render/render.js");
 
 /** Pasos fijos por segundo (`STEP_SETTINGS.dt` = 1/60 s). */
 export const STEPS_PER_SECOND = 60;

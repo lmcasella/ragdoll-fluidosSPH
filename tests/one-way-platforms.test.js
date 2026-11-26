@@ -1,16 +1,16 @@
 /**
- * Plataformas atravesables desde abajo (#149) sobre la escena real: el script de `index.html` con LiquidFun real y
+ * Plataformas atravesables desde abajo (#149) sobre la escena real: el script de `index.js` con LiquidFun real y
  * gamepad simulado. Usa el escalón izquierdo de `LEVEL` (x 3 a 6, cara inferior 6,6 y tope 7,0) sobre la isla (tope 4).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { LEVEL } = await import("../js/level.js");
-const { ONE_WAY } = await import("../js/platforms.js");
-const { FLUID, weaponById } = await import("../js/weapons.js");
-const { PARTICLE } = await import("../js/particles.js");
-const { ORIGIN } = await import("../js/particleStore.js");
+const { LEVEL } = await import("../src/level/level.js");
+const { ONE_WAY } = await import("../src/level/platforms.js");
+const { FLUID, weaponById } = await import("../src/combat/weapons.js");
+const { PARTICLE } = await import("../src/fluids/particles.js");
+const { ORIGIN } = await import("../src/fluids/particleStore.js");
 
 const BUTTON_A = 0;
 const STEP = { x: 4.5, bottom: 6.6, top: 7.0 };

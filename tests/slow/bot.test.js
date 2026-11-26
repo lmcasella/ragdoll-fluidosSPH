@@ -1,15 +1,15 @@
 /**
- * Bot de prueba (#151) sobre la escena real: el script de `index.html` con LiquidFun real. El bot maneja a J2 como un
+ * Bot de prueba (#151) sobre la escena real: el script de `index.js` con LiquidFun real. El bot maneja a J2 como un
  * gamepad virtual (`Input.setVirtualPad`); J1 es un gamepad simulado que el test aprieta a mano.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "../helpers/game.js";
 
-const { LEVEL } = await import("../../js/level.js");
-const { Bot, BOT, buildNav } = await import("../../js/bot.js");
-const { MELEE } = await import("../../js/melee.js");
-const { PAD } = await import("../../js/Input.js");
+const { LEVEL } = await import("../../src/level/level.js");
+const { Bot, BOT, buildNav } = await import("../../src/ai/bot.js");
+const { MELEE } = await import("../../src/combat/melee.js");
+const { PAD } = await import("../../src/input/Input.js");
 
 const BUTTON_PUNCH = 1;
 const BUTTON_FIRE = 7;

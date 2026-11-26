@@ -4,9 +4,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ShallowWater } from "../js/water.js";
-import { RisingFlood } from "../js/flood.js";
-import { CLIMB, halfWidth, stageOf } from "../js/climb.js";
+import { ShallowWater } from "../src/water/water.js";
+import { RisingFlood } from "../src/water/flood.js";
+import { CLIMB, halfWidth, stageOf } from "../src/level/climb.js";
 
 const DT = 1 / 60;
 const TARGET = 150;

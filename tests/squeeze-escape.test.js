@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dropBox, penalization, restingPlate, G, M_P, WIDTH_DROP } from "./helpers/squeeze-bench.js";
-import { MAX_WEIGHT_D } from "../js/wallContact.js";
+import { MAX_WEIGHT_D } from "../src/fluids/wallContact.js";
 
 /**
  * Escape de gotas entre dos sólidos (#100, docs/design/14-agua.md §14.6, criterios C1, C3, C9, C10, C11 y C12),

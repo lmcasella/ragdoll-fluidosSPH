@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { Match, COUNTDOWN_TIME, GO_TIME, MATCH_OVER_LOCK } = await import("../js/round.js");
+const { Match, COUNTDOWN_TIME, GO_TIME, MATCH_OVER_LOCK } = await import("../src/match/round.js");
 
 const alive = { dead: false };
 const dead = { dead: true };

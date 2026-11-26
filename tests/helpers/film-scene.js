@@ -13,16 +13,16 @@ globalThis.PIXI ??= {
 };
 
 const { stepWorld } = await import("../../lib/ragimporter.js");
-const { createParticleSystem } = await import("../../js/particles.js");
-const { SHOT_SYSTEM, FLUID, weaponById } = await import("../../js/weapons.js");
-const { PARTICLE } = await import("../../js/particles.js");
-const { ParticleStore, ORIGIN } = await import("../../js/particleStore.js");
-const { WallContact } = await import("../../js/wallContact.js");
-const { Adhesion } = await import("../../js/adhesion.js");
-const { ShallowWater } = await import("../../js/water.js");
-const { Thermal } = await import("../../js/thermal.js");
-const { Viscosity } = await import("../../js/viscosity.js");
-const { SIGMA_W } = await import("../../js/materials.js");
+const { createParticleSystem } = await import("../../src/fluids/particles.js");
+const { SHOT_SYSTEM, FLUID, weaponById } = await import("../../src/combat/weapons.js");
+const { PARTICLE } = await import("../../src/fluids/particles.js");
+const { ParticleStore, ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { WallContact } = await import("../../src/fluids/wallContact.js");
+const { Adhesion } = await import("../../src/fluids/adhesion.js");
+const { ShallowWater } = await import("../../src/water/water.js");
+const { Thermal } = await import("../../src/fluids/thermal.js");
+const { Viscosity } = await import("../../src/fluids/viscosity.js");
+const { SIGMA_W } = await import("../../src/fluids/materials.js");
 
 /**
  * Escenas de la adherencia (docs/design/14-agua.md §14.10, #77) con LiquidFun real y el contorno inelástico, sin robots:

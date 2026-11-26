@@ -6,12 +6,12 @@ Valores con los que se juega hoy, en palabras simples. Si otro archivo del dise�
 
 | Qué | Valor | Dónde está |
 |---|---|---|
-| Vida | 100 | `js/ActiveRagdoll.js:5` |
-| Caminar | 6 m/s | `js/ActiveRagdoll.js:47` |
-| Salto | 9 m/s hacia arriba | `js/ActiveRagdoll.js:48` |
-| Roll | dura 0,8 s, 4 m/s, se repite cada 0,5 s | `js/ActiveRagdoll.js:75` |
-| Caída fuerte | a partir de 11 m/s de choque, 2 de daño por cada m/s de más | `js/damage.js:18-20` |
-| Daño según la pieza | cabeza ×1,5; pecho y pelvis ×1; brazos y piernas ×0,75 | `index.html:187-188` |
+| Vida | 100 | `src/robot/ActiveRagdoll.js:5` |
+| Caminar | 6 m/s | `src/robot/ActiveRagdoll.js:47` |
+| Salto | 9 m/s hacia arriba | `src/robot/ActiveRagdoll.js:48` |
+| Roll | dura 0,8 s, 4 m/s, se repite cada 0,5 s | `src/robot/ActiveRagdoll.js:75` |
+| Caída fuerte | a partir de 11 m/s de choque, 2 de daño por cada m/s de más | `src/combat/damage.js:18-20` |
+| Daño según la pieza | cabeza ×1,5; pecho y pelvis ×1; brazos y piernas ×0,75 | `index.js:117-118` |
 
 ## Golpes
 
@@ -26,11 +26,11 @@ Todos empujan al rival y lo dejan aturdido un momento. El bloqueo (LT) frena tod
 
 El 2.º y el 3.er golpe del combo hacen avanzar al atacante 2,5 m/s durante su ventana activa (`lunge`).
 
-Los datos de cada golpe están en `MELEE` (`js/melee.js:16-84`).
+Los datos de cada golpe están en `MELEE` (`src/combat/melee.js:16-84`).
 
 ## Armas
 
-Cada arma se recoge del mapa con el tanque lleno y solo se recarga al recogerla otra vez o al empezar la ronda. Un arma recogida vuelve a aparecer a los 15 s (`js/pickups.js:4`).
+Cada arma se recoge del mapa con el tanque lleno y solo se recarga al recogerla otra vez o al empezar la ronda. Un arma recogida vuelve a aparecer a los 15 s (`src/level/pickups.js:4`).
 
 | Arma | Qué hace | Tanque | Caudal | Daño |
 |---|---|---|---|---|
@@ -39,24 +39,24 @@ Cada arma se recoge del mapa con el tanque lleno y solo se recarga al recogerla 
 | Lava | Quema y, al enfriarse, se vuelve piedra | 180 | 111/s | 4 por segundo durante 1,5 s después de cada contacto |
 | Miel | No daña: se pega, pesa y frena | 304 | 200/s | 0 |
 
-El vapor y la piedra que salen de las reacciones no dañan. Los valores están en la tabla de armas (`js/weapons.js:39-42`) y el daño en `js/damage.js:242-250`.
+El vapor y la piedra que salen de las reacciones no dañan. Los valores están en la tabla de armas (`src/combat/weapons.js:39-42`) y el daño en `src/combat/damage.js:242-250`.
 
-**Reparación:** suma 35 de vida, sin pasar de 100, y reaparece a los 20 s (`js/pickups.js:10`).
+**Reparación:** suma 35 de vida, sin pasar de 100, y reaparece a los 20 s (`src/level/pickups.js:10`).
 
 ## Partida (Clásico)
 
 | Qué | Valor | Dónde está |
 |---|---|---|
-| Rondas para ganar | 2 (al mejor de 3) | `js/round.js:22` |
-| Duración de la ronda | sin límite: termina cuando queda uno en pie | `js/round.js:67-75` |
-| Cuenta regresiva | 3 s y un "¡YA!" de 0,6 s | `js/round.js:6-9` |
-| Final de ronda | cámara lenta 1,5 s y cartel 3 s | `js/round.js:1-3` |
-| Inundación | empieza a los 60 s y el agua sube 0,15 m/s hasta 15 m | `js/level.js:41-43` |
+| Rondas para ganar | 2 (al mejor de 3) | `src/match/round.js:22` |
+| Duración de la ronda | sin límite: termina cuando queda uno en pie | `src/match/round.js:67-75` |
+| Cuenta regresiva | 3 s y un "¡YA!" de 0,6 s | `src/match/round.js:6-9` |
+| Final de ronda | cámara lenta 1,5 s y cartel 3 s | `src/match/round.js:1-3` |
+| Inundación | empieza a los 60 s y el agua sube 0,15 m/s hasta 15 m | `src/level/level.js:41-43` |
 
 ## Infinito
 
 | Qué | Valor | Dónde está |
 |---|---|---|
-| Nocaut | con la vida en 0 el robot queda inconsciente 5 s la primera vez en la ronda, 3 s más cada vez siguiente (hasta 18 s), y se levanta con 50 de vida; solo el agua mata | `js/ActiveRagdoll.js:7-12` |
-| Agua que sube | arranca a los 5 s, a 0,25 m/s, y va 0,04 m/s más rápido por etapa | `js/climb.js:69` |
-| Reparación | deja la vida en 100 y levanta al robot en nocaut (en el Clásico suma 35) | `js/ActiveRagdoll.js` (`repair`) |
+| Nocaut | con la vida en 0 el robot queda inconsciente 5 s la primera vez en la ronda, 3 s más cada vez siguiente (hasta 18 s), y se levanta con 50 de vida; solo el agua mata | `src/robot/ActiveRagdoll.js:7-12` |
+| Agua que sube | arranca a los 5 s, a 0,25 m/s, y va 0,04 m/s más rápido por etapa | `src/level/climb.js:69` |
+| Reparación | deja la vida en 100 y levanta al robot en nocaut (en el Clásico suma 35) | `src/robot/ActiveRagdoll.js` (`repair`) |

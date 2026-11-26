@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 
-const { SHOT_SYSTEM } = await import("../js/weapons.js");
-const { ORIGIN } = await import("../js/particleStore.js");
-const { FLUID } = await import("../js/weapons.js");
+const { SHOT_SYSTEM } = await import("../src/combat/weapons.js");
+const { ORIGIN } = await import("../src/fluids/particleStore.js");
+const { FLUID } = await import("../src/combat/weapons.js");
 
 /**
  * El heap de LiquidFun es fijo (16 MiB): el juego completo con el sistema de disparos lleno hasta `maxCount` no aborta

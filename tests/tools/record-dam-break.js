@@ -5,7 +5,7 @@
  * `meta.field` ({ x0, dx, n }), y la solución de Ritter se calcula con `h = (2 c0 − (x − x_presa)/t)² / (9 g)`.
  */
 import { Recorder } from "../helpers/recorder.js";
-import { ShallowWater, WATER_FIELD } from "../../js/water.js";
+import { ShallowWater, WATER_FIELD } from "../../src/water/water.js";
 
 const G = 10;
 const DAM = 15;

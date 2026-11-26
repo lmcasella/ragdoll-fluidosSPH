@@ -1,4 +1,4 @@
-// Loop de partida de punta a punta: el script de index.html con LiquidFun real y gamepad simulado
+// Loop de partida de punta a punta: el script de index.js con LiquidFun real y gamepad simulado
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
-import { SHOT_SYSTEM } from "../js/weapons.js";
+import { SHOT_SYSTEM } from "../src/combat/weapons.js";
 
 const RT = 7;
 const PARTICLE_RADIUS = SHOT_SYSTEM.radius;

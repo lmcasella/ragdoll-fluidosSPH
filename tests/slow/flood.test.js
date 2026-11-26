@@ -7,9 +7,9 @@ import assert from "node:assert/strict";
 import { makeScene, fillField, floodRun, particle, A_P, DT } from "../helpers/water-scene.js";
 import { loadGame } from "../helpers/game.js";
 
-const { LEVEL } = await import("../../js/level.js");
-const { floodLevel, waterArea, freeWidth, levelOfArea, Flood } = await import("../../js/flood.js");
-const { FLUID, weaponById, particleFlags, CONTACT_LISTENER_PARTICLE } = await import("../../js/weapons.js");
+const { LEVEL } = await import("../../src/level/level.js");
+const { floodLevel, waterArea, freeWidth, levelOfArea, Flood } = await import("../../src/water/flood.js");
+const { FLUID, weaponById, particleFlags, CONTACT_LISTENER_PARTICLE } = await import("../../src/combat/weapons.js");
 
 const F = LEVEL.flood;
 const fmt = (n, digits = 3) => Number(n).toFixed(digits);
@@ -178,7 +178,7 @@ test("W6 en el nivel real con lluvia: min h ≥ 0 y 0 activaciones del tope de s
 });
 
 /**
- * Dos robots en las islas con el script de `index.html`: el campo se llena a mano a `level` y la ronda corre al
+ * Dos robots en las islas con el script de `index.js`: el campo se llena a mano a `level` y la ronda corre al
  * `roundTime` dado. Devuelve el juego, con los gamepads sueltos.
  */
 async function standing(level, roundTime) {

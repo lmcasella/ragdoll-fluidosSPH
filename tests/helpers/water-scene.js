@@ -13,20 +13,20 @@ globalThis.PIXI ??= {
 };
 
 const { stepWorld } = await import("../../lib/ragimporter.js");
-const { LEVEL, buildLevel } = await import("../../js/level.js");
-const { createParticleSystem } = await import("../../js/particles.js");
-const { SHOT_SYSTEM, WEAPONS, FLUID } = await import("../../js/weapons.js");
-const { ParticleStore, ORIGIN } = await import("../../js/particleStore.js");
-const { WallContact } = await import("../../js/wallContact.js");
-const { ShallowWater } = await import("../../js/water.js");
-const { Immersion } = await import("../../js/immersion.js");
-const { Flood, floodLevel, waterArea, levelOfArea } = await import("../../js/flood.js");
-const { MATERIALS, SIGMA_W } = await import("../../js/materials.js");
+const { LEVEL, buildLevel } = await import("../../src/level/level.js");
+const { createParticleSystem } = await import("../../src/fluids/particles.js");
+const { SHOT_SYSTEM, WEAPONS, FLUID } = await import("../../src/combat/weapons.js");
+const { ParticleStore, ORIGIN } = await import("../../src/fluids/particleStore.js");
+const { WallContact } = await import("../../src/fluids/wallContact.js");
+const { ShallowWater } = await import("../../src/water/water.js");
+const { Immersion } = await import("../../src/water/immersion.js");
+const { Flood, floodLevel, waterArea, levelOfArea } = await import("../../src/water/flood.js");
+const { MATERIALS, SIGMA_W } = await import("../../src/fluids/materials.js");
 
 /**
  * Escenario del agua de #71 (docs/design/14-agua.md §14.13) sin robots: el mundo del nivel real, el sistema de
  * disparos con su `ParticleStore` y el contorno inelástico, el campo de alturas, `Immersion` y `Flood`, conectados con
- * el orden del paso fijo de `index.html`. LiquidFun real y determinista.
+ * el orden del paso fijo de `index.js`. LiquidFun real y determinista.
  */
 export const DT = 1 / 60;
 export const G = 10;
@@ -66,7 +66,7 @@ export function makeScene({ fill = null } = {}) {
         immersion,
         flood,
         steps: 0,
-        /** Un paso fijo, en el orden de `index.html`. */
+        /** Un paso fijo, en el orden de `index.js`. */
         step(roundTime = 0) {
             flood.step(roundTime, DT);
             stepWorld(world, [wall]);
