@@ -45,7 +45,7 @@ export class Scene {
 }
 
 /**
- * Crea la escena: `PIXI.Application` sin resolución extra, fondo transparente, WebGL y sin ticker propio (el loop del juego
+ * Crea la escena: `PIXI.Application` sin resolución extra, fondo transparente, bordes suavizados como en Canvas 2D, WebGL y sin ticker propio (el loop del juego
  * llama a `render`). Su canvas va primero en `container`, debajo del HUD y las pantallas HTML.
  * @param {object} options
  * @param {HTMLElement} options.container elemento que recibe el canvas
@@ -61,6 +61,7 @@ export async function createScene({ container, doc, width, height }) {
         height,
         resolution: 1,
         backgroundAlpha: 0,
+        antialias: true,
         preference: "webgl",
         autoStart: false,
     });
