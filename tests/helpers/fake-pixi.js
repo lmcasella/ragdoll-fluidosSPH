@@ -37,10 +37,11 @@ export class FakeContainer {
 }
 
 class FakeTextureSource {
-    constructor() {
+    constructor(canvas, onResize) {
         this.updates = 0;
-        this.width = 0;
-        this.height = 0;
+        this.width = canvas.width;
+        this.height = canvas.height;
+        this.onResize = onResize;
     }
 
     update() {
@@ -50,13 +51,24 @@ class FakeTextureSource {
     resize(width, height) {
         this.width = width;
         this.height = height;
+        this.onResize();
     }
 }
 
+/**
+ * Textura falsa que imita a la de PIXI v8: avisa de su cambio de tamaño (`update`) y los sprites solo escuchan el aviso
+ * si `dynamic` ya estaba en verdadero al crearse.
+ */
 class FakeTexture {
     constructor(canvas) {
         this.canvas = canvas;
-        this.source = new FakeTextureSource();
+        this.dynamic = false;
+        this.listeners = [];
+        this.source = new FakeTextureSource(canvas, () => this.listeners.forEach((listener) => listener()));
+    }
+
+    on(listener) {
+        this.listeners.push(listener);
     }
 
     static from(canvas) {
@@ -64,13 +76,20 @@ class FakeTexture {
     }
 }
 
+/** Sprite falso: `renderedWidth` y `renderedHeight` son el tamaño con que PIXI dibujaría el cuadrilátero (sus límites guardados). */
 class FakeSprite extends FakeContainer {
     constructor(texture) {
         super();
         this.texture = texture;
+        this.refreshBounds();
+        if (texture.dynamic) texture.on(() => this.refreshBounds());
+    }
+
+    refreshBounds() {
+        this.renderedWidth = this.texture.source.width;
+        this.renderedHeight = this.texture.source.height;
     }
 }
-
 class FakeGraphics extends FakeContainer {
     constructor() {
         super();

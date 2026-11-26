@@ -55,6 +55,8 @@ La térmica (`tests/thermal.test.js`) simula la conducción real entre dos part�
 ## Grabar un escenario
 
 Para revisar la física sobre secuencias de frames, en un script de Node se carga el juego con `loadGame()` (`tests/helpers/game.js`), se crea `recordGame(game, "nombre")` (`tests/helpers/recorder.js`), se llama a `recorder.capture()` después de cada `game.frame()` y se guarda con `recorder.save("ruta/nombre.json")`. Para verlo, abrir `tests/tools/viewer.html` en el navegador (doble clic o por el servidor de arriba) y elegir el JSON: tiene play/pausa, cuadro a cuadro y velocidad. Cada frame guarda también el perfil `η` del agua (el visor lo dibuja). Ejemplo de uso en `tests/recorder.test.js`. Los escenarios de agua de los videos (`I3`, `I7`) se graban con `node tests/tools/record-water.js <carpeta>`.
+Para ver el juego en un navegador real sin ventana (WebGL por SwiftShader), `node tests/tools/screenshot.js --out <carpeta> --sizes 1280x720,1000x300 --query "?bot=1,2" --hooks --frames 240 --eval "game.arrancarPartida()"` levanta su propio servidor estático, captura un PNG por tamaño y apaga todo; no instala nada.
+Con `--frames` las capturas son deterministas, así que se pueden comparar entre ramas (`--root <carpeta>` sirve otra copia del repo, por ejemplo un `git worktree`); `--hot` cambia el tamaño sin recargar. El navegador sale de `--browser` o de `SCREENSHOT_BROWSER` (por defecto, Helium en `%LOCALAPPDATA%`). Opciones en el docstring del script.
 
 ## Documentación
 

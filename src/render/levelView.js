@@ -14,8 +14,11 @@ const BREAKABLE_SHAKE = 0.06;
 /** Frecuencia angular de la vibración de una plataforma rompible, en rad/s. */
 const BREAKABLE_SHAKE_RATE = 55;
 
-/** Grosor del trazo de los sólidos, en m (2 px a 40 px/m). */
-const OUTLINE_WIDTH = 0.05;
+/** Grosor del trazo de los sólidos en pantalla, en px: no cambia con el zoom, como en el dibujo en Canvas 2D. */
+const OUTLINE_SCREEN_PX = 2;
+
+/** Cambio relativo del grosor del trazo (en la geometría) a partir del cual se reconstruye el nivel para seguir el zoom. */
+const OUTLINE_REBUILD_TOLERANCE = 0.1;
 
 /** Estado que se guarda de una plataforma rota para detectar cuándo cambia (las intactas guardan su `crack`, de 0 a 1). */
 const BROKEN_STATE = -1;
@@ -46,6 +49,7 @@ export class LevelView {
         parent.addChild(this.container);
         this.solids = null;
         this.solidCount = -1;
+        this.outlineWidth = 0;
         this.breakableStates = [];
         this.breakableCount = -1;
         this.fixedBuilds = 0;
@@ -54,13 +58,20 @@ export class LevelView {
 
     /**
      * Reconstruye la geometría solo si cambió: los sólidos fijos cuando cambia el conjunto de sólidos y los rompibles
-     * cuando cambia su grieta o su rotura. El desplazamiento vertical se aplica como posición, sin reconstruir.
+     * cuando cambia su grieta o su rotura, y las dos cuando el zoom cambia el grosor del trazo más que `OUTLINE_REBUILD_TOLERANCE`.
+     * El desplazamiento vertical se aplica como posición, sin reconstruir.
      * @param {{ solids: object[] }} level sólidos en metros (`x`, `y`, `w`, `h` del centro)
      * @param {number} offsetY desplazamiento vertical del nivel, en m
      * @param {number} now reloj de juego, en s (fase de la vibración)
+     * @param {number} screenScale escala de la cámara, en px de pantalla por metro
      */
-    update(level, offsetY, now) {
+    update(level, offsetY, now, screenScale) {
         const { solids } = level;
+        const outlineWidth = (OUTLINE_SCREEN_PX * this.pixelsPerMeter) / screenScale;
+        if (Math.abs(outlineWidth - this.outlineWidth) > this.outlineWidth * OUTLINE_REBUILD_TOLERANCE) {
+            this.outlineWidth = outlineWidth;
+            this.solidCount = -1;
+        }
         if (solids !== this.solids || solids.length !== this.solidCount) {
             this.solids = solids;
             this.solidCount = solids.length;
@@ -102,7 +113,7 @@ export class LevelView {
             this.addRectangle(graphics, solid, 0);
         }
         graphics.fill(SOLID_FILL);
-        graphics.stroke({ width: OUTLINE_WIDTH * this.pixelsPerMeter, color: SOLID_STROKE });
+        graphics.stroke({ width: this.outlineWidth, color: SOLID_STROKE });
         this.fixedBuilds++;
     }
 
@@ -116,7 +127,7 @@ export class LevelView {
             const shake = crack > 0 ? Math.sin(now * BREAKABLE_SHAKE_RATE) * BREAKABLE_SHAKE * crack : 0;
             this.addRectangle(graphics, solid, shake);
             graphics.fill(mixColor(BREAKABLE_FILL, BREAKABLE_WARN, crack));
-            graphics.stroke({ width: OUTLINE_WIDTH * this.pixelsPerMeter, color: BREAKABLE_STROKE });
+            graphics.stroke({ width: this.outlineWidth, color: BREAKABLE_STROKE });
         }
         this.breakableBuilds++;
     }

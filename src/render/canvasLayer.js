@@ -1,6 +1,6 @@
 /**
  * Una capa de dibujo en Canvas 2D que la escena PIXI muestra como sprite: el canvas queda fuera de pantalla (no entra
- * al DOM) y su textura se vuelve a subir una vez por frame, después de dibujar (ver `docs/design/07-sph.md` §7.4).
+ * al DOM) y su textura se vuelve a subir una vez por frame, después de dibujar (ver `docs/design/07-sph.md` §7.4). La textura es `dynamic`: sin eso el sprite de PIXI no se entera de que cambió de tamaño y sigue dibujando el cuadrilátero viejo (el mundo se estira o se achata al redimensionar).
  */
 export class CanvasLayer {
     /**
@@ -18,6 +18,7 @@ export class CanvasLayer {
         this.canvas.height = height;
         this.ctx = this.canvas.getContext("2d");
         this.texture = PIXI.Texture.from(this.canvas);
+        this.texture.dynamic = true;
         this.sprite = new PIXI.Sprite(this.texture);
         parent.addChild(this.sprite);
     }

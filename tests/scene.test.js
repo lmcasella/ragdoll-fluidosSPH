@@ -16,6 +16,11 @@ const ROBOT_PIXELS_PER_METER = JSON.parse(readFileSync(new URL("../assets/robot.
 const MAX_SCALE = 64;
 const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
+const RESIZED_VIEWS = [{ width: 1000, height: 300 }, { width: 720, height: 1280 }, { width: 2560, height: 720 }];
+const FLUID_KINDS = [4, 5];
+const MAX_POSITION_ERROR = 1e-9;
+const OUTLINE_SCREEN_PX = 2;
+const OUTLINE_TOLERANCE = 0.1;
 
 test("durante una ronda hay un solo canvas en el DOM", async () => {
     const game = await loadGame();
@@ -93,4 +98,63 @@ test("la cámara pone en el mundo PIXI el mismo zoom con Y invertida y la misma 
     const pixelX = container.position.x + 25 * ROBOT_PIXELS_PER_METER * container.scale.x;
     const pixelY = container.position.y + 8 * ROBOT_PIXELS_PER_METER * container.scale.y;
     assert.ok(Math.abs(pixelX - screen.x) < 1e-9 && Math.abs(pixelY - screen.y) < 1e-9, `escala ${scale}`);
+});
+
+test("tras cambiar el tamaño y la proporción, cada capa 2D, su textura y su sprite miden lo mismo que el canvas de la escena", async () => {
+    const game = await loadGame();
+    const { scene, fluidLayers } = game.state;
+    game.frames(SETTLE_FRAMES);
+    fluidLayers.begin();
+    fluidLayers.contextFor(FLUID_KINDS[0]);
+    fluidLayers.end();
+    for (const { width, height } of RESIZED_VIEWS) {
+        window.innerWidth = width;
+        window.innerHeight = height;
+        game.emit("resize");
+        fluidLayers.begin();
+        for (const kind of FLUID_KINDS) fluidLayers.contextFor(kind);
+        fluidLayers.end();
+        game.frames(SETTLE_FRAMES);
+        const sceneCanvas = scene.application.canvas;
+        assert.deepEqual([sceneCanvas.width, sceneCanvas.height], [width, height], "el canvas de la escena");
+        const layers = [...scene.layers, ...[...fluidLayers.layers.values()].map((entry) => entry.layer)];
+        assert.equal(layers.length, scene.layers.length + FLUID_KINDS.length);
+        for (const layer of layers) {
+            const label = `${layer.canvas.id} a ${width}x${height}`;
+            assert.deepEqual([layer.canvas.width, layer.canvas.height], [width, height], `canvas de ${label}`);
+            assert.deepEqual([layer.texture.source.width, layer.texture.source.height], [width, height], `textura de ${label}`);
+            assert.deepEqual([layer.sprite.renderedWidth, layer.sprite.renderedHeight], [width, height], `sprite de ${label}`);
+        }
+    }
+});
+
+test("tras cambiar el tamaño, el mundo PIXI y los canvas 2D comparten la transformación de la cámara", async () => {
+    const game = await loadGame();
+    const { scene, camera } = game.state;
+    for (const { width, height } of RESIZED_VIEWS) {
+        window.innerWidth = width;
+        window.innerHeight = height;
+        game.emit("resize");
+        game.frames(SETTLE_FRAMES);
+        assert.deepEqual([camera.viewW, camera.viewH], [width, height], "la cámara conoce el nuevo tamaño");
+        const { world } = scene;
+        assert.ok(Math.abs(world.scale.x - camera.zoom) < MAX_POSITION_ERROR, `escala x a ${width}x${height}`);
+        assert.ok(Math.abs(world.scale.y + camera.zoom) < MAX_POSITION_ERROR, `escala y a ${width}x${height}`);
+        const expectedX = width / 2 - camera.x * camera.scale;
+        const expectedY = height / 2 + camera.y * camera.scale;
+        assert.ok(Math.abs(world.position.x - expectedX) < MAX_POSITION_ERROR, `posición x a ${width}x${height}`);
+        assert.ok(Math.abs(world.position.y - expectedY) < MAX_POSITION_ERROR, `posición y a ${width}x${height}`);
+    }
+});
+test("el trazo de las plataformas mide siempre unos 2 px en pantalla, con cualquier zoom", async () => {
+    const game = await loadGame();
+    const { scene, levelView } = game.state;
+    for (const { width, height } of RESIZED_VIEWS) {
+        window.innerWidth = width;
+        window.innerHeight = height;
+        game.emit("resize");
+        game.frames(SETTLE_FRAMES);
+        const screenWidth = levelView.outlineWidth * scene.world.scale.x;
+        assert.ok(Math.abs(screenWidth - OUTLINE_SCREEN_PX) <= OUTLINE_SCREEN_PX * OUTLINE_TOLERANCE, `trazo de ${screenWidth} px a ${width}x${height}`);
+    }
 });

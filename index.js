@@ -987,7 +987,7 @@ function loop(nowMs) {
     camera.apply(overlayCtx);
     camera.applyTo(scene.world);
     const offsetY = climb ? climb.offsetY : 0;
-    levelView.update(climb ? climb.level : LEVEL, offsetY, now);
+    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
     debug.mark("dibujo");
     if (debug.metaballOn) drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
