@@ -17,8 +17,8 @@ export const BACKGROUND = {
     bandTransition: 10,
     bands: [
         { name: "floor", minHeight: 0, sky: [30, 35, 46] },
-        { name: "walkways", minHeight: 25, sky: [24, 30, 46] },
-        { name: "summit", minHeight: 50, sky: [34, 40, 54] },
+        { name: "walkways", minHeight: 30, sky: [24, 30, 46] },
+        { name: "summit", minHeight: 80, sky: [34, 40, 54] },
     ],
     smokeColor: 0x282a34,
     layers: [
@@ -28,9 +28,9 @@ export const BACKGROUND = {
             segmentWidth: 48,
             segmentHeight: 24,
             elements: [
-                { kind: "chimney", attempts: 2, minWidth: 2, maxWidth: 3.5, minHeight: 12, maxHeight: 22, presence: [1, 0.7, 0.5] },
+                { kind: "chimney", attempts: 2, minWidth: 2, maxWidth: 3.5, minHeight: 12, maxHeight: 22, presence: [1, 0.6, 0.1] },
                 { kind: "smokingChimney", attempts: 2, minWidth: 2, maxWidth: 3.5, minHeight: 12, maxHeight: 22, presence: [0.1, 0.6, 1] },
-                { kind: "tank", attempts: 2, minWidth: 6, maxWidth: 10, minHeight: 5, maxHeight: 9, presence: [1, 0.8, 0.5] },
+                { kind: "tank", attempts: 2, minWidth: 6, maxWidth: 10, minHeight: 5, maxHeight: 9, presence: [1, 0.7, 0] },
             ],
         },
         {
@@ -39,8 +39,8 @@ export const BACKGROUND = {
             segmentWidth: 40,
             segmentHeight: 20,
             elements: [
-                { kind: "tank", attempts: 2, minWidth: 5, maxWidth: 9, minHeight: 4, maxHeight: 8, presence: [1, 0.8, 0.6] },
-                { kind: "structure", attempts: 2, minWidth: 6, maxWidth: 10, minHeight: 8, maxHeight: 14, presence: [0.8, 1, 0.8] },
+                { kind: "tank", attempts: 2, minWidth: 5, maxWidth: 9, minHeight: 4, maxHeight: 8, presence: [1, 0.8, 0.1] },
+                { kind: "structure", attempts: 2, minWidth: 6, maxWidth: 10, minHeight: 8, maxHeight: 14, presence: [0.8, 1, 0.2] },
                 { kind: "smokingChimney", attempts: 1, minWidth: 1.5, maxWidth: 2.5, minHeight: 10, maxHeight: 18, presence: [0.1, 0.5, 1] },
             ],
         },
@@ -50,9 +50,9 @@ export const BACKGROUND = {
             segmentWidth: 32,
             segmentHeight: 16,
             elements: [
-                { kind: "pipe", attempts: 3, minWidth: 8, maxWidth: 16, minHeight: 0.25, maxHeight: 0.45, presence: [1, 0.8, 0.7] },
-                { kind: "structure", attempts: 1, minWidth: 5, maxWidth: 8, minHeight: 7, maxHeight: 12, presence: [0.8, 1, 0.8] },
-                { kind: "catwalk", attempts: 2, minWidth: 8, maxWidth: 14, minHeight: 1.2, maxHeight: 1.8, presence: [0.2, 1, 0.8] },
+                { kind: "pipe", attempts: 3, minWidth: 8, maxWidth: 16, minHeight: 0.25, maxHeight: 0.45, presence: [1, 0.8, 0.2] },
+                { kind: "structure", attempts: 1, minWidth: 5, maxWidth: 8, minHeight: 7, maxHeight: 12, presence: [0.8, 1, 0.2] },
+                { kind: "catwalk", attempts: 2, minWidth: 8, maxWidth: 14, minHeight: 1.2, maxHeight: 1.8, presence: [0.2, 1, 0.3] },
             ],
         },
         {
@@ -61,7 +61,7 @@ export const BACKGROUND = {
             segmentWidth: 24,
             segmentHeight: 16,
             elements: [
-                { kind: "verticalBeam", attempts: 2, minWidth: 0.6, maxWidth: 1, minHeight: 10, maxHeight: 16, presence: [1, 0.9, 0.8] },
+                { kind: "verticalBeam", attempts: 2, minWidth: 0.6, maxWidth: 1, minHeight: 10, maxHeight: 16, presence: [1, 0.8, 0.3] },
             ],
         },
     ],
