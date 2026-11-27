@@ -47,3 +47,15 @@ Cada plataforma firme es de un material, y el material decide cómo se ve y cuá
 - **Desgaste:** donde el ácido mordió, el borde que queda muestra óxido (naranja y marrón sobre el acero, manchas oscuras sobre el hormigón) que se oscurece con el daño acumulado. Una plataforma nueva no tiene óxido.
 - **Legibilidad:** el contorno de cada plataforma se sigue leyendo contra el fondo, y los materiales no compiten con los robots ni con los fluidos.
 - **Costo:** los materiales no bajan los fps de forma medible: se dibujan en una sola pasada para todo el escenario.
+
+## 13.3 Luz
+
+La escena tiene una luz base tenue y fría que baja desde arriba, coherente con el cielo del fondo, y luces que se mueven: la lava y el ácido iluminan lo que tienen cerca.
+
+- **Relieve:** las plataformas tienen volumen: el borde está biselado, las juntas del acero son canaletas, los remaches sobresalen y el hormigón tiene grano. La luz base marca ese relieve aunque no haya fluidos, y cada luz cercana lo ilumina desde su lado.
+- **Lava:** luz naranja intensa con alcance de unos 6 m, que cae con la distancia. Un charco de lava ilumina la parte de abajo de la plataforma de arriba y la pared de al lado.
+- **Ácido:** luz verde tenue con alcance de unos 3 m.
+- **Fondo:** las capas cercanas del fondo reciben la luz de la lava y del ácido, sin relieve; las lejanas casi no.
+- **Robots:** reciben la misma luz que las plataformas (§13.4).
+- **Cantidad:** se juntan los fluidos cercanos en una sola luz por zona, con un tope de luces por pantalla; una gota suelta no ilumina.
+- **Costo:** la luz no baja los fps de forma medible.
