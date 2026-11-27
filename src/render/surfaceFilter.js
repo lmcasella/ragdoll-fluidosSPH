@@ -1,4 +1,5 @@
 import { SURFACES } from "../level/surfaces.js";
+import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
 
 /**
@@ -6,7 +7,9 @@ import { FILTER_VERTEX } from "./thresholdFilter.js";
  * codificado y este `PIXI.Filter` lo cambia, en una sola pasada para todo el escenario, por el aspecto del material. El
  * código usa el rojo para el material (`id / SURFACE_ID_SCALE`), el verde para el desgaste (0 a 1) y el azul para el borde
  * del contorno (1) o el interior (0). La textura sale de la posición del fragmento en el mundo (con ruido de valor, sin
- * texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`.
+ * texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
+ * posición arma una altura por material (juntas, remaches, grano y el bisel del contorno), saca la normal de su gradiente
+ * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3).
  */
 
 /** Divisor del id del material al guardarlo en el canal rojo: con ids de 1 a 3 deja los valores bien separados. */
@@ -99,6 +102,11 @@ uniform highp vec4 uInputSize;
 uniform highp vec4 uOutputFrame;
 uniform highp vec2 uOrigin;
 uniform highp float uPixelsPerMeter;
+uniform highp float uLightShiftY;
+uniform highp vec3 uBaseDirection;
+uniform highp vec3 uBaseColor;
+uniform highp float uAmbient;
+${LIGHT_FUNCTIONS}
 
 const float ID_SCALE = ${glslFloat(SURFACE_ID_SCALE)};
 ${surfaceConstants()}
@@ -132,6 +140,16 @@ const float REFLECTION_CENTER = 0.5;
 const float REFLECTION_WIDTH = 0.07;
 const float REFLECTION_STRENGTH = 0.6;
 const float REFLECTION_ALPHA = 0.25;
+
+const float JOINT_DEPTH = 0.03;
+const float RIVET_HEIGHT = 0.02;
+const float CONCRETE_GRAIN_HEIGHT = 0.02;
+const float BEVEL_WIDTH = 0.06;
+const float BEVEL_HEIGHT = 0.03;
+const float SPECULAR_SHININESS = 24.0;
+const float SPECULAR_STRENGTH = 0.35;
+const float SPECULAR_WEAR_LIMIT = 0.1;
+const vec3 VIEW_DIRECTION = vec3(0.0, 0.0, 1.0);
 
 float hash(vec2 cell)
 {
@@ -172,10 +190,15 @@ vec3 withWear(vec3 color, vec2 world, float wear, vec3 wearColor, vec3 wearDarkC
     return mix(color, mix(wearColor, wearDarkColor, wear), amount);
 }
 
-vec3 steelColor(vec2 world, float wear)
+vec2 panelEdgeOffset(vec2 world)
 {
     vec2 local = fract(world / STEEL_PATTERN);
-    vec2 toEdge = min(local, 1.0 - local) * STEEL_PATTERN;
+    return min(local, 1.0 - local) * STEEL_PATTERN;
+}
+
+vec3 steelColor(vec2 world, float wear)
+{
+    vec2 toEdge = panelEdgeOffset(world);
     float joint = 1.0 - smoothstep(0.0, JOINT_WIDTH, min(toEdge.x, toEdge.y));
     float rivet = 1.0 - smoothstep(RIVET_RADIUS - RIVET_SOFTNESS, RIVET_RADIUS, length(toEdge - vec2(RIVET_INSET)));
     float streak = valueNoise(world * STREAK_FREQUENCY);
@@ -202,6 +225,54 @@ vec4 glassColor(vec2 world)
     return vec4(color, GLASS_ALPHA + reflection * REFLECTION_ALPHA);
 }
 
+float steelHeight(vec2 world)
+{
+    vec2 toEdge = panelEdgeOffset(world);
+    float joint = 1.0 - smoothstep(0.0, JOINT_WIDTH, min(toEdge.x, toEdge.y));
+    float toRivet = length(toEdge - vec2(RIVET_INSET)) / RIVET_RADIUS;
+    float dome = sqrt(max(0.0, 1.0 - toRivet * toRivet));
+    return -JOINT_DEPTH * joint + RIVET_HEIGHT * dome;
+}
+
+float surfaceHeight(int id, vec2 world)
+{
+    if (id == STEEL_ID) return steelHeight(world);
+    if (id == CONCRETE_ID) return CONCRETE_GRAIN_HEIGHT * fractalNoise(world / CONCRETE_PATTERN);
+    return 0.0;
+}
+
+float coverageAt(vec2 textureCoord)
+{
+    return texture(uTexture, textureCoord).a;
+}
+
+vec2 bevelSlope(vec2 textureCoord)
+{
+    vec2 tap = vec2(BEVEL_WIDTH * uPixelsPerMeter) / uInputSize.xy;
+    float right = coverageAt(textureCoord + vec2(tap.x, 0.0));
+    float left = coverageAt(textureCoord - vec2(tap.x, 0.0));
+    float up = coverageAt(textureCoord - vec2(0.0, tap.y));
+    float down = coverageAt(textureCoord + vec2(0.0, tap.y));
+    return BEVEL_HEIGHT / (2.0 * BEVEL_WIDTH) * vec2(right - left, up - down);
+}
+
+vec3 surfaceNormal(int id, vec2 world, vec2 bevel)
+{
+    float probe = 1.0 / uPixelsPerMeter;
+    float slopeX = (surfaceHeight(id, world + vec2(probe, 0.0)) - surfaceHeight(id, world - vec2(probe, 0.0))) / (2.0 * probe);
+    float slopeY = (surfaceHeight(id, world + vec2(0.0, probe)) - surfaceHeight(id, world - vec2(0.0, probe))) / (2.0 * probe);
+    return normalize(vec3(-(slopeX + bevel.x), -(slopeY + bevel.y), 1.0));
+}
+
+vec3 litColor(vec3 albedo, vec3 normal, vec3 point, float specularAmount)
+{
+    float facing = max(0.0, dot(normal, uBaseDirection));
+    vec3 light = vec3(uAmbient) + uBaseColor * facing + lightSum(point, normal, uLightShiftY, 1.0);
+    vec3 halfway = normalize(uBaseDirection + VIEW_DIRECTION);
+    float specular = specularAmount * SPECULAR_STRENGTH * pow(max(0.0, dot(normal, halfway)), SPECULAR_SHININESS) * facing;
+    return albedo * light + uBaseColor * specular;
+}
+
 void main(void)
 {
     vec4 encoded = texture(uTexture, vTextureCoord);
@@ -225,7 +296,10 @@ void main(void)
         surface = glassColor(world);
         edgeLighten = GLASS_EDGE;
     }
-    vec3 color = mix(surface.rgb, vec3(1.0), code.b * edgeLighten);
+    float specularAmount = id == STEEL_ID ? 1.0 - smoothstep(0.0, SPECULAR_WEAR_LIMIT, code.g) : 0.0;
+    vec3 normal = surfaceNormal(id, world, bevelSlope(vTextureCoord));
+    vec3 lit = litColor(surface.rgb, normal, vec3(world, 0.0), specularAmount);
+    vec3 color = mix(lit, vec3(1.0), code.b * edgeLighten);
     float alpha = surface.a * encoded.a;
     finalColor = vec4(color * alpha, alpha);
 }
@@ -243,6 +317,9 @@ export function createSurfaceFilter() {
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
                 uPixelsPerMeter: { value: INITIAL_PIXELS_PER_METER, type: "f32" },
+                uLightShiftY: { value: 0, type: "f32" },
+                ...createBaseLightUniforms(),
+                ...createPointLightUniforms(),
             },
         },
     });
@@ -255,10 +332,21 @@ export function createSurfaceFilter() {
  * @param {number} camera.originX px de pantalla del origen del mundo local de los sólidos, en x
  * @param {number} camera.originY px de pantalla del origen del mundo local de los sólidos, en y (hacia abajo)
  * @param {number} camera.pixelsPerMeter px de pantalla por metro
+ * @param {number} [camera.lightShiftY] desplazamiento vertical del nivel respecto de las luces, en m
  */
-export function updateSurfaceFilter(filter, { originX, originY, pixelsPerMeter }) {
+export function updateSurfaceFilter(filter, { originX, originY, pixelsPerMeter, lightShiftY = 0 }) {
     const { uniforms } = filter.resources[UNIFORM_GROUP];
     uniforms.uOrigin[0] = originX;
     uniforms.uOrigin[1] = originY;
     uniforms.uPixelsPerMeter = pixelsPerMeter;
+    uniforms.uLightShiftY = lightShiftY;
+}
+
+/**
+ * Pone las luces del frame en el filtro, sin crear objetos.
+ * @param {PIXI.Filter} filter el de `createSurfaceFilter`
+ * @param {{data: Float32Array, count: number}} lightSet luces de `createLightSet`
+ */
+export function setSurfaceFilterLights(filter, lightSet) {
+    applyLights(filter.resources[UNIFORM_GROUP].uniforms, lightSet);
 }

@@ -1,7 +1,7 @@
 import { lerp } from "../core/math/scalar.js";
 import { pointInPolygon } from "../core/math/ringNesting.js";
 import { SURFACES, surfaceOf } from "../level/surfaces.js";
-import { createSurfaceFilter, encodeSurface, updateSurfaceFilter } from "./surfaceFilter.js";
+import { createSurfaceFilter, encodeSurface, setSurfaceFilterLights, updateSurfaceFilter } from "./surfaceFilter.js";
 
 /**
  * Nivel estático como geometría de `PIXI.Graphics`, que PIXI conserva entre frames (ver `docs/design/07-sph.md` §7.4).
@@ -175,7 +175,16 @@ export class LevelView {
             originX: screenOrigin.x,
             originY: screenOrigin.y - offsetY * screenScale,
             pixelsPerMeter: screenScale,
+            lightShiftY: offsetY,
         });
+    }
+
+    /**
+     * Pasa las luces del frame al filtro de materiales, sin redibujar nada. Las luces van en coordenadas del mundo físico.
+     * @param {{data: Float32Array, count: number}} lightSet luces de `createLightSet`
+     */
+    setLights(lightSet) {
+        setSurfaceFilterLights(this.surfaceFilter, lightSet);
     }
 
     /**
