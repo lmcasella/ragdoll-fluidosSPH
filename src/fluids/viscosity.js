@@ -1,6 +1,7 @@
 import { MATERIALS, SIGMA_W } from "./materials.js";
 import { FLUID } from "../combat/weapons.js";
 import { mixtureViscosity } from "./adhesion.js";
+import { clamp, exponentialApproachFactor } from "../core/math/scalar.js";
 
 const STATIC = 0;
 const DYNAMIC = 2;
@@ -69,7 +70,7 @@ export class Viscosity {
     /** Viscosidad dinámica de la lava (Pa·s) a `T` °C. */
     mu(T) {
         const v = MATERIALS.lava.viscosity;
-        return Math.min(v.max, Math.max(v.min, v.mu0 * 10 ** ((v.T0 - T) / v.deltaT)));
+        return clamp(v.mu0 * 10 ** ((v.T0 - T) / v.deltaT), v.min, v.max);
     }
 
     /** Aplica la viscosidad del paso fijo `dt` (s). */
@@ -116,7 +117,7 @@ export class Viscosity {
             if (wallA && wallB) continue;
             const inverse = (wallA ? 0 : 1 / m) + (wallB ? 0 : 1 / m);
             const k = (mu * this.thickness * pairW[c]) / PAIR_REST_WEIGHT;
-            const factor = 1 - Math.exp(-k * dt * inverse);
+            const factor = exponentialApproachFactor(k * dt * inverse);
             const dvx = heap[vel + 2 * b] - heap[vel + 2 * a];
             const dvy = heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1];
             const jx = (factor * dvx) / inverse;
@@ -140,7 +141,7 @@ export class Viscosity {
         const m = this.honeyMass;
         const inverse = 2 / m;
         const k = (this.honeyK * w) / PAIR_REST_WEIGHT;
-        const factor = 1 - Math.exp(-k * dt * inverse);
+        const factor = exponentialApproachFactor(k * dt * inverse);
         const dvx = heap[vel + 2 * b] - heap[vel + 2 * a];
         const dvy = heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1];
         const jx = (factor * dvx) / inverse;
@@ -181,7 +182,7 @@ export class Viscosity {
             const mu = this.mu(thermal.temp[i]);
             const inverse = 1 / m + 1 / massBody;
             const k = (2 * mu * this.thickness * contacts.bodyW[c]) / BODY_REST_WEIGHT;
-            const factor = 1 - Math.exp(-k * dt * inverse);
+            const factor = exponentialApproachFactor(k * dt * inverse);
             const jx = (factor * (heap[vel + 2 * i] - bx)) / inverse;
             const jy = (factor * (heap[vel + 2 * i + 1] - by)) / inverse;
             heap[vel + 2 * i] -= jx / m;

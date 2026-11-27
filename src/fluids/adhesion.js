@@ -2,12 +2,13 @@ import { FLUID } from "../combat/weapons.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
 import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
-
-/** Densidad del agua (kg/m³). */
-const RHO_W = 1000;
+import { exponentialApproachFactor } from "../core/math/scalar.js";
+import { vectorLength, normalize, dot, cross } from "../core/math/vector2.js";
+import { WATER_DENSITY } from "../core/physics/constants.js";
+import { mixtureViscosity as logarithmicMixtureViscosity } from "../core/physics/formulas.js";
 
 /** Espesor `b` de la rebanada 2D (m): `σ_w / ρ_w`. Pasa los esfuerzos de película a newtons. */
-const THICKNESS = SIGMA_W / RHO_W;
+const THICKNESS = SIGMA_W / WATER_DENSITY;
 
 /** Tipos de cuerpo de Box2D (2BodyType). */
 const STATIC = 0;
@@ -28,6 +29,9 @@ const BRIDGE_CUT_RADII = 3.5;
 /** Vecinas de miel que se recuerdan por partícula para saber si otra capa la cubre (el resto se descarta). */
 const COVER_SLOTS = 12;
 
+/** Dirección de trabajo hacia una vecina de miel: se reutiliza para no crear objetos por paso. */
+const COVER_DIRECTION = { x: 0, y: 0 };
+
 /** Umbral del producto escalar entre la dirección a una vecina de miel y la normal de la pared para contarla como capa cubriente. */
 const COVER_DOT = 0.2;
 
@@ -47,7 +51,7 @@ const FILM_KINDS = new Set([FLUID.HONEY]);
  */
 export function mixtureViscosity(X) {
     const honey = MATERIALS.honey;
-    return Math.exp(X * Math.log(honey.mu * honey.viscosityScale) + (1 - X) * Math.log(MATERIALS.water.mu));
+    return logarithmicMixtureViscosity(X, Math.log(honey.mu * honey.viscosityScale), Math.log(MATERIALS.water.mu));
 }
 
 /**
@@ -216,7 +220,7 @@ export class Adhesion {
             const n = body.GetWorldVector(point);
             const nx = n.get_x();
             const ny = n.get_y();
-            const separation = (heap[pos + 2 * i] - qx) * nx + (heap[pos + 2 * i + 1] - qy) * ny;
+            const separation = dot(heap[pos + 2 * i] - qx, heap[pos + 2 * i + 1] - qy, nx, ny);
             if (separation > this.cut) {
                 this.bridgeGen[slot] = 0;
                 continue;
@@ -264,15 +268,15 @@ export class Adhesion {
             if (sa < 0 || sb < 0 || this.honey[store.kind[sa]] === 0 || this.honey[store.kind[sb]] === 0) continue;
             const dx = heap[pos + 2 * b] - heap[pos + 2 * a];
             const dy = heap[pos + 2 * b + 1] - heap[pos + 2 * a + 1];
-            const l = Math.hypot(dx, dy) || 1;
+            const direction = normalize(dx, dy, COVER_DIRECTION);
             if (cnt[a] < K) {
-                dir[(a * K + cnt[a]) * 2] = dx / l;
-                dir[(a * K + cnt[a]) * 2 + 1] = dy / l;
+                dir[(a * K + cnt[a]) * 2] = direction.x;
+                dir[(a * K + cnt[a]) * 2 + 1] = direction.y;
                 cnt[a]++;
             }
             if (cnt[b] < K) {
-                dir[(b * K + cnt[b]) * 2] = -dx / l;
-                dir[(b * K + cnt[b]) * 2 + 1] = -dy / l;
+                dir[(b * K + cnt[b]) * 2] = -direction.x;
+                dir[(b * K + cnt[b]) * 2 + 1] = -direction.y;
                 cnt[b]++;
             }
         }
@@ -324,25 +328,25 @@ export class Adhesion {
         }
         const vrx = heap[vel + 2 * i] - vbx;
         const vry = heap[vel + 2 * i + 1] - vby;
-        const vn = vrx * nx + vry * ny;
+        const vn = dot(vrx, vry, nx, ny);
         const tx = -ny;
         const ty = nx;
-        const vt = vrx * tx + vry * ty;
+        const vt = dot(vrx, vry, tx, ty);
         const resolved = !dynamic && this.covered(i, nx, ny);
         const mub = (resolved ? this.mu[kind] / MATERIALS.honey.viscosityScale : this.mu[kind]) * THICKNESS;
         const invParticle = 1 / mass;
 
-        const armT = rx * ty - ry * tx;
+        const armT = cross(rx, ry, tx, ty);
         const invT = invParticle + invBody + armT * armT * invInertia;
         const kt = TANGENTIAL * mub;
-        const jt = ((1 - Math.exp(-kt * dt * invT)) * vt) / invT;
+        const jt = (exponentialApproachFactor(kt * dt * invT) * vt) / invT;
         let jx = jt * tx;
         let jy = jt * ty;
         if (vn > 0) {
-            const armN = rx * ny - ry * nx;
+            const armN = cross(rx, ry, nx, ny);
             const invN = invParticle + invBody + armN * armN * invInertia;
             const kn = NORMAL * mub;
-            const jn = ((1 - Math.exp(-kn * dt * invN)) * vn) / invN;
+            const jn = (exponentialApproachFactor(kn * dt * invN) * vn) / invN;
             jx += jn * nx;
             jy += jn * ny;
         }
@@ -350,7 +354,7 @@ export class Adhesion {
         heap[vel + 2 * i + 1] -= jy / mass;
         stats.particleX -= jx;
         stats.particleY -= jy;
-        stats.magnitude += Math.hypot(jx, jy);
+        stats.magnitude += vectorLength(jx, jy);
         stats.contacts++;
         if (dynamic) {
             stats.bodyX += jx;

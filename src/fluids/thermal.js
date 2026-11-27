@@ -4,6 +4,11 @@ import { FLUID } from "../combat/weapons.js";
 import { PARTICLE } from "./particles.js";
 import { Contacts } from "./contacts.js";
 import { ORIGIN, SINK } from "./particleStore.js";
+import { RELATIVE_TOLERANCE, clampUnit, inverseLerp, lerp } from "../core/math/scalar.js";
+import { vectorLength } from "../core/math/vector2.js";
+import { piecewiseLinear } from "../core/math/numeric.js";
+import { GRAVITY, WATER_DENSITY } from "../core/physics/constants.js";
+import { kelvinFourthPower, limitTransfer, radiativeHeatFlux } from "../core/physics/formulas.js";
 
 /**
  * Datos de la térmica (docs/design/14-agua.md §14.8). `restSpeed` (m/s) y `restTime` (s): la piedra por debajo de esa
@@ -26,7 +31,7 @@ export const THERMAL = {
     game: { timeScale: 25, quenchScale: 8000, plumeScale: 30, filmEmission: true },
     restSpeed: 0.05,
     restTime: 0.5,
-    waterDensity: 1000,
+    waterDensity: WATER_DENSITY,
     hotWater: [160, 210, 255],
     stone: [52, 50, 47],
     steam: [242, 244, 245],
@@ -45,8 +50,17 @@ export const THERMAL = {
 
 const KIND_STRIDE = 8;
 const KIND_SLOTS = 256;
-const KELVIN = 273.15;
 
+/** Paradas de la incandescencia: la piedra fría a `glowFrom` y las de `incandescence`. */
+const GLOW_STOPS = [[THERMAL.glowFrom, THERMAL.stone], ...THERMAL.incandescence];
+
+/** Color de trabajo de `Thermal.glow`: se reutiliza para no crear arreglos por partícula. */
+const glowColor = [0, 0, 0];
+
+/** Posición de cada canal de un color `[rojo, verde, azul]`. */
+const RED = 0;
+const GREEN = 1;
+const BLUE = 2;
 /** `C_a C_b / (C_a + C_b)` con capacidades posiblemente infinitas (meseta del cambio de fase). */
 function seriesCapacity(a, b) {
     if (a === Infinity) return b;
@@ -114,7 +128,7 @@ function seriesCapacity(a, b) {
  * paso, `walled[slot]` (piedra inmóvil) y los contactos (`contacts.pairA/B/W`, `stats.pairs`).
  */
 export class Thermal {
-    constructor(system, store, water, immersion = null, { evaporation = null, airLosses = true, gravity = 10, timeScale = 1, quenchScale = 1, plumeScale = 1, filmEmission = false } = {}) {
+    constructor(system, store, water, immersion = null, { evaporation = null, airLosses = true, gravity = GRAVITY, timeScale = 1, quenchScale = 1, plumeScale = 1, filmEmission = false } = {}) {
         this.timeScale = timeScale;
         this.quenchScale = quenchScale;
         this.plumeScale = plumeScale;
@@ -138,7 +152,6 @@ export class Thermal {
         this.perimeter = 2 * Math.sqrt(Math.PI * area);
         this.filmBoiling = heat.filmBoiling;
         this.convection = heat.convection;
-        this.stefan = heat.stefanBoltzmann;
         this.cLiquid = lava.c;
         this.cSolid = stone.c;
         this.solidus = lava.solidus;
@@ -300,7 +313,7 @@ export class Thermal {
 
     /** Fracción fundida del basalto con entalpía `e`, de 0 (sólido) a 1 (líquido). */
     meltFraction(e) {
-        return Math.min(1, Math.max(0, (e - this.eSolid) / (this.eLiquid - this.eSolid)));
+        return clampUnit(inverseLerp(this.eSolid, this.eLiquid, e));
     }
 
     /** Calor específico sensible (J/(kg·K)) de la partícula; infinito en la meseta de fusión. */
@@ -388,7 +401,7 @@ export class Thermal {
             count++;
             const vx = heap[vel + 2 * i];
             const vy = heap[vel + 2 * i + 1];
-            const f = 1 / (1 + this.steamDrag * Math.hypot(vx, vy + this.gravity * dt) * dt);
+            const f = 1 / (1 + this.steamDrag * vectorLength(vx, vy + this.gravity * dt) * dt);
             heap[vel + 2 * i] = vx * f;
             heap[vel + 2 * i + 1] = (vy + this.steamForce * dt) * f;
         }
@@ -418,7 +431,7 @@ export class Thermal {
                 E[i] = full;
                 boiled[i] += excess * dx;
             }
-            const saturated = E[i] >= full * (1 - 1e-9);
+            const saturated = E[i] >= full * (1 - RELATIVE_TOLERANCE);
             const eColumn = saturated ? this.eBoil : E[i] / (SIGMA_W * hh);
             const cost = saturated ? batch : mass * (this.eVapor - eColumn);
             if (boiled[i] < cost || this.steamCount >= THERMAL.maxSteam || hh - dh < hMin || (!saturated && !this.filmEmission)) continue;
@@ -495,11 +508,10 @@ export class Thermal {
             if (dT === 0) continue;
             let K = this.exchange[pair];
             if (shearOn && this.shear[pair] > 0) {
-                K += this.shear[pair] * Math.hypot(heap[vel + 2 * b] - heap[vel + 2 * a], heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1]);
+                K += this.shear[pair] * vectorLength(heap[vel + 2 * b] - heap[vel + 2 * a], heap[vel + 2 * b + 1] - heap[vel + 2 * a + 1]);
             }
-            let dE = K * pairW[c] * dT * dt;
             const limit = (Math.abs(dT) * seriesCapacity(this.heatCap[a], this.heatCap[b])) / Math.max(this.neighbors[a], this.neighbors[b]);
-            if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
+            const dE = limitTransfer(K * pairW[c] * dT * dt, limit);
             store.enthalpy[sa] += dE / this.effMass[a];
             store.enthalpy[sb] -= dE / this.effMass[b];
         }
@@ -554,9 +566,8 @@ export class Thermal {
             const capColumn = SIGMA_W * cWater * h;
             const Tc = water.E[column] / capColumn;
             const dT = Tp - Tc;
-            let dE = coefficient * dT * dt;
             const limit = Math.abs(dT) * seriesCapacity(this.specificHeat(kind, e) * this.mass[kind], capColumn * water.dx);
-            if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
+            const dE = limitTransfer(coefficient * dT * dt, limit);
             store.enthalpy[slot] -= dE / this.mass[kind];
             if (this.filmEmission && dE > 0 && Tc < this.boilingPoint) water.boiled[column] += dE;
             else water.E[column] += dE / water.dx;
@@ -567,7 +578,7 @@ export class Thermal {
     loseToAir(total, dt) {
         const { store } = this;
         const Ta = this.ambient;
-        const Tak = (Ta + KELVIN) ** 4;
+        const ambientKelvinFourth = kelvinFourthPower(Ta);
         const area = this.perimeter * this.thickness;
         for (let i = 0; i < total; i++) {
             const slot = this.slotOf[i];
@@ -576,10 +587,9 @@ export class Thermal {
             if (this.family[kind] === 0) continue;
             const e = store.enthalpy[slot];
             const T = this.temperature(kind, e);
-            const power = this.timeScale * area * (this.emissivity[kind] * this.stefan * ((T + KELVIN) ** 4 - Tak) + this.convection * (T - Ta));
-            let dE = power * dt;
+            const power = this.timeScale * area * (radiativeHeatFlux(this.emissivity[kind], T, ambientKelvinFourth) + this.convection * (T - Ta));
             const limit = this.mass[kind] * Math.abs(e - this.ambientEnthalpy[kind]);
-            if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
+            const dE = limitTransfer(power * dt, limit);
             store.enthalpy[slot] = e - dE / this.mass[kind];
             this.stats.lost += dE;
         }
@@ -630,9 +640,8 @@ export class Thermal {
             const capColumn = SIGMA_W * cWater * h;
             const E = water.E[i];
             const T = E / capColumn;
-            let dE = coefficient * (T - Ta) * dt;
             const limit = Math.abs(E - capColumn * Ta) * water.dx;
-            if (Math.abs(dE) > limit) dE = Math.sign(dE) * limit;
+            const dE = limitTransfer(coefficient * (T - Ta) * dt, limit);
             water.E[i] = E - dE / water.dx;
             this.stats.lost += dE;
         }
@@ -725,54 +734,30 @@ export class Thermal {
 
     /** Agua a `T` °C: del color con que nació al de `hotWater` entre el ambiente y 100 °C; solo escribe si cambia. */
     tintWater(slot, T, c) {
-        const t = Math.min(1, Math.max(0, (T - this.ambient - 1) / (100 - this.ambient)));
+        const t = clampUnit((T - this.ambient - 1) / (100 - this.ambient));
         if (t === 0 && this.tinted[slot] === 0) return;
         this.tinted[slot] = t > 0 ? 1 : 0;
         const heapU = Box2D.HEAPU8;
         for (let k = 0; k < 3; k++) {
             const base = this.base[3 * slot + k];
-            heapU[c + k] = Math.round(base + (THERMAL.hotWater[k] - base) * t);
+            heapU[c + k] = Math.round(lerp(base, THERMAL.hotWater[k], t));
         }
     }
 
     /** Color del vapor con título `x` (1 vapor, 0 niebla): de `THERMAL.fog` a `THERMAL.steam`; deja `tinted` para que, al condensar, el agua recupere su tinte. */
     paintSteam(slot, c, x) {
         const heapU = Box2D.HEAPU8;
-        const t = Math.min(1, Math.max(0, x));
+        const t = clampUnit(x);
         this.tinted[slot] = 1;
-        for (let k = 0; k < 3; k++) heapU[c + k] = Math.round(THERMAL.fog[k] + (THERMAL.steam[k] - THERMAL.fog[k]) * t);
+        for (let k = 0; k < 3; k++) heapU[c + k] = Math.round(lerp(THERMAL.fog[k], THERMAL.steam[k], t));
     }
 
     /** Color de basalto a `T` °C por incandescencia; debajo de `glowFrom` el de la piedra fría. */
     glow(T, c) {
         const heapU = Box2D.HEAPU8;
-        const stops = THERMAL.incandescence;
-        const cold = THERMAL.stone;
-        let r;
-        let g;
-        let b;
-        if (T <= THERMAL.glowFrom) {
-            [r, g, b] = cold;
-        } else if (T < stops[0][0]) {
-            const t = (T - THERMAL.glowFrom) / (stops[0][0] - THERMAL.glowFrom);
-            const to = stops[0][1];
-            r = cold[0] + (to[0] - cold[0]) * t;
-            g = cold[1] + (to[1] - cold[1]) * t;
-            b = cold[2] + (to[2] - cold[2]) * t;
-        } else if (T >= stops[stops.length - 1][0]) {
-            [r, g, b] = stops[stops.length - 1][1];
-        } else {
-            let k = 0;
-            while (T >= stops[k + 1][0]) k++;
-            const t = (T - stops[k][0]) / (stops[k + 1][0] - stops[k][0]);
-            const from = stops[k][1];
-            const to = stops[k + 1][1];
-            r = from[0] + (to[0] - from[0]) * t;
-            g = from[1] + (to[1] - from[1]) * t;
-            b = from[2] + (to[2] - from[2]) * t;
-        }
-        heapU[c] = Math.round(r);
-        heapU[c + 1] = Math.round(g);
-        heapU[c + 2] = Math.round(b);
+        piecewiseLinear(GLOW_STOPS, T, glowColor);
+        heapU[c] = Math.round(glowColor[RED]);
+        heapU[c + 1] = Math.round(glowColor[GREEN]);
+        heapU[c + 2] = Math.round(glowColor[BLUE]);
     }
 }
