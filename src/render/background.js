@@ -46,24 +46,22 @@ export const BACKGROUND = {
         },
         {
             depth: 0.45,
-            color: 0x181a21,
+            color: 0x1c1f27,
             segmentWidth: 32,
             segmentHeight: 16,
             elements: [
-                { kind: "pipe", attempts: 3, minWidth: 8, maxWidth: 16, minHeight: 0.6, maxHeight: 1.2, presence: [1, 0.8, 0.2] },
+                { kind: "pipe", attempts: 3, minWidth: 8, maxWidth: 16, minHeight: 0.25, maxHeight: 0.45, presence: [1, 0.8, 0.2] },
                 { kind: "structure", attempts: 1, minWidth: 5, maxWidth: 8, minHeight: 7, maxHeight: 12, presence: [0.8, 1, 0.2] },
                 { kind: "catwalk", attempts: 2, minWidth: 8, maxWidth: 14, minHeight: 1.2, maxHeight: 1.8, presence: [0.2, 1, 0.3] },
             ],
         },
         {
             depth: 0.7,
-            color: 0x101116,
+            color: 0x16181f,
             segmentWidth: 24,
             segmentHeight: 16,
             elements: [
-                { kind: "verticalBeam", attempts: 1, minWidth: 0.6, maxWidth: 1, minHeight: 10, maxHeight: 16, presence: [1, 0.8, 0.3] },
-                { kind: "horizontalBeam", attempts: 1, minWidth: 8, maxWidth: 14, minHeight: 0.5, maxHeight: 0.9, presence: [0.8, 1, 0.3] },
-                { kind: "pipe", attempts: 1, minWidth: 6, maxWidth: 12, minHeight: 0.5, maxHeight: 0.8, presence: [0.6, 0.6, 0.2] },
+                { kind: "verticalBeam", attempts: 2, minWidth: 0.6, maxWidth: 1, minHeight: 10, maxHeight: 16, presence: [1, 0.8, 0.3] },
             ],
         },
     ],

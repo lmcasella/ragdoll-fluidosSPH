@@ -172,22 +172,6 @@ function catwalk(shapes, x, y, width, height) {
 }
 
 /**
- * Viga en I horizontal: alma entre dos alas.
- * @param {object[]} shapes
- * @param {number} x
- * @param {number} y
- * @param {number} width
- * @param {number} height
- */
-function horizontalBeam(shapes, x, y, width, height) {
-    const flange = height * BEAM.flangeRatio;
-    const web = height * BEAM.webRatio;
-    rect(shapes, x, y, width, flange);
-    rect(shapes, x, y + height - flange, width, flange);
-    rect(shapes, x, y + (height - web) / 2, width, web);
-}
-
-/**
  * Viga en I vertical: alma entre dos alas.
  * @param {object[]} shapes
  * @param {number} x
@@ -204,4 +188,4 @@ function verticalBeam(shapes, x, y, width, height) {
 }
 
 /** Constructores de figuras por tipo de elemento (`kind` de las capas de `BACKGROUND`). */
-export const SHAPE_BUILDERS = { tank, chimney, smokingChimney, pipe, structure, catwalk, horizontalBeam, verticalBeam };
+export const SHAPE_BUILDERS = { tank, chimney, smokingChimney, pipe, structure, catwalk, verticalBeam };
