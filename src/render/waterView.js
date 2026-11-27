@@ -1,5 +1,12 @@
 import { fieldColor, waterOutline } from "./render.js";
 
+/** Degradado horizontal de espacio local: de 0 a 1 a lo ancho del tramo. */
+const GRADIENT_START = { x: 0, y: 0 };
+const GRADIENT_END = { x: 1, y: 0 };
+
+/** Posición del centro de una celda dentro de ella, como fracción de su ancho. */
+const CELL_CENTER = 0.5;
+
 /**
  * Agua del nivel como un `PIXI.Graphics` que se limpia y se redibuja cada frame desde el campo de alturas
  * (`docs/design/14-agua.md` §14.3, Render): un polígono relleno por tramo mojado, del lecho a `η`, con la línea de
@@ -39,7 +46,7 @@ export class WaterView {
         let acid = false;
         for (let cell = first; cell <= end && !acid; cell++) acid = A[cell] > 0;
         if (!acid) return null;
-        const gradient = new PIXI.FillGradient({ type: "linear", start: { x: 0, y: 0 }, end: { x: 1, y: 0 }, textureSpace: "local" });
+        const gradient = new PIXI.FillGradient({ type: "linear", start: GRADIENT_START, end: GRADIENT_END, textureSpace: "local" });
         this.gradients.push(gradient);
         const width = right - left;
         const addStop = (x) => {
@@ -48,7 +55,7 @@ export class WaterView {
             gradient.addColorStop(Math.min(1, Math.max(0, (x - left) / width)), `rgb(${red}, ${green}, ${blue})`);
         };
         addStop(left);
-        for (let cell = first; cell <= end; cell += step) addStop(x0 + (cell + 0.5) * dx);
+        for (let cell = first; cell <= end; cell += step) addStop(x0 + (cell + CELL_CENTER) * dx);
         addStop(right);
         return gradient;
     }

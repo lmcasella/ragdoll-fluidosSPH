@@ -53,6 +53,9 @@ const BUBBLE_STROKE_COLOR = 0xf2fff2;
 const BUBBLE_SCREEN_PX = 1;
 const BOX_SIDES = 4;
 
+/** Mitad de un valor en [0, 1): centra un número de `hashToUnit` alrededor de 0. */
+const UNIT_CENTER = 0.5;
+
 const surface = [0, 0];
 
 /**
@@ -150,6 +153,9 @@ export class RagdollEffects {
 
     /**
      * Zigzags amarillos y blancos que nacen en el centro de una pieza. La pieza y los ángulos salen de `floor(now × SPARK_TICK_HZ)`.
+     * @param {object} player robot mojado, con `renderItems` y `shortCircuitDps`
+     * @param {number} screenScale escala de la cámara, en px de pantalla por metro
+     * @param {number} now reloj de juego, en s
      */
     drawSparks(player, screenScale, now) {
         const items = player.renderItems;
@@ -166,7 +172,7 @@ export class RagdollEffects {
             let heading = hashToUnit(seed + SPARK_SEED.heading) * FULL_TURN;
             this.graphics.moveTo(x * scale, y * scale);
             for (let segment = 0; segment < SPARK_SEGMENTS; segment++) {
-                heading += (hashToUnit(seed + SPARK_SEED.turn + segment) - 0.5) * SPARK_TURN_RANGE;
+                heading += (hashToUnit(seed + SPARK_SEED.turn + segment) - UNIT_CENTER) * SPARK_TURN_RANGE;
                 x += Math.cos(heading) * SPARK_SEGMENT_LENGTH;
                 y += Math.sin(heading) * SPARK_SEGMENT_LENGTH;
                 this.graphics.lineTo(x * scale, y * scale);
@@ -175,7 +181,10 @@ export class RagdollEffects {
         }
     }
 
-    /** Estado de las burbujas del robot; se reserva la primera vez que hace falta. */
+    /**
+     * Estado de las burbujas del robot; se reserva la primera vez que hace falta.
+     * @returns {object} arreglo `slots` de burbujas más el cursor, lo pendiente de nacer, el último instante y la semilla
+     */
     bubbleState() {
         this.bubbles ??= { slots: new Float32Array(H2_BUBBLES.capacity * BUBBLE_STRIDE), cursor: 0, pending: 0, last: -1, seed: 0 };
         return this.bubbles;
@@ -184,6 +193,9 @@ export class RagdollEffects {
     /**
      * Hace nacer las burbujas de ácido sobre la superficie de las piezas, las sube y dibuja las vivas, con su alfa
      * bajando con la edad.
+     * @param {object} player robot con `renderItems`, `wet`, `dead` y `wetSigma`
+     * @param {number} screenScale escala de la cámara, en px de pantalla por metro
+     * @param {number} now reloj de juego, en s
      */
     drawBubbles(player, screenScale, now) {
         const items = player.renderItems;
