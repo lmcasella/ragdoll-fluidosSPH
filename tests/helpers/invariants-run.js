@@ -225,7 +225,7 @@ export async function runStandardScene({ windowSeconds = WINDOW_SECONDS, leadSec
         MATERIAL_NAMES.forEach((n, k) => {
             const kind = KIND_OF[n];
             P[n] = (alive[k] - evaporatedLive[k]) * mass[n];
-            out[n] = (store.destroyed[SINK.OUT][kind] + store.destroyed[SINK.EVAPORATED][kind] + evaporatedLive[k]) * mass[n];
+            out[n] = (store.destroyed[SINK.OUT][kind] + store.destroyed[SINK.EVAPORATED][kind] + store.destroyed[SINK.CORRODED][kind] + store.destroyed[SINK.HIT][kind] + evaporatedLive[k]) * mass[n];
             inj[n] = store.created[kind] * mass[n];
         });
         inj.water += water.stats.sourced * SIGMA_W;

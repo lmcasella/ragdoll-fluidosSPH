@@ -1,4 +1,5 @@
-import { LEVEL } from "./level.js";
+import { LEVEL, SOLID_FRICTION } from "./level.js";
+import { Terrain } from "./terrain.js";
 import { BOT, canReach } from "../ai/bot.js";
 import { clamp, lerp } from "../core/math/scalar.js";
 import { intersectIntervals, subtractIntervals } from "../core/math/geometry.js";
@@ -486,15 +487,17 @@ export class ClimbGenerator {
     }
 }
 /**
- * Mundo del ascenso infinito (docs/design/16-ascenso.md §16.6). Todas las plataformas y paredes son fixtures de caja de un
- * solo cuerpo cinemático (fricción 0,8) que baja a `CLIMB.scroll` m/s; las plataformas se registran en `OneWayPlatforms`
+ * Mundo del ascenso infinito (docs/design/16-ascenso.md §16.6). Todas las plataformas y paredes son fixtures de un
+ * solo cuerpo cinemático (fricción 0,8) que baja a `CLIMB.scroll` m/s: terreno de densidad (`terrain`, ver
+ * `docs/design/05-escenario.md` §5.5) salvo las rompibles, que son cajas. Las plataformas se registran en `OneWayPlatforms`
  * como móviles y las armas en `Pickups`. Los datos (`level`, `items`, el generador) están en coordenadas locales del
  * cuerpo; la altura en el mundo es `y + offsetY`, con `offsetY` la posición del cuerpo. Crear y destruir es
- * `CreateFixture` y `DestroyFixture` sobre ese cuerpo; el `b2PolygonShape` y los `b2Vec2` de trabajo se crean una vez y se
- * liberan en `dispose`.
+ * `Terrain.addSolid` y `removeSolid`, o `CreateFixture` y `DestroyFixture` para las cajas; los `b2Vec2` de trabajo y
+ * el constructor de fixtures de `terrain` se crean una vez y se liberan en `dispose`.
  *
  * `update` y `reset` se llaman solo desde el loop, después de los pasos del frame, nunca dentro de `stepWorld` ni de un
- * callback. Después de destruir, quien llama invalida `wallContact` y rehace el grafo del bot con `level`.
+ * callback. Después de destruir, quien llama invalida `wallContact` y rehace el grafo del bot con `level`. Rehacer las
+ * formas sucias es `terrain.update()`, también desde el loop.
  */
 export class Climb {
     constructor({ world, platforms, pickups, breakable = null, config = CLIMB, base = LEVEL }) {
@@ -509,7 +512,7 @@ export class Climb {
         this.body = world.CreateBody(bodyDef);
         Box2D.destroy(bodyDef);
         this.body.SetSleepingAllowed(false);
-        this.shape = new Box2D.b2PolygonShape();
+        this.terrain = new Terrain({ body: this.body, platforms, friction: SOLID_FRICTION, moving: true });
         this.origin = new Box2D.b2Vec2(0, 0);
         this.vector = new Box2D.b2Vec2(0, 0);
         this.data = { solids: [] };
@@ -609,32 +612,46 @@ export class Climb {
         const needed = stageOf(limit, this.config);
         while (this.stagesBuilt < needed) {
             this.stagesBuilt++;
-            for (const w of stageWalls(this.stagesBuilt, this.config, this.base)) this.addBox(w.x, w.y, w.w, w.h, "wall", false);
+            for (const wall of stageWalls(this.stagesBuilt, this.config, this.base)) this.addSolid(wall);
         }
         return this.items.length + this.points.length - before;
     }
 
-    /** Plataforma `{ x, w, y }` (`y` el tope) como caja atravesable de alto `branches.thickness`. */
-    addPlatform(p) {
+    /** Plataforma `{ x, w, y }` (`y` el tope) atravesable de alto `branches.thickness`. */
+    addPlatform(platform) {
         const { thickness } = this.config.branches;
-        this.addBox(p.x, p.y - thickness / 2, p.w, thickness, "platform", true, p.breakable);
+        this.addSolid({ x: platform.x, y: platform.y - thickness / 2, w: platform.w, h: thickness, kind: "platform" }, { oneWay: true, breakable: platform.breakable });
     }
 
-    addBox(x, y, w, h, kind, oneWay, breakable = false) {
-        this.vector.Set(x, y);
-        this.shape.SetAsBox(w / 2, h / 2, this.vector, 0);
-        const fixture = this.body.CreateFixture(this.shape, 0);
-        fixture.SetFriction(0.8);
-        if (oneWay) this.platforms.addPlatform(fixture, { moving: true });
-        const solid = oneWay ? { x, y, w, h, kind, oneWay, ...(breakable ? { breakable } : {}) } : { x, y, w, h, kind };
-        if (breakable && this.breakable) this.breakable.add(fixture, solid);
-        this.items.push({ fixture, oneWay, breakable: Boolean(breakable), kind, top: y + h / 2, solid });
+    /**
+     * Crea un sólido `{ x, y, w, h, kind }` (centro y tamaño locales, en m): terreno de densidad (`Terrain`), salvo las
+     * rompibles, que siguen siendo una caja (`docs/design/05-escenario.md` §5.5). Las atravesables se registran como móviles.
+     * @param {{x: number, y: number, w: number, h: number, kind: string}} rectangle
+     * @param {{oneWay?: boolean, breakable?: number|boolean}} [options] `breakable`: segundos de cuenta, o `false`
+     */
+    addSolid(rectangle, { oneWay = false, breakable = false } = {}) {
+        const { x, y, w: width, h: height, kind } = rectangle;
+        const solid = { x, y, w: width, h: height, kind };
+        if (oneWay) Object.assign(solid, { oneWay }, breakable ? { breakable } : {});
+        const item = { oneWay, breakable: Boolean(breakable), kind, top: y + height / 2, solid };
+        if (breakable) {
+            item.fixture = this.terrain.builder.createBox(this.body, { x, y, width, height }, { friction: SOLID_FRICTION });
+            this.platforms.addPlatform(item.fixture, { moving: true });
+            if (this.breakable) this.breakable.add(item.fixture, solid);
+        } else {
+            item.handle = this.terrain.addSolid(solid, { oneWay });
+        }
+        this.items.push(item);
         this.data.solids.push(solid);
     }
 
     destroyItem(item) {
-        if (item.breakable && this.breakable) this.breakable.remove(item.fixture);
-        if (item.oneWay) this.platforms.removePlatform(item.fixture);
+        if (item.handle) {
+            this.terrain.removeSolid(item.handle);
+            return;
+        }
+        if (this.breakable) this.breakable.remove(item.fixture);
+        this.platforms.removePlatform(item.fixture);
         this.body.DestroyFixture(item.fixture);
     }
 
@@ -649,10 +666,10 @@ export class Climb {
 
     dispose() {
         this.clear();
+        this.terrain.dispose();
         this.world.DestroyBody(this.body);
         Box2D.destroy(this.origin);
         Box2D.destroy(this.vector);
-        Box2D.destroy(this.shape);
     }
 }
 

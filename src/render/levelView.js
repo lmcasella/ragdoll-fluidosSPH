@@ -1,4 +1,5 @@
 import { lerp } from "../core/math/scalar.js";
+import { pointInPolygon } from "../core/math/ringNesting.js";
 
 /**
  * Nivel estático como geometría de `PIXI.Graphics`, que PIXI conserva entre frames (ver `docs/design/07-sph.md` §7.4).
@@ -22,8 +23,63 @@ const OUTLINE_SCREEN_PX = 2;
 /** Cambio relativo del grosor del trazo (en la geometría) a partir del cual se reconstruye el nivel para seguir el zoom. */
 const OUTLINE_REBUILD_TOLERANCE = 0.1;
 
+/** Valores por vértice en un anillo intercalado: x e y. */
+const VALUES_PER_VERTEX = 2;
+
 /** Estado que se guarda de una plataforma rota para detectar cuándo cambia (las intactas guardan su `crack`, de 0 a 1). */
 const BROKEN_STATE = -1;
+
+/** Distancia del punto de prueba al medio de un lado, hacia afuera del anillo, en m: menos que una celda de la grilla. */
+const SEAM_PROBE = 0.001;
+
+/**
+ * Caja de un anillo intercalado, en m.
+ * @param {number[]} ring
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
+ */
+function ringBounds(ring) {
+    const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
+        bounds.minX = Math.min(bounds.minX, ring[index]);
+        bounds.maxX = Math.max(bounds.maxX, ring[index]);
+        bounds.minY = Math.min(bounds.minY, ring[index + 1]);
+        bounds.maxY = Math.max(bounds.maxY, ring[index + 1]);
+    }
+    return bounds;
+}
+
+/**
+ * Lados de los anillos del terreno que dan afuera, como `[x1, y1, x2, y2]` en m. Un lado es costura entre dos tramos si
+ * el punto apenas afuera de su medio (a la derecha del lado: afuera de un externo y adentro de un agujero) cae dentro
+ * de materia de otro anillo, por la regla par-impar sobre los demás anillos; esos lados no se trazan.
+ * @param {number[][]} rings externos y agujeros, vértices intercalados en m
+ * @returns {number[][]}
+ */
+function exposedEdges(rings) {
+    const bounds = rings.map(ringBounds);
+    const insideOtherMaterial = (x, y, self) => {
+        let inside = false;
+        rings.forEach((ring, index) => {
+            const box = bounds[index];
+            if (index === self || x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) return;
+            if (pointInPolygon(x, y, ring)) inside = !inside;
+        });
+        return inside;
+    };
+    const edges = [];
+    rings.forEach((ring, self) => {
+        for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
+            const next = (index + VALUES_PER_VERTEX) % ring.length;
+            const [x1, y1, x2, y2] = [ring[index], ring[index + 1], ring[next], ring[next + 1]];
+            const length = Math.hypot(x2 - x1, y2 - y1);
+            if (length === 0) continue;
+            const probeX = (x1 + x2) / 2 + ((y2 - y1) / length) * SEAM_PROBE;
+            const probeY = (y1 + y2) / 2 - ((x2 - x1) / length) * SEAM_PROBE;
+            if (!insideOtherMaterial(probeX, probeY, self)) edges.push([x1, y1, x2, y2]);
+        }
+    });
+    return edges;
+}
 
 /**
  * Mezcla lineal de dos colores `[r, g, b]` (0-255) como texto CSS.
@@ -34,6 +90,20 @@ const BROKEN_STATE = -1;
 function mixColor(from, to, amount) {
     const channels = from.map((channel, index) => Math.round(lerp(channel, to[index], amount)));
     return `rgb(${channels.join(", ")})`;
+}
+
+/**
+ * Un anillo es externo si su área con signo es positiva y agujero si es negativa (fórmula del cordón).
+ * @param {number[]} ring vértices intercalados (x, y)
+ * @returns {boolean}
+ */
+function ringIsOuter(ring) {
+    let doubleArea = 0;
+    for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
+        const next = (index + VALUES_PER_VERTEX) % ring.length;
+        doubleArea += ring[index] * ring[next + 1] - ring[next] * ring[index + 1];
+    }
+    return doubleArea > 0;
 }
 
 export class LevelView {
@@ -51,6 +121,7 @@ export class LevelView {
         parent.addChild(this.container);
         this.solids = null;
         this.solidCount = -1;
+        this.shapeVersion = -1;
         this.outlineWidth = 0;
         this.breakableStates = [];
         this.breakableCount = -1;
@@ -66,19 +137,24 @@ export class LevelView {
      * @param {number} offsetY desplazamiento vertical del nivel, en m
      * @param {number} now reloj de juego, en s (fase de la vibración)
      * @param {number} screenScale escala de la cámara, en px de pantalla por metro
+     * @param {{version: number, rings: number[][]}|null} [terrainShape] contornos del terreno de densidad en m (externos de
+     * área positiva, agujeros de área negativa) y su versión; con ellos los sólidos fijos se dibujan con su forma real, y
+     * sin ellos como rectángulos (`docs/design/05-escenario.md` §5.5)
      */
-    update(level, offsetY, now, screenScale) {
+    update(level, offsetY, now, screenScale, terrainShape = null) {
         const { solids } = level;
         const outlineWidth = (OUTLINE_SCREEN_PX * this.pixelsPerMeter) / screenScale;
         if (Math.abs(outlineWidth - this.outlineWidth) > this.outlineWidth * OUTLINE_REBUILD_TOLERANCE) {
             this.outlineWidth = outlineWidth;
             this.solidCount = -1;
         }
-        if (solids !== this.solids || solids.length !== this.solidCount) {
+        const shapeVersion = terrainShape ? terrainShape.version : -1;
+        if (solids !== this.solids || solids.length !== this.solidCount || shapeVersion !== this.shapeVersion) {
             this.solids = solids;
             this.solidCount = solids.length;
+            this.shapeVersion = shapeVersion;
             this.breakableCount = -1;
-            this.buildFixed(solids);
+            this.buildFixed(solids, terrainShape);
         }
         if (this.breakableChanged(solids)) this.buildBreakable(solids, now);
         this.container.position.y = offsetY * this.pixelsPerMeter;
@@ -106,17 +182,37 @@ export class LevelView {
         return changed;
     }
 
-    /** Dibuja todos los sólidos fijos con un solo relleno y un solo trazo. */
-    buildFixed(solids) {
+    /**
+     * Dibuja todos los sólidos fijos con un solo relleno y un solo trazo: los contornos del terreno si hay, con sus
+     * agujeros recortados y sin trazar las costuras entre tramos, y si no los rectángulos.
+     */
+    buildFixed(solids, terrainShape) {
         const graphics = this.fixedGraphics;
         graphics.clear();
-        for (const solid of solids) {
-            if (solid.breakable) continue;
-            this.addRectangle(graphics, solid, 0);
+        if (terrainShape) {
+            this.addRings(graphics, terrainShape.rings.filter((ring) => ringIsOuter(ring)));
+            graphics.fill(SOLID_FILL);
+            this.addRings(graphics, terrainShape.rings.filter((ring) => !ringIsOuter(ring)));
+            graphics.cut();
+            const scale = this.pixelsPerMeter;
+            for (const [x1, y1, x2, y2] of exposedEdges(terrainShape.rings)) {
+                graphics.moveTo(x1 * scale, y1 * scale).lineTo(x2 * scale, y2 * scale);
+            }
+        } else {
+            for (const solid of solids) {
+                if (solid.breakable) continue;
+                this.addRectangle(graphics, solid, 0);
+            }
+            graphics.fill(SOLID_FILL);
         }
-        graphics.fill(SOLID_FILL);
         graphics.stroke({ width: this.outlineWidth, color: SOLID_STROKE });
         this.fixedBuilds++;
+    }
+
+    /** Agrega cada anillo (vértices intercalados en m) como un polígono cerrado. */
+    addRings(graphics, rings) {
+        const scale = this.pixelsPerMeter;
+        for (const ring of rings) graphics.poly(ring.map((coordinate) => coordinate * scale), true);
     }
 
     /** Dibuja las plataformas rompibles que no están rotas: el color pasa al de advertencia y vibran con `crack`. */

@@ -20,6 +20,7 @@ import { CLIMB, Climb, StagePrizes } from "./src/level/climb.js";
 import { ShallowWater } from "./src/water/water.js";
 import { Immersion } from "./src/water/immersion.js";
 import { Evaporation } from "./src/fluids/evaporation.js";
+import { Corrosion } from "./src/fluids/corrosion.js";
 import { Thermal, THERMAL } from "./src/fluids/thermal.js";
 import { Viscosity } from "./src/fluids/viscosity.js";
 import { Adhesion } from "./src/fluids/adhesion.js";
@@ -168,11 +169,10 @@ window.addEventListener("resize", resize);
 const gravity = new Box2D.b2Vec2(0, -GRAVITY);
 const world = new Box2D.b2World(gravity);
 Box2D.destroy(gravity);
-let classic = buildLevel(world);
+const platforms = new OneWayPlatforms(world);
+let classic = buildLevel(world, LEVEL, { platforms });
 let climb = null;
 let currentMap = "classic";
-const platforms = new OneWayPlatforms(world);
-classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
 const breakable = new BreakablePlatforms(platforms);
 classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
 const raycaster = getRaycaster(world);
@@ -342,12 +342,18 @@ function lowestAlive() {
     return low === Infinity ? -Infinity : low;
 }
 
+/** Terreno de densidad del mapa en juego (`docs/design/05-escenario.md` §5.5). */
+const currentTerrain = () => (climb ? climb.terrain : classic.terrain);
+
+const corrosion = new Corrosion({ system: particleSystem, store, terrain: currentTerrain });
+damage.bodyContactHook = (bodyPointer, index) => corrosion.enqueue(bodyPointer, index);
+
 /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
 function aplicarMapa(map) {
     if (map === currentMap) return;
     flood.dispose();
     if (map === "infinite") {
-        classic.oneWayFixtures.forEach((fixture) => platforms.removePlatform(fixture));
+        classic.dispose();
         breakable.clear();
         world.DestroyBody(classic.ground);
         damage.killSensors.clear();
@@ -362,8 +368,7 @@ function aplicarMapa(map) {
         climb = null;
         breakable.clear();
         pickups.dispose();
-        classic = buildLevel(world);
-        classic.oneWayFixtures.forEach((fixture) => platforms.addPlatform(fixture));
+        classic = buildLevel(world, LEVEL, { platforms });
         classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
         damage.killSensors = classic.killSensors;
         pickups = new Pickups(world, damage, LEVEL.pickups);
@@ -484,7 +489,10 @@ function reiniciarRonda() {
     if (climb) {
         climb.reset(mapSeed());
         bots.forEach((bot) => bot.setNav(climb.level));
+    } else {
+        classic.terrain.restore();
     }
+    corrosion.reset();
     players.forEach((player, k) => {
         destroyRobot(player);
         players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);
@@ -659,6 +667,7 @@ function datosDebug(frameDt) {
         const name = FLUID_NAMES[store.kind[slot]] ?? "OTRO";
         particles[name] = (particles[name] ?? 0) + 1;
     }
+    const terrain = currentTerrain();
     const { steps, substeps } = water.stats;
     if (steps > debugSteps) debugCfl = (substeps - debugSubsteps) / (steps - debugSteps);
     debugSteps = steps;
@@ -670,6 +679,7 @@ function datosDebug(frameDt) {
         contacts: wallContact.bodyContacts()?.count ?? 0,
         cflSubsteps: debugCfl,
         volume: { total: water.volume() },
+        terrain: { ...terrain.counts(), rebuilds: terrain.lastRebuilds, rebuildMs: terrain.lastRebuildMs },
         bots: [...bots].map(([k, bot]) => {
             const pos = players[k].torso.GetPosition();
             return { k, from: { x: pos.get_x(), y: pos.get_y() }, ...bot.debugState };
@@ -700,17 +710,34 @@ function debugLayerRefs() {
         },
         pieces: buoyancy.pieces,
         water,
+        terrain: debug.layers.terreno ? debugTerrainRefs() : null,
     };
+}
+
+/** Caja visible de la cámara, en m del mundo: se reutiliza para no crear objetos por frame. */
+const terrainView = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+
+/** Referencias de la capa del terreno (`DebugView.drawTerrain`); solo se arman con la capa encendida. */
+function debugTerrainRefs() {
+    const terrain = currentTerrain();
+    const halfWidth = camera.viewW / (2 * camera.scale);
+    const halfHeight = camera.viewH / (2 * camera.scale);
+    terrainView.minX = camera.x - halfWidth;
+    terrainView.maxX = camera.x + halfWidth;
+    terrainView.minY = camera.y - halfHeight;
+    terrainView.maxY = camera.y + halfHeight;
+    return { tiles: terrain.tiles, frame: terrain.frame, offsetX: terrain.offsetX, offsetY: terrain.offsetY, view: terrainView };
 }
 
 /** Solo para las pruebas en Node (`tests/helpers/game.js`): expone el estado del juego en `globalThis.game`. */
 if (globalThis.__TEST_HOOKS__) {
     globalThis.game = {
-        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, debugView, debugPanel, pickupView, aimLaserView, hitEffectsView, weaponWheelView, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
+        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, corrosion, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, debugView, debugPanel, pickupView, aimLaserView, hitEffectsView, weaponWheelView, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
         get flood() { return flood; },
         get pickups() { return pickups; },
         get climb() { return climb; },
         get map() { return currentMap; },
+        get terrain() { return currentTerrain(); },
     };
 }
 
@@ -903,6 +930,7 @@ function simular(frameDt, enTitulo) {
             match.hazardsActive ? wetSurface : -Infinity,
             (x) => water.conductivityAt(x),
         );
+        corrosion.process(STEP_SETTINGS.dt);
         melee.resolve(players, now);
         pickups.process(now);
         debug.mark("daño");
@@ -1012,13 +1040,15 @@ function loop(nowMs) {
         if (destroyed > 0) wallContact.invalidate();
         if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
     }
+    const terrain = currentTerrain();
+    if (terrain.update() > 0) wallContact.invalidate();
     const scale = camera.scale;
     const bottom = camera.y - camera.viewH / (2 * scale);
 
     camera.applyTo(scene.world);
     backgroundView.update({ x: camera.x, y: camera.y, zoom: camera.zoom, viewWidth: camera.viewW, viewHeight: camera.viewH });
     const offsetY = climb ? climb.offsetY : 0;
-    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
+    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale, terrain.shape);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
     debug.mark("dibujo");
     if (debug.metaballOn) drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);

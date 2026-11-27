@@ -102,3 +102,27 @@ export const REACTIONS = [
     { id: "boil", from: { water: 1 }, to: { steam: 1 } },
     { id: "condense", from: { steam: 1 }, to: { water: 1 } },
 ];
+
+/**
+ * Corrosión del terreno por ácido (`docs/design/05-escenario.md` §5.5 y `docs/design/14-agua.md`, #347): Fe + H2SO4 →
+ * FeSO4 + H2. No es una fila de `REACTIONS` porque no cambia el material de una partícula: la gasta. `acidMolarMass` y
+ * `ironMolarMass` (g/mol) dan la estequiometría 1:1 (98 g de ácido disuelven 56 g de hierro); `steelDensity` (kg/m³) es
+ * la del acero del terreno. `speedup` es `F_corr`, el factor de aceleración de la tasa (una aproximación nombrada: con la
+ * tasa real un chorro no se ve corroer nada en una ronda). `biteFraction` es la parte del ácido de una partícula que
+ * reacciona al tocar (el ácido fresco reacciona rápido); `biteFraction · speedup` está calibrado para que un chorro
+ * continuo abra un hueco de 0,3 m de ancho a través de una plataforma de 0,4 m de alto en unos 2 s. El resto se gasta
+ * parejo mientras la partícula sigue en contacto y, a los `contactSeconds` (s) de contacto acumulado, se acabó y la
+ * partícula desaparece. `reachRadii` es cuántos radios de partícula alrededor del contacto se busca material primero; si
+ * ahí no alcanza, la búsqueda se agranda de a ese radio. `touchRadii` es a cuántos radios de partícula del centro de una
+ * celda con materia se la sigue contando en contacto (apoyada queda a unos dos radios).
+ */
+export const CORROSION = {
+    acidMolarMass: 98,
+    ironMolarMass: 56,
+    steelDensity: 7850,
+    speedup: 80,
+    biteFraction: 0.5,
+    reachRadii: 2,
+    contactSeconds: 3,
+    touchRadii: 3,
+};

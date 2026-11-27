@@ -61,6 +61,32 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `createSeededRandom` | Generador pseudoaleatorio con semilla: misma semilla, misma secuencia, en [0, 1). |
 | `hashToUnit` | Hash de un entero a [0, 1), para valores repetibles sin `Math.random`. |
 
+### math/marchingSquares.js
+
+| Nombre | Qué hace |
+|---|---|
+| `DENSITY_ISO_LEVEL` | Umbral de densidad que separa lo lleno de lo vacío (0,5). |
+| `contoursOfGrid` | Anillos cerrados de una grilla de densidad (marching squares): externos antihorarios, agujeros horarios, en m. |
+
+### math/polygonSimplify.js
+
+| Nombre | Qué hace |
+|---|---|
+| `simplifyRing` | Simplifica un anillo cerrado con Douglas-Peucker y una tolerancia en m. |
+
+### math/convexDecomposition.js
+
+| Nombre | Qué hace |
+|---|---|
+| `decomposeConvex` | Parte un polígono con agujeros en piezas convexas de hasta N vértices (puente, ear clipping, Hertel-Mehlhorn). |
+
+### math/ringNesting.js
+
+| Nombre | Qué hace |
+|---|---|
+| `pointInPolygon` | Indica si un punto está dentro de un polígono (regla par-impar). |
+| `assignHolesToOuters` | Reparte los agujeros de una grilla entre sus contornos externos: cada uno va al externo más chico que lo contiene. |
+
 ### physics/constants.js
 
 | Nombre | Qué hace |
@@ -90,6 +116,8 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `forEachWorldBody` | Recorre todos los cuerpos del mundo sin crear memoria nativa. |
 | `boundsOfBody` | Escribe en `out` la caja que une los fixtures de un cuerpo, en m. |
 | `boundsOfBodies` | Escribe en `out` la caja que une los fixtures de varios cuerpos, en m. |
+| `MAX_POLYGON_VERTICES` | Máximo de vértices de un polígono de Box2D (8). |
+| `PolygonFixtureBuilder` | Crea fixtures poligonales y cajas sin memoria nativa por llamada (`createPolygon`, `createBox`, `dispose`). |
 
 ### color.js
 
@@ -118,6 +146,6 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 |---|---|
 | `DEBUG` | Valores del monitor de física: promedio, topes de flechas y columnas, nombres de materiales. |
 | `FLUID_MODES` | Modos de dibujo de los fluidos del menú de debug. |
-| `DEBUG_ROWS` | Filas del menú de debug. |
+| `DEBUG_ROWS` | Filas del menú de debug (estadísticas, fluidos y las capas de vectores y de terreno). |
 | `relativeError` | Error relativo entre un valor medido y uno de referencia. |
 | `Debug` | Estado y textos del menú y de las estadísticas del monitor de física. |
