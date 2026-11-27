@@ -4,16 +4,23 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { loadGame } from "./helpers/game.js";
+import { place } from "./helpers/place.js";
 import { FLUID } from "../src/combat/weapons.js";
 import { CORROSION, MATERIALS, SIGMA_W } from "../src/fluids/materials.js";
 import { SINK } from "../src/fluids/particleStore.js";
+
+const require = createRequire(import.meta.url);
+globalThis.Box2D ??= require("../vendor/liquidfun.js");
+const { LEVEL } = await import("../src/level/level.js");
 
 const RIGHT_TRIGGER = 7;
 const FRAMES_PER_SECOND = 60;
 const MAX_SECONDS = 8;
 const PLATFORM = { x: 28, y: 7.6, width: 8, height: 0.4 };
 const PLATFORM_TOP = PLATFORM.y + PLATFORM.height / 2;
+LEVEL.solids.find((solid) => solid.x === PLATFORM.x && solid.y === PLATFORM.y).material = "steel";
 const SHOOTER_X = 25;
 const SHOOTER_TORSO_HEIGHT = 0.7;
 const FAR_X = 50;
@@ -32,21 +39,6 @@ const EXPECTED_HOLE_SECONDS = 2;
 const HOLE_TOLERANCE_SECONDS = 1;
 const RESTING_SECONDS = 1;
 const SPENT_TOLERANCE = 1e-6;
-
-/** Mueve todas las piezas del robot `index` para que su torso quede en (`x`, `y`). */
-function place(game, index, x, y) {
-    const torso = game.state.players[index].torso.GetPosition();
-    const deltaX = x - torso.get_x();
-    const deltaY = y - torso.get_y();
-    const target = new Box2D.b2Vec2(0, 0);
-    for (const body of game.state.players[index].rag.bodies.values()) {
-        const position = body.GetPosition();
-        target.set_x(position.get_x() + deltaX);
-        target.set_y(position.get_y() + deltaY);
-        body.SetTransform(target, body.GetAngle());
-    }
-    Box2D.destroy(target);
-}
 
 /** Tramo del terreno que contiene el centro de la plataforma de prueba. */
 function platformTile(game) {
