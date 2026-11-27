@@ -55,7 +55,9 @@ function consistent(climb) {
     assert.equal(world.GetBodyCount(), 1 + climb.points.length);
     let fixtures = 0;
     for (let f = climb.body.GetFixtureList(); Box2D.getPointer(f) !== 0; f = f.GetNext()) fixtures++;
-    assert.equal(fixtures, climb.level.solids.length);
+    const boxes = climb.items.filter((item) => item.fixture).length;
+    assert.equal(fixtures, climb.terrain.fixtureCount() + boxes, "los fixtures del cuerpo son los del terreno y las cajas rompibles");
+    assert.equal(climb.items.length, climb.level.solids.length);
 }
 
 test("C2: generar y liberar 6 etapas no hace crecer el heap y los registros coinciden con lo vivo", () => {

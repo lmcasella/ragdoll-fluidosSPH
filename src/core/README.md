@@ -80,6 +80,13 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 |---|---|
 | `decomposeConvex` | Parte un polígono con agujeros en piezas convexas de hasta N vértices (puente, ear clipping, Hertel-Mehlhorn). |
 
+### math/ringNesting.js
+
+| Nombre | Qué hace |
+|---|---|
+| `pointInPolygon` | Indica si un punto está dentro de un polígono (regla par-impar). |
+| `assignHolesToOuters` | Reparte los agujeros de una grilla entre sus contornos externos: cada uno va al externo más chico que lo contiene. |
+
 ### physics/constants.js
 
 | Nombre | Qué hace |
@@ -139,6 +146,6 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 |---|---|
 | `DEBUG` | Valores del monitor de física: promedio, topes de flechas y columnas, nombres de materiales. |
 | `FLUID_MODES` | Modos de dibujo de los fluidos del menú de debug. |
-| `DEBUG_ROWS` | Filas del menú de debug. |
+| `DEBUG_ROWS` | Filas del menú de debug (estadísticas, fluidos y las capas de vectores y de terreno). |
 | `relativeError` | Error relativo entre un valor medido y uno de referencia. |
 | `Debug` | Estado y textos del menú y de las estadísticas del monitor de física. |

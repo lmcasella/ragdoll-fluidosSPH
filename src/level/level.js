@@ -1,4 +1,5 @@
 import { FLUID } from "../combat/weapons.js";
+import { Terrain } from "./terrain.js";
 
 // Nivel en metros, Y hacia arriba, independiente del tamaño de la ventana.
 // Alturas entre plataformas <= 3,5 m: el salto (9 m/s) llega a unos 4 m.
@@ -69,36 +70,51 @@ export const LEVEL = {
     ],
 };
 
-// Crea los sólidos y el sensor de la pileta como fixtures de un único cuerpo estático; `oneWayFixtures` son los sólidos con `oneWay: true` y `breakableFixtures` los que declaran `breakable` (`{ fixture, solid }`)
-export function buildLevel(world, level = LEVEL) {
+/** Fricción de los sólidos del nivel (piso, paredes y plataformas), adimensional. */
+export const SOLID_FRICTION = 0.8;
+
+/**
+ * Crea el nivel como un único cuerpo estático (`ground`). El piso, las paredes y las plataformas atravesables son terreno
+ * de densidad (`terrain`, ver `docs/design/05-escenario.md` §5.5); las plataformas rompibles y el sensor de la pileta
+ * siguen siendo cajas. Las atravesables, tramos y cajas, se registran en `platforms` si se la pasa. Devuelve `ground`,
+ * `terrain`, `killSensors` (punteros de los sensores que matan), `breakableFixtures` (`{ fixture, solid }` de los sólidos
+ * que declaran `breakable`) y `dispose`, que desregistra las atravesables y libera el terreno; el cuerpo lo destruye quien
+ * llama.
+ * @param {object} world `b2World`
+ * @param {typeof LEVEL} [level]
+ * @param {{platforms?: OneWayPlatforms|null}} [options] registro de plataformas atravesables
+ */
+export function buildLevel(world, level = LEVEL, { platforms = null } = {}) {
     const bodyDef = new Box2D.b2BodyDef();
     const ground = world.CreateBody(bodyDef);
     Box2D.destroy(bodyDef);
-    const shape = new Box2D.b2PolygonShape();
-    const center = new Box2D.b2Vec2(0, 0);
-    const box = (x, y, w, h) => {
-        center.set_x(x);
-        center.set_y(y);
-        shape.SetAsBox(w / 2, h / 2, center, 0);
-        return ground.CreateFixture(shape, 0);
-    };
-    const oneWayFixtures = [];
+    const terrain = new Terrain({ body: ground, platforms, friction: SOLID_FRICTION });
+    const boxFixtures = [];
     const breakableFixtures = [];
-    for (const s of level.solids) {
-        const fixture = box(s.x, s.y, s.w, s.h);
-        fixture.SetFriction(0.8);
-        if (s.oneWay) oneWayFixtures.push(fixture);
-        if (s.breakable) breakableFixtures.push({ fixture, solid: s });
+    for (const solid of level.solids) {
+        if (!solid.breakable) {
+            terrain.addSolid(solid, { oneWay: Boolean(solid.oneWay) });
+            continue;
+        }
+        const box = { x: solid.x, y: solid.y, width: solid.w, height: solid.h };
+        const fixture = terrain.builder.createBox(ground, box, { friction: SOLID_FRICTION });
+        if (solid.oneWay && platforms) {
+            platforms.addPlatform(fixture);
+            boxFixtures.push(fixture);
+        }
+        breakableFixtures.push({ fixture, solid });
     }
 
     const killSensors = new Set();
     if (level.pool) {
         const { x1, x2, bottom, killY } = level.pool;
-        const sensor = box((x1 + x2) / 2, (bottom + killY) / 2, x2 - x1, killY - bottom);
-        sensor.SetSensor(true);
+        const box = { x: (x1 + x2) / 2, y: (bottom + killY) / 2, width: x2 - x1, height: killY - bottom };
+        const sensor = terrain.builder.createBox(ground, box, { isSensor: true });
         killSensors.add(Box2D.getPointer(sensor));
     }
-    Box2D.destroy(center);
-    Box2D.destroy(shape);
-    return { ground, killSensors, oneWayFixtures, breakableFixtures };
+    const dispose = () => {
+        for (const fixture of boxFixtures) platforms.removePlatform(fixture);
+        terrain.dispose();
+    };
+    return { ground, terrain, killSensors, breakableFixtures, dispose };
 }

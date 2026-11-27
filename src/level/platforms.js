@@ -85,6 +85,48 @@ export class OneWayPlatforms {
         platform.top = bounds.maxY;
     }
 
+    /**
+     * Cambia las fixtures de una plataforma por las de su forma rehecha (`docs/design/05-escenario.md` §5.5) sin perder el
+     * estado de los robots: cada dueño traspasa a las nuevas el par que tenía con las viejas (sólido si alguno de los
+     * pares era sólido) y su bajada en curso. Llamar con las viejas todavía vivas, para que ningún puntero se reuse
+     * antes; quien llama las destruye después. Con `oldFixtures` vacío solo registra las nuevas.
+     * @param {object[]} oldFixtures `b2Fixture` que se desregistran
+     * @param {object[]} newFixtures `b2Fixture` que se registran
+     * @param {{moving?: boolean}} [options] `moving`: como en `addPlatform`
+     */
+    replacePlatforms(oldFixtures, newFixtures, { moving = false } = {}) {
+        const oldPointers = oldFixtures.map((fixture) => Box2D.getPointer(fixture));
+        const owners = [...this.owners.values(), ...this.implicit.values()];
+        for (const owner of owners) this.inheritPairs(owner, oldPointers, newFixtures);
+        for (const pointer of oldPointers) this.platforms.delete(pointer);
+        for (const fixture of newFixtures) this.addPlatform(fixture, { moving });
+    }
+
+    /**
+     * Pasa el par y la bajada que un dueño tenía con las fixtures viejas a las nuevas.
+     * @param {object} owner dueño `{ bodies, drops, pairs }`
+     * @param {number[]} oldPointers punteros de las fixtures viejas
+     * @param {object[]} newFixtures `b2Fixture` nuevas
+     */
+    inheritPairs(owner, oldPointers, newFixtures) {
+        let ghost;
+        let dropStart;
+        for (const pointer of oldPointers) {
+            const state = owner.pairs.get(pointer);
+            if (state === false) ghost = false;
+            else if (state === true && ghost === undefined) ghost = true;
+            const start = owner.drops.get(pointer);
+            if (start !== undefined) dropStart = Math.min(dropStart ?? Infinity, start);
+            owner.pairs.delete(pointer);
+            owner.drops.delete(pointer);
+        }
+        for (const fixture of newFixtures) {
+            const pointer = Box2D.getPointer(fixture);
+            if (ghost !== undefined) owner.pairs.set(pointer, ghost);
+            if (dropStart !== undefined) owner.drops.set(pointer, dropStart);
+        }
+    }
+
     removePlatform(fixture) {
         const ptr = Box2D.getPointer(fixture);
         if (!this.platforms.delete(ptr)) return;
