@@ -59,6 +59,7 @@ export class DebugView {
         };
         parent.addChild(this.pointsGraphics, ...Object.values(this.layerGraphics));
         this.drawn = new Set();
+        this.pointFill = { color: 0, alpha: POINT_ALPHA };
     }
 
     /**
@@ -75,7 +76,8 @@ export class DebugView {
 
     /**
      * Dibuja cada partícula como un círculo relleno de radio `radius` (m) con el color de su buffer de color y alfa
-     * `POINT_ALPHA`. Solo en los modos `"puntos"` y `"ambos"`. No crea objetos nativos ni nada por partícula salvo su círculo.
+     * `POINT_ALPHA`. Solo en los modos `"puntos"` y `"ambos"`. No crea objetos nativos; el estilo de relleno es uno solo que se
+     * reescribe por partícula (PIXI lo copia al recibirlo), así que cada partícula suma solo su círculo y su relleno al gráfico.
      * @param {object|null} refs `{ heap, bytes, positionIndex, color, count, radius }`: vistas `Float32Array` y `Uint8Array` del heap, índice de
      *   palabra de la posición, offset en bytes del buffer de color, cantidad y radio físico (m); `null` con los puntos apagados
      */
@@ -88,9 +90,8 @@ export class DebugView {
         for (let index = 0; index < count; index++) {
             const colorOffset = color + COLOR_BYTES * index;
             const vectorOffset = positionIndex + VECTOR_COMPONENTS * index;
-            this.pointsGraphics
-                .circle(heap[vectorOffset] * scale, heap[vectorOffset + 1] * scale, radius * scale)
-                .fill({ color: tintOf(bytes[colorOffset], bytes[colorOffset + 1], bytes[colorOffset + 2]), alpha: POINT_ALPHA });
+            this.pointFill.color = tintOf(bytes[colorOffset], bytes[colorOffset + 1], bytes[colorOffset + 2]);
+            this.pointsGraphics.circle(heap[vectorOffset] * scale, heap[vectorOffset + 1] * scale, radius * scale).fill(this.pointFill);
         }
     }
 

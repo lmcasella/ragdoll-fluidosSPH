@@ -1,10 +1,10 @@
-import { tintOf } from "../core/color.js";
-import { MAX_SCALE } from "./camera.js";
-
 /**
+ * @module labelText
  * Letra de un ícono del mundo (inicial de un arma) como `PIXI.Text`: negrita, centrada y con la Y invertida, porque
  * el contenedor de la cámara tiene la Y hacia arriba. Las usan los recogibles y la rueda de armas.
  */
+import { tintOf } from "../core/color.js";
+import { MAX_SCALE } from "./camera.js";
 
 /** Alto de la letra, en m. */
 const LABEL_SIZE_M = 0.5;

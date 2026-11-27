@@ -15,7 +15,7 @@ export const BREAKABLE = {
  * invalidar punteros de cuerpos. Al reaparecer (y en `reset`) pide a `OneWayPlatforms` que olvide los pares de esa
  * fixture antes de volverla sólida: con la histéresis de `src/level/platforms.js`, un par que quedó sólido antes de la rotura
  * dejaría a un robot superpuesto chocando desde adentro. Escribe `crack` (0 a 1) y `broken` en el objeto `solid` para que
- * `render.js` dibuje el temblor y el estado roto sin acoplarse a este módulo. Ver `05-escenario.md` §5.4.
+ * `src/render/levelView.js` dibuje el temblor y el estado roto sin acoplarse a este módulo. Ver `05-escenario.md` §5.4.
  */
 export class BreakablePlatforms {
     constructor(platforms, config = BREAKABLE) {
