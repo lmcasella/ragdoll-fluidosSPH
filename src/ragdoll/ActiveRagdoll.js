@@ -1,6 +1,6 @@
 import { getRaycaster } from "../core/raycast.js";
 import { MATERIALS } from "../fluids/materials.js";
-import { clamp, shortestAngleDifference, wrapAngle } from "../core/math/scalar.js";
+import { clamp, lerp, shortestAngleDifference, wrapAngle } from "../core/math/scalar.js";
 import { distance, cross, rotateLocalToWorld } from "../core/math/vector2.js";
 import { forEachBody, boundsOfBodies } from "../core/engine/box2d.js";
 import { GRAVITY } from "../core/physics/constants.js";
@@ -915,7 +915,7 @@ ull si el rig no tiene arma.
         if (state === "walk" || state === "walkBack") {
             const target = clamp(Math.abs(velX) / WALK_ANIM.refSpeed, WALK_ANIM.minSpeed, WALK_ANIM.maxSpeed);
             this.animSpeed = this.clipState === "walk" || this.clipState === "walkBack"
-                ? this.animSpeed + (target - this.animSpeed) * WALK_ANIM.smoothing
+                ? lerp(this.animSpeed, target, WALK_ANIM.smoothing)
                 : target;
             this.enterState(state, this.animSpeed);
         } else {

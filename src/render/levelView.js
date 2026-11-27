@@ -1,3 +1,5 @@
+import { lerp } from "../core/math/scalar.js";
+
 /**
  * Nivel estático como geometría de `PIXI.Graphics`, que PIXI conserva entre frames (ver `docs/design/07-sph.md` §7.4).
  * Unidades de la geometría: px a `pixelsPerMeter`; la escala y la posición del mundo las pone la cámara en `world`.
@@ -30,7 +32,7 @@ const BROKEN_STATE = -1;
  * @param {number} amount de 0 a 1
  */
 function mixColor(from, to, amount) {
-    const channels = from.map((channel, index) => Math.round(channel + (to[index] - channel) * amount));
+    const channels = from.map((channel, index) => Math.round(lerp(channel, to[index], amount)));
     return `rgb(${channels.join(", ")})`;
 }
 

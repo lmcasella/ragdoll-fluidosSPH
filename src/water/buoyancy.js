@@ -3,6 +3,7 @@ import { NEGLIGIBLE_EXTENT, RELATIVE_TOLERANCE, GEOMETRY_TOLERANCE } from "../co
 import { vectorLength, cross, rotateLocalToWorld } from "../core/math/vector2.js";
 import { polygonCentroid, clipPolygonByHalfPlane, clipSegmentToBand } from "../core/math/geometry.js";
 import { GRAVITY, WATER_DENSITY } from "../core/physics/constants.js";
+import { forEachBody } from "../core/engine/box2d.js";
 import { bodyShapes } from "../fluids/bodyShapes.js";
 import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
 import { ORIGIN } from "../fluids/particleStore.js";
@@ -19,6 +20,19 @@ const THICKNESS = SIGMA_W / WATER_DENSITY;
  * salpica: solo sale agua (límite declarado).
  */
 export const SPLASH = { efficiency: 0.08, angle: Math.PI / 3, spread: (10 * Math.PI) / 180, maxHoney: 0.01, maxAcid: 0.005 };
+/**
+ * Suma a `pieces` la pieza de flotación de un cuerpo (sus formas y su centro local); ignora los cuerpos sin formas.
+ * @param {object} body `b2Body`
+ * @param {object[]} pieces piezas registradas
+ */
+function addPiece(body, pieces) {
+    const shapes = bodyShapes(body);
+    if (shapes.length === 0) return;
+    const center = body.GetLocalCenter();
+    let area = 0;
+    for (const s of shapes) area += s.area;
+    pieces.push({ body, shapes, lx: center.get_x(), ly: center.get_y(), area, submerged: 0, cx: 0, cy: 0, buoyancy: { x: 0, y: 0 }, drag: { x: 0, y: 0 } });
+}
 
 /**
  * Flotación de Arquímedes por pieza sobre el campo de alturas `ShallowWater` (docs/design/14-agua.md §14.5). Una vez por
@@ -123,16 +137,7 @@ export class Buoyancy {
      */
     register(players) {
         this.pieces = [];
-        for (const player of players) {
-            for (const body of player.rag.bodies.values()) {
-                const shapes = bodyShapes(body);
-                if (shapes.length === 0) continue;
-                const center = body.GetLocalCenter();
-                let area = 0;
-                for (const s of shapes) area += s.area;
-                this.pieces.push({ body, shapes, lx: center.get_x(), ly: center.get_y(), area, submerged: 0, cx: 0, cy: 0, buoyancy: { x: 0, y: 0 }, drag: { x: 0, y: 0 } });
-            }
-        }
+        for (const player of players) forEachBody(player.rag.bodies, addPiece, this.pieces);
     }
 
     /** Aplica el empuje y el arrastre de este paso a todas las piezas. `dt` es el paso fijo (s). */
