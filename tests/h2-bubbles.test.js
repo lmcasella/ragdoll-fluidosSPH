@@ -2,10 +2,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { drawRobot, sparkCount, H2_BUBBLES } = await import("../src/render/render.js");
+import { installFakePixi } from "./helpers/fake-pixi.js";
+
+installFakePixi();
+const { RagdollEffects, sparkCount, H2_BUBBLES } = await import("../src/ragdoll/RagdollEffects.js");
 const { MATERIALS } = await import("../src/fluids/materials.js");
 
 const FPS = 60;
+const PIXELS_PER_METER = 32;
+const SCREEN_SCALE = 50;
 
 function fakeBody(x, y) {
     return { GetPosition: () => ({ get_x: () => x, get_y: () => y }), GetAngle: () => 0 };
@@ -34,32 +39,28 @@ function fakePlayer(sigma, pieces = 1) {
     };
 }
 
-function fakeCtx() {
-    const ctx = { arcs: [], strokes: 0, lineTos: 0 };
-    const noop = () => {};
-    Object.assign(ctx, {
-        save: noop,
-        restore: noop,
-        translate: noop,
-        rotate: noop,
-        beginPath: noop,
-        moveTo: noop,
-        closePath: noop,
-        rect: noop,
-        fill: noop,
-        lineTo: () => ctx.lineTos++,
-        stroke: () => ctx.strokes++,
-        arc: (x, y, r) => ctx.arcs.push({ x, y, r, alpha: ctx.globalAlpha }),
-    });
-    return ctx;
+const effectsByPlayer = new WeakMap();
+
+/** Efectos del jugador: uno por jugador, como en el juego, para que las burbujas sigan vivas entre corridas. */
+function effectsOf(player) {
+    if (!effectsByPlayer.has(player)) {
+        effectsByPlayer.set(player, new RagdollEffects({ parent: new PIXI.Container(), pixelsPerMeter: PIXELS_PER_METER }));
+    }
+    return effectsByPlayer.get(player);
+}
+
+/** Lo dibujado en un frame, pasado de px del mundo a metros: `arcs` con `x`, `y` y `r`, y los tramos de chispa (`lineTos`). */
+function drawnFrame(graphics) {
+    const arcs = graphics.circles.map(({ x, y, radius }) => ({ x: x / PIXELS_PER_METER, y: y / PIXELS_PER_METER, r: radius / PIXELS_PER_METER }));
+    return { arcs, lineTos: graphics.lineTos };
 }
 
 function run(player, seconds, from = 0) {
+    const effects = effectsOf(player);
     const frames = [];
     for (let i = 0; i < Math.round(seconds * FPS); i++) {
-        const ctx = fakeCtx();
-        drawRobot(ctx, player, "#ff0000", 50, from + i / FPS);
-        frames.push(ctx);
+        effects.draw(player, SCREEN_SCALE, from + i / FPS);
+        frames.push(drawnFrame(effects.graphics));
     }
     return frames;
 }

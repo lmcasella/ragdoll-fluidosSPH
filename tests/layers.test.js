@@ -37,10 +37,11 @@ function hudOrder(scene) {
 }
 
 /** #53: el panel de debug, la mira y los golpes se dibujan por encima de las partículas, y estas por encima del nivel y los robots. */
-test("de abajo a arriba: nivel, principal, fluidos, superpuesta y panel de debug", async () => {
+test("de abajo a arriba: nivel, robots, agua, fluidos, superpuesta y panel de debug", async () => {
     const game = await loadGame();
     const { scene } = game.state;
-    assert.deepEqual(hudOrder(scene), ["mainLayer", "fluid", "overlayLayer", "panelLayer"]);
+    assert.deepEqual(hudOrder(scene), ["fluid", "overlayLayer", "panelLayer"]);
+    assert.deepEqual(scene.world.children, [scene.levelLayer, scene.ragdollLayer, scene.effectsLayer, scene.waterLayer]);
     assert.deepEqual(scene.application.stage.children, [scene.world, scene.hud], "el nivel va debajo de todo lo de pantalla");
 });
 
@@ -51,7 +52,7 @@ test("drawAimLaser y drawHits reciben el contexto de la capa correcta", () => {
     assert.match(page, /panelCtx\s*=\s*scene\.panelLayer\.ctx/);
 });
 
-test("las capas de fluido van entre la principal y la superpuesta, con el filtro de umbral y sin desenfoque", async () => {
+test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpuesta, con el filtro de umbral y sin desenfoque", async () => {
     const game = await loadGame();
     const { scene, fluidLayers } = game.state;
     spawnWater(game);
@@ -63,7 +64,7 @@ test("las capas de fluido van entre la principal y la superpuesta, con el filtro
         assert.ok(layer.sprite.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro es el de umbral");
     }
     assert.doesNotMatch(thresholdFilterSource, /gaussian|blur/i);
-    assert.deepEqual(hudOrder(scene), ["mainLayer", "fluid", "overlayLayer", "panelLayer"]);
+    assert.deepEqual(hudOrder(scene), ["fluid", "overlayLayer", "panelLayer"]);
 });
 
 test("la rueda de armas se dibuja después de la mira y los golpes", () => {

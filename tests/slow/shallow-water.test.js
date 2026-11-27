@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { ShallowWater, WATER_FIELD } from "../../src/water/water.js";
 import { LEVEL } from "../../src/level/level.js";
 import { SIGMA_W, MATERIALS } from "../../src/fluids/materials.js";
-import { fieldColor, drawWater } from "../../src/render/render.js";
+import { fieldColor } from "../../src/render/render.js";
+import { WaterView } from "../../src/render/waterView.js";
+import { installFakePixi } from "../helpers/fake-pixi.js";
 import { relativeError as rel } from "../../src/core/debug.js";
 
 const G = 10;
@@ -513,42 +515,29 @@ test("Q5 fieldColor: con w = 0 es exactamente draw.color, crece monótona hacia 
     report(t, "Q5 fieldColor", ws.map((w, k) => `w ${100 * w} %: [${colors[k]}]`).join("; "), "w = 0 → draw.color; monótono hacia el tinte", "igualdad exacta");
 });
 
-test("drawWater: relleno plano sin ácido y degradado con una parada cada colorStep celdas y en las dos caras en el tramo con ácido", () => {
-    const water = make(LEVEL, WATER_FIELD, "drawWater");
-    const fills = [];
-    const gradients = [];
-    const ctx = {
-        fillStyle: null,
-        beginPath() {},
-        moveTo() {},
-        lineTo() {},
-        closePath() {},
-        stroke() {},
-        fill() {
-            fills.push(this.fillStyle);
-        },
-        createLinearGradient(x0, y0, x1, y1) {
-            const g = { x0, x1, stops: [], addColorStop: (o, color) => g.stops.push([o, color]) };
-            gradients.push(g);
-            return g;
-        },
-    };
-    drawWater(ctx, water, 20);
-    assert.equal(gradients.length, 0);
-    assert.equal(fills[0], `rgb(${WATER_FIELD.draw.color.join(", ")})`);
-    fills.length = 0;
+test("WaterView: relleno plano sin ácido y degradado con una parada cada colorStep celdas y en las dos caras en el tramo con ácido", () => {
+    const PIXI = installFakePixi();
+    const water = make(LEVEL, WATER_FIELD, "WaterView");
+    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32 });
+    const SCREEN_SCALE = 20;
+    view.draw(water, SCREEN_SCALE);
+    assert.equal(view.gradients.length, 0);
+    assert.equal(view.graphics.fills[0].color, `rgb(${WATER_FIELD.draw.color.join(", ")})`);
     const i = Math.round((24 - water.x0) / water.dx);
     setAcid(water, i, 0.04);
-    drawWater(ctx, water, 20);
-    assert.equal(gradients.length, 1);
-    assert.strictEqual(fills[0], gradients[0]);
+    view.draw(water, SCREEN_SCALE);
+    assert.equal(view.gradients.length, 1);
+    const [gradient] = view.gradients;
+    assert.strictEqual(view.graphics.fills[0].fill, gradient);
     const wet = [];
     for (let c = 0; c < water.N; c++) if (water.h[c] > water.config.hDry) wet.push(c);
     const cells = wet.filter((c) => c >= Math.round((18 - water.x0) / water.dx) && c < Math.round((38 - water.x0) / water.dx)).length;
-    assert.equal(gradients[0].stops.length, 2 + Math.ceil(cells / WATER_FIELD.draw.colorStep));
-    assert.equal(gradients[0].stops[0][0], 0);
-    assert.equal(gradients[0].stops.at(-1)[0], 1);
-    for (let k = 1; k < gradients[0].stops.length; k++) assert.ok(gradients[0].stops[k][0] >= gradients[0].stops[k - 1][0]);
+    assert.equal(gradient.colorStops.length, 2 + Math.ceil(cells / WATER_FIELD.draw.colorStep));
+    assert.equal(gradient.colorStops[0].offset, 0);
+    assert.equal(gradient.colorStops.at(-1).offset, 1);
+    for (let k = 1; k < gradient.colorStops.length; k++) assert.ok(gradient.colorStops[k].offset >= gradient.colorStops[k - 1].offset);
+    view.draw(water, SCREEN_SCALE);
+    assert.equal(gradient.destroyed, true, "el degradado del frame anterior se destruye");
 });
 test("C1 (#111) consolidate: película fina en varias celdas sobre lecho plano deja las mojadas en ≥ hMin o aisladas y conserva h, q, E, M y A (1e-12)", (t) => {
     const water = make(tank(20), WATER_FIELD, "C1");

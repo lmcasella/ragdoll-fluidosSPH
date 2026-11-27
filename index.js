@@ -54,19 +54,21 @@ import {
     drawHits,
     drawParticles,
     drawPickups,
-    drawWater,
     drawWeaponWheel,
     WHEEL_RADII,
     SHOT_DRAW,
     FluidLayers,
     collectSurfaces,
-    drawRobot,
 } from "./src/render/render.js";
+import { WaterView } from "./src/render/waterView.js";
+import { RagdollPainter } from "./src/ragdoll/RagdollPainter.js";
+import { parseHexColor } from "./src/ragdoll/ragdollTint.js";
 
 RagImporter.configure({ Box2D, PIXI });
 
 const LASER_RANGE = 25;
 const PLAYER_COLORS = ["#ff9933", "#33b5ff"];
+const PLAYER_TINTS = PLAYER_COLORS.map(parseHexColor);
 
 async function loadRag(url, prepare = (json) => json) {
     const response = await fetch(url);
@@ -132,7 +134,6 @@ const PIXELS_PER_METER = robotRag.json.units.pixelsPerMeter;
 
 const gameContainer = document.getElementById("gameContainer");
 const scene = await createScene({ container: gameContainer, doc: document, width: window.innerWidth, height: window.innerHeight });
-const mainCtx = scene.mainLayer.ctx;
 const overlayCtx = scene.overlayLayer.ctx;
 const panelCtx = scene.panelLayer.ctx;
 const fluidLayers = new FluidLayers({
@@ -141,7 +142,8 @@ const fluidLayers = new FluidLayers({
     filter: createThresholdFilter(),
     apply: (layerCtx) => camera.apply(layerCtx),
 });
-const levelView = new LevelView({ parent: scene.world, pixelsPerMeter: PIXELS_PER_METER });
+const levelView = new LevelView({ parent: scene.levelLayer, pixelsPerMeter: PIXELS_PER_METER });
+const waterView = new WaterView({ parent: scene.waterLayer, pixelsPerMeter: PIXELS_PER_METER });
 
 const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 const hud = new Hud(document, gameContainer);
@@ -211,13 +213,21 @@ function spawnRobotRaw(x, y, flipX) {
         y,
         ROBOT_RIG,
         flipX,
+        scene.ragdollLayer,
     );
     robot.renderItems = buildRenderItems(
         robot.rag,
         robotRag.json,
         flipX,
     );
+    robot.painter = new RagdollPainter({ player: robot, json: robotRag.json, effectsParent: scene.effectsLayer });
     return robot;
+}
+
+/** Destruye un robot: lo que dibuja fuera de `rag.view` y después la instancia, que se lleva su vista con las figuras. */
+function destroyRobot(robot) {
+    robot.painter.destroy();
+    robot.destroy();
 }
 
 function spawnRobot(spawn) {
@@ -478,7 +488,7 @@ function reiniciarRonda() {
         bots.forEach((bot) => bot.setNav(climb.level));
     }
     players.forEach((player, k) => {
-        player.destroy();
+        destroyRobot(player);
         players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);
         instances[k] = players[k].rag;
         platforms.removeOwner(k);
@@ -574,7 +584,7 @@ function girar(k, wantsFlipX) {
     const baseX = torsoPos.get_x() - rootBodyJson.position[0] * mirror;
     const baseY = torsoPos.get_y() - rootBodyJson.position[1];
 
-    player.destroy();
+    destroyRobot(player);
     const nuevo = spawnRobotRaw(baseX, baseY, wantsFlipX);
 
     const tempVec = new Box2D.b2Vec2(0, 0);
@@ -673,7 +683,7 @@ function datosDebug(frameDt) {
 // Solo para las pruebas en Node (tests/helpers/game.js)
 if (globalThis.__TEST_HOOKS__) {
     globalThis.game = {
-        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, scene, levelView, camera, arrancarPartida,
+        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
         get flood() { return flood; },
         get pickups() { return pickups; },
         get climb() { return climb; },
@@ -983,7 +993,6 @@ function loop(nowMs) {
     const bottom = camera.y - camera.viewH / (2 * scale);
 
     for (const layer of scene.layers) layer.clear();
-    camera.apply(mainCtx);
     camera.apply(overlayCtx);
     camera.applyTo(scene.world);
     const offsetY = climb ? climb.offsetY : 0;
@@ -997,9 +1006,9 @@ function loop(nowMs) {
     }
     debug.mark("fluidos");
     players.forEach((player, k) => {
-        drawRobot(mainCtx, player, PLAYER_COLORS[k], scale, now);
+        player.painter.paint(PLAYER_TINTS[k], scale, now);
     });
-    drawWater(mainCtx, water, scale, climb ? { floor: flood.floor, bottom } : null);
+    waterView.draw(water, scale, climb ? { floor: flood.floor, bottom } : null);
     overlayCtx.save();
     overlayCtx.translate(0, pickups.offsetY);
     drawPickups(overlayCtx, pickups.points, WEAPONS);

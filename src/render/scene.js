@@ -1,9 +1,10 @@
 import { CanvasLayer } from "./canvasLayer.js";
 
 /**
- * Escena única del juego: una `PIXI.Application` con su canvas, el contenedor `world` (el nivel, que la cámara mueve y
- * escala) y el contenedor `hud` (pantalla, sin cámara). Ver `docs/design/07-sph.md` §7.4 y `docs/design/12-decisiones.md`.
- * Orden de abajo a arriba: nivel, capa principal (robots y agua), capas de fluido por material, capa superpuesta
+ * Escena única del juego: una `PIXI.Application` con su canvas, el contenedor `world` (que la cámara mueve y escala, en
+ * px a `pixelsPerMeter` con la Y hacia arriba) y el contenedor `hud` (pantalla, sin cámara). Ver `docs/design/07-sph.md`
+ * §7.4 y `docs/design/12-decisiones.md`. Orden de abajo a arriba: nivel, robots (`ragdollLayer`, con la Y invertida porque
+ * RagImporter espera la Y hacia abajo), chispas y burbujas, agua, capas de fluido por material, capa superpuesta
  * (recogibles, mira, golpes, rueda y capas de debug) y panel de debug. Es un solo canvas del DOM: las capas 2D son sprites.
  */
 export class Scene {
@@ -18,13 +19,18 @@ export class Scene {
         this.world = new PIXI.Container();
         this.hud = new PIXI.Container();
         application.stage.addChild(this.world, this.hud);
+        this.levelLayer = new PIXI.Container();
+        this.ragdollLayer = new PIXI.Container();
+        this.ragdollLayer.scale.y = -1;
+        this.effectsLayer = new PIXI.Container();
+        this.waterLayer = new PIXI.Container();
+        this.world.addChild(this.levelLayer, this.ragdollLayer, this.effectsLayer, this.waterLayer);
         const layerOptions = { doc, parent: this.hud, width, height };
-        this.mainLayer = new CanvasLayer({ ...layerOptions, name: "mainLayer" });
         this.fluidParent = new PIXI.Container();
         this.hud.addChild(this.fluidParent);
         this.overlayLayer = new CanvasLayer({ ...layerOptions, name: "overlayLayer" });
         this.panelLayer = new CanvasLayer({ ...layerOptions, name: "panelLayer" });
-        this.layers = [this.mainLayer, this.overlayLayer, this.panelLayer];
+        this.layers = [this.overlayLayer, this.panelLayer];
     }
 
     /**
