@@ -130,10 +130,10 @@ test("tras cambiar el tamaño, el mundo, las capas de fluido y la capa superpues
         assert.ok(Math.abs(world.position.x - expectedX) < MAX_POSITION_ERROR, `posición x a ${width}x${height}`);
         assert.ok(Math.abs(world.position.y - expectedY) < MAX_POSITION_ERROR, `posición y a ${width}x${height}`);
         const { fluidParent, overlayLayer } = scene;
-        assert.deepEqual([fluidParent.scale.x, fluidParent.scale.y], [world.scale.x, world.scale.y], `las capas de fluido escalan como el mundo a ${width}x${height}`);
-        assert.deepEqual([fluidParent.position.x, fluidParent.position.y], [world.position.x, world.position.y], `las capas de fluido se mueven como el mundo a ${width}x${height}`);
-        assert.deepEqual([overlayLayer.scale.x, overlayLayer.scale.y], [world.scale.x, world.scale.y], `la capa superpuesta escala como el mundo a ${width}x${height}`);
-        assert.deepEqual([overlayLayer.position.x, overlayLayer.position.y], [world.position.x, world.position.y], `la capa superpuesta se mueve como el mundo a ${width}x${height}`);
+        for (const [layer, name] of [[fluidParent, "las capas de fluido"], [overlayLayer, "la capa superpuesta"]]) {
+            assert.equal(layer.parent, world, `${name} cuelga de world`);
+            assert.deepEqual([layer.scale.x, layer.scale.y, layer.position.x, layer.position.y], [1, 1, 0, 0], `${name} sigue a la cámara solo por world a ${width}x${height}`);
+        }
     }
 });
 test("el trazo de las plataformas mide siempre unos 2 px en pantalla, con cualquier zoom", async () => {

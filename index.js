@@ -688,7 +688,7 @@ function debugPointRefs() {
     return {
         heap: Box2D.HEAPF32,
         bytes: Box2D.HEAPU8,
-        pos: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
+        positionIndex: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
         color: Box2D.getPointer(particleSystem.GetColorBuffer()),
         count: particleSystem.GetParticleCount(),
         radius: particleSystem.GetRadius(),
@@ -700,8 +700,8 @@ function debugLayerRefs() {
     return {
         particles: {
             heap: Box2D.HEAPF32,
-            pos: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
-            vel: wordIndexOf(Box2D.getPointer(particleSystem.GetVelocityBuffer())),
+            positionIndex: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
+            velocityIndex: wordIndexOf(Box2D.getPointer(particleSystem.GetVelocityBuffer())),
             count: particleSystem.GetParticleCount(),
         },
         pieces: buoyancy.pieces,
@@ -1022,8 +1022,6 @@ function loop(nowMs) {
     const bottom = camera.y - camera.viewH / (2 * scale);
 
     camera.applyTo(scene.world);
-    camera.applyTo(scene.fluidParent);
-    camera.applyTo(scene.overlayLayer);
     const offsetY = climb ? climb.offsetY : 0;
     levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);

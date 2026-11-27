@@ -1,11 +1,11 @@
 /**
  * Escena única del juego: una `PIXI.Application` con su canvas, el contenedor `world` (que la cámara mueve y escala, en
- * px a `pixelsPerMeter` con la Y hacia arriba) y el contenedor `hud` (pantalla). Ver `docs/design/07-sph.md` §7.4
- * y `docs/design/12-decisiones.md`. Orden de abajo a arriba: nivel, robots (`ragdollLayer`, con la Y invertida porque
- * RagImporter espera la Y hacia abajo), chispas y burbujas, agua, capas de fluido por material y capa superpuesta
- * (recogibles, mira, golpes, rueda y capas de debug del mundo). Las capas de fluido y la superpuesta van en `hud` y siguen a la
- * cámara como `world`, porque tienen que dibujarse encima del agua y de los robots. El HUD, los menús y el panel de debug
- * son HTML (`docs/design/18-interfaz.md`): el juego tiene un solo canvas.
+ * px a `pixelsPerMeter` con la Y hacia arriba). Ver `docs/design/07-sph.md` §7.4
+ * y `docs/design/12-decisiones.md`. Orden de abajo a arriba, todo dentro de `world` (una sola cámara): nivel, robots
+ * (`ragdollLayer`, con la Y invertida porque RagImporter espera la Y hacia abajo), chispas y burbujas, agua, capas de
+ * fluido por material y capa superpuesta (recogibles, mira, golpes, rueda y capas de debug del mundo), que se dibujan
+ * encima del agua y de los robots. El HUD, los menús y el panel de debug son HTML (`docs/design/18-interfaz.md`): el
+ * juego tiene un solo canvas.
  */
 export class Scene {
     /**
@@ -14,17 +14,15 @@ export class Scene {
     constructor(application) {
         this.application = application;
         this.world = new PIXI.Container();
-        this.hud = new PIXI.Container();
-        application.stage.addChild(this.world, this.hud);
+        application.stage.addChild(this.world);
         this.levelLayer = new PIXI.Container();
         this.ragdollLayer = new PIXI.Container();
         this.ragdollLayer.scale.y = -1;
         this.effectsLayer = new PIXI.Container();
         this.waterLayer = new PIXI.Container();
-        this.world.addChild(this.levelLayer, this.ragdollLayer, this.effectsLayer, this.waterLayer);
         this.fluidParent = new PIXI.Container();
         this.overlayLayer = new PIXI.Container();
-        this.hud.addChild(this.fluidParent, this.overlayLayer);
+        this.world.addChild(this.levelLayer, this.ragdollLayer, this.effectsLayer, this.waterLayer, this.fluidParent, this.overlayLayer);
     }
 
     /**
