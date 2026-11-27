@@ -1,11 +1,9 @@
 import { LEVEL } from "../level/level.js";
 import { MATERIALS, SIGMA_W } from "../fluids/materials.js";
-
-/** Gravedad del mundo (m/s²), la misma de `b2World`. */
-const G = 10;
-
-/** Densidad del agua (kg/m³). */
-const RHO_W = 1000;
+import { NEGLIGIBLE_EXTENT, RELATIVE_TOLERANCE, clamp, clampUnit } from "../core/math/scalar.js";
+import { minmod, sampleUniformGrid, solveNewton } from "../core/math/numeric.js";
+import { GRAVITY, WATER_DENSITY } from "../core/physics/constants.js";
+import { mixtureViscosity } from "../core/physics/formulas.js";
 
 /**
  * Densidad del agua de la ficha 3 (docs/design/15-quimica.md) a 20 °C (kg/m³) y pendiente de la densidad de la
@@ -15,12 +13,10 @@ const RHO_W = 1000;
 const RHO_W_FICHA = 998.2;
 const RHO_PER_PERCENT = 6.8;
 
-/** Altura por debajo de la cual una cara se trata como seca en las velocidades de onda (m). */
-const TINY = 1e-12;
-const SQRT_G = Math.sqrt(G);
+const SQRT_G = Math.sqrt(GRAVITY);
 
 /** Velocidad máxima física (m/s): frente de Ritter con h_max = 15 m, `2√(g h_max)`. */
-const U_MAX = 2 * Math.sqrt(G * 15);
+const U_MAX = 2 * Math.sqrt(GRAVITY * 15);
 
 /** Profundidad máxima de repeticiones de un subpaso con `dt/2` tras una altura negativa. */
 const MAX_HALVINGS = 10;
@@ -50,10 +46,22 @@ export const WATER_FIELD = {
     draw: { alpha: 0.55, color: [40, 120, 255], lineColor: [170, 220, 255], lineWidth: 2, colorStep: 4 },
 };
 
-const minmod = (a, b) => (a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b);
-
 let projH = 0;
 let projU = 0;
+
+/** Datos del Newton de `project`: `dynamicHead` es `q² / (2 g)` (m³) y `totalHead` la carga total sobre la cota de la cara (m). Se reutiliza en cada llamada. */
+const projectionProblem = { dynamicHead: 0, totalHead: 0 };
+
+/**
+ * Paso de Newton de la carga específica de `project` en la altura `depth` (m).
+ * @param {number} depth altura de agua, en m
+ * @param {{ dynamicHead: number, totalHead: number }} problem datos del problema
+ * @returns {number} `f(depth) / f'(depth)`, en m
+ */
+function projectionStep(depth, problem) {
+    const velocityHead = problem.dynamicHead / (depth * depth);
+    return (depth + velocityHead - problem.totalHead) / (1 - (2 * velocityHead) / depth);
+}
 
 /**
  * Proyecta el estado `(h, u)` sobre el lecho `b` a la cota de cara `bs` conservando la carga total y el caudal
@@ -63,26 +71,21 @@ let projU = 0;
  */
 function project(h, u, b, bs) {
     const q = h * u;
-    const E = h + b + (u * u) / (2 * G) - bs;
+    const E = h + b + (u * u) / (2 * GRAVITY) - bs;
     if (E <= 0) {
         projH = 0;
         projU = 0;
         return;
     }
-    if (E * E * E <= (27 / 8) * ((q * q) / G)) {
+    if (E * E * E <= (27 / 8) * ((q * q) / GRAVITY)) {
         const hs = Math.min(h, (2 / 3) * E);
         projH = hs;
-        projU = Math.sign(u) * Math.sqrt(G * hs);
+        projU = Math.sign(u) * Math.sqrt(GRAVITY * hs);
         return;
     }
-    const q2 = (q * q) / (2 * G);
-    let x = h;
-    for (let k = 0; k < PROJ_ITERATIONS; k++) {
-        const r = q2 / (x * x);
-        const dx = (x + r - E) / (1 - (2 * r) / x);
-        x -= dx;
-        if (Math.abs(dx) < PROJ_TOLERANCE * E) break;
-    }
+    projectionProblem.dynamicHead = (q * q) / (2 * GRAVITY);
+    projectionProblem.totalHead = E;
+    const x = solveNewton(projectionStep, h, projectionProblem, PROJ_TOLERANCE * E, PROJ_ITERATIONS);
     const hs = Math.min(h, x);
     projH = hs;
     projU = q / hs;
@@ -212,8 +215,8 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
      * integran, no se muestrean y no reciben depósitos. Las caras del span son paredes reflectivas.
      */
     setSpan(x1, x2) {
-        const first = Math.ceil((x1 - this.x0) / this.dx - 1e-9);
-        const last = Math.floor((x2 - this.x0) / this.dx + 1e-9);
+        const first = Math.ceil((x1 - this.x0) / this.dx - RELATIVE_TOLERANCE);
+        const last = Math.floor((x2 - this.x0) / this.dx + RELATIVE_TOLERANCE);
         this.i0 = Math.max(this.i0, first);
         this.i1 = Math.min(this.i1, last);
     }
@@ -273,7 +276,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
     honeyFraction(i) {
         const h = this.h[i];
         if (h < this.config.hDry) return 0;
-        return Math.min(1, Math.max(0, this.M[i] / h));
+        return clampUnit(this.M[i] / h);
     }
 
     /**
@@ -290,14 +293,14 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
 
     /** Fracción másica de H2SO4 de la columna `i` recortada a `[0, w_a]`, la que usan las propiedades. */
     acidFraction(i) {
-        return Math.min(this.wAcid, Math.max(0, this.acidRatio(i)));
+        return clamp(this.acidRatio(i), 0, this.wAcid);
     }
 
     /** Viscosidad dinámica de la mezcla (Pa·s), regla logarítmica `ln μ = X ln μ_miel + (1 − X) ln μ_agua`. */
     muOf(i) {
         const X = this.honeyFraction(i);
         if (X === 0) return MATERIALS.water.mu;
-        return Math.exp(X * this.lnMuHoney + (1 - X) * this.lnMuWater);
+        return mixtureViscosity(X, this.lnMuHoney, this.lnMuWater);
     }
 
     /** Temperatura de la columna `i` (°C). */
@@ -309,10 +312,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
 
     /** Interpolación lineal entre centros de celda de `fn(i)` en `x`, sin extrapolar. */
     sample(x, fn) {
-        const s = (x - this.x0) / this.dx - 0.5;
-        const i = Math.min(Math.max(Math.floor(s), this.i0), this.i1 - 2);
-        const t = Math.min(1, Math.max(0, s - i));
-        return (1 - t) * fn(i) + t * fn(i + 1);
+        return sampleUniformGrid(x, this.x0, this.dx, this.i0, this.i1 - 1, fn);
     }
 
     /** Altura de la superficie `η = b + h` en `x` (m); en columnas secas es el lecho. */
@@ -337,7 +337,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
     densityAt(x) {
         return this.sample(
             x,
-            (i) => RHO_W * (1 + (RHO_PER_PERCENT * 100 * this.acidFraction(i)) / RHO_W_FICHA + (this.sgHoney - 1) * this.honeyFraction(i)),
+            (i) => WATER_DENSITY * (1 + (RHO_PER_PERCENT * 100 * this.acidFraction(i)) / RHO_W_FICHA + (this.sgHoney - 1) * this.honeyFraction(i)),
         );
     }
 
@@ -407,7 +407,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
         const s = (x - this.x0) / dx - 0.5;
         const i = Math.floor(s);
         const w1 = s - i;
-        const targets = [[Math.min(Math.max(i, i0), i1 - 1), 1 - w1], [Math.min(Math.max(i + 1, i0), i1 - 1), w1]];
+        const targets = [[clamp(i, i0, i1 - 1), 1 - w1], [clamp(i + 1, i0, i1 - 1), w1]];
         for (const [c, w] of targets) {
             this.h[c] += (w * area) / dx;
             this.q[c] += (w * momentum) / dx;
@@ -451,7 +451,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
                 SU[k] = 0;
             } else {
                 const lim = 2 * H[k];
-                SETA[k] = Math.max(-lim, Math.min(lim, minmod(ETA[k] - ETA[k - 1], ETA[k + 1] - ETA[k])));
+                SETA[k] = clamp(minmod(ETA[k] - ETA[k - 1], ETA[k + 1] - ETA[k]), -lim, lim);
                 SH[k] = SETA[k];
                 SU[k] = minmod(U[k] - U[k - 1], U[k + 1] - U[k]);
             }
@@ -504,26 +504,26 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
             const cL = SQRT_G * rl;
             const cR = SQRT_G * rr;
             let sL, sR;
-            if (hLs <= TINY && hRs <= TINY) {
+            if (hLs <= NEGLIGIBLE_EXTENT && hRs <= NEGLIGIBLE_EXTENT) {
                 sL = 0;
                 sR = 0;
-            } else if (hRs <= TINY) {
+            } else if (hRs <= NEGLIGIBLE_EXTENT) {
                 sL = uLs - cL;
                 sR = uLs + 2 * cL;
-            } else if (hLs <= TINY) {
+            } else if (hLs <= NEGLIGIBLE_EXTENT) {
                 sL = uRs - 2 * cR;
                 sR = uRs + cR;
             } else {
                 const uRoe = (rl * uLs + rr * uRs) / (rl + rr);
-                const cRoe = Math.sqrt((G * (hLs + hRs)) / 2);
+                const cRoe = Math.sqrt((GRAVITY * (hLs + hRs)) / 2);
                 sL = Math.min(uLs - cL, uRoe - cRoe);
                 sR = Math.max(uRs + cR, uRoe + cRoe);
             }
             smax = Math.max(smax, Math.abs(sL), Math.abs(sR));
             const flM = qLs;
             const frM = qRs;
-            const flQ = hLs > TINY ? qLs * uLs + 0.5 * G * hLs * hLs : 0;
-            const frQ = hRs > TINY ? qRs * uRs + 0.5 * G * hRs * hRs : 0;
+            const flQ = hLs > NEGLIGIBLE_EXTENT ? qLs * uLs + 0.5 * GRAVITY * hLs * hLs : 0;
+            const frQ = hRs > NEGLIGIBLE_EXTENT ? qRs * uRs + 0.5 * GRAVITY * hRs * hRs : 0;
             let gM, gQ;
             if (sL >= 0) {
                 gM = flM;
@@ -537,8 +537,8 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
                 gQ = (sR * flQ - sL * frQ + sL * sR * (qRs - qLs)) * inv;
             }
             fm[f] = gM;
-            fqL[f] = gQ + 0.5 * G * (hLf * hLf - hLs * hLs);
-            fqR[f] = gQ + 0.5 * G * (hRv * hRv - hRs * hRs);
+            fqL[f] = gQ + 0.5 * GRAVITY * (hLf * hLf - hLs * hLs);
+            fqR[f] = gQ + 0.5 * GRAVITY * (hRv * hRv - hRs * hRs);
             if (f === i0 || f === i1) {
                 fE[f] = 0;
                 fM[f] = 0;
@@ -557,7 +557,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
             }
         }
         for (let i = i0; i < i1; i++) {
-            const sc = -G * ((hR[i] + hL[i + 1]) / 2) * (bL[i + 1] - bR[i]);
+            const sc = -GRAVITY * ((hR[i] + hL[i + 1]) / 2) * (bL[i + 1] - bR[i]);
             rate.h[i] = -(fm[i + 1] - fm[i]) / dx;
             rate.q[i] = -(fqL[i + 1] - fqR[i] - sc) / dx;
             rate.E[i] = -(fE[i + 1] - fE[i]) / dx;
@@ -576,9 +576,9 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
         let smax = 0;
         for (let i = i0; i < i1; i++) {
             const hh = h[i];
-            if (hh <= TINY) continue;
+            if (hh <= NEGLIGIBLE_EXTENT) continue;
             const u = (2 * hh * q[i]) / (hh * hh + Math.max(hh * hh, hd * hd));
-            smax = Math.max(smax, Math.abs(u) + Math.sqrt(G * hh));
+            smax = Math.max(smax, Math.abs(u) + Math.sqrt(GRAVITY * hh));
         }
         return smax;
     }
@@ -593,7 +593,7 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
         let ok = true;
         for (let i = i0; i < i1; i++) {
             if (s.h[i] < 0) {
-                if (s.h[i] > -1e-12) s.h[i] = 0;
+                if (s.h[i] > -NEGLIGIBLE_EXTENT) s.h[i] = 0;
                 else ok = false;
             }
             if (s.h[i] < hd && s.q[i] !== 0) {
@@ -688,15 +688,15 @@ ull (el lecho del nivel y la pileta) o { surface } (lecho plano en y = 0 y agua 
     friction(s, dt) {
         const { i0, i1, config } = this;
         const n2 = config.manning * config.manning;
-        const nuWater = MATERIALS.water.mu / RHO_W;
+        const nuWater = MATERIALS.water.mu / WATER_DENSITY;
         for (let i = i0; i < i1; i++) {
             const hh = s.h[i];
             if (hh < config.hDry) continue;
             const inv = 1 / hh;
             const u = s.q[i] * inv;
-            const X = Math.min(1, Math.max(0, s.M[i] * inv));
-            const nu = X === 0 ? nuWater : Math.exp(X * this.lnMuHoney + (1 - X) * this.lnMuWater) / (RHO_W * (1 + (this.sgHoney - 1) * X));
-            const kappa = (G * n2 * Math.abs(u) * inv) / Math.cbrt(hh) + 3 * nu * inv * inv;
+            const X = clampUnit(s.M[i] * inv);
+            const nu = X === 0 ? nuWater : mixtureViscosity(X, this.lnMuHoney, this.lnMuWater) / (WATER_DENSITY * (1 + (this.sgHoney - 1) * X));
+            const kappa = (GRAVITY * n2 * Math.abs(u) * inv) / Math.cbrt(hh) + 3 * nu * inv * inv;
             s.q[i] /= 1 + dt * kappa;
         }
     }
