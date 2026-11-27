@@ -24,7 +24,15 @@ const LAYER_COLORS = {
     columnHeight: tintOf(80, 200, 255),
     columnVelocity: tintOf(255, 225, 77),
     bot: tintOf(255, 179, 71),
+    terrainCells: tintOf(120, 200, 120),
+    terrainContour: tintOf(255, 255, 255),
+    terrainPolygon: tintOf(255, 200, 60),
+    terrainTile: tintOf(80, 160, 255),
+    terrainFlash: tintOf(255, 255, 255),
 };
+
+/** Alfa de las celdas de densidad llena y del destello de un tramo rehecho en la capa del terreno. */
+const TERRAIN_ALPHA = { cells: 0.35, flash: 0.5 };
 
 /** Fuerzas de cada pieza que dibuja la capa de fuerzas, con su color: la clave es la propiedad de la pieza de `Buoyancy`. */
 const FORCE_STROKES = [
@@ -38,8 +46,8 @@ const HALF = 0.5;
 /**
  * Capas de debug que se dibujan sobre el mundo, como `PIXI.Graphics` que se limpian y se redibujan solo mientras su opción
  * está en sí (`docs/design/10-controles.md` §10.5, `docs/design/14-agua.md` §14.12): los puntos de las partículas y las capas de
- * vectores (velocidades, fuerzas, columnas del campo y bots). Los gráficos se crean una vez; con todo apagado cada método
- * solo borra lo que dibujó antes y sale. El panel de texto es HTML (`src/ui/debugPanel.js`).
+ * vectores (velocidades, fuerzas, columnas del campo y bots) y la del terreno de densidad (`docs/design/05-escenario.md`
+ * §5.5). Los gráficos se crean una vez; con todo apagado cada método solo borra lo que dibujó antes y sale. El panel de texto es HTML (`src/ui/debugPanel.js`).
  */
 export class DebugView {
     /**
@@ -57,6 +65,7 @@ export class DebugView {
             fuerzas: new PIXI.Graphics(),
             columnas: new PIXI.Graphics(),
             bots: new PIXI.Graphics(),
+            terreno: new PIXI.Graphics(),
         };
         parent.addChild(this.pointsGraphics, ...Object.values(this.layerGraphics));
         this.drawn = new Set();
@@ -101,20 +110,116 @@ export class DebugView {
      * @param {number} screenScale escala de la cámara, en px de pantalla por metro
      * @param {object|null} refs `particles` `{ heap, positionIndex, velocityIndex, count }` (vista `Float32Array` del heap y los índices de palabra de los
      *   buffers de posición y velocidad), `pieces` (las piezas de `Buoyancy`: `cx`, `cy`, `buoyancy`, `drag`, `body`) y
-     *   `water` (el campo: `h`, `b`, `uOf`, `x0`, `dx`, `i0`, `i1`, `config.hDry`); `null` con todas las capas apagadas
+     *   `water` (el campo: `h`, `b`, `uOf`, `x0`, `dx`, `i0`, `i1`, `config.hDry`) y `terrain` (ver `drawTerrain`); `null` con todas
+     *   las capas apagadas
      */
     drawLayers(screenScale, refs) {
         const { layers } = this.debug;
         const strokeWidth = (STROKE.px * this.pixelsPerMeter) / screenScale;
-        const { velocidades, fuerzas, columnas, bots } = this.layerGraphics;
+        const { velocidades, fuerzas, columnas, bots, terreno } = this.layerGraphics;
         this.reset(velocidades, layers.velocidades);
         this.reset(fuerzas, layers.fuerzas);
         this.reset(columnas, layers.columnas);
         this.reset(bots, layers.bots);
+        this.reset(terreno, layers.terreno);
         if (layers.velocidades) this.drawVelocities(velocidades, strokeWidth, screenScale, refs.particles);
         if (layers.fuerzas) this.drawForces(fuerzas, strokeWidth, refs.pieces);
         if (layers.columnas) this.drawColumns(columnas, strokeWidth, refs.water);
         if (layers.bots) this.drawBots(bots, strokeWidth);
+        if (layers.terreno) this.drawTerrain(terreno, strokeWidth, refs.terrain);
+    }
+
+    /**
+     * Agrega al trazo en curso un anillo cerrado de vértices intercalados.
+     * @param {PIXI.Graphics} graphics
+     * @param {number[]} ring `[x0, y0, x1, y1, …]`, en m
+     */
+    addRing(graphics, ring) {
+        const scale = this.pixelsPerMeter;
+        graphics.moveTo(ring[0] * scale, ring[1] * scale);
+        for (let index = 2; index < ring.length; index += 2) graphics.lineTo(ring[index] * scale, ring[index + 1] * scale);
+        graphics.closePath();
+    }
+
+    /**
+     * Rectángulo de una celda o un tramo, en px de la geometría, para rellenar o trazar.
+     * @param {PIXI.Graphics} graphics
+     * @param {number} x borde izquierdo, en m
+     * @param {number} y borde inferior, en m
+     * @param {number} width en m
+     * @param {number} height en m
+     */
+    addRectangle(graphics, x, y, width, height) {
+        const scale = this.pixelsPerMeter;
+        graphics.rect(x * scale, y * scale, width * scale, height * scale);
+    }
+
+    /**
+     * Dibuja las celdas de una grilla con alfa según su densidad, juntando en un solo rectángulo las celdas contiguas de
+     * una fila con la misma densidad.
+     * @param {PIXI.Graphics} graphics
+     * @param {DensityGrid} grid
+     */
+    drawCells(graphics, grid) {
+        const { values, columns, rows, cellWidth, cellHeight, originX, originY } = grid;
+        for (let row = 0; row < rows; row++) {
+            let runStart = 0;
+            for (let column = 1; column <= columns; column++) {
+                const rowOffset = row * columns;
+                if (column < columns && values[rowOffset + column] === values[rowOffset + runStart]) continue;
+                const density = values[rowOffset + runStart];
+                if (density > 0) {
+                    this.addRectangle(graphics, originX + runStart * cellWidth, originY + row * cellHeight, (column - runStart) * cellWidth, cellHeight);
+                    graphics.fill({ color: LAYER_COLORS.terrainCells, alpha: density * TERRAIN_ALPHA.cells });
+                }
+                runStart = column;
+            }
+        }
+    }
+
+    /**
+     * Capa del terreno de densidad (`docs/design/05-escenario.md` §5.5): por cada tramo a la vista, las celdas con alfa según
+     * su densidad, el borde del tramo, los polígonos convexos con sus uniones y el contorno simplificado; el tramo que se
+     * rehízo en este frame destella. El gráfico se mueve con el cuerpo del terreno y dibuja en su marco local.
+     * @param {PIXI.Graphics} graphics
+     * @param {number} strokeWidth ancho del trazo, en px de la geometría
+     * @param {object} refs `tiles` (los tramos de `Terrain`: `grid`, `rings`, `polygons`, `rebuiltFrame`), `frame` (el contador de
+     *   `Terrain.update`, para el destello), `offsetX` y `offsetY` (la posición del cuerpo, en m) y `view` (la caja visible de
+     *   la cámara, `{ minX, minY, maxX, maxY }`, en m del mundo)
+     */
+    drawTerrain(graphics, strokeWidth, { tiles, frame, offsetX, offsetY, view }) {
+        const scale = this.pixelsPerMeter;
+        graphics.position.set(offsetX * scale, offsetY * scale);
+        const visible = [];
+        for (const tile of tiles) {
+            const { grid } = tile;
+            const isInView =
+                grid.originX + grid.width + offsetX >= view.minX &&
+                grid.originX + offsetX <= view.maxX &&
+                grid.originY + grid.height + offsetY >= view.minY &&
+                grid.originY + offsetY <= view.maxY;
+            if (isInView) visible.push(tile);
+        }
+        for (const tile of visible) this.drawCells(graphics, tile.grid);
+        for (const tile of visible) this.addRectangle(graphics, tile.grid.originX, tile.grid.originY, tile.grid.width, tile.grid.height);
+        this.strokeSegments(graphics, strokeWidth, LAYER_COLORS.terrainTile, visible.length);
+        let polygons = 0;
+        for (const tile of visible) {
+            for (const polygon of tile.polygons) this.addRing(graphics, polygon);
+            polygons += tile.polygons.length;
+        }
+        this.strokeSegments(graphics, strokeWidth, LAYER_COLORS.terrainPolygon, polygons);
+        let rings = 0;
+        for (const tile of visible) {
+            for (const ring of tile.rings) this.addRing(graphics, ring);
+            rings += tile.rings.length;
+        }
+        this.strokeSegments(graphics, strokeWidth, LAYER_COLORS.terrainContour, rings);
+        for (const tile of visible) {
+            if (tile.rebuiltFrame !== frame) continue;
+            this.addRectangle(graphics, tile.grid.originX, tile.grid.originY, tile.grid.width, tile.grid.height);
+            graphics.fill({ color: LAYER_COLORS.terrainFlash, alpha: TERRAIN_ALPHA.flash });
+        }
     }
 
     /**

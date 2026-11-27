@@ -87,10 +87,10 @@ test("D1 las filas se recorren y cambian con teclado y con gamepad simulado, y l
     game.setPad(0);
     game.setPad(1);
     game.frames(2);
-    assert.deepEqual(DEBUG_ROWS.map((r) => r.id), ["stats", "fluidos", "velocidades", "fuerzas", "columnas", "bots"]);
+    assert.deepEqual(DEBUG_ROWS.map((r) => r.id), ["stats", "fluidos", "velocidades", "fuerzas", "columnas", "bots", "terreno"]);
     assert.equal(debug.stats, false);
     assert.equal(debug.fluidMode, "metaball");
-    assert.deepEqual(debug.layers, { velocidades: false, fuerzas: false, columnas: false, bots: false });
+    assert.deepEqual(debug.layers, { velocidades: false, fuerzas: false, columnas: false, bots: false, terreno: false });
 
     tapKey(game, "F3");
     assert.equal(debug.cursor, 0);
@@ -114,7 +114,7 @@ test("D1 las filas se recorren y cambian con teclado y con gamepad simulado, y l
     tapKey(game, "ArrowLeft");
     assert.equal(debug.fluidMode, "ambos");
 
-    for (const [i, id] of ["velocidades", "fuerzas", "columnas", "bots"].entries()) {
+    for (const [i, id] of ["velocidades", "fuerzas", "columnas", "bots", "terreno"].entries()) {
         tapButton(game, 0, DPAD.down);
         assert.equal(debug.cursor, 2 + i);
         tapButton(game, 0, A);
@@ -125,7 +125,7 @@ test("D1 las filas se recorren y cambian con teclado y con gamepad simulado, y l
         assert.equal(debug.layers[id], true);
     }
     tapButton(game, 0, DPAD.up);
-    assert.equal(debug.cursor, 4);
+    assert.equal(debug.cursor, 5);
     tapButton(game, 0, DPAD.down);
     tapButton(game, 0, DPAD.down);
     assert.equal(debug.cursor, 0);

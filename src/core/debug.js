@@ -26,8 +26,8 @@ export const DEBUG = {
 export const FLUID_MODES = ["metaball", "puntos", "ambos"];
 
 /**
- * Filas del menú de debug, en orden: `id` (clave del estado), `label` y, si no es sí/no, sus `options`. Las cuatro
- * últimas son las capas de vectores.
+ * Filas del menú de debug, en orden: `id` (clave del estado), `label` y, si no es sí/no, sus `options`. Desde la tercera
+ * son capas: las cuatro de vectores y la del terreno de densidad (`docs/design/05-escenario.md` §5.5).
  */
 export const DEBUG_ROWS = [
     { id: "stats", label: "Estadísticas" },
@@ -36,6 +36,7 @@ export const DEBUG_ROWS = [
     { id: "fuerzas", label: "Fuerzas" },
     { id: "columnas", label: "Columnas" },
     { id: "bots", label: "Bots" },
+    { id: "terreno", label: "Terreno" },
 ];
 
 /**
@@ -51,7 +52,7 @@ const point = (position) => (position ? `${fixed(position.x, 1)}, ${fixed(positi
 
 /**
  * Estado del monitor: el menú de debug (`open`, fila `cursor`) y sus opciones: `stats` (panel de estadísticas, que se
- * dibuja solo con el menú abierto), `fluidMode` y `layers` (vectores en metros con la cámara, siempre que estén en sí).
+ * dibuja solo con el menú abierto), `fluidMode` y `layers` (vectores y terreno en metros con la cámara, siempre que estén en sí).
  * Mide con `mark` solo con `stats` en sí; con todo apagado cada método sale en la primera línea.
  */
 export class Debug {
@@ -62,10 +63,10 @@ export class Debug {
         this.cursor = 0;
         this.stats = false;
         this.fluidMode = FLUID_MODES[0];
-        this.layers = { velocidades: false, fuerzas: false, columnas: false, bots: false };
+        this.layers = { velocidades: false, fuerzas: false, columnas: false, bots: false, terreno: false };
         this.laps = {};
         this.last = 0;
-        this.avg = { fps: 0, contacts: 0, cflSubsteps: 0, drift: 0, ms: {}, particles: {} };
+        this.avg = { fps: 0, contacts: 0, cflSubsteps: 0, drift: 0, ms: {}, particles: {}, terrain: {} };
         this.volume0 = null;
         this.bots = [];
     }
@@ -75,10 +76,10 @@ export class Debug {
         return this.stats || this.anyLayer;
     }
 
-    /** Verdadero si alguna capa de vectores está en sí. */
+    /** Verdadero si alguna capa (de vectores o del terreno) está en sí. */
     get anyLayer() {
         const layers = this.layers;
-        return layers.velocidades || layers.fuerzas || layers.columnas || layers.bots;
+        return layers.velocidades || layers.fuerzas || layers.columnas || layers.bots || layers.terreno;
     }
 
     /** Falso en el modo `"puntos"`: `index.js` no dibuja entonces los fluidos como metaball. */
@@ -144,8 +145,10 @@ export class Debug {
 
     /**
      * Toma los datos del frame: `{ fps, ms: { [subsistema]: ms }, particles: { [material]: n }, contacts, cflSubsteps,
-     * volume: { total }, bots: [{ k, from, goal, target, action }] }`. `volume.total` (m²) se compara con el de la
-     * primera muestra (`relativeError`); `goal`, `target` y `from` son puntos `{ x, y }` en m o `null`.
+     * volume: { total }, bots: [{ k, from, goal, target, action }], terrain?: { grids, polygons, vertices, rebuilds,
+     * rebuildMs } }`. `volume.total` (m²) se compara con el de la primera muestra (`relativeError`); `goal`, `target` y
+     * `from` son puntos `{ x, y }` en m o `null`; `terrain` son los conteos del terreno de densidad y lo que costó
+     * rehacerlo en el frame (`rebuildMs`, en ms).
      */
     frame(data) {
         if (!this.active) return;
@@ -157,6 +160,7 @@ export class Debug {
         this.smooth(avg, "cflSubsteps", data.cflSubsteps);
         for (const key in data.ms) this.smooth(avg.ms, key, data.ms[key]);
         for (const key in data.particles) this.smooth(avg.particles, key, data.particles[key]);
+        for (const key in data.terrain) this.smooth(avg.terrain, key, data.terrain[key]);
         this.volume0 ??= data.volume.total;
         this.smooth(avg, "drift", relativeError(data.volume.total, this.volume0));
     }
@@ -177,6 +181,13 @@ export class Debug {
         lines.push(`contactos partícula-cuerpo ${fixed(avg.contacts, 0)}`);
         lines.push(`subpasos CFL ${fixed(avg.cflSubsteps, 1)}`);
         lines.push(`volumen de agua: deriva ${(avg.drift * 100).toExponential(2)} %`);
+        const terrain = avg.terrain;
+        if ("grids" in terrain) {
+            lines.push(
+                `terreno: ${fixed(terrain.grids, 0)} grillas · ${fixed(terrain.polygons, 0)} polígonos · ${fixed(terrain.vertices, 0)} vértices · ` +
+                    `${fixed(terrain.rebuilds, 2)} reconstrucciones por frame · ${fixed(terrain.rebuildMs, 3)} ms`,
+            );
+        }
         for (const bot of this.bots) {
             lines.push(`bot J${bot.k + 1}: meta ${point(bot.goal)} · objetivo ${point(bot.target)} · ${bot.action}${bot.mode ? ` · ${bot.mode}` : ""}`);
         }
