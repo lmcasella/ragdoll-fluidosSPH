@@ -76,7 +76,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - Se descartó el metaball en shader (`metaball.frag.glsl`): exige WebGL propio, que el usuario descartó para el examen.
 - **Aspecto por material** 🔨 #350, con filtros de PIXI sobre las mismas capas:
   - **Agua** (la del nivel y las gotas): deja ver lo que tiene detrás, deformado por ondas que se mueven con el tiempo. Mirada de frente es transparente; en la superficie y en el borde de las gotas brilla más y se vuelve casi opaca (efecto fresnel), con una línea de reflejo en la superficie. Cuanto más profunda, más oscura y menos se ve el fondo. Refleja la luz de la lava cercana ([13.3](13-arte.md#133-luz)).
-  - **Lava:** brilla con luz propia. El interior es más claro que el borde, con una costra oscura que se mueve despacio y grietas incandescentes; alrededor tiene un halo naranja que se suma a lo que hay detrás. El color sigue la temperatura que escribe la térmica, así que la lava que se enfría deja de brillar.
+  - **Lava:** brilla con luz propia. Es lisa, sin textura: el interior es más claro que el borde, con un degradé suave; alrededor tiene un halo naranja que se suma a lo que hay detrás. El color sigue la temperatura que escribe la térmica, así que la lava que se enfría deja de brillar.
   - **Ácido:** como el agua, sin refracción, con un brillo verde tenue en el borde.
   - **Miel y el resto:** volumen con un borde más claro y un reflejo arriba, sin brillo propio.
   - El halo y el borde salen del campo de las partículas, no de un desenfoque. El costo no baja los fps de forma medible.

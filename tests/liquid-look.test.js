@@ -24,10 +24,10 @@ const FRAME = { time: 1.5, originX: 10, originY: 20, pixelsPerMeter: 40 };
 
 test("la tabla de aspecto tiene los valores pedidos y solo el agua refracta", () => {
     const expected = {
-        [ACID]: { fresnel: 0.5, rim: 0.3, glow: 0.25, emissive: 0, crust: 0 },
-        [LAVA]: { fresnel: 0, rim: 0.2, glow: 1, emissive: 1, crust: 1 },
-        [HONEY]: { fresnel: 0.4, rim: 0.35, glow: 0, emissive: 0, crust: 0 },
-        [WATER]: { fresnel: 0.8, rim: 0.35, glow: 0, emissive: 0, crust: 0 },
+        [ACID]: { fresnel: 0.5, rim: 0.3, glow: 0.25, emissive: 0 },
+        [LAVA]: { fresnel: 0, rim: 0.2, glow: 1, emissive: 1 },
+        [HONEY]: { fresnel: 0.4, rim: 0.35, glow: 0, emissive: 0 },
+        [WATER]: { fresnel: 0.8, rim: 0.35, glow: 0, emissive: 0 },
     };
     for (const [kind, values] of Object.entries(expected)) {
         for (const [name, value] of Object.entries(values)) assert.equal(FLUID_LOOK[kind][name], value, `${kind}.${name}`);
@@ -55,7 +55,7 @@ test("solo el filtro del agua pide el fondo y declara uBackTexture", () => {
     assert.equal(water.resources[LIQUID_UNIFORM_GROUP].uniforms.uRefraction, 0.06);
 });
 
-test("el fragmento de líquido conserva el umbral, no desenfoca y tiene halo, costra, rama emisiva y fresnel", () => {
+test("el fragmento de líquido conserva el umbral, no desenfoca y tiene halo, rama emisiva lisa y fresnel", () => {
     for (const refractive of [false, true]) {
         const fragment = liquidFragment(refractive);
         assert.ok(fragment.includes(`const float THRESHOLD_GAIN = ${THRESHOLD_GAIN.toFixed(4)};`));
@@ -63,8 +63,7 @@ test("el fragmento de líquido conserva el umbral, no desenfoca y tiene halo, co
         assert.ok(fragment.includes("clamp(field * THRESHOLD_GAIN + THRESHOLD_OFFSET, 0.0, 1.0)"));
         assert.doesNotMatch(fragment, /gaussian|blur/i);
         assert.match(fragment, /HALO_START_FIELD/, "halo");
-        assert.match(fragment, /uCrust/, "costra");
-        assert.match(fragment, /CRACK_COLOR/, "grietas");
+        assert.doesNotMatch(fragment, /crust|crack/i, "sin costra ni grietas");
         assert.match(fragment, /uEmissive > 0\.0 \? moltenColor/, "rama emisiva");
         assert.match(fragment, /1\.0 - uFresnel/, "fresnel");
         assert.match(fragment, /uniform highp vec4 uInputSize;/);

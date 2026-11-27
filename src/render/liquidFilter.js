@@ -78,7 +78,6 @@ uniform highp float uRim;
 uniform highp float uGlow;
 uniform highp vec3 uGlowColor;
 uniform highp float uEmissive;
-uniform highp float uCrust;
 ${NOISE_FUNCTIONS}
 
 const float THRESHOLD_GAIN = ${glslFloat(THRESHOLD_GAIN)};
@@ -97,18 +96,6 @@ const float HALO_ALPHA_SHARE = 0.25;
 const float CORE_FIELD = 0.95;
 const float EDGE_BRIGHTNESS = 0.7;
 const float CORE_BRIGHTNESS = 1.3;
-const float CRUST_FREQUENCY = 3.0;
-const float CRUST_DRIFT_SPEED = 0.03;
-const float FINE_CRUST_SCALE = 2.3;
-const float FINE_CRUST_SHARE = 0.35;
-const float CRUST_START = 0.52;
-const float CRUST_FULL = 0.62;
-const float CRUST_DARKEN = 0.25;
-const float CRACK_LEVEL = 0.52;
-const float CRACK_WIDTH = 0.035;
-const float CRACK_STRENGTH = 1.2;
-const vec3 CRACK_COLOR = vec3(1.0, 0.8, 0.35);
-const vec2 FINE_CRUST_OFFSET = vec2(11.7, 3.1);
 ${refractive ? REFRACTIVE_SECTION : OPAQUE_SECTION}
 
 float fieldAt(vec2 textureCoord)
@@ -116,23 +103,10 @@ float fieldAt(vec2 textureCoord)
     return texture(uTexture, textureCoord).a;
 }
 
-float crustNoise(vec2 world)
-{
-    vec2 drift = vec2(uTime * CRUST_DRIFT_SPEED, 0.0);
-    float coarse = valueNoise(world * CRUST_FREQUENCY + drift);
-    float fine = valueNoise(world * CRUST_FREQUENCY * FINE_CRUST_SCALE - drift + FINE_CRUST_OFFSET);
-    return mix(coarse, fine, FINE_CRUST_SHARE);
-}
-
-vec3 moltenColor(vec3 tint, float heat, vec2 world, float field)
+vec3 moltenColor(vec3 tint, float field)
 {
     float interior = smoothstep(THRESHOLD_FIELD, CORE_FIELD, field);
-    float brightness = mix(EDGE_BRIGHTNESS, CORE_BRIGHTNESS, interior);
-    float noise = crustNoise(world);
-    float crust = smoothstep(CRUST_START, CRUST_FULL, noise) * uCrust;
-    float crack = (1.0 - smoothstep(0.0, CRACK_WIDTH, abs(noise - CRACK_LEVEL))) * uCrust;
-    vec3 body = tint * mix(1.0, brightness, uEmissive) * mix(1.0, CRUST_DARKEN, crust);
-    return body + CRACK_COLOR * crack * heat * CRACK_STRENGTH;
+    return tint * mix(1.0, mix(EDGE_BRIGHTNESS, CORE_BRIGHTNESS, interior), uEmissive);
 }
 
 void main(void)
@@ -158,7 +132,7 @@ void main(void)
     float slopeLength = length(slope);
     float grazing = clamp(slopeLength / EDGE_SLOPE_FULL, 0.0, 1.0);
     float facingUp = max(0.0, -slope.y / max(slopeLength, 0.0001));
-    vec3 color = uEmissive > 0.0 ? moltenColor(tint, heat, world, field) : tint;
+    vec3 color = uEmissive > 0.0 ? moltenColor(tint, field) : tint;
     float lighten = clamp(uRim * grazing * (1.0 + facingUp * TOP_HIGHLIGHT), 0.0, 1.0) * mix(1.0, heat, uEmissive);
     color = mix(color, RIM_COLOR, lighten);
     float opacity = mix(1.0 - uFresnel, 1.0, grazing);
@@ -194,7 +168,6 @@ export function createLiquidFilter(look) {
                 uGlow: { value: look.glow, type: "f32" },
                 uGlowColor: { value: new Float32Array(look.glowColor), type: "vec3<f32>" },
                 uEmissive: { value: look.emissive, type: "f32" },
-                uCrust: { value: look.crust, type: "f32" },
             },
         },
     });

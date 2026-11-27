@@ -121,15 +121,15 @@ const NO_GLOW_COLOR = [0, 0, 0];
  * de las luces de `LIGHTING.sources`. El vapor se dibuja difuso, sin filtro, y no tiene fila.
  */
 export const FLUID_LOOK = {
-    1: { refraction: 0, fresnel: 0.5, rim: 0.3, glow: 0.25, glowColor: LIGHTING.sources.acid.color, emissive: 0, crust: 0 },
-    2: { refraction: 0, fresnel: 0, rim: 0.2, glow: 1, glowColor: LIGHTING.sources.lava.color, emissive: 1, crust: 1 },
-    3: { refraction: 0, fresnel: 0.4, rim: 0.35, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0, crust: 0 },
-    4: { refraction: 0.06, fresnel: 0.8, rim: 0.35, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0, crust: 0 },
-    5: { refraction: 0, fresnel: 0, rim: 0, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0, crust: 0 },
+    1: { refraction: 0, fresnel: 0.5, rim: 0.3, glow: 0.25, glowColor: LIGHTING.sources.acid.color, emissive: 0 },
+    2: { refraction: 0, fresnel: 0, rim: 0.2, glow: 1, glowColor: LIGHTING.sources.lava.color, emissive: 1 },
+    3: { refraction: 0, fresnel: 0.4, rim: 0.35, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 },
+    4: { refraction: 0.06, fresnel: 0.8, rim: 0.35, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 },
+    5: { refraction: 0, fresnel: 0, rim: 0, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 },
 };
 
 /** Fila de `FLUID_LOOK` de un material sin fila: sin ningún efecto. */
-const NO_LOOK = { refraction: 0, fresnel: 0, rim: 0, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0, crust: 0 };
+const NO_LOOK = { refraction: 0, fresnel: 0, rim: 0, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 };
 
 /**
  * Aspecto del material `kind`.
