@@ -23,7 +23,8 @@ const SPENT_TOLERANCE = 1e-6;
  * `process` corre después de cada `stepWorld` desde el loop.
  *
  * El acero que disuelve una partícula en total sale de su ácido por estequiometría (Fe + H2SO4, ver `CORROSION`),
- * multiplicado por `CORROSION.speedup`. Al tocar gasta de una vez la fracción `biteFraction`; después, en cada paso en
+ * multiplicado por `CORROSION.speedup`; `Terrain.erodeAt` lo reparte según el `acidAttack` del material de cada tramo
+ * (`docs/design/13-arte.md` §13.2), así que `removed` se mide siempre en acero equivalente. Al tocar gasta de una vez la fracción `biteFraction`; después, en cada paso en
  * contacto, gasta parejo el resto a lo largo de `contactSeconds`, y al juntar ese contacto se destruye con
  * `SINK.CORRODED`.
  * Box2D avisa el contacto partícula↔cuerpo solo cuando empieza, así que una partícula queda marcada en contacto desde ese

@@ -6,6 +6,7 @@ import { assignHolesToOuters } from "../core/math/ringNesting.js";
 import { polygonArea } from "../core/math/geometry.js";
 import { GEOMETRY_TOLERANCE } from "../core/math/scalar.js";
 import { DensityGrid } from "./densityGrid.js";
+import { SURFACES, surfaceOf } from "./surfaces.js";
 
 /**
  * Valores del terreno de densidad (`docs/design/05-escenario.md` §5.5): `maxTileSize` (m) es el lado máximo de un tramo de
@@ -110,13 +111,13 @@ export class Terrain {
         this.config = config;
         this.now = now;
         this.builder = new PolygonFixtureBuilder();
-        /** Tramos vivos: `{ grid, oneWay, fixtures, rings, polygons, rebuiltFrame }`. */
+        /** Tramos vivos: `{ grid, surface, oneWay, fixtures, rings, polygons, rebuiltFrame }`. */
         this.tiles = new Set();
         /** Contador de llamadas a `update`: marca el frame en que se rehízo cada tramo. */
         this.frame = 0;
-        /** Sube con cada forma rehecha; `shape` lo usa para saber cuándo rearmar sus contornos. */
+        /** Sube con cada forma rehecha; `shape` lo usa para saber cuándo rearmar sus contornos y su desgaste. */
         this.shapeVersion = 0;
-        this.cachedShape = { version: -1, rings: [] };
+        this.cachedShape = { version: -1, rings: [], ringSurfaces: [], wornCells: [] };
         /** Tramos rehechos y costo (ms) de la última llamada a `update`. */
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
@@ -134,7 +135,8 @@ export class Terrain {
 
     /**
      * Agrega un sólido: rasteriza su rectángulo en una grilla por tramo y crea sus fixtures en el momento.
-     * @param {{x: number, y: number, w: number, h: number}} solid centro y tamaño, en m, en el marco local del cuerpo
+     * @param {{x: number, y: number, w: number, h: number, kind?: string, material?: string}} solid centro y tamaño, en m,
+     * en el marco local del cuerpo; su material sale de `surfaceOf` y vale para todos sus tramos
      * @param {{oneWay?: boolean}} [options] `oneWay`: atravesable desde abajo; nunca se parte en tramos
      * @returns {{solid: object, tiles: object[]}} el sólido y sus tramos, para `removeSolid`
      */
@@ -144,6 +146,7 @@ export class Terrain {
         const rows = oneWay ? 1 : tilesAlong(height, this.config.maxTileSize);
         const tileWidth = width / columns;
         const tileHeight = height / rows;
+        const surface = surfaceOf({ ...solid, oneWay });
         const handle = { solid, tiles: [] };
         for (let row = 0; row < rows; row++) {
             for (let column = 0; column < columns; column++) {
@@ -152,7 +155,7 @@ export class Terrain {
                 const grid = new DensityGrid({ originX, originY, width: tileWidth, height: tileHeight });
                 const fill = { minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight };
                 grid.fillRectangle(fill);
-                const tile = { grid, fill, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1 };
+                const tile = { grid, fill, surface, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1 };
                 this.tiles.add(tile);
                 handle.tiles.push(tile);
                 this.rebuild(tile);
@@ -206,12 +209,20 @@ export class Terrain {
 
     /**
      * Contornos de todos los tramos para dibujar: vértices intercalados en m, en el marco local del cuerpo, con los
-     * externos de área positiva y los agujeros de área negativa. El arreglo se rearma solo si cambió alguna forma.
-     * @returns {{version: number, rings: number[][]}}
+     * externos de área positiva y los agujeros de área negativa, con el material de cada uno (`ringSurfaces`, paralelo a
+     * `rings`) y las celdas con desgaste de todos los tramos (`wornCells`, con su `surface`, para dibujar el óxido). Todo
+     * se rearma solo si cambió alguna forma: el desgaste solo cambia junto con la forma.
+     * @returns {{version: number, rings: number[][], ringSurfaces: string[], wornCells: object[]}}
      */
     get shape() {
         if (this.cachedShape.version !== this.shapeVersion) {
-            this.cachedShape = { version: this.shapeVersion, rings: [...this.tiles].flatMap((tile) => tile.rings) };
+            const tiles = [...this.tiles];
+            this.cachedShape = {
+                version: this.shapeVersion,
+                rings: tiles.flatMap((tile) => tile.rings),
+                ringSurfaces: tiles.flatMap((tile) => tile.rings.map(() => tile.surface)),
+                wornCells: tiles.flatMap((tile) => tile.grid.wornCells().map((cell) => ({ ...cell, surface: tile.surface }))),
+            };
         }
         return this.cachedShape;
     }
@@ -219,35 +230,42 @@ export class Terrain {
     /**
      * Corroe el terreno cerca de un punto (`docs/design/05-escenario.md` §5.5): quita hasta `area` de materia de las celdas
      * a `reach` o menos, empezando por las más cercanas, y marca sucios los tramos tocados; la forma se rehace en el
-     * próximo `update`. Solo se llama desde el loop, nunca dentro de un callback.
+     * próximo `update`. Solo se llama desde el loop, nunca dentro de un callback. `area` y lo devuelto se miden en materia
+     * de acero: a cada tramo se le saca `acidAttack` de su material por cada unidad de acero (el hormigón pierde un tercio
+     * y el vidrio nada), así el ácido se gasta igual sobre cualquier material.
      * @param {object} options
      * @param {number} options.x punto, en m del mundo
      * @param {number} options.y punto, en m del mundo
      * @param {number} options.reach en m
-     * @param {number} options.area materia a quitar, en m²
-     * @returns {number} área quitada, en m²
+     * @param {number} options.area materia de acero a quitar, en m²
+     * @returns {number} área de acero equivalente quitada, en m²
      */
     erodeAt({ x, y, reach, area }) {
         const localX = x - this.offsetX;
         const localY = y - this.offsetY;
         let removed = 0;
-        for (const { grid } of this.tiles) {
-            if (gridNear(grid, localX, localY, reach)) removed += grid.erode({ x: localX, y: localY, reach, area: area - removed });
+        for (const { grid, surface } of this.tiles) {
+            const { acidAttack } = SURFACES[surface];
+            if (acidAttack > 0 && gridNear(grid, localX, localY, reach)) {
+                removed += grid.erode({ x: localX, y: localY, reach, area: (area - removed) * acidAttack }) / acidAttack;
+            }
             if (removed >= area) break;
         }
         return removed;
     }
 
     /**
-     * Verdadero si hay materia a `reach` o menos del punto: el ácido apoyado sigue en contacto aunque Box2D ya no lo avise.
+     * Verdadero si hay materia que el ácido ataca a `reach` o menos del punto (el vidrio no cuenta): el ácido apoyado sigue
+     * en contacto aunque Box2D ya no lo avise.
      * @param {{x: number, y: number, reach: number}} point punto en m del mundo y radio en m
      * @returns {boolean}
      */
     touches({ x, y, reach }) {
         const localX = x - this.offsetX;
         const localY = y - this.offsetY;
-        for (const { grid } of this.tiles) {
-            if (gridNear(grid, localX, localY, reach) && grid.cellsWithin(localX, localY, reach).candidates.length > 0) return true;
+        for (const { grid, surface } of this.tiles) {
+            if (SURFACES[surface].acidAttack === 0 || !gridNear(grid, localX, localY, reach)) continue;
+            if (grid.cellsWithin(localX, localY, reach).candidates.length > 0) return true;
         }
         return false;
     }
