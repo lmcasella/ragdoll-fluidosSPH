@@ -107,7 +107,7 @@ class FakeSprite extends FakeContainer {
 }
 /**
  * `Graphics` falso: cuenta cuántos se construyeron (`constructed`) y guarda lo trazado desde el último `clear`:
- * `circles` (`x`, `y`, `radius`), `polygons` (lista plana de puntos), `lineTos`, `fills` y `strokes` (los estilos recibidos).
+ * `circles` (`x`, `y`, `radius`), `polygons` (lista plana de puntos), `moveTos`, `lineTos`, `arcs`, `cuts`, `fills` y `strokes` (los estilos recibidos).
  */
 class FakeGraphics extends FakeContainer {
     static constructed = 0;
@@ -121,6 +121,9 @@ class FakeGraphics extends FakeContainer {
 
     reset() {
         this.rectangles = 0;
+        this.arcs = 0;
+        this.moveTos = 0;
+        this.cuts = 0;
         this.circles = [];
         this.polygons = [];
         this.lineTos = 0;
@@ -150,6 +153,17 @@ class FakeGraphics extends FakeContainer {
     }
 
     moveTo() {
+        this.moveTos++;
+        return this;
+    }
+
+    arc() {
+        this.arcs++;
+        return this;
+    }
+
+    cut() {
+        this.cuts++;
         return this;
     }
 
@@ -170,6 +184,20 @@ class FakeGraphics extends FakeContainer {
     stroke(style) {
         this.strokes.push(style);
         return this;
+    }
+}
+
+/** `Text` falso: cuenta cuántos se construyeron (`constructed`) y guarda el texto, el estilo, la resolución y el ancla. */
+class FakeText extends FakeContainer {
+    static constructed = 0;
+
+    constructor({ text = "", style = {}, resolution = 1 } = {}) {
+        super();
+        FakeText.constructed++;
+        this.text = text;
+        this.style = style;
+        this.resolution = resolution;
+        this.anchor = new FakePoint();
     }
 }
 
@@ -279,6 +307,7 @@ export function installFakePixi() {
         Sprite: FakeSprite,
         Texture: FakeTexture,
         Graphics: FakeGraphics,
+        Text: FakeText,
         Particle: FakeParticle,
         ParticleContainer: FakeParticleContainer,
         FillGradient: FakeFillGradient,

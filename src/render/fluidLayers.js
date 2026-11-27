@@ -1,4 +1,4 @@
-import { metaballPeak, metaballProfile } from "./render.js";
+import { metaballPeak, metaballProfile } from "./fluidDraw.js";
 
 /** Lado en px de la textura de campo de cada material; el sprite se escala a metros al dibujarlo. */
 const FIELD_TEXTURE_SIZE_PX = 64;

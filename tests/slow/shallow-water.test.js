@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { ShallowWater, WATER_FIELD } from "../../src/water/water.js";
 import { LEVEL } from "../../src/level/level.js";
 import { SIGMA_W, MATERIALS } from "../../src/fluids/materials.js";
-import { fieldColor } from "../../src/render/render.js";
+import { fieldColor } from "../../src/render/waterView.js";
 import { WaterView } from "../../src/render/waterView.js";
 import { installFakePixi } from "../helpers/fake-pixi.js";
 import { relativeError as rel } from "../../src/core/debug.js";

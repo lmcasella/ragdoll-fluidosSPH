@@ -85,17 +85,8 @@ export class Camera {
     }
 
     /**
-     * Deja un contexto 2D dibujando en metros, Y hacia arriba, con la escala y la posición de la cámara.
-     * @param {CanvasRenderingContext2D} ctx
-     */
-    apply(ctx) {
-        const s = this.scale;
-        ctx.setTransform(s, 0, 0, -s, this.viewW / 2 - this.x * s, this.viewH / 2 + this.y * s);
-    }
-
-    /**
      * Pone la cámara en un contenedor PIXI cuya geometría está en px a `pixelsPerMeter`: el zoom con Y invertida
-     * y la posición que deja el punto de la cámara en el centro de la vista (igual que `apply`).
+     * y la posición que deja el punto de la cámara en el centro de la vista.
      * @param {PIXI.Container} container
      */
     applyTo(container) {

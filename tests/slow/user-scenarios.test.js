@@ -20,7 +20,7 @@ const { SINK, ORIGIN } = await import("../../src/fluids/particleStore.js");
 const { FLUID, weaponById } = await import("../../src/combat/weapons.js");
 const { PARTICLE } = await import("../../src/fluids/particles.js");
 const { WATER_FIELD } = await import("../../src/water/water.js");
-const render = await import("../../src/render/render.js");
+const { fieldColor } = await import("../../src/render/waterView.js");
 
 /** Carpeta de grabación (vacía: no se graba) y frames entre registros grabados. */
 const RECORD_DIR = process.env.USER_SCENARIOS_RECORD ?? "";
@@ -318,7 +318,7 @@ test("U3 (#98): un tanque de ácido a la pileta; Q1b en cada paso durante 60 s, 
     const acidMass = MATERIALS.acid.SG * SIGMA_W * immersion.area;
     const wAcid = MATERIALS.acid.species.H2SO4;
     const sgAcid = MATERIALS.acid.SG;
-    const pure = render.fieldColor(water, impactX);
+    const pure = fieldColor(water, impactX);
 
     let frame = 0;
     let firstShot = -1;
@@ -371,7 +371,7 @@ test("U3 (#98): un tanque de ácido a la pileta; Q1b en cada paso durante 60 s, 
                 expectedW: (absorbed * acidMass * wAcid) / (SIGMA_W * v0 + absorbed * acidMass),
                 worstRho,
                 columns,
-                colour: render.fieldColor(water, impactX),
+                colour: fieldColor(water, impactX),
                 wImpact: water.acidFractionAt(impactX),
                 seconds: (frame - lastShot) / STEPS_PER_SECOND,
             };

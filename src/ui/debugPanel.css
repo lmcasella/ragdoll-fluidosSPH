@@ -1,0 +1,13 @@
+.debug-panel .debug-lines {
+    position: absolute;
+    left: 8px;
+    top: max(8px, 13cqh);
+    width: 360px;
+    margin: 0;
+    padding: 6px;
+    box-sizing: border-box;
+    background: var(--scrim);
+    color: var(--text);
+    font: 12px/15px monospace;
+    white-space: pre;
+}

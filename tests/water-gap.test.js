@@ -6,7 +6,8 @@ import "./helpers/fluid-bench.js";
 const { stepWorld } = await import("../lib/ragimporter.js");
 const { createParticleSystem } = await import("../src/fluids/particles.js");
 const { SHOT_SYSTEM } = await import("../src/combat/weapons.js");
-const { collectSurfaces, skinPosition, PARTICLE_RADIUS, SHOT_DRAW } = await import("../src/render/render.js");
+const { collectSurfaces, skinPosition } = await import("../src/render/fluidSurfaces.js");
+const { PARTICLE_RADIUS, SHOT_DRAW } = await import("../src/render/fluidDraw.js");
 
 const SECONDS = 8;
 // Tolerancia del borde dibujado respecto de la superficie (m); el agua se mete SKIN_OVERLAP = 0,02 m bajo el cuerpo

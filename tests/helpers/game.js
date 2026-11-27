@@ -31,7 +31,7 @@ export function giveAllWeapons(game) {
  * elección por defecto del menú (o la que pidan `?bot=` y `localStorage`), para que las pruebas de gameplay no pasen
  * por el título y la cuenta regresiva; con `options.intro` arranca en `title`, como en el navegador.
  * `options.storage` es el `localStorage` falso del juego (con `getItem` y `setItem`); sin él no hay almacenamiento.
- * `game.hudTexts` y `game.laserMoves` espían lo dibujado en el último frame (panel de debug y capa superpuesta de la mira).
+ * `game.hudTexts` y `game.laserStrokes` leen lo dibujado en el último frame (panel de debug HTML y mira láser en PIXI).
  * El `PIXI` es el falso de `tests/helpers/fake-pixi.js`; el DOM falso tiene `document.querySelectorAll` por etiqueta.
  * Sin `intro`, la asignación de controles es la clásica de las pruebas: el teclado y el gamepad 0 en J1, el gamepad 1 en J2.
  * `options.map` es el mapa de la partida ("classic" por defecto, o "infinite"); se escribe en el menú antes de arrancar.
@@ -47,18 +47,9 @@ export async function loadGame(options = {}) {
         innerHeight: 720,
         addEventListener: (type, fn) => (handlers[type] ??= []).push(fn),
     };
-    const spy = { hudTexts: [], laserMoves: 0, arcs: 0 };
-    const spies = {
-        panelLayer: { clearRect: () => (spy.hudTexts.length = 0), fillText: (text) => spy.hudTexts.push(String(text)) },
-        overlayLayer: { clearRect: () => ((spy.laserMoves = 0), (spy.arcs = 0)), moveTo: () => spy.laserMoves++, arc: () => spy.arcs++ },
-    };
     class FakeCanvas extends FakeElement {
         constructor() {
             super("canvas");
-        }
-
-        getContext() {
-            return inert({ createRadialGradient: () => inert(), createLinearGradient: () => inert(), ...spies[this.id] });
         }
     }
     const body = new FakeElement("body");
@@ -126,17 +117,14 @@ export async function loadGame(options = {}) {
     return {
         state: globalThis.game,
         handlers,
-        /** Textos que se dibujaron en el HUD en el último frame. */
+        /** Líneas de texto que muestra el panel de debug HTML en el último frame (vacío con el menú cerrado). */
         get hudTexts() {
-            return spy.hudTexts;
+            const { root, body } = globalThis.game.debugPanel;
+            return root.hidden ? [] : body.textContent.split("\n");
         },
-        /** Trazos `moveTo` del canvas de la capa de mira (mira láser y golpes) en el último frame. */
-        get laserMoves() {
-            return spy.laserMoves;
-        },
-        /** Círculos `arc` del canvas de la capa de mira en el último frame (los puntos del debug). */
-        get arcs() {
-            return spy.arcs;
+        /** Trazos de la mira láser de los dos jugadores en el último frame. */
+        get laserStrokes() {
+            return globalThis.game.aimLaserView.graphics.reduce((total, graphics) => total + graphics.strokes.length, 0);
         },
         get now() {
             return clock / 1000;

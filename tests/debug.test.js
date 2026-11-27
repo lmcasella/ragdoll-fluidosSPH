@@ -1,12 +1,17 @@
 /**
  * Monitor de física (#29, docs/design/14-agua.md §14.12) y menú de debug (#258): D1 menú con un solo botón, teclado y
- * gamepad simulado, y pausa; D2 costo por frame con canvas falso; D3 deriva de volumen igual a la del test W1; D4 capas
+ * gamepad simulado, y pausa; D2 costo por frame con PIXI falso; D3 deriva de volumen igual a la del test W1; D4 capas
  * por separado; D5 modo de fluidos en puntos y memoria nativa.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { Debug, DEBUG_ROWS, FLUID_MODES, relativeError } from "../src/core/debug.js";
+import { DebugView } from "../src/render/debugView.js";
+import { DebugPanel } from "../src/ui/debugPanel.js";
+import { installFakePixi } from "./helpers/fake-pixi.js";
+import { fakeDocument } from "./helpers/fake-dom.js";
+import { COLOR_BYTES, tintOf } from "../src/core/color.js";
 import { ShallowWater, WATER_FIELD } from "../src/water/water.js";
 import { SIGMA_W, MATERIALS } from "../src/fluids/materials.js";
 import { newWorld, addSolids, wallFor, DT } from "./helpers/water-bench.js";
@@ -180,7 +185,8 @@ test("D1 las opciones elegidas siguen activas con el menú cerrado y sus trazos 
     Box2D.destroy(def);
     Box2D.destroy(at);
     game.frames(2);
-    const base = game.laserMoves;
+    const { velocidades } = game.state.debugView.layerGraphics;
+    assert.equal(velocidades.moveTos, 0, "con la capa apagada no hay flechas");
 
     tapKey(game, "F3");
     tapKey(game, "ArrowDown");
@@ -190,14 +196,15 @@ test("D1 las opciones elegidas siguen activas con el menú cerrado y sus trazos 
     assert.equal(debug.open, false);
     assert.equal(debug.layers.velocidades, true);
     game.frames(2);
-    assert.ok(game.laserMoves >= base + 20, `velocidades dibuja flechas (${game.laserMoves} contra ${base})`);
+    assert.ok(velocidades.moveTos >= 20, `velocidades dibuja flechas (${velocidades.moveTos})`);
     assert.equal(hasMenu(game), false);
     assert.equal(hasStats(game), false, "las estadísticas solo se ven con el menú abierto");
 });
 
 test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpuesta, sin el filtro de umbral; ambos dibuja las dos cosas", async () => {
     const game = await loadGame();
-    const { debug, store, fluidLayers } = game.state;
+    const { debug, store, fluidLayers, debugView, scene } = game.state;
+    const circles = () => debugView.pointsGraphics.circles.length;
     game.frames(5);
     const def = new Box2D.b2ParticleDef();
     const at = new Box2D.b2Vec2(0, 0);
@@ -209,13 +216,12 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpues
     }
     Box2D.destroy(def);
     Box2D.destroy(at);
-    const count = game.state.particleSystem.GetParticleCount();
     const shown = () => [...fluidLayers.layers.values()].filter((entry) => entry.node.visible).length;
 
     game.frames(2);
     assert.equal(debug.fluidMode, "metaball");
     assert.ok(shown() > 0, "metaball: hay capas de fluido");
-    const arcs0 = game.arcs;
+    assert.equal(circles(), 0, "metaball no dibuja puntos");
 
     tapKey(game, "F3");
     tapKey(game, "ArrowDown");
@@ -224,7 +230,7 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpues
     game.frames(2);
     assert.equal(debug.fluidMode, "puntos");
     assert.equal(shown(), 0, "en puntos las capas de metaball quedan ocultas, no congeladas");
-    assert.ok(game.arcs >= arcs0 + count, `un círculo por partícula (${game.arcs} contra ${arcs0})`);
+    assert.equal(circles(), game.state.particleSystem.GetParticleCount(), "un círculo por partícula");
 
     tapKey(game, "F3");
     tapKey(game, "ArrowRight");
@@ -232,23 +238,34 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpues
     game.frames(2);
     assert.equal(debug.fluidMode, "ambos");
     assert.ok(shown() > 0, "ambos: también el metaball");
-    assert.ok(game.arcs >= arcs0 + count);
+    assert.equal(circles(), game.state.particleSystem.GetParticleCount());
 
     const filtered = [...fluidLayers.layers.values()].every((entry) => entry.node.filters.length === 1);
     assert.ok(filtered, "las capas de fluido llevan el filtro de umbral");
-    assert.equal(game.state.scene.overlayLayer.sprite.filters, null, "la capa de los puntos va sin filtro");
+    assert.equal(debugView.pointsGraphics.filters, null, "la capa de los puntos va sin filtro");
+    assert.equal(debugView.pointsGraphics.parent, scene.overlayLayer, "los puntos van en la capa superpuesta, no en la de fluidos");
+
+    tapKey(game, "F3");
+    tapKey(game, "ArrowRight");
+    tapKey(game, "F3");
+    game.frames(2);
+    assert.equal(debug.fluidMode, "metaball");
+    assert.equal(circles(), 0, "al volver a metaball los puntos se borran");
 });
 
-const fake = () => {
-    const stored = {};
-    return new Proxy(() => undefined, {
-        get: (_, prop) => (prop in stored ? stored[prop] : () => undefined),
-        set: (_, prop, value) => {
-            stored[prop] = value;
-            return true;
-        },
-    });
-};
+const PIXELS_PER_METER = 32;
+const SCREEN_SCALE = 40;
+
+/** Vista de debug sobre un `PIXI` falso, con su panel HTML falso, para medir y contar lo que dibuja sin navegador. */
+function newView(debug) {
+    installFakePixi();
+    const view = new DebugView({ parent: new PIXI.Container(), pixelsPerMeter: PIXELS_PER_METER, debug });
+    const panel = new DebugPanel(fakeDocument(), fakeDocument().body);
+    return { view, panel };
+}
+
+/** Trazos que dejó la vista en todas sus capas de vectores. */
+const strokesOf = (view) => Object.values(view.layerGraphics).flatMap((graphics) => graphics.strokes);
 
 /** Escena de costo: 2000 partículas de LiquidFun real, campo de alturas lleno, 15 piezas y 2 bots. */
 function costScene() {
@@ -304,12 +321,12 @@ const sampleData = () => ({
 });
 
 /** Un frame completo de uso del monitor: lo que `index.js` le pide en el loop. */
-function frameOf(debug, ctx, refs, data) {
+function frameOf(debug, { view, panel }, refs, data) {
     debug.begin();
     for (let i = 0; i < 15; i++) debug.mark("x");
     debug.frame(data);
-    debug.drawLayer(ctx, 40, refs);
-    debug.drawPanel(ctx, 1280, 720);
+    view.drawLayers(SCREEN_SCALE, debug.anyLayer ? refs : null);
+    panel.update(debug.panelLines());
 }
 
 /** Referencias de `drawPoints` del sistema de la escena de costo. */
@@ -327,11 +344,11 @@ function pointRefs(system) {
 test("D2 costo por frame: apagado < 0,05 ms y encendido (panel + capa) <= 1 ms (se exige con PERF=1, en corrida aislada)", (t) => {
     const { refs, wall } = costScene();
     const data = sampleData();
-    const ctx = fake();
     const measure = (debug, frames) => {
-        for (let i = 0; i < 50; i++) frameOf(debug, ctx, refs, data);
+        const views = newView(debug);
+        for (let i = 0; i < 50; i++) frameOf(debug, views, refs, data);
         const t0 = realNow();
-        for (let i = 0; i < frames; i++) frameOf(debug, ctx, refs, data);
+        for (let i = 0; i < frames; i++) frameOf(debug, views, refs, data);
         return (realNow() - t0) / frames;
     };
     const off = measure(new Debug({ now: realNow }), 2000);
@@ -390,50 +407,49 @@ test("D3 la deriva de volumen del monitor coincide con la de W1 en la misma esce
     assert.ok(worst < 1e-4);
 });
 
-/** Contexto falso que cuenta `stroke` y `arc` y registra el ancho y los estilos de trazo y de relleno que se le asignan. */
-function countingCtx() {
-    const log = { strokes: 0, arcs: 0, lineWidth: 0, styles: [], fills: [] };
-    const props = {
-        stroke: () => log.strokes++,
-        arc: () => log.arcs++,
-    };
-    const ctx = new Proxy(() => undefined, {
-        get: (_, prop) => props[prop] ?? (() => undefined),
-        set: (_, prop, value) => {
-            if (prop === "strokeStyle") log.styles.push(value);
-            if (prop === "fillStyle") log.fills.push(value);
-            if (prop === "lineWidth") log.lineWidth = value;
-            return true;
-        },
-    });
-    return { ctx, log };
-}
 test("D4 cada capa se dibuja solo si está en sí, con trazo de 1 px y alfa 0,5", (t) => {
     const { refs, wall } = costScene();
     const expected = { velocidades: 1, fuerzas: 2, columnas: 2, bots: 1 };
-    const scale = 40;
     const run = (layers) => {
         const debug = new Debug({ now: realNow });
         Object.assign(debug.layers, layers);
         debug.frame(sampleData());
-        const { ctx, log } = countingCtx();
-        debug.drawLayer(ctx, scale, refs);
-        return log;
+        const { view } = newView(debug);
+        view.drawLayers(SCREEN_SCALE, debug.anyLayer ? refs : null);
+        return strokesOf(view);
     };
-    assert.equal(run({}).strokes, 0, "todo apagado no dibuja");
+    assert.equal(run({}).length, 0, "todo apagado no dibuja");
     for (const name in expected) {
-        const log = run({ [name]: true });
-        assert.equal(log.strokes, expected[name], `solo ${name}`);
-        assert.equal(log.lineWidth, 1 / scale, "1 px de ancho");
-        for (const style of log.styles) assert.match(style, /, 0\.5\)$/, `${name}: ${style}`);
-        assert.ok(log.styles.length > 0);
+        const strokes = run({ [name]: true });
+        assert.equal(strokes.length, expected[name], `solo ${name}`);
+        for (const stroke of strokes) {
+            assert.equal(stroke.width, PIXELS_PER_METER / SCREEN_SCALE, `${name}: 1 px de pantalla en px de la geometría`);
+            assert.equal(stroke.alpha, 0.5, `${name}: alfa 0,5`);
+        }
     }
     const all = run({ velocidades: true, fuerzas: true, columnas: true, bots: true });
-    assert.equal(all.strokes, 6);
+    assert.equal(all.length, 6);
     wall.dispose();
     t.diagnostic("D4: trazos por capa velocidades 1, fuerzas 2, columnas 2, bots 1");
 });
 
+test("D4 una capa que se apaga se borra y una apagada no vuelve a dibujar ni crea gráficos", () => {
+    const { refs, wall } = costScene();
+    const debug = new Debug({ now: realNow });
+    debug.layers.bots = true;
+    debug.frame(sampleData());
+    const { view } = newView(debug);
+    view.drawLayers(SCREEN_SCALE, refs);
+    assert.equal(view.layerGraphics.bots.strokes.length, 1);
+    debug.layers.bots = false;
+    const built = PIXI.Graphics.constructed;
+    view.drawLayers(SCREEN_SCALE, null);
+    view.drawLayers(SCREEN_SCALE, null);
+    assert.equal(view.layerGraphics.bots.strokes.length, 0, "la capa apagada queda vacía");
+    assert.equal(view.layerGraphics.bots.clears, 2, "se borró una vez al apagarla (más la del primer dibujo)");
+    assert.equal(PIXI.Graphics.constructed, built, "no se crean gráficos por frame");
+    wall.dispose();
+});
 test("D4 el menú recorre las filas con cursor cíclico y cambia valores en las dos direcciones", () => {
     const debug = new Debug();
     debug.update({ y: 1 });
@@ -459,20 +475,29 @@ test("D4 el menú recorre las filas con cursor cíclico y cambia valores en las 
 test("D5 en puntos hay un círculo por partícula con el color del buffer y alfa 0,8; en metaball no hay ninguno", (t) => {
     const { system, wall } = costScene();
     const debug = new Debug();
+    const { view } = newView(debug);
     const refs = pointRefs(system);
-    const { ctx, log } = countingCtx();
-    debug.drawPoints(ctx, refs);
-    assert.equal(log.arcs, 0, "metaball no dibuja puntos");
+    const circles = () => view.pointsGraphics.circles.length;
+    view.drawPoints(null);
+    assert.equal(circles(), 0, "metaball no dibuja puntos");
     debug.fluidMode = "puntos";
-    debug.drawPoints(ctx, refs);
-    assert.equal(log.arcs, refs.count);
-    assert.ok(log.fills.length > 0 && log.fills.every((f) => f.endsWith(", 0.8)")));
+    view.drawPoints(refs);
+    assert.equal(circles(), refs.count);
+    const { fills } = view.pointsGraphics;
+    assert.equal(fills.length, refs.count, "un relleno por círculo");
+    assert.ok(fills.every((fill) => fill.alpha === 0.8));
+    const first = Box2D.HEAPU8.slice(refs.color, refs.color + COLOR_BYTES);
+    assert.equal(fills[0].color, tintOf(first[0], first[1], first[2]), "el color es el del buffer de la partícula");
+    assert.equal(view.pointsGraphics.circles[0].radius, system.GetRadius() * PIXELS_PER_METER, "el radio es el físico");
     debug.fluidMode = "ambos";
-    debug.drawPoints(ctx, refs);
-    assert.equal(log.arcs, 2 * refs.count);
+    view.drawPoints(refs);
+    assert.equal(circles(), refs.count, "se redibuja sin acumular");
     assert.equal(debug.metaballOn, true);
     debug.fluidMode = "puntos";
     assert.equal(debug.metaballOn, false);
+    debug.fluidMode = "metaball";
+    view.drawPoints(null);
+    assert.equal(circles(), 0, "al volver a metaball se borran");
     wall.dispose();
     t.diagnostic(`D5: ${refs.count} círculos por frame`);
 });
@@ -481,16 +506,16 @@ test("D5 dibujar 1000 frames en puntos no hace crecer el heap nativo", (t) => {
     const { system, wall } = costScene();
     const debug = new Debug();
     debug.fluidMode = "puntos";
-    const ctx = fake();
+    const { view } = newView(debug);
     const top = () => {
-        const p = Box2D._malloc(1 << 20);
-        Box2D._free(p);
-        return p;
+        const pointer = Box2D._malloc(1 << 20);
+        Box2D._free(pointer);
+        return pointer;
     };
-    for (let i = 0; i < 20; i++) debug.drawPoints(ctx, pointRefs(system));
+    for (let i = 0; i < 20; i++) view.drawPoints(pointRefs(system));
     const before = top();
     const size = Box2D.HEAP8.length;
-    for (let i = 0; i < 1000; i++) debug.drawPoints(ctx, pointRefs(system));
+    for (let i = 0; i < 1000; i++) view.drawPoints(pointRefs(system));
     const after = top();
     t.diagnostic(`D5: tope del heap antes ${before} y después ${after}; tamaño ${Box2D.HEAP8.length} B`);
     assert.equal(after, before);
