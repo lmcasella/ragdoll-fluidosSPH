@@ -8,6 +8,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ### Added
 - Fondo de planta industrial con parallax de cuatro capas (chimeneas y tanques lejos, cañerías y estructuras en el medio, vigas cerca), dibujado por el juego. En el modo Infinito cambia con la altura: piso de planta, pasarelas, y arriba chimeneas con humo y más cielo (#345).
 - Capa "Terreno" en el menú de debug: muestra la densidad de las celdas del terreno, el contorno, los polígonos convexos con sus uniones, los bordes de los tramos y hace destellar el tramo que se rehízo; el panel suma las grillas, los polígonos, los vértices y el costo de reconstruir por frame (#346).
+- El ácido corroe el terreno: cada gota que toca el piso, una pared o una plataforma atravesable se gasta y disuelve acero según la reacción Fe + H₂SO₄ (con un factor de aceleración para que se vea en la ronda). Un chorro continuo abre un hueco a través de una plataforma en unos 3 s; los pedazos que quedan se mantienen en su lugar y el dibujo del nivel muestra el contorno real (#347).
 
 ### Changed
 - Las plataformas atravesables, el piso y las paredes pasan a ser terreno de densidad: cada una guarda su materia en una grilla de celdas de unos 5 cm y su forma física sale de ella. Sin cambios para el jugador (#346).

@@ -41,6 +41,8 @@ export class DamageSystem {
         this.drownSurface = null;
         /** Puntero de fixture sensor → función que recibe el puntero del cuerpo que lo tocó; solo debe encolar (ver `src/level/pickups.js`). */
         this.sensorHooks = new Map();
+        /** `(bodyPointer, index)` para un contacto partícula↔cuerpo que no es de un robot, o `null`; solo debe encolar (ver `src/fluids/corrosion.js`). */
+        this.bodyContactHook = null;
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };
         this.manifold = new Box2D.b2WorldManifold();
@@ -146,8 +148,12 @@ export class DamageSystem {
     onParticleBodyContact(systemPtr, contactPtr) {
         if (systemPtr !== this.particleSystemPtr) return;
         const contact = Box2D.wrapPointer(contactPtr, Box2D.b2ParticleBodyContact);
-        const owner = this.owners.get(Box2D.getPointer(contact.get_body()));
-        if (!owner) return;
+        const bodyPointer = Box2D.getPointer(contact.get_body());
+        const owner = this.owners.get(bodyPointer);
+        if (!owner) {
+            this.bodyContactHook?.(bodyPointer, contact.get_index());
+            return;
+        }
         const index = contact.get_index();
         const store = this.store;
         const slot = store.slotAt(index);

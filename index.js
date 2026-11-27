@@ -20,6 +20,7 @@ import { CLIMB, Climb, StagePrizes } from "./src/level/climb.js";
 import { ShallowWater } from "./src/water/water.js";
 import { Immersion } from "./src/water/immersion.js";
 import { Evaporation } from "./src/fluids/evaporation.js";
+import { Corrosion } from "./src/fluids/corrosion.js";
 import { Thermal, THERMAL } from "./src/fluids/thermal.js";
 import { Viscosity } from "./src/fluids/viscosity.js";
 import { Adhesion } from "./src/fluids/adhesion.js";
@@ -343,6 +344,9 @@ function lowestAlive() {
 
 /** Terreno de densidad del mapa en juego (`docs/design/05-escenario.md` §5.5). */
 const currentTerrain = () => (climb ? climb.terrain : classic.terrain);
+
+const corrosion = new Corrosion({ system: particleSystem, store, terrain: currentTerrain });
+damage.bodyContactHook = (bodyPointer, index) => corrosion.enqueue(bodyPointer, index);
 
 /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
 function aplicarMapa(map) {
@@ -725,7 +729,7 @@ function debugTerrainRefs() {
 /** Solo para las pruebas en Node (`tests/helpers/game.js`): expone el estado del juego en `globalThis.game`. */
 if (globalThis.__TEST_HOOKS__) {
     globalThis.game = {
-        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, debugView, debugPanel, pickupView, aimLaserView, hitEffectsView, weaponWheelView, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
+        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, corrosion, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, debugView, debugPanel, pickupView, aimLaserView, hitEffectsView, weaponWheelView, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
         get flood() { return flood; },
         get pickups() { return pickups; },
         get climb() { return climb; },
@@ -923,6 +927,7 @@ function simular(frameDt, enTitulo) {
             match.hazardsActive ? wetSurface : -Infinity,
             (x) => water.conductivityAt(x),
         );
+        corrosion.process();
         melee.resolve(players, now);
         pickups.process(now);
         debug.mark("daño");
@@ -1040,7 +1045,7 @@ function loop(nowMs) {
     camera.applyTo(scene.world);
     backgroundView.update({ x: camera.x, y: camera.y, zoom: camera.zoom, viewWidth: camera.viewW, viewHeight: camera.viewH });
     const offsetY = climb ? climb.offsetY : 0;
-    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
+    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale, terrain.shape);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
     debug.mark("dibujo");
     if (debug.metaballOn) drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);

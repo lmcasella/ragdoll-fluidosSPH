@@ -22,6 +22,9 @@ const OUTLINE_SCREEN_PX = 2;
 /** Cambio relativo del grosor del trazo (en la geometría) a partir del cual se reconstruye el nivel para seguir el zoom. */
 const OUTLINE_REBUILD_TOLERANCE = 0.1;
 
+/** Valores por vértice en un anillo intercalado: x e y. */
+const VALUES_PER_VERTEX = 2;
+
 /** Estado que se guarda de una plataforma rota para detectar cuándo cambia (las intactas guardan su `crack`, de 0 a 1). */
 const BROKEN_STATE = -1;
 
@@ -34,6 +37,20 @@ const BROKEN_STATE = -1;
 function mixColor(from, to, amount) {
     const channels = from.map((channel, index) => Math.round(lerp(channel, to[index], amount)));
     return `rgb(${channels.join(", ")})`;
+}
+
+/**
+ * Un anillo es externo si su área con signo es positiva y agujero si es negativa (fórmula del cordón).
+ * @param {number[]} ring vértices intercalados (x, y)
+ * @returns {boolean}
+ */
+function ringIsOuter(ring) {
+    let doubleArea = 0;
+    for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
+        const next = (index + VALUES_PER_VERTEX) % ring.length;
+        doubleArea += ring[index] * ring[next + 1] - ring[next] * ring[index + 1];
+    }
+    return doubleArea > 0;
 }
 
 export class LevelView {
@@ -51,6 +68,7 @@ export class LevelView {
         parent.addChild(this.container);
         this.solids = null;
         this.solidCount = -1;
+        this.shapeVersion = -1;
         this.outlineWidth = 0;
         this.breakableStates = [];
         this.breakableCount = -1;
@@ -66,19 +84,24 @@ export class LevelView {
      * @param {number} offsetY desplazamiento vertical del nivel, en m
      * @param {number} now reloj de juego, en s (fase de la vibración)
      * @param {number} screenScale escala de la cámara, en px de pantalla por metro
+     * @param {{version: number, rings: number[][]}|null} [terrainShape] contornos del terreno de densidad en m (externos de
+     * área positiva, agujeros de área negativa) y su versión; con ellos los sólidos fijos se dibujan con su forma real, y
+     * sin ellos como rectángulos (`docs/design/05-escenario.md` §5.5)
      */
-    update(level, offsetY, now, screenScale) {
+    update(level, offsetY, now, screenScale, terrainShape = null) {
         const { solids } = level;
         const outlineWidth = (OUTLINE_SCREEN_PX * this.pixelsPerMeter) / screenScale;
         if (Math.abs(outlineWidth - this.outlineWidth) > this.outlineWidth * OUTLINE_REBUILD_TOLERANCE) {
             this.outlineWidth = outlineWidth;
             this.solidCount = -1;
         }
-        if (solids !== this.solids || solids.length !== this.solidCount) {
+        const shapeVersion = terrainShape ? terrainShape.version : -1;
+        if (solids !== this.solids || solids.length !== this.solidCount || shapeVersion !== this.shapeVersion) {
             this.solids = solids;
             this.solidCount = solids.length;
+            this.shapeVersion = shapeVersion;
             this.breakableCount = -1;
-            this.buildFixed(solids);
+            this.buildFixed(solids, terrainShape);
         }
         if (this.breakableChanged(solids)) this.buildBreakable(solids, now);
         this.container.position.y = offsetY * this.pixelsPerMeter;
@@ -106,17 +129,34 @@ export class LevelView {
         return changed;
     }
 
-    /** Dibuja todos los sólidos fijos con un solo relleno y un solo trazo. */
-    buildFixed(solids) {
+    /**
+     * Dibuja todos los sólidos fijos con un solo relleno y un solo trazo: los contornos del terreno si hay, con sus
+     * agujeros recortados, y si no los rectángulos.
+     */
+    buildFixed(solids, terrainShape) {
         const graphics = this.fixedGraphics;
         graphics.clear();
-        for (const solid of solids) {
-            if (solid.breakable) continue;
-            this.addRectangle(graphics, solid, 0);
+        if (terrainShape) {
+            this.addRings(graphics, terrainShape.rings.filter((ring) => ringIsOuter(ring)));
+            graphics.fill(SOLID_FILL);
+            this.addRings(graphics, terrainShape.rings.filter((ring) => !ringIsOuter(ring)));
+            graphics.cut();
+            this.addRings(graphics, terrainShape.rings);
+        } else {
+            for (const solid of solids) {
+                if (solid.breakable) continue;
+                this.addRectangle(graphics, solid, 0);
+            }
+            graphics.fill(SOLID_FILL);
         }
-        graphics.fill(SOLID_FILL);
         graphics.stroke({ width: this.outlineWidth, color: SOLID_STROKE });
         this.fixedBuilds++;
+    }
+
+    /** Agrega cada anillo (vértices intercalados en m) como un polígono cerrado. */
+    addRings(graphics, rings) {
+        const scale = this.pixelsPerMeter;
+        for (const ring of rings) graphics.poly(ring.map((coordinate) => coordinate * scale), true);
     }
 
     /** Dibuja las plataformas rompibles que no están rotas: el color pasa al de advertencia y vibran con `crack`. */

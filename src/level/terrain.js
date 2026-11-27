@@ -102,6 +102,9 @@ export class Terrain {
         this.tiles = new Set();
         /** Contador de llamadas a `update`: marca el frame en que se rehízo cada tramo. */
         this.frame = 0;
+        /** Sube con cada forma rehecha; `shape` lo usa para saber cuándo rearmar sus contornos. */
+        this.shapeVersion = 0;
+        this.cachedShape = { version: -1, rings: [] };
         /** Tramos rehechos y costo (ms) de la última llamada a `update`. */
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
@@ -174,6 +177,44 @@ export class Terrain {
         for (const fixture of previous) this.body.DestroyFixture(fixture);
         Object.assign(tile, { fixtures: created, rings: shape.rings, polygons: shape.polygons });
         tile.grid.dirty = false;
+        this.shapeVersion++;
+    }
+
+    /**
+     * Contornos de todos los tramos para dibujar: vértices intercalados en m, en el marco local del cuerpo, con los
+     * externos de área positiva y los agujeros de área negativa. El arreglo se rearma solo si cambió alguna forma.
+     * @returns {{version: number, rings: number[][]}}
+     */
+    get shape() {
+        if (this.cachedShape.version !== this.shapeVersion) {
+            this.cachedShape = { version: this.shapeVersion, rings: [...this.tiles].flatMap((tile) => tile.rings) };
+        }
+        return this.cachedShape;
+    }
+
+    /**
+     * Corroe el terreno cerca de un punto (`docs/design/05-escenario.md` §5.5): quita hasta `area` de materia de las celdas
+     * a `reach` o menos, empezando por las más cercanas, y marca sucios los tramos tocados; la forma se rehace en el
+     * próximo `update`. Solo se llama desde el loop, nunca dentro de un callback.
+     * @param {object} options
+     * @param {number} options.x punto, en m del mundo
+     * @param {number} options.y punto, en m del mundo
+     * @param {number} options.reach en m
+     * @param {number} options.area materia a quitar, en m²
+     * @returns {number} área quitada, en m²
+     */
+    erodeAt({ x, y, reach, area }) {
+        const localX = x - this.offsetX;
+        const localY = y - this.offsetY;
+        let removed = 0;
+        for (const { grid } of this.tiles) {
+            const near =
+                localX >= grid.originX - reach && localX <= grid.originX + grid.width + reach &&
+                localY >= grid.originY - reach && localY <= grid.originY + grid.height + reach;
+            if (near) removed += grid.erode({ x: localX, y: localY, reach, area: area - removed });
+            if (removed >= area) break;
+        }
+        return removed;
     }
 
     /**
@@ -187,6 +228,7 @@ export class Terrain {
         }
         tile.fixtures = [];
         this.tiles.delete(tile);
+        this.shapeVersion++;
     }
 
     /**
