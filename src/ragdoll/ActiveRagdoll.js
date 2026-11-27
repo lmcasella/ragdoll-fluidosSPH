@@ -50,7 +50,7 @@ export const MAX_HP = 100;
  * al control) y se levanta con `reviveHp` de vida. El primer nocaut de la ronda dura `time` s y cada uno siguiente
  * `step` s más, hasta `maxTime`. Solo el agua lo saca de la partida.
  */
-export const KNOCKOUT = { time: 5, step: 3, maxTime: 18, reviveHp: 50 };
+export const KNOCKOUT = { time: 3, step: 3, maxTime: 18, reviveHp: 50 };
 const AIM_LIMIT = Math.PI - 0.05;
 const AIM_HYSTERESIS = 0.4;
 const GROUND_RAY = 0.3;
