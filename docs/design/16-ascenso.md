@@ -82,7 +82,7 @@ Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, 
 
 - `immersion.js`: el rango de x es `[x0 + i0·dx, x0 + i1·dx)` en vez de `[x0, x0 + N·dx)`, y los índices de columna se recortan a `[i0, i1 − 1]`.
 - `buoyancy.js`: `c0`, `c1` y el rango de descarte, recortados al span.
-- `src/render/waterView.js`: `waterOutline` y el degradado recorren solo el span. `drawWater` recibe un argumento opcional `deep = { floor, bottom }`: si `floor > 0`, pinta además un rectángulo del color del agua entre las caras del span, desde `floor` hasta `bottom` (borde inferior de la cámara). Así no se ve el fondo efectivo. I3f no aplica a ese rectángulo.
+- `src/render/waterView.js`: `waterOutline` y el degradado recorren solo el span. `WaterView.draw` recibe un argumento opcional `deep = { floor, bottom }`: si `floor > 0`, pinta además un rectángulo del color del agua entre las caras del span, desde `floor` hasta `bottom` (borde inferior de la cámara). Así no se ve el fondo efectivo. I3f no aplica a ese rectángulo.
 
 ### Regla de ahogo
 
@@ -128,7 +128,7 @@ dispose()
 - **`reiniciarRonda`**: en Infinito, `climb.reset(seed)` **antes** de `spawnRobot`, que usa `climb.spawns`.
 - **`spawnOnGround`**: en Infinito la superficie es el tope de la plataforma sorteada (sin rayo); en Clásico, el rayo desde `LEVEL.bounds.maxY`.
 - **`limpiarParticulas`**: `minY` = `flood.floor` en Infinito y `LEVEL.bounds.minY` en Clásico. x sigue en 0–56.
-- **Dibujo:** `drawLevel` con `ctx.translate(0, offsetY)`, `collectSurfaces(players, solids, reach, offsetY)` y `drawHud(..., flood.config.start)`.
+- **Dibujo:** `LevelView` y `PickupView` reciben `offsetY` y lo ponen como posición de su contenedor, `collectSurfaces(players, solids, reach, offsetY)`, y el HUD HTML recibe `flood.config.start` en sus datos del frame.
 - **`__TEST_HOOKS__`:** `flood`, `pickups`, `climb` y `map` como getters, porque cambian con el mapa.
 
 ### Orden en el frame (Infinito)

@@ -64,21 +64,17 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 - **Hoy** ✅:
   - cada partícula es una partícula de PIXI (`ParticleContainer`) con la textura de campo de su material (perfil (1 − (d/R)²)², R = 2,2 radios), generada una sola vez y teñida con el color de la partícula; cada frame solo cambian su posición, escala, giro y tinte (#213, #310);
   - un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas de los líquidos; el vapor va sin umbral y se ve difuso, como una nube;
-  - cada material tiene su propia capa (un contenedor de la escena con el filtro), así que materiales distintos no se funden entre sí.
+  - cada material tiene su propia capa (un contenedor de la escena con el filtro), así que materiales distintos no se funden entre sí;
+  - una gota en movimiento se estira a lo largo de su velocidad, para que el chorro se vea como un hilo continuo y no como una fila de bolitas (tabla `DROP_STRETCH`); vale igual para disparos y lluvia;
+  - las capas de fluido van encima del agua del nivel y de los robots, y debajo de la capa superpuesta (recogibles, mira, golpes, rueda de armas y debug del mundo); todo en el único canvas de la escena.
 
-  El resultado son **manchas planas**, sin brillo ni volumen, y no escala a miles de partículas.
+  El resultado son **manchas planas**, sin brillo ni volumen. El costo del dibujo con miles de partículas todavía no está medido ([9.2](09-arquitectura.md#92-rendimiento-medido)).
 - **Diseño** 🔨 #26 (revisado con #62): **PIXI v8 con sus filtros y filtros propios como `PIXI.Filter`, sin contexto WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).
-  - Se mantiene el filtro goo (desenfoque más umbral de transparencia) sobre las capas de partículas, que es lo que funde las gotas (hoy el umbral es un `PIXI.Filter` propio).
-  - Mejoras sobre lo de hoy: un color por material y por temperatura (lo escribe la térmica), brillo propio en lava y fuego con un segundo canvas aditivo (`globalCompositeOperation = "lighter"`), y borde más claro por un segundo pase con el umbral corrido.
+  - Las gotas se funden por la suma de los campos de sus partículas más el umbral de transparencia sobre cada capa (desde #310 ya no hay desenfoque: el campo de cada partícula lo reemplaza).
+  - Mejoras sobre lo de hoy: un color por material y por temperatura (lo escribe la térmica), brillo propio en lava y fuego con una capa de mezcla aditiva dentro de la misma escena (nada de un segundo canvas), y borde más claro por un segundo pase con el umbral corrido.
   - Presupuesto: ≤ 2 ms con GPU hasta ~4.000 círculos (relevamiento `F` de #62; el costo escala con la cantidad de círculos, no con el goo).
   - Se descartó el metaball en shader (`metaball.frag.glsl`): exige WebGL propio, que el usuario descartó para el examen.
-- **Lluvia en vuelo** ✅ #44: una gota con la marca de lluvia (−1) y rapidez ≥ `streakSpeed` se dibuja como un **trazo fino** y no como círculo.
-  - **Forma:** una línea desde la posición de la gota hacia atrás, opuesta a su velocidad. Largo = `min(rapidez · streakScale, streakLength)`; ancho `streakWidth`. La decisión es `rainStroke(vx, vy, draw)` en `src/render/render.js`, función pura y testeada (`tests/rain-streak.test.js`).
-  - **Datos** en `LEVEL.pool.draw`: `streakSpeed` 6 m/s, `streakScale` 0,05 s, `streakLength` 0,7 m, `streakWidth` 0,05 m. Las gotas más lentas y toda la pileta siguen como círculos y se funden con el agua.
-  - **Canvas aparte** (`streakCanvas`, sin filtro goo): el desenfoque y el umbral del goo borran una línea de 0,05 m. Va encima del canvas de fluidos.
-  - **Memoria nativa:** lee velocidades y marcas de `HEAPF32` y `HEAP32`; no crea nada nativo por frame.
-  - **Costo** (Chromium headless, 1280x720, inundación con `maxRate` 1.500, unas 660 partículas): dibujar el agua del nivel pasa de 0,61 ms (media, p95 0,9) a 0,57 ms (p95 0,8) por frame; no hay diferencia medible.
-  - Para #26: las gotas en vuelo quedan fuera del campo metaball y se siguen dibujando como estos trazos.
+- **Lluvia en vuelo** (#44, **retirado**): los trazos finos de la lluvia, con su canvas aparte, ya no existen. Desde #101 el dibujo de una partícula depende solo de su material, no de su velocidad ni de si es lluvia o disparo ([14.16, I3](14-agua.md#i3-volumen-dibujado-igual-al-físico)), y desde #310 la lluvia es una gota más de la capa del agua, estirada a lo largo de su velocidad como cualquier gota en movimiento (ver "Hoy").
 - **Hueco agua-cuerpo** ✅ #45:
   - **Medición** (LiquidFun real, paso fijo del juego, agua en reposo contra piso, pared y una caja dinámica; tests/water-gap.test.js): el centro de las partículas de la primera fila queda a **0,46 m** de la superficie de cualquier cuerpo (1,85 radios físicos de 0,25 m), igual contra el piso estático que contra una pieza dinámica del robot. Con el círculo dibujado de 0,28 m el borde queda a **0,18 m** del cuerpo.
   - **Causa**: es física del motor, no del dibujo ni de las fixtures (el robot se dibuja con sus fixtures reales). El contacto partícula-cuerpo de LiquidFun empuja hasta una distancia de ~0,9 diámetros. Se probaron pressureStrength (0,001 a 0,5), staticPressure*, damping, viscous, density, ejection, repulsive, strictContactCheck y gravityScale: la distancia queda entre 0,37 y 0,50 m (solo baja a 0,29-0,32 m con pressureStrength 0,001, que vuelve el agua compresible y rompe el banco de #40). No hay un parámetro que la acerque sin cambiar el radio.

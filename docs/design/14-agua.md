@@ -223,7 +223,7 @@ Aguas someras en forma conservativa, con lecho variable, fricción y fuentes:
 
 ### Render
 
-✅ #71. `WaterView.draw(water, scale)` en `src/render/waterView.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Desde #108, el polígono lo arma la función pura `waterOutline` de `src/render/waterView.js` ([14.16 G](#g-invariantes-globales-108)), y `drawWater` solo lo traza. Se dibuja en el canvas principal **después de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw` (`alpha`, `color`, `lineColor`, `lineWidth`).
+✅ #71. `WaterView.draw(water, scale)` en `src/render/waterView.js`: un polígono relleno por tramo mojado, del lecho a `η`, con la línea de superficie encima. Desde #108, el polígono lo arma la función pura `waterOutline` de `src/render/waterView.js` ([14.16 G](#g-invariantes-globales-108)), y `WaterView.draw` solo lo traza. Se dibuja en la capa del agua de la escena PIXI, **encima de los robots**, con transparencia (0,55), para que las piezas sumergidas se vean bajo el agua. Costo esperado: un `fill` de ≤ 560 vértices, < 0,1 ms. Datos de dibujo en `WATER_FIELD.draw` (`alpha`, `color`, `lineColor`, `lineWidth`).
 
 **Color por composición (#98).** El ácido real es incoloro ([ficha 3](15-quimica.md#3-agua--ácido)); el tinte es una aproximación de juego declarada, decidida por el game designer, para que se vea dónde quedó el ácido.
 
@@ -285,7 +285,7 @@ Para cada partícula con `y < η(x)`, sea `ρ_col = densityAt(x)` y `u_c = veloc
 - **Aproximación declarada: arrastre sin apantallamiento en la capa del fondo.** Cada partícula recibe el arrastre completo contra la velocidad media de la columna. En la realidad, la capa de miel del fondo queda en el flujo de Couette cerca del lecho, con el esfuerzo de fondo de Manning (`u_s` ~ 0,01 m/s). El modelo sobreestima la fuerza ~10² veces; se acota con [H6](#h-miel-inmiscible-en-el-campo-110). La lava comparte la limitación.
 - **Escritura:** directo en el buffer de velocidades (`HEAPF32`), como hoy.
 - **Interfaz para la térmica:** `submerged` (`Int32Array` de índices), `count` y `columns` (celda de cada uno). Valen hasta el próximo `stepWorld`.
-- **Render de la miel sumergida** (#110): sin cambios en el dibujo de fluidos (`src/render/fluidDraw.js`). La miel sumergida es partícula y `drawParticles` la dibuja con el color de su arma (ámbar), en el canvas de fluidos, como a la lava. El campo no dibuja miel porque no la tiene (`M` = 0). Limitación declarada: el canvas de fluidos va encima del agua del campo, así que la miel del fondo no se ve teñida por el agua que tiene arriba.
+- **Render de la miel sumergida** (#110): sin cambios en el dibujo de fluidos (`src/render/fluidDraw.js`). La miel sumergida es partícula y `drawParticles` la dibuja con el color de su arma (ámbar), en su capa de fluido, como a la lava. El campo no dibuja miel porque no la tiene (`M` = 0). Limitación declarada: las capas de fluido van encima del agua del campo, así que la miel del fondo no se ve teñida por el agua que tiene arriba.
 
 ### Qué reemplaza
 
@@ -694,13 +694,13 @@ Los sistemas reciben `water` y `store` por constructor desde la raíz de composi
 | Con frames sin paso (120/144 Hz, *jitter*), emitir con el `dt` del frame hace nacer partículas superpuestas que ganan hasta ×3,1 de energía; con el tiempo físico de los pasos y la fracción del crédito, máximo ×1,001 y distancia al nacer ≥ 90,3 mm | `tests/stream-energy.test.js` con LiquidFun real (#100) | *Verificado en ejecución* |
 | Dos carriles por arma derivan de costado y fallan P2; un carril cumple P2 con los caudales de la tabla | `tests/pure-water.test.js` (#100) | *Verificado en ejecución* |
 | Heap de 16 MiB con el sistema de disparos lleno hasta `maxCount` = 12.000 | `tests/heap.test.js` (#100) | *Verificado en ejecución* |
-| El área del polígono de `drawWater` es exactamente `Σ_{h > h_dry} h dx` (bordes por los mismos centros de celda, medias celdas planas en los extremos) | Lectura de `src/render/waterView.js`, `WaterView.draw` (#108) | *Verificado* en el código |
+| El área del polígono de `WaterView.draw` es exactamente `Σ_{h > h_dry} h dx` (bordes por los mismos centros de celda, medias celdas planas en los extremos) | Lectura de `src/render/waterView.js`, `WaterView.draw` (#108) | *Verificado* en el código |
 | Sumideros de partículas fuera de la absorción: bordes del mundo y recorte por rendimiento `PERF` (#160) en `src/fluids/particleStore.js`, ácido que daña en `DamageSystem.process` | Lectura de `index.html`, `src/combat/damage.js` y `src/fluids/particleStore.js` (#108) | *Verificado* en el código |
 | El campo no tiene sumideros ni fuentes fuera de `deposit` (paredes reflectivas; `settle` lleva a 0 solo `h` > −10⁻¹²), y el flujo de `M` es el de masa por `M/h` de la celda aguas arriba | Lectura de `src/water/water.js` (#108) | *Verificado* en el código |
 | La inmersión es genérica por material: `Immersion.step` separa por `MATERIALS[m].miscible` e `immerse` solo lee `SG` y `Cd`; la miel inmiscible no necesita lógica nueva | Lectura de `src/water/immersion.js` y `src/fluids/materials.js` (#110, 19/11) | *Verificado* en el código |
 | Los tanques no se recargan en la ronda (`tanks.set(id, tank − made)` en `src/combat/weapons.js`; `index.html`, ayuda "el tanque no se recarga"): como mucho 2 × 152 = 304 partículas de miel disparada por ronda | Lectura de `src/combat/weapons.js` e `index.html` (#110) | *Verificado* en el código |
 | `DamageSystem.water` solo lo usa `stickOnHoneyColumns`; lo asigna `index.html` | Lectura de `src/combat/damage.js` e `index.html` (#110) | *Verificado* en el código |
-| El canvas de fluidos (`#fluidCanvas`) está encima del principal, donde `drawWater` dibuja el campo | Lectura de `index.html` (orden en el DOM, posición absoluta, sin `z-index`) (#110) | *Verificado* en el código |
+| Las capas de fluido están encima de la capa del agua del campo, en el único canvas de la escena | Lectura de `src/render/scene.js` (orden de los contenedores) y `tests/layers.test.js` (#110; revisado con #311, 27/11) | *Verificado* en el código |
 | Modo acústico vertical de LiquidFun en columnas de 3 m con `r` = 0,06: período ≈ 0,6 s, \|v\|rms 0,26–0,61 m/s después del asentado, presente también sin el contorno (compresibilidad débil) | `tests/pure-water.test.js`, P1 con h₀ = 3 m (#100) | Medido; límite declarado del motor ([14.16](#1416-criterios-de-aceptación), P1) |
 
 ## 14.16 Criterios de aceptación
@@ -979,7 +979,7 @@ Por material, en geometría, sin el canvas:
 - **Dibujado:**
   - Campo: área del polígono de `waterOutline` por fórmula del área de Gauss (*shoelace*), atribuida al material de su color (hoy todo agua). *Verificado leyendo* `WaterView.draw` (`src/render/waterView.js`): el borde de arriba y el de abajo pasan por los mismos centros de celda y los extremos son medias celdas planas, así que el área es exactamente `Σ_{h > h_dry} h dx`.
   - Partículas: área de la **unión** de las primitivas que traza `drawParticles` para cada partícula, por material (`store.kind`, no por color): un solo círculo por partícula, de radio `√(A_p/π) · k` del material, en la posición acercada por `skinPosition` (#101). La unión se mide muestreando una grilla de 2,5 mm solo cerca de las primitivas; calibración con un círculo de r = 0,07 m (error < 1 %).
-  - El filtro *goo* (desenfoque y umbral) no entra en I3: cambia el borde, no la geometría de las primitivas. Lo revisa `physics-analyst` en video.
+  - El campo de cada partícula con el umbral (#310, [7.4](07-sph.md#74-render)) no entra en I3: una gota aislada cruza el umbral justo en el radio del círculo, pero las vecinas se funden y la gota en movimiento se estira, así que el borde visible no es la unión de círculos que mide I3. Lo revisa `physics-analyst` en video.
 - **Tolerancia:** se parte por material y por separado, sin tolerancia sobre la suma, en cada paso de la ventana:
   - **I3p, partículas:** área de la unión de `dropShape` contra `n_k A_p (1 − φ)`, ±10 % en el 95 % de los pasos y ninguno fuera de ±15 %, por material (#101).
   - **I3f, campo:** área de `waterOutline` contra el volumen del campo (incluida el agua con `0 < h ≤ h_dry`), ±5 %.
@@ -988,7 +988,7 @@ Por material, en geometría, sin el canvas:
 **Funciones puras nuevas en `src/render/waterView.js`, `fluidSurfaces.js` y `fluidDraw.js`** (Sistemas por módulo: el dibujo sigue siendo de `render`; sin `ctx`, sin `Box2D`, sin estado de `index.html`):
 
 - `waterOutline(water, out)`: llena `out` (buffers reutilizados, sin crear objetos por frame) con los tramos mojados y los vértices `(x, y)` de cada polígono, en metros. `drawWater` lo usa para trazar; el test calcula el área.
-- `dropShape(x, y, vx, vy, isRain, draw, out)`: escribe en `out` las primitivas de una partícula (uno o dos círculos con centro y radio, o una cápsula con extremos y ancho). `drawParticles` lee posiciones y velocidades del buffer como hoy y dibuja lo que devuelve `dropShape`; el test lo llama con las mismas entradas. Usa `rainStroke` y `skinPosition`, que ya son JS puro.
+- `dropShape(x, y, kind, draw, out)`: escribe en `out` el círculo de una partícula (centro y radio), que depende solo de su material (#101: sin trazos ni segundo círculo). `drawParticles` lo usa para ubicar cada gota; el test lo llama con las mismas entradas. Usa `skinPosition`, que es JS puro.
 
 #### I4. Espesor mínimo
 
