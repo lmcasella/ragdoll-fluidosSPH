@@ -1,4 +1,5 @@
 import { tintOf } from "../core/color.js";
+import { MAX_SCALE } from "./camera.js";
 
 /**
  * Letra de un ícono del mundo (inicial de un arma) como `PIXI.Text`: negrita, centrada y con la Y invertida, porque
@@ -11,9 +12,6 @@ const LABEL_SIZE_M = 0.5;
 /** Color casi negro de las letras y de los fondos del dibujo de armas, `0xRRGGBB`: se lee sobre el color de cada arma. */
 export const INK_COLOR = tintOf(16, 16, 24);
 
-/** Resolución de la textura de la letra, en veces la del texto sin zoom: el zoom máximo de la cámara es 64 px/m sobre los 32 px/m del robot. */
-const LABEL_RESOLUTION = 2;
-
 /** Centro de la letra dentro de su textura, como fracción de su lado. */
 const LABEL_ANCHOR = 0.5;
 
@@ -21,7 +19,8 @@ const LABEL_ANCHOR = 0.5;
 const FLIP_Y = -1;
 
 /**
- * Crea la letra de un ícono. Se crea una vez y después solo se cambian su texto y su posición.
+ * Crea la letra de un ícono. Se crea una vez y después solo se cambian su texto y su posición. La textura tiene la
+ * resolución del zoom máximo de la cámara (`MAX_SCALE`), para que la letra no se pixele.
  * @param {PIXI.Container} parent contenedor al que se agrega
  * @param {number} pixelsPerMeter px por metro de la geometría del mundo
  * @returns {PIXI.Text}
@@ -30,7 +29,7 @@ export function createLabel(parent, pixelsPerMeter) {
     const label = new PIXI.Text({
         text: "",
         style: { fontFamily: "sans-serif", fontWeight: "bold", fontSize: LABEL_SIZE_M * pixelsPerMeter, fill: INK_COLOR },
-        resolution: LABEL_RESOLUTION,
+        resolution: Math.ceil(MAX_SCALE / pixelsPerMeter),
     });
     label.anchor.set(LABEL_ANCHOR);
     label.scale.set(1, FLIP_Y);

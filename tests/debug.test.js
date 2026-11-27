@@ -297,8 +297,8 @@ function costScene() {
     const refs = {
         particles: {
             heap: Box2D.HEAPF32,
-            pos: Box2D.getPointer(system.GetPositionBuffer()) >> 2,
-            vel: Box2D.getPointer(system.GetVelocityBuffer()) >> 2,
+            positionIndex: Box2D.getPointer(system.GetPositionBuffer()) >> 2,
+            velocityIndex: Box2D.getPointer(system.GetVelocityBuffer()) >> 2,
             count: system.GetParticleCount(),
         },
         pieces,
@@ -334,7 +334,7 @@ function pointRefs(system) {
     return {
         heap: Box2D.HEAPF32,
         bytes: Box2D.HEAPU8,
-        pos: Box2D.getPointer(system.GetPositionBuffer()) >> 2,
+        positionIndex: Box2D.getPointer(system.GetPositionBuffer()) >> 2,
         color: Box2D.getPointer(system.GetColorBuffer()),
         count: system.GetParticleCount(),
         radius: system.GetRadius(),

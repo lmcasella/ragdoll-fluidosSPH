@@ -1,5 +1,6 @@
 import { COLOR_BYTES, tintOf } from "../core/color.js";
 import { DEBUG } from "../core/debug.js";
+import { GRAVITY } from "../core/physicsConstants.js";
 import { VECTOR_COMPONENTS } from "../core/heap.js";
 
 /** Trazo de las capas de vectores: ancho en px de pantalla y alfa de todos los colores. */
@@ -7,9 +8,6 @@ const STROKE = { px: 1, alpha: 0.5 };
 
 /** Alfa de los círculos del modo de puntos. */
 const POINT_ALPHA = 0.8;
-
-/** Aceleración de la gravedad, en m/s²: con la masa de una pieza da su peso, que fija el largo de las flechas de fuerza. */
-const GRAVITY = 10;
 
 /** Peso mínimo con que se divide una fuerza, en N, para que una pieza sin masa no dé una flecha infinita. */
 const MIN_WEIGHT_NEWTONS = 1e-6;
@@ -78,18 +76,18 @@ export class DebugView {
     /**
      * Dibuja cada partícula como un círculo relleno de radio `radius` (m) con el color de su buffer de color y alfa
      * `POINT_ALPHA`. Solo en los modos `"puntos"` y `"ambos"`. No crea objetos nativos ni nada por partícula salvo su círculo.
-     * @param {object|null} refs `{ heap, bytes, pos, color, count, radius }`: vistas `Float32Array` y `Uint8Array` del heap, índice de
+     * @param {object|null} refs `{ heap, bytes, positionIndex, color, count, radius }`: vistas `Float32Array` y `Uint8Array` del heap, índice de
      *   palabra de la posición, offset en bytes del buffer de color, cantidad y radio físico (m); `null` con los puntos apagados
      */
     drawPoints(refs) {
         const pointsOn = this.debug.fluidMode !== "metaball";
         this.reset(this.pointsGraphics, pointsOn);
         if (!pointsOn) return;
-        const { heap, bytes, pos, color, count, radius } = refs;
+        const { heap, bytes, positionIndex, color, count, radius } = refs;
         const scale = this.pixelsPerMeter;
         for (let index = 0; index < count; index++) {
             const colorOffset = color + COLOR_BYTES * index;
-            const vectorOffset = pos + VECTOR_COMPONENTS * index;
+            const vectorOffset = positionIndex + VECTOR_COMPONENTS * index;
             this.pointsGraphics
                 .circle(heap[vectorOffset] * scale, heap[vectorOffset + 1] * scale, radius * scale)
                 .fill({ color: tintOf(bytes[colorOffset], bytes[colorOffset + 1], bytes[colorOffset + 2]), alpha: POINT_ALPHA });
@@ -99,7 +97,7 @@ export class DebugView {
     /**
      * Dibuja las capas de vectores que estén en sí y borra las apagadas.
      * @param {number} screenScale escala de la cámara, en px de pantalla por metro
-     * @param {object|null} refs `particles` `{ heap, pos, vel, count }` (vista `Float32Array` del heap y los índices de palabra de los
+     * @param {object|null} refs `particles` `{ heap, positionIndex, velocityIndex, count }` (vista `Float32Array` del heap y los índices de palabra de los
      *   buffers de posición y velocidad), `pieces` (las piezas de `Buoyancy`: `cx`, `cy`, `buoyancy`, `drag`, `body`) y
      *   `water` (el campo: `h`, `b`, `uOf`, `x0`, `dx`, `i0`, `i1`, `config.hDry`); `null` con todas las capas apagadas
      */
@@ -146,18 +144,18 @@ export class DebugView {
      * @param {PIXI.Graphics} graphics
      * @param {number} strokeWidth ancho del trazo, en px de la geometría
      * @param {number} screenScale escala de la cámara, en px de pantalla por metro
-     * @param {object} particles `{ heap, pos, vel, count }`
+     * @param {object} particles `{ heap, positionIndex, velocityIndex, count }`
      */
-    drawVelocities(graphics, strokeWidth, screenScale, { heap, pos, vel, count }) {
+    drawVelocities(graphics, strokeWidth, screenScale, { heap, positionIndex, velocityIndex, count }) {
         if (count === 0) return;
         const stride = Math.ceil(count / DEBUG.maxArrows);
         const headLength = ARROW_HEAD.px / screenScale;
         let segments = 0;
         for (let index = 0; index < count; index += stride) {
-            const x = heap[pos + VECTOR_COMPONENTS * index];
-            const y = heap[pos + VECTOR_COMPONENTS * index + 1];
-            const deltaX = heap[vel + VECTOR_COMPONENTS * index] * DEBUG.arrowTime;
-            const deltaY = heap[vel + VECTOR_COMPONENTS * index + 1] * DEBUG.arrowTime;
+            const x = heap[positionIndex + VECTOR_COMPONENTS * index];
+            const y = heap[positionIndex + VECTOR_COMPONENTS * index + 1];
+            const deltaX = heap[velocityIndex + VECTOR_COMPONENTS * index] * DEBUG.arrowTime;
+            const deltaY = heap[velocityIndex + VECTOR_COMPONENTS * index + 1] * DEBUG.arrowTime;
             this.addSegment(graphics, x, y, x + deltaX, y + deltaY);
             segments++;
             const length = Math.hypot(deltaX, deltaY);

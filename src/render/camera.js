@@ -8,7 +8,7 @@ const MARGIN_Y = 4;
 const SMOOTHING = 4;
 
 /** Escala máxima de la cámara, en px/m: el zoom máximo es esta escala sobre `pixelsPerMeter`. */
-const MAX_SCALE = 64;
+export const MAX_SCALE = 64;
 
 /** Alto máximo (m) que muestra la cámara cuando el mundo no tiene techo. */
 export const MAX_VIEW_HEIGHT = 40;
