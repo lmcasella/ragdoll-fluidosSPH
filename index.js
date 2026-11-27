@@ -149,11 +149,13 @@ const fluidLayers = new FluidLayers({
 });
 const backgroundView = new BackgroundView({ parent: scene.backgroundLayer, pixelsPerMeter: PIXELS_PER_METER });
 const levelView = new LevelView({ parent: scene.levelLayer, pixelsPerMeter: PIXELS_PER_METER });
+const water = new ShallowWater();
 const waterView = new WaterView({
     parent: scene.waterLayer,
     pixelsPerMeter: PIXELS_PER_METER,
     look: lookOf(FLUID.WATER),
     draw: WATER_FIELD.draw,
+    water,
 });
 
 const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
@@ -315,7 +317,6 @@ damage.register(players);
 const emitter = new ShotEmitter(store, damage, WEAPONS, raycaster);
 const melee = new Melee(raycaster, damage);
 const match = new Match(players.length);
-const water = new ShallowWater();
 let flood = new Flood(store, water, LEVEL, Number.isFinite(botSeed) ? botSeed : null);
 const immersion = new Immersion(particleSystem, store, water);
 const evaporation = new Evaporation(particleSystem, store);

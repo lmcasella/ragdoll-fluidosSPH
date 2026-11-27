@@ -1,13 +1,16 @@
 import { MATERIALS } from "../fluids/materials.js";
 import { lerp } from "../core/math/scalar.js";
 import { updateLiquidFilter } from "./liquidFilter.js";
-import { createWaterFilter, encodeWater, setWaterFilterLights } from "./waterFilter.js";
+import { HEIGHT_CHANNELS, createWaterFilter, createWaterHeights, encodeWater, setWaterFilterLights } from "./waterFilter.js";
 
 /** Código de color de un tramo de agua sin ácido (`encodeWater(0)`): negro, con la cobertura en el alfa. */
 const CLEAR_WATER_CODE = encodeWater(0);
 
 /** Posición del centro de una celda dentro de ella, como fracción de su ancho. */
 const CELL_CENTER = 0.5;
+
+/** Canal de la textura de alturas con la marca de columna mojada (el rojo lleva `η`). */
+const WET_CHANNEL = 1;
 
 /** Fracción de la distancia entre dos puntos donde está el medio. */
 const MIDPOINT = 0.5;
@@ -111,6 +114,23 @@ export function waterOutline(water, out) {
 }
 
 /**
+ * Escribe en `data` la superficie `η` (m) y la marca de columna mojada de cada columna del campo, un texel RGBA por columna
+ * (ver `createWaterHeights`). Una columna está mojada si está en el span activo y `h` supera `hDry`.
+ * @param {object} water campo de alturas
+ * @param {Float32Array} data buffer de `createWaterHeights`, se llena en el lugar
+ */
+export function writeSurfaceHeights(water, data) {
+    const { N: columnCount, i0: firstCell, i1: endCell, b: bed, h: depth } = water;
+    const wetThreshold = water.config.hDry;
+    for (let column = 0; column < columnCount; column++) {
+        const texel = column * HEIGHT_CHANNELS;
+        const wet = column >= firstCell && column < endCell && depth[column] > wetThreshold;
+        data[texel] = bed[column] + depth[column];
+        data[texel + WET_CHANNEL] = wet ? 1 : 0;
+    }
+}
+
+/**
  * Fracción del tinte de ácido del agua del campo en `x` (puro): `f = 1 − 10^(−α w / w_a)`, con `w` la fracción másica de
  * H2SO4 y `α = MATERIALS.acid.tintAbsorbance` (Beer–Lambert). Con `w` = 0 es 0.
  * @param {object} water campo de alturas
@@ -147,7 +167,8 @@ export function fieldColor(water, x, out = [0, 0, 0]) {
  * `waterFilter.js` (cobertura en el alfa y fracción de ácido en el rojo, con un trapecio por tramo entre centros de celda que
  * tenga ácido), y el filtro lo cambia por el agua del juego. Va después de los robots para que las piezas sumergidas se
  * vean bajo el agua. Unidades de la geometría: px a `pixelsPerMeter`, con la Y hacia arriba; la cámara la mueve y la escala
- * en el mundo. El filtro se crea una vez y por frame solo se ponen el tiempo, la cámara y las luces.
+ * en el mundo. El filtro y la textura de alturas (`η` por columna, que le da la profundidad al filtro) se crean una vez; por
+ * frame se actualiza la textura en el lugar y se ponen el tiempo, la cámara y las luces.
  */
 export class WaterView {
     /**
@@ -156,16 +177,20 @@ export class WaterView {
      * @param {number} options.pixelsPerMeter px por metro del JSON del robot
      * @param {object} options.look fila de `FLUID_LOOK` del agua (`refraction` y `fresnel`)
      * @param {object} options.draw datos de dibujo del campo (`WATER_FIELD.draw`): `color`, `lineColor` y `lineWidth`
+     * @param {object} options.water campo de alturas: de él salen las columnas de la textura de alturas
      */
-    constructor({ parent, pixelsPerMeter, look, draw }) {
+    constructor({ parent, pixelsPerMeter, look, draw, water }) {
         this.pixelsPerMeter = pixelsPerMeter;
         this.graphics = new PIXI.Graphics();
+        this.heights = createWaterHeights(water.N);
         this.filter = createWaterFilter({
             look,
             color: draw.color,
             acidColor: MATERIALS.acid.tint,
             lineColor: draw.lineColor,
             lineWidth: draw.lineWidth,
+            heights: this.heights.source,
+            columns: { x0: water.x0, dx: water.dx, count: water.N },
         });
         this.graphics.filters = [this.filter];
         parent.addChild(this.graphics);
@@ -224,6 +249,8 @@ export class WaterView {
         const scale = this.pixelsPerMeter;
         const { graphics, outline } = this;
         graphics.clear();
+        writeSurfaceHeights(water, this.heights.data);
+        this.heights.source.update();
         waterOutline(water, outline);
         const { xs, ys } = outline;
         if (deep && deep.floor > 0 && deep.bottom < deep.floor) {
@@ -249,6 +276,7 @@ export class WaterView {
 
     /** Quita el `Graphics` del mundo y lo destruye. */
     destroy() {
+        this.heights.source.destroy();
         this.graphics.parent?.removeChild(this.graphics);
         this.graphics.destroy();
     }

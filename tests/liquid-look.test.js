@@ -5,10 +5,10 @@ import { installFakePixi } from "./helpers/fake-pixi.js";
 
 const { FLUID_LOOK, lookOf, SHOT_DRAW } = await import("../src/render/fluidDraw.js");
 const { createLiquidFilter, updateLiquidFilter, liquidFragment, LIQUID_UNIFORM_GROUP } = await import("../src/render/liquidFilter.js");
-const { createWaterFilter, setWaterFilterLights, WATER_FRAGMENT, encodeWater } = await import("../src/render/waterFilter.js");
+const { createWaterFilter, createWaterHeights, HEIGHT_CHANNELS, setWaterFilterLights, WATER_FRAGMENT, encodeWater } = await import("../src/render/waterFilter.js");
 const { FluidLayers } = await import("../src/render/fluidLayers.js");
 const { THRESHOLD_GAIN, THRESHOLD_OFFSET } = await import("../src/render/thresholdFilter.js");
-const { WaterView } = await import("../src/render/waterView.js");
+const { WaterView, writeSurfaceHeights } = await import("../src/render/waterView.js");
 const { WATER_FIELD, ShallowWater } = await import("../src/water/water.js");
 const { createLightSet } = await import("../src/render/lighting.js");
 const { MATERIALS } = await import("../src/fluids/materials.js");
@@ -20,7 +20,12 @@ const WATER = 4;
 const STONE = 5;
 const STEAM = 6;
 
-const FRAME = { time: 1.5, originX: 10, originY: 20, pixelsPerMeter: 40 };
+/** Opciones de textura de alturas para crear un filtro de agua suelto: `columnCount` columnas de 0,1 m desde x = 0. */
+function heightsOptions(columnCount) {
+    return { heights: createWaterHeights(columnCount).source, columns: { x0: 0, dx: 0.1, count: columnCount } };
+}
+
+const FRAME ={ time: 1.5, originX: 10, originY: 20, pixelsPerMeter: 40 };
 
 test("la tabla de aspecto tiene los valores pedidos y solo el agua refracta", () => {
     const expected = {
@@ -77,11 +82,15 @@ test("el fragmento del agua del nivel lee el fondo, la profundidad y las luces c
     assert.match(WATER_FRAGMENT, /uniform highp vec4 uInputSize;/);
     assert.match(WATER_FRAGMENT, /uniform highp vec4 uOutputFrame;/);
     assert.match(WATER_FRAGMENT, /uniform sampler2D uBackTexture;/);
+    assert.match(WATER_FRAGMENT, /uniform sampler2D uHeights;/);
     assert.match(WATER_FRAGMENT, /surfaceDepth/);
+    assert.match(WATER_FRAGMENT, /surface - world\.y/, "profundidad = eta - y desde la textura");
+    assert.doesNotMatch(WATER_FRAGMENT, /PROBE_COUNT|REFINE_COUNT|coverageAbove|PROBE_GROWTH/, "sin sondas de profundidad ni bisección");
     assert.match(WATER_FRAGMENT, /lightSum/);
     assert.match(WATER_FRAGMENT, /lightSpecular/);
     assert.doesNotMatch(WATER_FRAGMENT, /gaussian|blur/i);
-    const filter = createWaterFilter({ look: lookOf(WATER), color: [40, 120, 255], acidColor: MATERIALS.acid.tint, lineColor: [170, 220, 255], lineWidth: 2 });
+    installFakePixi();
+    const filter = createWaterFilter({ look: lookOf(WATER), color: [40, 120, 255], acidColor: MATERIALS.acid.tint, lineColor: [170, 220, 255], lineWidth: 2, ...heightsOptions(4) });
     assert.equal(filter.options.blendRequired, true);
 });
 
@@ -121,13 +130,15 @@ test("cada capa crea su filtro una vez y actualizar el tiempo y la cámara no cr
 test("WaterView arma su filtro una vez y no crea degradados ni objetos por frame", () => {
     const PIXI = installFakePixi();
     const water = new ShallowWater();
-    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32, look: lookOf(WATER), draw: WATER_FIELD.draw });
+    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32, look: lookOf(WATER), draw: WATER_FIELD.draw, water });
     assert.deepEqual(view.graphics.filters, [view.filter]);
     assert.equal(view.filter.options.blendRequired, true);
     const lightSet = createLightSet();
     const gradientsBefore = PIXI.FillGradient.constructed;
     const filtersBefore = PIXI.Filter.constructed;
     const graphicsBefore = PIXI.Graphics.constructed;
+    const heightSourcesBefore = PIXI.BufferImageSource.constructed;
+    const { source, data } = view.heights;
     for (let frame = 0; frame < 3; frame++) {
         view.setFrame({ ...FRAME, time: frame });
         view.setLights(lightSet);
@@ -136,14 +147,39 @@ test("WaterView arma su filtro una vez y no crea degradados ni objetos por frame
     assert.equal(PIXI.FillGradient.constructed, gradientsBefore);
     assert.equal(PIXI.Filter.constructed, filtersBefore);
     assert.equal(PIXI.Graphics.constructed, graphicsBefore);
+    assert.equal(PIXI.BufferImageSource.constructed, heightSourcesBefore, "la textura de alturas no se recrea");
+    assert.strictEqual(view.heights.source, source);
+    assert.strictEqual(view.heights.data, data, "se actualiza en el lugar");
+    assert.equal(source.updates, 3, "una actualización por frame");
+    assert.strictEqual(view.filter.options.resources.uHeights, source);
     assert.equal(view.filter.resources[LIQUID_UNIFORM_GROUP].uniforms.uTime, 2);
+});
+
+test("la textura de alturas lleva la superficie y la marca de columna mojada de cada columna", () => {
+    const PIXI = installFakePixi();
+    const water = new ShallowWater();
+    const heights = createWaterHeights(water.N);
+    assert.equal(heights.data.length, water.N * HEIGHT_CHANNELS);
+    assert.deepEqual([heights.source.options.width, heights.source.options.height], [water.N, 1]);
+    assert.equal(PIXI.BufferImageSource.constructed > 0, true);
+    writeSurfaceHeights(water, heights.data);
+    let wetColumns = 0;
+    for (let column = 0; column < water.N; column++) {
+        const texel = column * HEIGHT_CHANNELS;
+        const wet = column >= water.i0 && column < water.i1 && water.h[column] > water.config.hDry;
+        assert.equal(heights.data[texel + 1], wet ? 1 : 0, `marca de la columna ${column}`);
+        assert.ok(Math.abs(heights.data[texel] - (water.b[column] + water.h[column])) < 1e-4, `eta de la columna ${column}`);
+        if (wet) wetColumns++;
+    }
+    assert.ok(wetColumns > 0, "el campo inicial tiene agua");
 });
 
 test("el código del agua guarda la fracción de ácido solo en el canal rojo", () => {
     assert.equal(encodeWater(0), 0);
     assert.equal(encodeWater(1), 0xff0000);
     assert.equal(encodeWater(0.5), 0x800000);
-    const filter = createWaterFilter({ look: lookOf(WATER), color: [0, 0, 0], acidColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 2 });
+    installFakePixi();
+    const filter = createWaterFilter({ look: lookOf(WATER), color: [0, 0, 0], acidColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 2, ...heightsOptions(4) });
     const lightSet = createLightSet();
     lightSet.count = 3;
     setWaterFilterLights(filter, lightSet);

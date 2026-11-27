@@ -519,7 +519,7 @@ test("Q5 fieldColor: con w = 0 es exactamente draw.color, crece monótona hacia 
 test("WaterView: relleno de código plano sin ácido y un trapecio con el código de ácido en los tramos entre centros con ácido, sin crear degradados", () => {
     const PIXI = installFakePixi();
     const water = make(LEVEL, WATER_FIELD, "WaterView");
-    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32, look: { refraction: 0.06, fresnel: 0.8 }, draw: WATER_FIELD.draw });
+    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32, look: { refraction: 0.06, fresnel: 0.8 }, draw: WATER_FIELD.draw, water });
     view.draw(water);
     const sections = view.graphics.fills.length;
     assert.ok(sections > 0, "hay agua");
