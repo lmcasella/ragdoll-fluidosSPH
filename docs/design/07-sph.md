@@ -66,7 +66,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas de los líquidos; el vapor va sin umbral y se ve difuso, como una nube;
   - cada material tiene su propia capa (un contenedor de la escena con el filtro), así que materiales distintos no se funden entre sí;
   - una gota en movimiento se estira a lo largo de su velocidad, para que el chorro se vea como un hilo continuo y no como una fila de bolitas (tabla `DROP_STRETCH`); vale igual para disparos y lluvia;
-  - las capas de fluido van encima del agua del nivel y de los robots, y debajo de la capa superpuesta (recogibles, mira, golpes, rueda de armas y debug del mundo); todo en el único canvas de la escena.
+  - las capas de fluido van encima de los robots y debajo del agua del nivel, que las refracta y oscurece con la profundidad como al resto de lo que tiene detrás, y debajo de la capa superpuesta (recogibles, mira, golpes, rueda de armas y debug del mundo); todo en el único canvas de la escena.
 
   El resultado son **manchas planas**, sin brillo ni volumen. El costo del dibujo con miles de partículas todavía no está medido ([9.2](09-arquitectura.md#92-rendimiento-medido)).
 - **Diseño** 🔨 #26 (revisado con #62): **PIXI v8 con sus filtros y filtros propios como `PIXI.Filter`, sin contexto WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).

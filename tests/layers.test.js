@@ -37,10 +37,10 @@ function worldOrder(scene) {
     return scene.world.children.map((child) => names.get(child));
 }
 
-const WORLD_ORDER = ["level", "ragdoll", "effects", "water", "fluid", "overlay"];
+const WORLD_ORDER = ["level", "ragdoll", "effects", "fluid", "water", "overlay"];
 
-/** #53: la mira, los golpes y el debug se dibujan por encima de las partículas, y estas por encima del nivel y los robots. */
-test("de abajo a arriba: nivel, robots, agua, fluidos y capa superpuesta", async () => {
+/** #53: la mira, los golpes y el debug se dibujan por encima de las partículas, y estas por encima del nivel y los robots y debajo del agua del nivel, que las refracta. */
+test("de abajo a arriba: nivel, robots, fluidos, agua y capa superpuesta", async () => {
     const game = await loadGame();
     const { scene } = game.state;
     assert.deepEqual(worldOrder(scene), WORLD_ORDER);
