@@ -95,6 +95,6 @@ La pausa es un menú que abre cualquier jugador con Start (cualquier gamepad rea
 - **Filas:** Estadísticas (sí/no), Fluidos (metaball/puntos/ambos) y las capas Velocidades, Fuerzas, Columnas y Bots (sí/no cada una). Al empezar está todo apagado y los fluidos en metaball.
 - **Navegación:** con los controles del menú (`MENU_CONTROLS`): arriba/abajo elige la fila, izquierda/derecha o confirmar cambia el valor, y atrás o el mismo botón cierran.
 - **Pausa:** con el menú abierto la simulación no avanza ni lee el input de los jugadores, pero se sigue dibujando. Al cerrar, las opciones quedan activas. Las estadísticas se ven solo con el menú abierto.
-- **Puntos:** cada partícula es un círculo de su radio físico, del color de su material y sin el filtro `#goo`. Las capas de vectores van con trazo de 1 px y alfa 0,5.
+- **Puntos:** cada partícula es un círculo de su radio físico, del color de su material y sin el filtro de umbral. Las capas de vectores van con trazo de 1 px y alfa 0,5.
 
 Lo lee `debug.js` desde la raíz de composición; no es una intención de juego ([14.12](14-agua.md#1412-herramientas-de-debug)).
