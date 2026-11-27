@@ -1,3 +1,10 @@
+import { clamp, signOrOne } from "../core/math/scalar.js";
+import { vectorLength, dot } from "../core/math/vector2.js";
+import { fixtureBounds } from "../core/engine/box2d.js";
+
+/** Caja de trabajo del fixture que estrecha la gota: se reutiliza para no crear objetos por subpaso. */
+const FIXTURE_BOX = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+
 /**
  * Contorno partícula–cuerpo (docs/design/14-agua.md §14.6). LiquidFun resuelve el contacto con una presión de
  * penalización que actúa como resorte y devuelve la gota con e ≈ 0,6, y que solo empuja por la normal.
@@ -194,9 +201,9 @@ export class WallContact {
             }
             const vx = heapF[vel + 2 * index];
             const vy = heapF[vel + 2 * index + 1];
-            const out = (vx - bx) * nx + (vy - by) * ny;
-            const before = (store.vx[slot] - bx) * nx + (store.vy[slot] - by) * ny;
-            const cut = out - Math.min(out, Math.max(0, before));
+            const out = dot(vx - bx, vy - by, nx, ny);
+            const before = dot(store.vx[slot] - bx, store.vy[slot] - by, nx, ny);
+            const cut = out - clamp(before, 0, out);
             if (cut <= 0) continue;
             heapF[vel + 2 * index] = vx - cut * nx;
             heapF[vel + 2 * index + 1] = vy - cut * ny;
@@ -310,24 +317,22 @@ export class WallContact {
             const film = Math.max(diameter * (2 - wD - wO), radius);
             let sx = this.firstNx[i] - this.otherNx[i];
             let sy = this.firstNy[i] - this.otherNy[i];
-            const sLength = Math.hypot(sx, sy);
+            const sLength = vectorLength(sx, sy);
             sx /= sLength;
             sy /= sLength;
             const tx = -sy;
             const ty = sx;
-            const box = Box2D.wrapPointer(fixtureD, Box2D.b2Fixture).GetAABB(0);
-            const lower = box.get_lowerBound();
-            const upper = box.get_upperBound();
-            const lx = lower.get_x();
-            const ly = lower.get_y();
-            const ux = upper.get_x();
-            const uy = upper.get_y();
+            const box = fixtureBounds(Box2D.wrapPointer(fixtureD, Box2D.b2Fixture), FIXTURE_BOX);
+            const lx = box.minX;
+            const ly = box.minY;
+            const ux = box.maxX;
+            const uy = box.maxY;
             const x = (px - (lx + ux) / 2) * tx + (py - (ly + uy) / 2) * ty;
             const half = 0.5 * (Math.abs(tx) * (ux - lx) + Math.abs(ty) * (uy - ly));
             const vx = heapF[vel + 2 * i];
             const vy = heapF[vel + 2 * i + 1];
-            const rel = (vx - refx) * tx + (vy - refy) * ty;
-            const sign = Math.abs(x) >= radius / 10 ? Math.sign(x) : Math.sign(rel) || 1;
+            const rel = dot(vx - refx, vy - refy, tx, ty);
+            const sign = Math.abs(x) >= radius / 10 ? Math.sign(x) : signOrOne(rel);
             const reach = Math.min(Math.abs(x), half);
             const along = sign * rel;
             const alongPlus = Math.max(0, along);

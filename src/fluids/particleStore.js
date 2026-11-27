@@ -1,3 +1,5 @@
+import { clamp } from "../core/math/scalar.js";
+
 /**
  * Identidad estable de las partículas del sistema de disparos (docs/design/14-agua.md §14.2). Módulo hoja:
  * es el único que llama a `CreateParticle` y `DestroyParticle` en ese sistema.
@@ -139,7 +141,7 @@ export class ParticleStore {
         }
         const key = this.trimKey;
         order.sort((a, b) => key[a] - key[b] || a - b);
-        const count = Math.max(0, Math.min(PARTICLES.trimBatch, order.length - PARTICLES.minCount));
+        const count = clamp(order.length - PARTICLES.minCount, 0, PARTICLES.trimBatch);
         for (let n = 0; n < count; n++) this.destroy(order[n], SINK.PERF);
         return count;
     }

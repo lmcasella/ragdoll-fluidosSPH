@@ -2,6 +2,7 @@ import { MATERIALS, SIGMA_W } from "./materials.js";
 import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
 import { SINK } from "./particleStore.js";
+import { clampUnit } from "../core/math/scalar.js";
 
 /**
  * Datos de la evaporación de agua detenida (docs/design/14-agua.md §14.7b). `rate` es `e_r` (m/s), la tasa real
@@ -75,7 +76,7 @@ export class Evaporation {
             const vx = heap[vel + 2 * i];
             const vy = heap[vel + 2 * i + 1];
             if (vx * vx + vy * vy >= restSquared) continue;
-            const exposed = Math.min(Math.max(1 - (this.pp[i] + this.pb[i]) / EVAPORATION.wFull, 0), 1);
+            const exposed = clampUnit(1 - (this.pp[i] + this.pb[i]) / EVAPORATION.wFull);
             const before = store.evaporated[slot];
             const after = Math.min(before + rate * exposed * dt, 1);
             store.evaporated[slot] = after;
