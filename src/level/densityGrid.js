@@ -1,4 +1,15 @@
 import { clamp } from "../core/math/scalar.js";
+import { DENSITY_ISO_LEVEL } from "../core/math/marchingSquares.js";
+
+/** Desgaste mínimo de una celda viva vecina de una celda que el ácido eliminó, de 0 a 1. */
+export const NEIGHBOR_WEAR = 0.6;
+
+/** Desplazamientos de fila y columna a los 8 vecinos de una celda. */
+const NEIGHBOR_OFFSETS = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1], [0, 1],
+    [1, -1], [1, 0], [1, 1],
+];
 
 /** Tamaño de celda buscado de una grilla de densidad, en m: el real se ajusta para que el ancho y el alto sean múltiplos enteros de celda. */
 export const DENSITY_CELL_SIZE = 0.05;
@@ -24,6 +35,8 @@ function cellsAlong(length) {
  * tramo: la forma física y el contorno se derivan de ella. Es JS puro y no toca el heap del motor. El tamaño de celda se
  * ajusta en x y en y para que el ancho y el alto entren en un número entero de celdas, así el contorno de un tramo
  * entero coincide con su rectángulo. `dirty` marca que los valores cambiaron desde la última vez que se rehízo la forma.
+ * `wear` guarda el desgaste de cada celda, de 0 a 1, para dibujar el óxido (`docs/design/13-arte.md` §13.2): lo escribe solo
+ * `erode`, y `fillRectangle` lo pone en cero.
  */
 export class DensityGrid {
     /**
@@ -41,6 +54,8 @@ export class DensityGrid {
         this.cellWidth = width / this.columns;
         this.cellHeight = height / this.rows;
         this.values = new Float32Array(this.columns * this.rows);
+        this.wear = new Float32Array(this.columns * this.rows);
+        this.hasWear = false;
         this.dirty = false;
     }
 
@@ -84,7 +99,48 @@ export class DensityGrid {
                 this.values[row * this.columns + column] = rowCoverage * columnCoverage[column];
             }
         }
+        this.wear.fill(0);
+        this.hasWear = false;
         this.dirty = true;
+    }
+
+    /**
+     * Celdas vivas que están dentro del contorno (densidad desde `DENSITY_ISO_LEVEL`) y tienen desgaste, con su rectángulo.
+     * @returns {{x: number, y: number, width: number, height: number, wear: number}[]} `x` e `y` son el borde inferior
+     * izquierdo, en m, en el marco local del cuerpo
+     */
+    wornCells() {
+        const cells = [];
+        if (!this.hasWear) return cells;
+        for (let row = 0; row < this.rows; row++) {
+            for (let column = 0; column < this.columns; column++) {
+                const index = row * this.columns + column;
+                if (this.wear[index] <= 0 || this.values[index] < DENSITY_ISO_LEVEL) continue;
+                cells.push({
+                    x: this.originX + column * this.cellWidth,
+                    y: this.originY + row * this.cellHeight,
+                    width: this.cellWidth,
+                    height: this.cellHeight,
+                    wear: this.wear[index],
+                });
+            }
+        }
+        return cells;
+    }
+
+    /**
+     * Sube el desgaste de las celdas vivas vecinas (8 vecinos) de una celda que se vació, hasta `NEIGHBOR_WEAR` como mínimo.
+     * @param {number} row
+     * @param {number} column
+     */
+    wearNeighbors(row, column) {
+        for (const [rowOffset, columnOffset] of NEIGHBOR_OFFSETS) {
+            const neighborRow = row + rowOffset;
+            const neighborColumn = column + columnOffset;
+            if (neighborRow < 0 || neighborRow >= this.rows || neighborColumn < 0 || neighborColumn >= this.columns) continue;
+            const index = neighborRow * this.columns + neighborColumn;
+            if (this.values[index] > 0) this.wear[index] = Math.max(this.wear[index], NEIGHBOR_WEAR);
+        }
     }
 
     /**
@@ -143,10 +199,15 @@ export class DensityGrid {
             if (remaining <= 0) break;
             const taken = Math.min(this.values[index], remaining / cellArea);
             this.values[index] -= taken;
+            this.wear[index] = Math.min(1, this.wear[index] + taken);
             remaining -= taken * cellArea;
+            if (this.values[index] <= 0) this.wearNeighbors(Math.floor(index / this.columns), index % this.columns);
         }
         const removed = area - remaining;
-        if (removed > 0) this.dirty = true;
+        if (removed > 0) {
+            this.dirty = true;
+            this.hasWear = true;
+        }
         return removed;
     }
 }

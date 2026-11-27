@@ -32,3 +32,18 @@ Una planta industrial vista de lejos, dibujada por el juego (sin imágenes): cie
 - **Sin repetición evidente:** el contenido sale de un azar con semilla por tramo, así que el mismo lugar se ve siempre igual y dos tramos vecinos se ven distintos.
 - **Altura (Infinito):** el fondo cambia por franjas de altura: abajo el piso de la planta, más arriba pasarelas y la parte alta de los tanques, y arriba de todo las bocas de las chimeneas con humo y más cielo. Las franjas se funden, sin cortes.
 - **Costo:** el fondo no baja los fps de forma medible.
+
+## 13.2 Materiales de las plataformas
+
+Cada plataforma firme es de un material, y el material decide cómo se ve y cuánto le hace el ácido. Hay tres:
+
+| Material | Dónde | Cómo se ve | Ácido |
+|---|---|---|---|
+| Acero | Plataformas, también las atravesables | Chapa gris azulada con paneles, remaches y rayado fino | Se corroe a la velocidad de la corrosión (§5.5) |
+| Hormigón | Piso y paredes | Gris cálido, granulado, con manchas y bordes gastados | Se corroe igual que el acero |
+| Vidrio | Solo donde el nivel lo pide | Celeste translúcido con un reflejo en diagonal y borde claro | No le hace nada |
+
+- **El dibujo sigue al mundo:** la textura queda pegada a la plataforma, no a la pantalla, y no se repite a simple vista.
+- **Desgaste:** donde el ácido mordió, el borde que queda muestra óxido (naranja y marrón sobre el acero, manchas oscuras sobre el hormigón) que se oscurece con el daño acumulado. Una plataforma nueva no tiene óxido.
+- **Legibilidad:** el contorno de cada plataforma se sigue leyendo contra el fondo, y los materiales no compiten con los robots ni con los fluidos.
+- **Costo:** los materiales no bajan los fps de forma medible: se dibujan en una sola pasada para todo el escenario.

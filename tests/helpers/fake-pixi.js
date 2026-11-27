@@ -267,9 +267,19 @@ class FakeRectangle {
     }
 }
 
+/** Filtro falso: guarda sus opciones y, como PIXI v8, expone cada grupo de uniforms de `resources` con sus valores en `uniforms`. */
 class FakeFilter {
+    static constructed = 0;
+
     constructor(options) {
+        FakeFilter.constructed++;
         this.options = options;
+        this.resources = {};
+        for (const [group, definitions] of Object.entries(options.resources ?? {})) {
+            const uniforms = {};
+            for (const [name, definition] of Object.entries(definitions)) uniforms[name] = definition.value;
+            this.resources[group] = { uniforms };
+        }
     }
 }
 

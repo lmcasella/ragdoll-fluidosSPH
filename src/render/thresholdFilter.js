@@ -13,7 +13,8 @@ export const THRESHOLD_OFFSET = -10;
 
 const SHADER_NAME = "threshold-filter";
 
-const VERTEX = `
+/** Vértice común de los filtros propios: ubica el cuadrilátero del filtro y pasa la coordenada de textura de entrada. */
+export const FILTER_VERTEX = `
 in vec2 aPosition;
 out vec2 vTextureCoord;
 
@@ -61,7 +62,7 @@ export function thresholdAlpha(alpha) {
  */
 export function createThresholdFilter() {
     return new PIXI.Filter({
-        glProgram: PIXI.GlProgram.from({ vertex: VERTEX, fragment: FRAGMENT, name: SHADER_NAME }),
+        glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: FRAGMENT, name: SHADER_NAME }),
         resources: {},
     });
 }
