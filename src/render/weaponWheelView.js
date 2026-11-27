@@ -22,7 +22,7 @@ const HALF = 0.5;
 
 /**
  * Rueda de armas de cada jugador, como un `PIXI.Graphics` por jugador que se limpia y se redibuja mientras está abierta
- * (`docs/design/07-sph.md` §7.4, controles en `docs/design/10-controles.md`), más una letra por sector que se reutiliza entre
+ * (`docs/design/10-controles.md`), más una letra por sector que se reutiliza entre
  * frames (Object Pool). Los sectores están en orden, el primero centrado arriba y los demás en sentido horario. Va en la capa
  * superpuesta, encima de los fluidos.
  */
@@ -64,12 +64,12 @@ export class WeaponWheelView {
             const [red, green, blue] = entry.color;
             const isSelected = index === selected;
             const outerRadius = isSelected ? WHEEL_RADII.selected : WHEEL_RADII.outer;
-            const from = QUARTER_TURN - (index + HALF) * step;
-            const to = QUARTER_TURN - (index - HALF) * step;
+            const startAngle = QUARTER_TURN - (index + HALF) * step;
+            const endAngle = QUARTER_TURN - (index - HALF) * step;
             wheel.graphics
-                .moveTo((centerX + Math.cos(from) * outerRadius) * scale, (centerY + Math.sin(from) * outerRadius) * scale)
-                .arc(centerX * scale, centerY * scale, outerRadius * scale, from, to)
-                .arc(centerX * scale, centerY * scale, WHEEL_RADII.inner * scale, to, from, true)
+                .moveTo((centerX + Math.cos(startAngle) * outerRadius) * scale, (centerY + Math.sin(startAngle) * outerRadius) * scale)
+                .arc(centerX * scale, centerY * scale, outerRadius * scale, startAngle, endAngle)
+                .arc(centerX * scale, centerY * scale, WHEEL_RADII.inner * scale, endAngle, startAngle, true)
                 .closePath()
                 .fill({ color: tintOf(red, green, blue), alpha: isSelected ? SECTOR_ALPHA.selected : SECTOR_ALPHA.normal })
                 .stroke(
@@ -77,7 +77,7 @@ export class WeaponWheelView {
                         ? { width: SECTOR_OUTLINE.equippedWidth * scale, color: SECTOR_OUTLINE.equippedColor }
                         : { width: SECTOR_OUTLINE.normalWidth * scale, color: SECTOR_OUTLINE.normalColor, alpha: SECTOR_OUTLINE.normalAlpha },
                 );
-            const middle = (from + to) * HALF;
+            const middle = (startAngle + endAngle) * HALF;
             const labelRadius = (WHEEL_RADII.inner + WHEEL_RADII.outer) * HALF;
             const labelX = centerX + Math.cos(middle) * labelRadius;
             const labelY = centerY + Math.sin(middle) * labelRadius;

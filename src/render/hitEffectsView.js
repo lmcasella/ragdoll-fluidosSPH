@@ -13,7 +13,7 @@ export const HIT_FX = {
 
 /**
  * Efectos de los golpes de `Melee.hits` en un solo `PIXI.Graphics` que se limpia y se redibuja cada frame
- * (`docs/design/07-sph.md` §7.4). Los eventos vencidos se descartan de la lista.
+ * (`docs/design/03-robots.md` §3.7). Los eventos vencidos se descartan de la lista.
  */
 export class HitEffectsView {
     /**

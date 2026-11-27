@@ -9,7 +9,7 @@ const IMPACT_RADIUS_PX = 4;
 
 /**
  * Mira láser de cada jugador, como un `PIXI.Graphics` por jugador que se limpia y se redibuja cada frame: una línea desde la
- * boca del arma hasta el primer impacto (o el alcance máximo) y un punto si hubo impacto (`docs/design/07-sph.md` §7.4).
+ * boca del arma hasta el primer impacto (o el alcance máximo) y un punto si hubo impacto (`docs/design/08-raycast.md`).
  * Los grosores se dividen por la escala de la cámara para mantenerlos en píxeles de pantalla.
  */
 export class AimLaserView {
