@@ -65,7 +65,8 @@ export function metaballVisibleRadius(peak, influence = METABALL_RADIUS, thresho
  * unión de círculos (con `skinPosition`) mida N · A_p, por bisección; resultado ponderado por N: agua 1,040
  * (109 muestras), miel 1,069 (111), lava 1,045 (12); con la viscosidad de la lava (#75) la pila de lava ya no se
  * comprime y el k de lava y piedra sube a 1,06 (con 1,045, 6 de 2.458 pasos de I3p pasan de ±15 %). El ácido nunca queda en reposo en esa escena (se absorbe o
- * cae al campo) y usa el k del agua, que tiene sus mismos flags y separación SPH.
+ * cae al campo) y usa el k del agua, que tiene sus mismos flags y separación SPH. `diffuse` dibuja el material sin filtro
+ * de umbral, como una nube (el vapor).
  */
 export const SHOT_DRAW = {
     radius: PARTICLE_RADIUS,
@@ -79,10 +80,10 @@ export const SHOT_DRAW = {
         3: { radiusScale: 1.069 },
         4: { radiusScale: 1.04 },
         5: { radiusScale: 1.06 },
-        6: { radiusScale: 1.04 },
+        6: { radiusScale: 1.04, diffuse: true },
     },
 };
-const DEFAULT_KIND = { radiusScale: 1 };
+const DEFAULT_KIND = { radiusScale: 1, diffuse: false };
 // m que el agua acercada se mete bajo la superficie del cuerpo para que no quede una línea de fondo entre los dos
 const SKIN_OVERLAP = 0.02;
 
@@ -492,7 +493,8 @@ export function drawParticles(layers, particleSystem, skin = null, store = null)
         const colorOffset = colorBase + i * COLOR_BYTES;
         const kind = store !== null ? store.kind[store.slotAt(i)] : 0;
         dropShape(positions[posBase + i * 2], positions[posBase + i * 2 + 1], kind, draw, shape);
-        const particle = layers.acquire(kind, shape.radius);
+        const diffuse = (draw.kinds[kind] ?? DEFAULT_KIND).diffuse === true;
+        const particle = layers.acquire(kind, shape.radius, diffuse);
         const vx = positions[velBase + i * 2];
         const vy = positions[velBase + i * 2 + 1];
         const speed = Math.hypot(vx, vy);

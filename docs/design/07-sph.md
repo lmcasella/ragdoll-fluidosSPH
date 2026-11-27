@@ -63,7 +63,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 
 - **Hoy** ✅:
   - cada partícula es una partícula de PIXI (`ParticleContainer`) con la textura de campo de su material (perfil (1 − (d/R)²)², R = 2,2 radios), generada una sola vez y teñida con el color de la partícula; cada frame solo cambian su posición, escala, giro y tinte (#213, #310);
-  - un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas;
+  - un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas de los líquidos; el vapor va sin umbral y se ve difuso, como una nube;
   - cada material tiene su propia capa (un contenedor de la escena con el filtro), así que materiales distintos no se funden entre sí.
 
   El resultado son **manchas planas**, sin brillo ni volumen, y no escala a miles de partículas.

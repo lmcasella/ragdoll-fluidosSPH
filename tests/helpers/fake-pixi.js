@@ -229,6 +229,16 @@ class FakeParticleContainer extends FakeContainer {
     }
 }
 
+/** `Rectangle` falso: posición y tamaño, como PIXI v8. */
+class FakeRectangle {
+    constructor(x = 0, y = 0, width = 0, height = 0) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+}
+
 class FakeFilter {
     constructor(options) {
         this.options = options;
@@ -272,6 +282,7 @@ export function installFakePixi() {
         Particle: FakeParticle,
         ParticleContainer: FakeParticleContainer,
         FillGradient: FakeFillGradient,
+        Rectangle: FakeRectangle,
         Filter: FakeFilter,
         GlProgram: { from: (options) => options },
     };
