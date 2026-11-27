@@ -11,11 +11,17 @@ const {
     metaballPeak,
     metaballVisibleRadius,
     drawParticles,
-    FluidLayers,
-    MetaballSprites,
     SHOT_DRAW: DRAW,
     PARTICLE_RADIUS,
 } = await import("../src/render/render.js");
+const { FluidLayers } = await import("../src/render/fluidLayers.js");
+const { tintOf } = await import("../src/core/color.js");
+
+const PIXELS_PER_METER = 32;
+const FIELD_TEXTURE_SIZE_PX = 64;
+const WATER = 4;
+const HONEY = 3;
+const STONE = 6;
 
 /** Alfa de `n` capas de alfa `a` en `source-over`: `1 − Π(1 − a_i)`. */
 const over = (...alphas) => 1 - alphas.reduce((acc, a) => acc * (1 - a), 1);
@@ -43,41 +49,18 @@ test("dos gotas a 0,12 m superan el umbral en el punto medio y a 0,2 m no", (t) 
     }
 });
 
-/** Contexto 2D falso que cuenta los dibujos. */
-function fakeDoc() {
-    const created = [];
-    const doc = {
-        created,
-        createElement() {
-            const draws = [];
-            const canvas = {
-                width: 0,
-                height: 0,
-                style: {},
-                draws,
-                getContext: () => ({
-                    draws,
-                    resetTransform() {},
-                    clearRect() {},
-                    createRadialGradient: () => ({ addColorStop() {} }),
-                    fillRect() {},
-                    drawImage(sprite, x, y) {
-                        draws.push({ sprite, x, y });
-                    },
-                }),
-            };
-            created.push(canvas);
-            return canvas;
-        },
-    };
-    return doc;
-}
-
-/** `FluidLayers` sobre un contenedor del `PIXI` falso, con un filtro de relleno y la cámara sin efecto. */
-function newLayers(doc) {
+/** `FluidLayers` sobre el `PIXI` falso, con un renderer que cuenta las texturas generadas y un filtro de relleno. */
+function newLayers() {
     installFakePixi();
     const parent = new PIXI.Container();
-    return { parent, layers: new FluidLayers({ doc, parent, filter: {}, apply: () => {} }) };
+    const renderer = {
+        generatedTextures: 0,
+        generateTexture(graphics) {
+            this.generatedTextures++;
+            return { source: {}, graphics };
+        },
+    };
+    return { parent, renderer, layers: new FluidLayers({ renderer, parent, filter: {}, pixelsPerMeter: PIXELS_PER_METER }) };
 }
 
 function fakeSystem(kinds, colors) {
@@ -95,8 +78,14 @@ function fakeSystem(kinds, colors) {
     };
 }
 
-function run(layers, kinds, colors) {
+function run(layers, kinds, colors, velocity = null) {
     const { system, box } = fakeSystem(kinds, colors);
+    if (velocity !== null) {
+        kinds.forEach((_, i) => {
+            box.HEAPF32[kinds.length * 3 + i * 2] = velocity[0];
+            box.HEAPF32[kinds.length * 3 + i * 2 + 1] = velocity[1];
+        });
+    }
     const previous = globalThis.Box2D;
     globalThis.Box2D = box;
     try {
@@ -106,34 +95,94 @@ function run(layers, kinds, colors) {
     }
 }
 
+/** Partículas del `ParticleContainer` de la capa del nodo `node`. */
+const particlesOf = (node) => node.children[0].particleChildren;
+
 test("drawParticles: una capa por material presente y sin mezclar materiales", () => {
-    const doc = fakeDoc();
-    const { layers, parent } = newLayers(doc);
-    const kinds = [4, 4, 3, 6, 4, 3];
+    const { layers, parent } = newLayers();
+    const kinds = [WATER, WATER, HONEY, STONE, WATER, HONEY];
     const white = [200, 200, 200];
     run(layers, kinds, kinds.map(() => white));
-    const layerSprites = parent.children;
-    assert.equal(layerSprites.length, 3, "un sprite por material presente");
-    const byZ = Object.fromEntries(layerSprites.map((sprite) => [sprite.zIndex, sprite.texture.canvas.draws.length]));
-    assert.deepEqual(byZ, { 3: 2, 4: 3, 6: 1 });
-    run(layers, [4, 4], [white, white]);
-    assert.equal(layerSprites.find((sprite) => sprite.zIndex === 3).visible, false, "el material que no se usa queda oculto");
-    assert.equal(layerSprites.find((sprite) => sprite.zIndex === 4).visible, true);
+    const layerNodes = parent.children;
+    assert.equal(layerNodes.length, 3, "una capa por material presente");
+    const byZ = Object.fromEntries(layerNodes.map((node) => [node.zIndex, particlesOf(node).length]));
+    assert.deepEqual(byZ, { [HONEY]: 2, [WATER]: 3, [STONE]: 1 });
+    assert.ok(layerNodes.every((node) => node.filters.length === 1), "cada capa lleva el filtro de umbral");
+    run(layers, [WATER, WATER], [white, white]);
+    assert.equal(layerNodes.find((node) => node.zIndex === HONEY).visible, false, "el material que no se usa queda oculto");
+    assert.equal(particlesOf(layerNodes.find((node) => node.zIndex === HONEY)).length, 0, "y sin partículas");
+    assert.equal(layerNodes.find((node) => node.zIndex === WATER).visible, true);
+    assert.equal(particlesOf(layerNodes.find((node) => node.zIndex === WATER)).length, 2);
 });
 
-test("los sprites se cachean por material y color cuantizado y respetan el tope", () => {
-    const doc = fakeDoc();
-    const sprites = new MetaballSprites(() => doc.createElement(), 4);
-    const a = sprites.get(2, 255, 80, 20, 0.05);
-    assert.equal(sprites.get(2, 252, 81, 22, 0.05), a);
-    assert.notEqual(sprites.get(3, 255, 80, 20, 0.05), a);
-    for (let i = 0; i < 20; i++) sprites.get(2, i * 8, 0, 0, 0.05);
-    assert.equal(sprites.byKind.get(2).size, 4);
+test("cada material tiene su textura de campo, generada una vez, y el color sale del buffer como tinte", () => {
+    const { layers, parent, renderer } = newLayers();
+    const kinds = [WATER, HONEY, WATER, HONEY];
+    const colors = [[255, 80, 20], [10, 20, 30], [252, 81, 22], [0, 0, 0]];
+    run(layers, kinds, colors);
+    assert.equal(renderer.generatedTextures, 2, "una textura por material presente");
+    const water = parent.children.find((node) => node.zIndex === WATER);
+    const honey = parent.children.find((node) => node.zIndex === HONEY);
+    const [waterFirst, waterSecond] = particlesOf(water);
+    assert.equal(waterFirst.texture, waterSecond.texture, "las partículas de un material comparten textura");
+    assert.notEqual(waterFirst.texture, particlesOf(honey)[0].texture, "materiales distintos, texturas distintas");
+    assert.deepEqual([waterFirst.tint, waterSecond.tint], [tintOf(255, 80, 20), tintOf(252, 81, 22)]);
+    assert.equal(particlesOf(honey)[0].tint, tintOf(10, 20, 30));
+});
+
+test("la textura de campo de un material tiene el pico y el perfil de su dibujo, en blanco", () => {
+    const { layers, renderer } = newLayers();
+    run(layers, [WATER], [[1, 2, 3]]);
+    const { graphics } = layers.layers.get(WATER).texture;
+    assert.equal(renderer.generatedTextures, 1);
+    assert.equal(graphics.rectangles, 1);
+    const { colorStops } = graphics.fills[0].fill;
+    const radius = DRAW.radius * DRAW.kinds[WATER].radiusScale;
+    const alphas = colorStops.map(({ color }) => Number(color.match(/rgba\(255, 255, 255, ([\d.]+)\)/)[1]));
+    assert.ok(Math.abs(alphas[0] - metaballPeak(radius)) < 1e-4, "el centro vale el pico");
+    assert.equal(alphas.at(-1), 0, "el campo vale 0 en el borde");
+    assert.equal(colorStops[0].offset, 0);
+    assert.equal(colorStops.at(-1).offset, 1);
+    assert.ok(alphas.every((alpha, i) => i === 0 || alpha <= alphas[i - 1]), "el perfil baja hacia el borde");
+    assert.equal(layers.scalePerMeter, (2 * PIXELS_PER_METER) / FIELD_TEXTURE_SIZE_PX);
+});
+test("en frames sucesivos con las mismas partículas no se crean texturas ni partículas nuevas", () => {
+    const { layers, renderer } = newLayers();
+    const kinds = Array.from({ length: 300 }, (_, i) => 1 + (i % 5));
+    const colors = kinds.map(() => [120, 130, 140]);
+    run(layers, kinds, colors);
+    const textures = renderer.generatedTextures;
+    const particles = globalThis.PIXI.Particle.constructed;
+    const pooled = [...layers.layers.values()].map((layer) => layer.pool.length);
+    for (let frame = 0; frame < 30; frame++) run(layers, kinds, colors);
+    assert.equal(renderer.generatedTextures, textures, "ninguna textura nueva");
+    assert.equal(globalThis.PIXI.Particle.constructed, particles, "ninguna partícula nueva");
+    assert.deepEqual([...layers.layers.values()].map((layer) => layer.pool.length), pooled, "los pools no crecen");
+});
+
+test("una gota lenta es redonda y una rápida se estira a lo largo de su velocidad", () => {
+    const { layers, parent } = newLayers();
+    run(layers, [WATER], [[1, 2, 3]], [0, 0]);
+    const [still] = particlesOf(parent.children[0]);
+    assert.equal(still.scaleX, still.scaleY, "sin velocidad no se estira");
+    assert.equal(still.rotation, 0);
+    run(layers, [WATER], [[1, 2, 3]], [0, 18]);
+    const [fast] = particlesOf(parent.children[0]);
+    assert.ok(fast.scaleX > fast.scaleY, "estirada a lo largo del movimiento");
+    assert.ok(Math.abs(fast.rotation - Math.PI / 2) < 1e-6, "en la dirección de la velocidad");
+});
+
+test("la posición de cada partícula son los metros de la física en px a la escala del mundo", () => {
+    const { layers, parent } = newLayers();
+    run(layers, [WATER, WATER], [[1, 2, 3], [1, 2, 3]]);
+    const [first, second] = particlesOf(parent.children[0]);
+    assert.ok(Math.abs(first.x - 10 * PIXELS_PER_METER) < 1e-3);
+    assert.ok(Math.abs(first.y - 30 * PIXELS_PER_METER) < 1e-3);
+    assert.ok(Math.abs(second.x - 10.1 * PIXELS_PER_METER) < 1e-3);
 });
 
 test("costo de drawParticles con 4.000 partículas y 5 materiales (diagnóstico, sin objetos por partícula)", (t) => {
-    const doc = fakeDoc();
-    const { layers } = newLayers(doc);
+    const { layers, renderer } = newLayers();
     const n = 4000;
     const kinds = Array.from({ length: n }, (_, i) => 1 + (i % 5));
     const colors = Array.from({ length: n }, (_, i) => [((i * 7) % 20) * 12, ((i * 13) % 20) * 12, ((i * 29) % 20) * 12]);
@@ -145,19 +194,15 @@ test("costo de drawParticles con 4.000 partículas y 5 materiales (diagnóstico,
         for (let i = 0; i < 20; i++) drawParticles(layers, system, DRAW, store);
         const frames = 200;
         const start = performance.now();
-        for (let i = 0; i < frames; i++) {
-            for (const c of doc.created) if (c.draws) c.draws.length = 0;
-            drawParticles(layers, system, DRAW, store);
-        }
+        for (let i = 0; i < frames; i++) drawParticles(layers, system, DRAW, store);
         const ms = (performance.now() - start) / frames;
-        t.diagnostic(`${n} partículas: ${ms.toFixed(3)} ms por frame (CPU de JS, contexto falso); sprites horneados ${layers.sprites.baked}`);
+        t.diagnostic(`${n} partículas: ${ms.toFixed(3)} ms por frame (CPU de JS, PIXI falso); texturas generadas ${renderer.generatedTextures}`);
         assert.ok(ms < 5);
     } finally {
         globalThis.Box2D = previous;
     }
     assert.ok(METABALL_RADIUS > 0);
 });
-
 test("#213: dos gotas del chorro de agua a 18 m/s y 0,18 m se funden en el punto medio solo con el estiramiento por velocidad", () => {
     const radius = DRAW.radius * DRAW.kinds[4].radiusScale;
     const peak = metaballPeak(radius);

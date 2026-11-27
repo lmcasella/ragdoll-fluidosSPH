@@ -57,9 +57,9 @@ import {
     drawWeaponWheel,
     WHEEL_RADII,
     SHOT_DRAW,
-    FluidLayers,
     collectSurfaces,
 } from "./src/render/render.js";
+import { FluidLayers } from "./src/render/fluidLayers.js";
 import { WaterView } from "./src/render/waterView.js";
 import { RagdollPainter } from "./src/ragdoll/RagdollPainter.js";
 import { parseHexColor } from "./src/ragdoll/ragdollTint.js";
@@ -137,10 +137,10 @@ const scene = await createScene({ container: gameContainer, doc: document, width
 const overlayCtx = scene.overlayLayer.ctx;
 const panelCtx = scene.panelLayer.ctx;
 const fluidLayers = new FluidLayers({
-    doc: document,
+    renderer: scene.application.renderer,
     parent: scene.fluidParent,
     filter: createThresholdFilter(),
-    apply: (layerCtx) => camera.apply(layerCtx),
+    pixelsPerMeter: PIXELS_PER_METER,
 });
 const levelView = new LevelView({ parent: scene.levelLayer, pixelsPerMeter: PIXELS_PER_METER });
 const waterView = new WaterView({ parent: scene.waterLayer, pixelsPerMeter: PIXELS_PER_METER });
@@ -157,7 +157,6 @@ fetch("version.json", { cache: "no-store" })
 
 function resize() {
     scene.resize(window.innerWidth, window.innerHeight);
-    fluidLayers.resize(window.innerWidth, window.innerHeight);
     camera.resize(window.innerWidth, window.innerHeight);
 }
 resize();
@@ -995,6 +994,7 @@ function loop(nowMs) {
     for (const layer of scene.layers) layer.clear();
     camera.apply(overlayCtx);
     camera.applyTo(scene.world);
+    camera.applyTo(scene.fluidParent);
     const offsetY = climb ? climb.offsetY : 0;
     levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);

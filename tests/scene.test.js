@@ -17,7 +17,6 @@ const MAX_SCALE = 64;
 const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
 const RESIZED_VIEWS = [{ width: 1000, height: 300 }, { width: 720, height: 1280 }, { width: 2560, height: 720 }];
-const FLUID_KINDS = [4, 5];
 const MAX_POSITION_ERROR = 1e-9;
 const OUTLINE_SCREEN_PX = 2;
 const OUTLINE_TOLERANCE = 0.1;
@@ -102,24 +101,16 @@ test("la cámara pone en el mundo PIXI el mismo zoom con Y invertida y la misma 
 
 test("tras cambiar el tamaño y la proporción, cada capa 2D, su textura y su sprite miden lo mismo que el canvas de la escena", async () => {
     const game = await loadGame();
-    const { scene, fluidLayers } = game.state;
+    const { scene } = game.state;
     game.frames(SETTLE_FRAMES);
-    fluidLayers.begin();
-    fluidLayers.contextFor(FLUID_KINDS[0]);
-    fluidLayers.end();
     for (const { width, height } of RESIZED_VIEWS) {
         window.innerWidth = width;
         window.innerHeight = height;
         game.emit("resize");
-        fluidLayers.begin();
-        for (const kind of FLUID_KINDS) fluidLayers.contextFor(kind);
-        fluidLayers.end();
         game.frames(SETTLE_FRAMES);
         const sceneCanvas = scene.application.canvas;
         assert.deepEqual([sceneCanvas.width, sceneCanvas.height], [width, height], "el canvas de la escena");
-        const layers = [...scene.layers, ...[...fluidLayers.layers.values()].map((entry) => entry.layer)];
-        assert.equal(layers.length, scene.layers.length + FLUID_KINDS.length);
-        for (const layer of layers) {
+        for (const layer of scene.layers) {
             const label = `${layer.canvas.id} a ${width}x${height}`;
             assert.deepEqual([layer.canvas.width, layer.canvas.height], [width, height], `canvas de ${label}`);
             assert.deepEqual([layer.texture.source.width, layer.texture.source.height], [width, height], `textura de ${label}`);
@@ -144,6 +135,9 @@ test("tras cambiar el tamaño, el mundo PIXI y los canvas 2D comparten la transf
         const expectedY = height / 2 + camera.y * camera.scale;
         assert.ok(Math.abs(world.position.x - expectedX) < MAX_POSITION_ERROR, `posición x a ${width}x${height}`);
         assert.ok(Math.abs(world.position.y - expectedY) < MAX_POSITION_ERROR, `posición y a ${width}x${height}`);
+        const { fluidParent } = scene;
+        assert.deepEqual([fluidParent.scale.x, fluidParent.scale.y], [world.scale.x, world.scale.y], `las capas de fluido escalan como el mundo a ${width}x${height}`);
+        assert.deepEqual([fluidParent.position.x, fluidParent.position.y], [world.position.x, world.position.y], `las capas de fluido se mueven como el mundo a ${width}x${height}`);
     }
 });
 test("el trazo de las plataformas mide siempre unos 2 px en pantalla, con cualquier zoom", async () => {
