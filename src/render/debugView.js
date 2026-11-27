@@ -40,6 +40,9 @@ const FORCE_STROKES = [
     { property: "drag", color: LAYER_COLORS.drag },
 ];
 
+/** Valores por vértice en un arreglo intercalado (x, y). */
+const COMPONENTS_PER_VERTEX = 2;
+
 /** Mitad de un ancho: el centro de una celda del campo está a media celda de su borde. */
 const HALF = 0.5;
 
@@ -137,7 +140,7 @@ export class DebugView {
     addRing(graphics, ring) {
         const scale = this.pixelsPerMeter;
         graphics.moveTo(ring[0] * scale, ring[1] * scale);
-        for (let index = 2; index < ring.length; index += 2) graphics.lineTo(ring[index] * scale, ring[index + 1] * scale);
+        for (let index = COMPONENTS_PER_VERTEX; index < ring.length; index += COMPONENTS_PER_VERTEX) graphics.lineTo(ring[index] * scale, ring[index + 1] * scale);
         graphics.closePath();
     }
 

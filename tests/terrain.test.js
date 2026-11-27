@@ -14,7 +14,7 @@ const { LEVEL, buildLevel, SOLID_FRICTION } = await import("../src/level/level.j
 const { Climb } = await import("../src/level/climb.js");
 const { Terrain, TERRAIN } = await import("../src/level/terrain.js");
 const { DensityGrid, DENSITY_CELL_SIZE } = await import("../src/level/densityGrid.js");
-const { OneWayPlatforms } = await import("../src/level/platforms.js");
+const { OneWayPlatforms, ONE_WAY } = await import("../src/level/platforms.js");
 const { Pickups } = await import("../src/level/pickups.js");
 const { fixtureBounds } = await import("../src/core/engine/box2d.js");
 const { mergeBounds } = await import("../src/core/math/geometry.js");
@@ -25,6 +25,14 @@ const RING_TOLERANCE = 1e-6;
 const BOUNDS_TOLERANCE = 1e-4;
 const FRICTION_TOLERANCE = 1e-6;
 const CORNERS = 4;
+const COMPONENTS_PER_VERTEX = 2;
+/** Diferencia máxima entre una grilla y su rectángulo, en m: el ancho y el alto son un número entero de celdas. */
+const GRID_EXACTNESS = 1e-12;
+/** Desvío relativo máximo del tamaño de celda respecto de 5 cm en una grilla de al menos dos celdas: redondear el número de celdas cambia el tamaño a lo sumo en media celda de cada dos. */
+const CELL_SIZE_RELATIVE_TOLERANCE = 0.25;
+const MINIMUM_CELLS_FOR_SIZE_CHECK = 2;
+const CROWD_COUNT = 10;
+const CROWD_SPACING = 10;
 const INFINITE_PLATFORMS = 200;
 const INFINITE_SEED = 5;
 const GENERATION_STEP = 30;
@@ -59,13 +67,13 @@ function rectangleOf({ grid }) {
 }
 
 /** Caja que ocupaba un sólido cuando era una caja de Box2D (`SetAsBox`), medida en un cuerpo de prueba. */
-function oldBoxBounds(world, { x, y, w, h }) {
+function oldBoxBounds(world, { x, y, w: width, h: height }) {
     const definition = new Box2D.b2BodyDef();
     const body = world.CreateBody(definition);
     Box2D.destroy(definition);
     const shape = new Box2D.b2PolygonShape();
     const center = new Box2D.b2Vec2(x, y);
-    shape.SetAsBox(w / 2, h / 2, center, 0);
+    shape.SetAsBox(width / 2, height / 2, center, 0);
     const bounds = fixtureBounds(body.CreateFixture(shape, 0), { minX: 0, minY: 0, maxX: 0, maxY: 0 });
     Box2D.destroy(center);
     Box2D.destroy(shape);
@@ -92,7 +100,7 @@ function assertSolid(world, platforms, solid, tiles) {
         const rectangle = rectangleOf(tile);
         assert.equal(tile.rings.length, 1, "un solo contorno");
         const ring = tile.rings[0];
-        assert.equal(ring.length / 2, CORNERS, "el contorno simplificado tiene 4 vértices");
+        assert.equal(ring.length / COMPONENTS_PER_VERTEX, CORNERS, "el contorno simplificado tiene 4 vértices");
         const corners = [
             [rectangle.x - rectangle.w / 2, rectangle.y - rectangle.h / 2],
             [rectangle.x + rectangle.w / 2, rectangle.y - rectangle.h / 2],
@@ -100,7 +108,7 @@ function assertSolid(world, platforms, solid, tiles) {
             [rectangle.x - rectangle.w / 2, rectangle.y + rectangle.h / 2],
         ];
         for (const [cornerX, cornerY] of corners) {
-            const nearest = Math.min(...Array.from({ length: CORNERS }, (_, index) => Math.hypot(ring[2 * index] - cornerX, ring[2 * index + 1] - cornerY)));
+            const nearest = Math.min(...Array.from({ length: CORNERS }, (_, index) => Math.hypot(ring[COMPONENTS_PER_VERTEX * index] - cornerX, ring[COMPONENTS_PER_VERTEX * index + 1] - cornerY)));
             assert.ok(nearest < RING_TOLERANCE, `esquina (${cornerX}, ${cornerY}) a ${nearest} m del contorno`);
         }
         assert.equal(tile.polygons.length, 1, "un solo polígono");
@@ -116,10 +124,10 @@ function assertSolid(world, platforms, solid, tiles) {
 test("la grilla ajusta el tamaño de celda para que el ancho y el alto sean múltiplos enteros de celda", () => {
     for (const [width, height] of [[3.6, 4], [12, 0.4], [2.03, 0.4], [0.01, 0.01]]) {
         const grid = new DensityGrid({ originX: 1, originY: 2, width, height });
-        assert.ok(Math.abs(grid.columns * grid.cellWidth - width) < 1e-12);
-        assert.ok(Math.abs(grid.rows * grid.cellHeight - height) < 1e-12);
+        assert.ok(Math.abs(grid.columns * grid.cellWidth - width) < GRID_EXACTNESS);
+        assert.ok(Math.abs(grid.rows * grid.cellHeight - height) < GRID_EXACTNESS);
         assert.ok(grid.columns >= 1 && grid.rows >= 1);
-        if (width >= DENSITY_CELL_SIZE) assert.ok(Math.abs(grid.cellWidth - DENSITY_CELL_SIZE) <= DENSITY_CELL_SIZE * 0.5 / (width / DENSITY_CELL_SIZE) + 1e-12);
+        if (width >= MINIMUM_CELLS_FOR_SIZE_CHECK * DENSITY_CELL_SIZE) assert.ok(Math.abs(grid.cellWidth / DENSITY_CELL_SIZE - 1) <= CELL_SIZE_RELATIVE_TOLERANCE);
         assert.equal(grid.values.length, grid.columns * grid.rows);
         assert.equal(grid.dirty, false);
     }
@@ -203,20 +211,20 @@ test("update rehace como mucho maxRebuildsPerFrame tramos sucios por llamada, de
     Box2D.destroy(definition);
     let clock = 0;
     const terrain = new Terrain({ body, friction: SOLID_FRICTION, now: () => (clock += 5) });
-    for (let index = 0; index < 10; index++) terrain.addSolid({ x: index * 10, y: 0, w: 3, h: 1 });
+    for (let index = 0; index < CROWD_COUNT; index++) terrain.addSolid({ x: index * CROWD_SPACING, y: 0, w: 3, h: 1 });
     assert.equal(terrain.update(), 0, "sin tramos sucios no rehace nada");
     assert.equal(terrain.lastRebuildMs, 0);
     const fixtures = terrain.fixtureCount();
     for (const tile of terrain.tiles) tile.grid.dirty = true;
     const rebuilt = [terrain.update(), terrain.update(), terrain.update(), terrain.update()];
-    assert.deepEqual(rebuilt, [TERRAIN.maxRebuildsPerFrame, TERRAIN.maxRebuildsPerFrame, 10 - 2 * TERRAIN.maxRebuildsPerFrame, 0]);
+    assert.deepEqual(rebuilt, [TERRAIN.maxRebuildsPerFrame, TERRAIN.maxRebuildsPerFrame, CROWD_COUNT - 2 * TERRAIN.maxRebuildsPerFrame, 0]);
     assert.equal(terrain.fixtureCount(), fixtures, "rehacer reemplaza los fixtures, no los suma");
     assert.ok([...terrain.tiles].every((tile) => !tile.grid.dirty));
     for (const tile of terrain.tiles) tile.grid.dirty = true;
     terrain.update();
     assert.equal(terrain.lastRebuilds, TERRAIN.maxRebuildsPerFrame);
     assert.equal(terrain.lastRebuildMs, 5, "el costo sale del reloj inyectado");
-    assert.deepEqual(terrain.counts(), { grids: 10, polygons: 10, vertices: 40 });
+    assert.deepEqual(terrain.counts(), { grids: CROWD_COUNT, polygons: CROWD_COUNT, vertices: CORNERS * CROWD_COUNT });
     terrain.dispose();
 });
 
@@ -345,6 +353,6 @@ test("rehacer a la fuerza una plataforma atravesable bajo un robot parado no lo 
     const { game, stepTop } = await assertRebuildDoesNotMoveRobot(standOnStep, "escalón");
     const { platforms, players } = game.state;
     const lowest = platforms.measure(platforms.owners.get(0)).low;
-    assert.ok(Math.abs(lowest - stepTop) < 0.05, "sigue sobre el tope y no lo atravesó");
+    assert.ok(Math.abs(lowest - stepTop) < ONE_WAY.tolerance, "sigue sobre el tope y no lo atravesó");
     assert.equal(players[0].dead, false);
 });

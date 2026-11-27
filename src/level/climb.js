@@ -618,9 +618,9 @@ export class Climb {
     }
 
     /** Plataforma `{ x, w, y }` (`y` el tope) atravesable de alto `branches.thickness`. */
-    addPlatform(p) {
+    addPlatform(platform) {
         const { thickness } = this.config.branches;
-        this.addSolid({ x: p.x, y: p.y - thickness / 2, w: p.w, h: thickness, kind: "platform" }, { oneWay: true, breakable: p.breakable });
+        this.addSolid({ x: platform.x, y: platform.y - thickness / 2, w: platform.w, h: thickness, kind: "platform" }, { oneWay: true, breakable: platform.breakable });
     }
 
     /**
@@ -630,11 +630,12 @@ export class Climb {
      * @param {{oneWay?: boolean, breakable?: number|boolean}} [options] `breakable`: segundos de cuenta, o `false`
      */
     addSolid(rectangle, { oneWay = false, breakable = false } = {}) {
-        const { x, y, w, h, kind } = rectangle;
-        const solid = oneWay ? { x, y, w, h, kind, oneWay, ...(breakable ? { breakable } : {}) } : { x, y, w, h, kind };
-        const item = { oneWay, breakable: Boolean(breakable), kind, top: y + h / 2, solid };
+        const { x, y, w: width, h: height, kind } = rectangle;
+        const solid = { x, y, w: width, h: height, kind };
+        if (oneWay) Object.assign(solid, { oneWay }, breakable ? { breakable } : {});
+        const item = { oneWay, breakable: Boolean(breakable), kind, top: y + height / 2, solid };
         if (breakable) {
-            item.fixture = this.terrain.builder.createBox(this.body, { x, y, width: w, height: h }, { friction: SOLID_FRICTION });
+            item.fixture = this.terrain.builder.createBox(this.body, { x, y, width, height }, { friction: SOLID_FRICTION });
             this.platforms.addPlatform(item.fixture, { moving: true });
             if (this.breakable) this.breakable.add(item.fixture, solid);
         } else {

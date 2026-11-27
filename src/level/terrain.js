@@ -17,6 +17,9 @@ export const TERRAIN = { maxTileSize: 4, maxRebuildsPerFrame: 4, simplifyCells: 
 /** Un anillo con menos vértices que esto no encierra área. */
 const MINIMUM_RING_VERTICES = 3;
 
+/** Valores por vértice en un arreglo intercalado (x, y). */
+const COMPONENTS_PER_VERTEX = 2;
+
 /**
  * Cantidad de tramos iguales en que se parte un largo para que ninguno pase de `maxSize`.
  * @param {number} length en m
@@ -34,7 +37,7 @@ function tilesAlong(length, maxSize) {
  * @param {number} offsetY en m
  */
 function translateRing(ring, offsetX, offsetY) {
-    for (let index = 0; index < ring.length; index += 2) {
+    for (let index = 0; index < ring.length; index += COMPONENTS_PER_VERTEX) {
         ring[index] += offsetX;
         ring[index + 1] += offsetY;
     }
@@ -54,8 +57,9 @@ function shapeOfGrid(grid, config) {
     const holes = [];
     for (const ring of contoursOfGrid(grid)) {
         const simplified = simplifyRing(ring, tolerance);
-        const area = polygonArea(simplified, simplified.length / 2);
-        if (simplified.length / 2 < MINIMUM_RING_VERTICES || area === 0) continue;
+        const vertexCount = simplified.length / COMPONENTS_PER_VERTEX;
+        const area = polygonArea(simplified, vertexCount);
+        if (vertexCount < MINIMUM_RING_VERTICES || area === 0) continue;
         translateRing(simplified, grid.originX, grid.originY);
         (area > 0 ? outers : holes).push(simplified);
     }
@@ -120,16 +124,16 @@ export class Terrain {
      * @returns {{solid: object, tiles: object[]}} el sólido y sus tramos, para `removeSolid`
      */
     addSolid(solid, { oneWay = false } = {}) {
-        const { x, y, w, h } = solid;
-        const columns = oneWay ? 1 : tilesAlong(w, this.config.maxTileSize);
-        const rows = oneWay ? 1 : tilesAlong(h, this.config.maxTileSize);
-        const tileWidth = w / columns;
-        const tileHeight = h / rows;
+        const { x, y, w: width, h: height } = solid;
+        const columns = oneWay ? 1 : tilesAlong(width, this.config.maxTileSize);
+        const rows = oneWay ? 1 : tilesAlong(height, this.config.maxTileSize);
+        const tileWidth = width / columns;
+        const tileHeight = height / rows;
         const handle = { solid, tiles: [] };
         for (let row = 0; row < rows; row++) {
             for (let column = 0; column < columns; column++) {
-                const originX = x - w / 2 + column * tileWidth;
-                const originY = y - h / 2 + row * tileHeight;
+                const originX = x - width / 2 + column * tileWidth;
+                const originY = y - height / 2 + row * tileHeight;
                 const grid = new DensityGrid({ originX, originY, width: tileWidth, height: tileHeight });
                 grid.fillRectangle({ minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight });
                 const tile = { grid, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1 };
@@ -215,7 +219,7 @@ export class Terrain {
         let vertices = 0;
         for (const tile of this.tiles) {
             polygons += tile.polygons.length;
-            for (const polygon of tile.polygons) vertices += polygon.length / 2;
+            for (const polygon of tile.polygons) vertices += polygon.length / COMPONENTS_PER_VERTEX;
         }
         return { grids: this.tiles.size, polygons, vertices };
     }

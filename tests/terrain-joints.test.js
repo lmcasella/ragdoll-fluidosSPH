@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
+import { VECTOR_COMPONENTS } from "../src/core/heap.js";
 
 const { LEVEL } = await import("../src/level/level.js");
 const { TERRAIN } = await import("../src/level/terrain.js");
@@ -126,9 +127,9 @@ async function slowestAcrossJoint(tileSize) {
         let crossing = 0;
         let speedSum = 0;
         for (let index = 0; index < particleSystem.GetParticleCount(); index++) {
-            if (Math.abs(Box2D.HEAPF32[positions + 2 * index] - JOINT_X) >= JOINT_ZONE) continue;
+            if (Math.abs(Box2D.HEAPF32[positions + VECTOR_COMPONENTS * index] - JOINT_X) >= JOINT_ZONE) continue;
             crossing++;
-            speedSum += Box2D.HEAPF32[velocities + 2 * index];
+            speedSum += Box2D.HEAPF32[velocities + VECTOR_COMPONENTS * index];
         }
         if (crossing >= MIN_CROSSING_PARTICLES) slowestMean = Math.min(slowestMean, speedSum / crossing);
     }
