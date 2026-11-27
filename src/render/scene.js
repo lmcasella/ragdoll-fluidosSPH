@@ -1,7 +1,9 @@
 /**
  * Escena única del juego: una `PIXI.Application` con su canvas, el contenedor `world` (que la cámara mueve y escala, en
  * px a `pixelsPerMeter` con la Y hacia arriba). Ver `docs/design/07-sph.md` §7.4
- * y `docs/design/12-decisiones.md`. Orden de abajo a arriba, todo dentro de `world` (una sola cámara): nivel, robots
+ * y `docs/design/12-decisiones.md`. Debajo de `world` va `backgroundLayer`, el fondo con parallax (`docs/design/13-arte.md`
+ * §13.1): queda fuera de `world` porque cada una de sus capas tiene su propia posición y zoom. Orden de abajo a arriba,
+ * todo dentro de `world` (una sola cámara): nivel, robots
  * (`ragdollLayer`, con la Y invertida porque RagImporter espera la Y hacia abajo), chispas y burbujas, agua, capas de
  * fluido por material y capa superpuesta (recogibles, mira, golpes, rueda y capas de debug del mundo), que se dibujan
  * encima del agua y de los robots. El HUD, los menús y el panel de debug son HTML (`docs/design/18-interfaz.md`): el
@@ -13,8 +15,9 @@ export class Scene {
      */
     constructor(application) {
         this.application = application;
+        this.backgroundLayer = new PIXI.Container();
         this.world = new PIXI.Container();
-        application.stage.addChild(this.world);
+        application.stage.addChild(this.backgroundLayer, this.world);
         this.levelLayer = new PIXI.Container();
         this.ragdollLayer = new PIXI.Container();
         this.ragdollLayer.scale.y = -1;

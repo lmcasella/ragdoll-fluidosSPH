@@ -23,3 +23,12 @@ Hasta tener sprites, todo se dibuja con formas geométricas y colores planos (J1
 | 13 | Plataformas | Tile repetible de metal | 32 × 32 px |
 | 14 | Fondo | Escenario industrial con capas (parallax opcional) | 1920 × 1080 px |
 | 15 | Partículas de efecto | Chispa eléctrica y brillo de fuego | 16 × 16 px |
+
+## 13.1 Fondo
+
+Una planta industrial vista de lejos, dibujada por el juego (sin imágenes): cielo, chimeneas y tanques en el horizonte, cañerías y estructuras en el medio y vigas cerca. Son cuatro capas detrás del escenario y cada una se mueve con la cámara según su profundidad: la más lejana casi no se mueve y la más cercana acompaña bastante al escenario. El zoom también afecta menos a las capas lejanas.
+
+- **Legibilidad:** el fondo es oscuro, desaturado y se funde con el cielo hacia lo lejano. Robots, plataformas y fluidos siempre contrastan más que cualquier capa.
+- **Sin repetición evidente:** el contenido sale de un azar con semilla por tramo, así que el mismo lugar se ve siempre igual y dos tramos vecinos se ven distintos.
+- **Altura (Infinito):** el fondo cambia por franjas de altura: abajo el piso de la planta, más arriba pasarelas y la parte alta de los tanques, y arriba de todo las bocas de las chimeneas con humo y más cielo. Las franjas se funden, sin cortes.
+- **Costo:** el fondo no baja los fps de forma medible.
