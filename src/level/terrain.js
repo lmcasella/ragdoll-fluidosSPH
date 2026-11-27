@@ -231,8 +231,8 @@ export class Terrain {
      * Corroe el terreno cerca de un punto (`docs/design/05-escenario.md` §5.5): quita hasta `area` de materia de las celdas
      * a `reach` o menos, empezando por las más cercanas, y marca sucios los tramos tocados; la forma se rehace en el
      * próximo `update`. Solo se llama desde el loop, nunca dentro de un callback. `area` y lo devuelto se miden en materia
-     * de acero: a cada tramo se le saca `acidAttack` de su material por cada unidad de acero (el hormigón pierde un tercio
-     * y el vidrio nada), así el ácido se gasta igual sobre cualquier material.
+     * de acero: a cada tramo se le saca `acidAttack` de su material por cada unidad de acero (el vidrio no pierde
+     * nada), así el ácido se gasta igual sobre cualquier material.
      * @param {object} options
      * @param {number} options.x punto, en m del mundo
      * @param {number} options.y punto, en m del mundo

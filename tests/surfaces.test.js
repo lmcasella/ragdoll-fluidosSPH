@@ -68,9 +68,9 @@ test("surfaceOf: material explícito, y por defecto piso y pared de hormigón, e
     assert.deepEqual(Object.values(SURFACES).map((surface) => surface.id), [1, 2, 3]);
 });
 
-test("la tabla da el ataque del ácido: acero 1, hormigón 1/3 y vidrio 0, y el vidrio es translúcido", () => {
+test("la tabla da el ataque del ácido: acero 1, hormigón 1 y vidrio 0, y el vidrio es translúcido", () => {
     assert.equal(SURFACES.steel.acidAttack, 1);
-    assert.equal(SURFACES.concrete.acidAttack, 1 / 3);
+    assert.equal(SURFACES.concrete.acidAttack, 1);
     assert.equal(SURFACES.glass.acidAttack, 0);
     assert.equal(SURFACES.glass.alpha, 0.45);
     assert.equal(SURFACES.steel.patternSize, 1);
@@ -88,7 +88,7 @@ test("el terreno asigna el material por sólido y el vidrio no pierde densidad c
     terrain.dispose();
 });
 
-test("el hormigón pierde un tercio de la materia que pierde el acero con el mismo ácido", () => {
+test("el hormigón pierde la misma materia que el acero con el mismo ácido", () => {
     const terrain = newTerrain();
     terrain.addSolid({ ...SLAB, material: "steel" });
     terrain.addSolid({ ...SLAB, x: FAR_SLAB_X, kind: "floor" });
@@ -100,7 +100,7 @@ test("el hormigón pierde un tercio de la materia que pierde el acero con el mis
     const concreteLost = concreteBefore - gridArea(terrain, "concrete");
     assert.ok(Math.abs(steelEquivalent - ERODE_AREA) < RATIO_TOLERANCE * ERODE_AREA, "el acero gasta el ácido entero");
     assert.ok(Math.abs(concreteEquivalent - ERODE_AREA) < RATIO_TOLERANCE * ERODE_AREA, "el hormigón gasta lo mismo");
-    assert.ok(Math.abs(concreteLost / steelLost - 1 / 3) < RATIO_TOLERANCE, `proporción ${concreteLost / steelLost}`);
+    assert.ok(Math.abs(concreteLost / steelLost - SURFACES.concrete.acidAttack) < RATIO_TOLERANCE, `proporción ${concreteLost / steelLost}`);
     terrain.dispose();
 });
 

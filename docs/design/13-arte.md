@@ -40,7 +40,7 @@ Cada plataforma firme es de un material, y el material decide cómo se ve y cuá
 | Material | Dónde | Cómo se ve | Ácido |
 |---|---|---|---|
 | Acero | Plataformas, también las atravesables | Chapa gris azulada con paneles, remaches y rayado fino | Se corroe a la velocidad de la corrosión (§5.5) |
-| Hormigón | Piso y paredes | Gris cálido, granulado, con manchas y bordes gastados | Se corroe a un tercio de la velocidad del acero |
+| Hormigón | Piso y paredes | Gris cálido, granulado, con manchas y bordes gastados | Se corroe igual que el acero |
 | Vidrio | Solo donde el nivel lo pide | Celeste translúcido con un reflejo en diagonal y borde claro | No le hace nada |
 
 - **El dibujo sigue al mundo:** la textura queda pegada a la plataforma, no a la pantalla, y no se repite a simple vista.

@@ -1,6 +1,6 @@
 /**
  * El ácido sobre acero y sobre hormigón del nivel (#348, docs/design/13-arte.md §13.2): con LiquidFun real y gamepad
- * simulado, el acero pierde tanta materia como el ácido disuelto y el hormigón un tercio de eso; el vidrio no se toca.
+ * simulado, el acero pierde tanta materia como el ácido disuelto y el hormigón lo mismo; el vidrio no se toca.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,7 +25,7 @@ const STEEL_PLATFORM = { x: 28, y: 7.6, width: 8, height: 0.4, shooterX: 25, aim
 const CONCRETE_FLOOR = { top: 4, shooterX: 3, aim: [0.97, -0.1] };
 const MIN_DISSOLVED_AREA = 0.01;
 const PROPORTION_TOLERANCE = 0.02;
-const CONCRETE_ATTACK = 1 / 3;
+const CONCRETE_ATTACK = 1;
 
 LEVEL.solids.find((solid) => solid.x === STEEL_PLATFORM.x && solid.y === STEEL_PLATFORM.y).material = "steel";
 
@@ -72,11 +72,11 @@ test("el ácido sobre una plataforma de acero quita tanta materia como el ácido
     assert.equal(result.glassLost, 0, "el vidrio no pierde nada");
 });
 
-test("el ácido sobre el piso de hormigón quita un tercio de la materia que quitaría sobre acero", async (t) => {
+test("el ácido sobre el piso de hormigón quita la misma materia que sobre acero", async (t) => {
     const result = await shoot({ shooterX: CONCRETE_FLOOR.shooterX, top: CONCRETE_FLOOR.top, aim: CONCRETE_FLOOR.aim });
     t.diagnostic(`hormigón: equivalente ${result.equivalent.toFixed(4)} m2, perdido ${result.concreteLost.toFixed(4)} m2`);
     assert.ok(result.equivalent > MIN_DISSOLVED_AREA, "se disolvió algo");
-    assert.ok(Math.abs(result.concreteLost / result.equivalent - CONCRETE_ATTACK) < PROPORTION_TOLERANCE, "el hormigón pierde un tercio");
+    assert.ok(Math.abs(result.concreteLost / result.equivalent - CONCRETE_ATTACK) < PROPORTION_TOLERANCE, "el hormigón pierde lo mismo que el acero");
     assert.equal(result.steelLost, 0, "no hay acero en el piso");
     assert.equal(result.glassLost, 0, "el vidrio no pierde nada");
 });

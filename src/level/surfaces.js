@@ -19,7 +19,7 @@ export const SURFACES = {
     },
     concrete: {
         id: 2,
-        acidAttack: 1 / 3,
+        acidAttack: 1,
         baseColor: [0.5, 0.47, 0.43],
         wearColor: [0.2, 0.18, 0.16],
         wearDarkColor: [0.12, 0.11, 0.1],
