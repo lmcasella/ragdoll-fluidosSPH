@@ -1,6 +1,8 @@
 import { piecewiseLinear } from "../core/math/numeric.js";
 import { tintOf } from "../core/color.js";
 import { BACKGROUND, SKY_STOPS, generateSegment, layerPlacement, segmentKey } from "./background.js";
+import { createLightFilter, setLightFilterLights, updateLightFilter } from "./lightFilter.js";
+import { LIGHTING } from "./lighting.js";
 
 /** Color con el que se dibuja el cielo antes de teñirlo; el tinte le pone el color real. */
 const SKY_BASE_COLOR = 0xffffff;
@@ -31,6 +33,24 @@ export class BackgroundView {
         });
         parent.addChild(this.container);
         this.segmentBuilds = 0;
+        this.lightFilters = LIGHTING.backgroundScales.map((scale, nearness) => {
+            const filter = createLightFilter({ scale });
+            this.layers[this.layers.length - 1 - nearness].container.filters = [filter];
+            return filter;
+        });
+    }
+
+    /**
+     * Pasa las luces del frame y la cámara a los filtros de las capas más cercanas, sin redibujar ningún tramo. Las luces van en
+     * coordenadas del mundo físico (`docs/design/13-arte.md` §13.3).
+     * @param {{data: Float32Array, count: number}} lightSet luces de `createLightSet`
+     * @param {{originX: number, originY: number, pixelsPerMeter: number}} camera origen del mundo en px de pantalla y px por metro
+     */
+    setLights(lightSet, camera) {
+        for (const filter of this.lightFilters) {
+            updateLightFilter(filter, camera);
+            setLightFilterLights(filter, lightSet);
+        }
     }
 
     /**

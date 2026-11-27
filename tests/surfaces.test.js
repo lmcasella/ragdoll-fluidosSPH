@@ -151,7 +151,7 @@ test("el shader reconoce los tres materiales por id, no usa texturas externas y 
     assert.ok(SURFACE_FRAGMENT.includes("glassColor(world)"), "rama del vidrio");
     for (const name of ["STEEL", "CONCRETE", "GLASS"]) assert.ok(SURFACE_FRAGMENT.includes(`const int ${name}_ID`), `id de ${name}`);
     assert.equal(SURFACE_FRAGMENT.match(/sampler2D/g).length, 1, "solo la textura de entrada del filtro");
-    assert.equal(SURFACE_FRAGMENT.match(/texture\(/g).length, 1);
+    assert.equal(SURFACE_FRAGMENT.match(/texture\(/g).length, 2, "la lectura del fragmento y la de la cobertura de los vecinos del bisel");
     assert.ok(SURFACE_FRAGMENT.includes("uOutputFrame") && SURFACE_FRAGMENT.includes("uInputSize"));
 
     const code = encodeSurface({ surface: "concrete", wear: 0.5, edge: true });
