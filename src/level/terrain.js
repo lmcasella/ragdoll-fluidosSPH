@@ -70,6 +70,18 @@ function shapeOfGrid(grid, config) {
 }
 
 /**
+ * Verdadero si el punto cae dentro del rectángulo de la grilla agrandado en `reach` por lado.
+ * @param {DensityGrid} grid
+ * @param {number} x en m, marco local del cuerpo
+ * @param {number} y en m, marco local del cuerpo
+ * @param {number} reach en m
+ */
+function gridNear(grid, x, y, reach) {
+    return x >= grid.originX - reach && x <= grid.originX + grid.width + reach &&
+        y >= grid.originY - reach && y <= grid.originY + grid.height + reach;
+}
+
+/**
  * Terreno de un cuerpo estático o cinemático (`docs/design/05-escenario.md` §5.5): dueño de las grillas de densidad de sus
  * tramos y de los fixtures que salen de ellas. Cada sólido (piso, pared o plataforma atravesable) se rasteriza como un
  * rectángulo lleno; las piezas grandes y no atravesables se parten en tramos iguales de hasta `config.maxTileSize` por
@@ -220,13 +232,24 @@ export class Terrain {
         const localY = y - this.offsetY;
         let removed = 0;
         for (const { grid } of this.tiles) {
-            const near =
-                localX >= grid.originX - reach && localX <= grid.originX + grid.width + reach &&
-                localY >= grid.originY - reach && localY <= grid.originY + grid.height + reach;
-            if (near) removed += grid.erode({ x: localX, y: localY, reach, area: area - removed });
+            if (gridNear(grid, localX, localY, reach)) removed += grid.erode({ x: localX, y: localY, reach, area: area - removed });
             if (removed >= area) break;
         }
         return removed;
+    }
+
+    /**
+     * Verdadero si hay materia a `reach` o menos del punto: el ácido apoyado sigue en contacto aunque Box2D ya no lo avise.
+     * @param {{x: number, y: number, reach: number}} point punto en m del mundo y radio en m
+     * @returns {boolean}
+     */
+    touches({ x, y, reach }) {
+        const localX = x - this.offsetX;
+        const localY = y - this.offsetY;
+        for (const { grid } of this.tiles) {
+            if (gridNear(grid, localX, localY, reach) && grid.cellsWithin(localX, localY, reach).candidates.length > 0) return true;
+        }
+        return false;
     }
 
     /**

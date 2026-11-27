@@ -104,6 +104,13 @@ Base para que el ácido corroa las plataformas (#347), para el sombreado por mat
 
 - **Debug** (menú de debug, [10.5](10-controles.md)): una capa "terreno" que muestra la densidad de las celdas (de transparente a lleno), el contorno, los polígonos convexos con sus uniones y los tramos, y hace destellar el tramo que se rehízo en ese frame. El panel suma la cantidad de grillas, polígonos y vértices, las reconstrucciones por frame y su costo en ms.
 
+### Corrosión (#347)
+
+- **Qué se ve:** el ácido come el piso, las paredes y las plataformas atravesables y abre huecos por los que un robot cae. Las rompibles no se corroen.
+- **Mordida y desgaste:** cada gota de ácido, al tocar, disuelve de golpe la mitad de su ácido (el ácido fresco reacciona rápido). Mientras sigue apoyada, gasta el resto de a poco, y a los 3 s de contacto se agotó y desaparece. Si corre fuera de la plataforma o el agua la absorbe, deja de corroer antes.
+- **Cuánto:** el acero disuelto sale de la estequiometría Fe + H₂SO₄, multiplicada por un factor de aceleración con nombre. Un chorro continuo abre un hueco de 0,3 m en una plataforma de 0,4 m en unos 2 s.
+- **Ronda nueva:** en el Clásico el terreno vuelve entero al empezar cada ronda; en el Infinito el mapa se genera de nuevo.
+
 **Descartado:** armar la forma como una cadena cerrada del contorno. Es hueca (lo que se mete adentro no sale) y la regla de atravesables y el contorno inelástico verían un solo tramo y no la plataforma.
 
 ### Por verificar en ejecución

@@ -930,7 +930,7 @@ function simular(frameDt, enTitulo) {
             match.hazardsActive ? wetSurface : -Infinity,
             (x) => water.conductivityAt(x),
         );
-        corrosion.process();
+        corrosion.process(STEP_SETTINGS.dt);
         melee.resolve(players, now);
         pickups.process(now);
         debug.mark("daño");

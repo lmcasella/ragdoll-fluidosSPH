@@ -28,6 +28,10 @@ const FALL_SECONDS = 2;
 const FALL_DISTANCE = 1;
 const PARTICLE_SIDE_IN_RADII = 1.5;
 const ROUND_OVER_FRAMES = 200;
+const EXPECTED_HOLE_SECONDS = 2;
+const HOLE_TOLERANCE_SECONDS = 1;
+const RESTING_SECONDS = 1;
+const SPENT_TOLERANCE = 1e-6;
 
 /** Mueve todas las piezas del robot `index` para que su torso quede en (`x`, `y`). */
 function place(game, index, x, y) {
@@ -93,7 +97,7 @@ async function startJet() {
     return game;
 }
 
-test("un chorro continuo de ácido abre un hueco pasante en una plataforma de 0,4 m en unos 3 s", async (t) => {
+test("un chorro continuo de ácido abre un hueco pasante en una plataforma de 0,4 m en unos 2 s", async (t) => {
     const game = await startJet();
     const tile = platformTile(game);
     const startArea = materialArea(tile.grid);
@@ -106,7 +110,7 @@ test("un chorro continuo de ácido abre un hueco pasante en una plataforma de 0,
     game.setPad(0);
     t.diagnostic(`hueco pasante a los ${seconds} s; material ${startArea.toFixed(3)} -> ${materialArea(tile.grid).toFixed(3)} m2; partículas gastadas ${game.state.corrosion.stats.consumed}`);
     assert.ok(seconds !== null, "no se abrió un hueco pasante");
-    assert.ok(Math.abs(seconds - 3) <= 1, `tardó ${seconds} s`);
+    assert.ok(Math.abs(seconds - EXPECTED_HOLE_SECONDS) <= HOLE_TOLERANCE_SECONDS, `tardó ${seconds} s`);
 });
 
 test("la masa de acero disuelta coincide con la estequiometría por el factor y el libro de masa cierra", async (t) => {
@@ -119,9 +123,9 @@ test("la masa de acero disuelta coincide con la estequiometría por el factor y 
     const side = PARTICLE_SIDE_IN_RADII * game.state.particleSystem.GetRadius();
     const acidMass = MATERIALS.acid.SG * SIGMA_W * side * side * MATERIALS.acid.species.H2SO4;
     const steelPerParticle = (acidMass * CORROSION.ironMolarMass * CORROSION.speedup) / CORROSION.acidMolarMass;
-    const expected = corrosion.stats.consumed * steelPerParticle;
-    t.diagnostic(`gastadas ${corrosion.stats.consumed}; acero ${corrosion.stats.dissolvedMass.toFixed(4)} kg esperado ${expected.toFixed(4)} kg`);
-    assert.ok(corrosion.stats.consumed > 0);
+    const expected = corrosion.stats.spentAcid * steelPerParticle;
+    t.diagnostic(`ácido gastado ${corrosion.stats.spentAcid.toFixed(1)} partículas; destruidas ${corrosion.stats.consumed}; acero ${corrosion.stats.dissolvedMass.toFixed(4)} kg esperado ${expected.toFixed(4)} kg`);
+    assert.ok(corrosion.stats.spentAcid > 0);
     assert.ok(Math.abs(corrosion.stats.dissolvedMass - expected) <= MASS_TOLERANCE * expected);
     assert.equal(store.destroyed[SINK.CORRODED][FLUID.ACID], corrosion.stats.consumed);
     for (const kind of [FLUID.ACID, FLUID.WATER]) {
@@ -131,6 +135,20 @@ test("la masa de acero disuelta coincide con la estequiometría por el factor y 
         for (const book of store.destroyed) destroyed += book[kind];
         assert.equal(store.created[kind], live + destroyed, `masa del material ${kind}`);
     }
+});
+
+test("el ácido apoyado sigue corroyendo después de cortar el chorro y ninguna gota pasa de su ácido", async (t) => {
+    const game = await startJet();
+    const { corrosion, store } = game.state;
+    game.setPad(0, { buttons: [RIGHT_TRIGGER], axes: [0, 0, ...AIM_AXES] });
+    game.frames(FRAMES_PER_SECOND);
+    game.setPad(0);
+    game.frames(1);
+    const afterJet = corrosion.stats.dissolvedMass;
+    game.frames(RESTING_SECONDS * FRAMES_PER_SECOND);
+    t.diagnostic(`acero al cortar ${afterJet.toFixed(3)} kg, ${RESTING_SECONDS} s después ${corrosion.stats.dissolvedMass.toFixed(3)} kg; gotas destruidas ${corrosion.stats.consumed}`);
+    assert.ok(corrosion.stats.dissolvedMass > afterJet, "el ácido apoyado no siguió corroyendo");
+    for (let slot = 0; slot < store.capacity; slot++) assert.ok(corrosion.spent[slot] <= 1 + SPENT_TOLERANCE);
 });
 
 test("la ronda nueva devuelve el terreno corroído a su forma original", async () => {
