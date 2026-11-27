@@ -5,6 +5,9 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ## [Unreleased]
 
+### Added
+- Fondo de planta industrial con parallax de cuatro capas (chimeneas y tanques lejos, cañerías y estructuras en el medio, vigas cerca), dibujado por el juego. En el modo Infinito cambia con la altura: piso de planta, pasarelas, y arriba chimeneas con humo y más cielo (#345).
+
 ### Changed
 - Índice de las cuentas comunes en `src/core/README.md` y regla de consultarlo antes de escribir cálculos nuevos (#343).
 - Los cálculos que estaban repetidos en varios sistemas (acotar, interpolar, distancias, signo, ángulos, rampas de color, gravedad, densidad del agua, polígonos, Newton, bisección, azar con semilla y recorridos de fixtures y cuerpos de Box2D) pasan a funciones comunes en `src/core/`, con tests propios. Sin cambios para el jugador.

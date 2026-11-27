@@ -43,7 +43,11 @@ test("de abajo a arriba: nivel, robots, agua, fluidos y capa superpuesta", async
     const game = await loadGame();
     const { scene } = game.state;
     assert.deepEqual(worldOrder(scene), WORLD_ORDER);
-    assert.deepEqual(scene.application.stage.children, [scene.world], "todo se dibuja dentro de `world`, con una sola cámara");
+    assert.deepEqual(
+        scene.application.stage.children,
+        [scene.backgroundLayer, scene.world],
+        "el fondo con parallax va debajo de `world`; todo lo demás se dibuja dentro de `world`, con una sola cámara",
+    );
 });
 
 test("la mira y los golpes se dibujan en gráficos de la capa superpuesta, no en un canvas aparte", async () => {

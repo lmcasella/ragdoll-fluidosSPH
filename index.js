@@ -10,6 +10,7 @@ import { Menu, ControlsScreen, HelpScreen, PAUSE } from "./src/ui/menu.js";
 import { Camera } from "./src/render/camera.js";
 import { createScene } from "./src/render/scene.js";
 import { LevelView } from "./src/render/levelView.js";
+import { BackgroundView } from "./src/render/backgroundView.js";
 import { createThresholdFilter } from "./src/render/thresholdFilter.js";
 import { LEVEL, buildLevel } from "./src/level/level.js";
 import { OneWayPlatforms } from "./src/level/platforms.js";
@@ -143,6 +144,7 @@ const fluidLayers = new FluidLayers({
     filter: createThresholdFilter(),
     pixelsPerMeter: PIXELS_PER_METER,
 });
+const backgroundView = new BackgroundView({ parent: scene.backgroundLayer, pixelsPerMeter: PIXELS_PER_METER });
 const levelView = new LevelView({ parent: scene.levelLayer, pixelsPerMeter: PIXELS_PER_METER });
 const waterView = new WaterView({ parent: scene.waterLayer, pixelsPerMeter: PIXELS_PER_METER });
 
@@ -1014,6 +1016,7 @@ function loop(nowMs) {
     const bottom = camera.y - camera.viewH / (2 * scale);
 
     camera.applyTo(scene.world);
+    backgroundView.update({ x: camera.x, y: camera.y, zoom: camera.zoom, viewWidth: camera.viewW, viewHeight: camera.viewH });
     const offsetY = climb ? climb.offsetY : 0;
     levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
