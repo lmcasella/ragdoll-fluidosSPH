@@ -102,6 +102,8 @@ Base para que el ácido corroa las plataformas (#347), para el sombreado por mat
 - **Cuándo se rehace:** solo desde el loop, después de los pasos de física y después de aplicar lo que encolaron los contactos. Una grilla que cambió se marca, y la forma se rehace en ese momento, nunca dentro de un callback. Al rehacerla, una plataforma atravesable lo sigue siendo y un robot apoyado no la atraviesa.
 - **Qué no cambia en #346:** las plataformas rompibles ([5.4](#54-plataformas-rompibles-301)) siguen siendo cajas. La tabla del nivel sigue declarando rectángulos; la grilla se llena con ese rectángulo al crear la plataforma. El bot, el premio por etapa, el dibujo y el agua siguen leyendo el rectángulo. Cuando la corrosión cambie la forma (#347), esos lectores pasan a usar el contorno.
 
+- **Debug** (menú de debug, [10.5](10-controles.md)): una capa "terreno" que muestra la densidad de las celdas (de transparente a lleno), el contorno, los polígonos convexos con sus uniones y los tramos, y hace destellar el tramo que se rehízo en ese frame. El panel suma la cantidad de grillas, polígonos y vértices, las reconstrucciones por frame y su costo en ms.
+
 **Descartado:** armar la forma como una cadena cerrada del contorno. Es hueca (lo que se mete adentro no sale) y la regla de atravesables y el contorno inelástico verían un solo tramo y no la plataforma.
 
 ### Por verificar en ejecución
