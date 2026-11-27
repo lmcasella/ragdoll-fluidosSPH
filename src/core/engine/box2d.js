@@ -8,7 +8,8 @@ const SINGLE_CHILD = 0;
 
 /**
  * Llama a `visit(fixture, context)` por cada fixture de `body`, en el orden de su lista. Recorre la lista enlazada de
- * Box2D sin reservar memoria nativa ni objetos de JS: los datos del recorrido viajan en `context`, que se reutiliza.
+ * Box2D sin crear objetos nativos (`new Box2D.*`), así que no hay nada que liberar: los datos del recorrido viajan en
+ * `context`, que se reutiliza.
  * Los fixtures son del mundo: nunca se destruyen con `Box2D.destroy`.
  * @param {object} body `b2Body`
  * @param {(fixture: object, context: object) => void} visit se llama una vez por fixture
@@ -21,7 +22,7 @@ export function forEachFixture(body, visit, context) {
 }
 
 /**
- * Escribe en `out` la caja (AABB) de `fixture` en el mundo. No reserva memoria nativa: lee los vectores del propio fixture.
+ * Escribe en `out` la caja (AABB) de `fixture` en el mundo. No crea objetos nativos (`new Box2D.*`), así que no hay nada que liberar: lee los vectores del propio fixture.
  * @param {object} fixture `b2Fixture`
  * @param {{minX: number, minY: number, maxX: number, maxY: number}} out recibe la caja, en m
  * @returns {{minX: number, minY: number, maxX: number, maxY: number}} `out`

@@ -46,14 +46,14 @@ export function solveBisection(evaluate, target, context, lower, upper, steps) {
 }
 
 /**
- * Limitador minmod: la pendiente de menor módulo si `a` y `b` tienen el mismo signo, y 0 si no. Evita oscilaciones en
- * esquemas de volúmenes finitos de segundo orden.
- * @param {number} a
- * @param {number} b
+ * Limitador minmod: la pendiente de menor módulo si `leftSlope` y `rightSlope` tienen el mismo signo, y 0 si no. Evita
+ * oscilaciones en esquemas de volúmenes finitos de segundo orden.
+ * @param {number} leftSlope pendiente hacia la celda izquierda
+ * @param {number} rightSlope pendiente hacia la celda derecha
  * @returns {number}
  */
-export function minmod(a, b) {
-    return a * b <= 0 ? 0 : Math.abs(a) < Math.abs(b) ? a : b;
+export function minmod(leftSlope, rightSlope) {
+    return leftSlope * rightSlope <= 0 ? 0 : Math.abs(leftSlope) < Math.abs(rightSlope) ? leftSlope : rightSlope;
 }
 
 /**
