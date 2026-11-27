@@ -1,7 +1,14 @@
+import { clamp } from "../core/math/scalar.js";
+import { vectorLength, rotateLocalToWorld } from "../core/math/vector2.js";
+
 /**
  * Superficies sólidas en metros del mundo (cajas y círculos con su pose) para acercar el agua dibujada a los cuerpos
  * (`docs/design/07-sph.md` §7.4). Se rearman en cada frame con `collectSurfaces`; los objetos se reutilizan.
  */
+
+/** Puntos de trabajo: el centro de una pieza en el mundo y la dirección hacia la superficie más cercana. Se reutilizan para no crear objetos por frame. */
+const surfaceCenter = { x: 0, y: 0 };
+const towards = { x: 0, y: 0 };
 
 /** Tipos de superficie: caja orientada y círculo. */
 const BOX = 0;
@@ -57,7 +64,7 @@ function addSurface(kind, x, y, angle, halfWidth, halfHeight, radius) {
  * @param {number} cells cantidad de celdas en ese eje
  */
 function cellIndex(value, origin, cells) {
-    return Math.min(cells - 1, Math.max(0, Math.floor((value - origin) / CELL_SIZE)));
+    return clamp(Math.floor((value - origin) / CELL_SIZE), 0, cells - 1);
 }
 
 /**
@@ -105,10 +112,11 @@ export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
             const bodyAngle = item.body.GetAngle();
             const cosBody = Math.cos(bodyAngle);
             const sinBody = Math.sin(bodyAngle);
+            rotateLocalToWorld(item.centerX, item.centerY, cosBody, sinBody, position.get_x(), position.get_y(), surfaceCenter);
             addSurface(
                 item.type === "box" ? BOX : CIRCLE,
-                position.get_x() + item.centerX * cosBody - item.centerY * sinBody,
-                position.get_y() + item.centerX * sinBody + item.centerY * cosBody,
+                surfaceCenter.x,
+                surfaceCenter.y,
                 bodyAngle + item.angle,
                 item.halfWidth,
                 item.halfHeight,
@@ -151,12 +159,12 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
             const insideY = Math.abs(localY) - surface.halfHeight;
             const outsideX = Math.max(insideX, 0);
             const outsideY = Math.max(insideY, 0);
-            distance = Math.hypot(outsideX, outsideY);
+            distance = vectorLength(outsideX, outsideY);
             if (distance === 0) continue;
             normalX = (Math.sign(localX) * outsideX) / distance;
             normalY = (Math.sign(localY) * outsideY) / distance;
         } else {
-            const centerDistance = Math.hypot(localX, localY);
+            const centerDistance = vectorLength(localX, localY);
             distance = centerDistance - surface.radius;
             if (centerDistance === 0) continue;
             normalX = localX / centerDistance;
@@ -164,8 +172,9 @@ export function skinPosition(x, y, drawRadius, reach, fullReach) {
         }
         if (distance <= 0 || distance >= nearestDistance) continue;
         nearestDistance = distance;
-        towardsX = normalX * surface.cosAngle - normalY * surface.sinAngle;
-        towardsY = normalX * surface.sinAngle + normalY * surface.cosAngle;
+        rotateLocalToWorld(normalX, normalY, surface.cosAngle, surface.sinAngle, 0, 0, towards);
+        towardsX = towards.x;
+        towardsY = towards.y;
     }
     const gap = nearestDistance - (drawRadius - SKIN_OVERLAP);
     if (nearestDistance >= reach || gap <= 0) {

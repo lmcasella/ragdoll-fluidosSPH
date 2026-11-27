@@ -30,6 +30,9 @@ import { Hud } from "./src/ui/hud.js";
 import { Screens, versionLabel } from "./src/ui/screens.js";
 import { Melee, MELEE } from "./src/combat/melee.js";
 import { getRaycaster } from "./src/core/raycast.js";
+import { vectorLength, normalize } from "./src/core/math/vector2.js";
+import { boundsOfBodies } from "./src/core/engine/box2d.js";
+import { GRAVITY } from "./src/core/physics/constants.js";
 import { withReversedClip, withoutJointTracks } from "./src/ragdoll/clips.js";
 import { DamageSystem } from "./src/combat/damage.js";
 import { createParticleSystem } from "./src/fluids/particles.js";
@@ -160,7 +163,7 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-const gravity = new Box2D.b2Vec2(0, -10);
+const gravity = new Box2D.b2Vec2(0, -GRAVITY);
 const world = new Box2D.b2World(gravity);
 Box2D.destroy(gravity);
 let classic = buildLevel(world);
@@ -172,21 +175,11 @@ const breakable = new BreakablePlatforms(platforms);
 classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
 const raycaster = getRaycaster(world);
 
+/** Caja de trabajo de lowestPoint: se reutiliza para no crear objetos. */
+const probeBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+
 function lowestPoint(rag) {
-    let lowest = Infinity;
-    for (const body of rag.bodies.values()) {
-        for (
-            let fixture = body.GetFixtureList();
-            Box2D.getPointer(fixture) !== 0;
-            fixture = fixture.GetNext()
-        ) {
-            lowest = Math.min(
-                lowest,
-                fixture.GetAABB(0).get_lowerBound().get_y(),
-            );
-        }
-    }
-    return lowest;
+    return boundsOfBodies(rag.bodies, probeBounds).minY;
 }
 
 /**
@@ -544,7 +537,7 @@ function direccionRueda(dir, player) {
     const m = camera.toWorld(dir.pointer.x, dir.pointer.y);
     const dx = m.x - pos.get_x();
     const dy = m.y - pos.get_y();
-    return Math.hypot(dx, dy) < WHEEL_RADII.inner ? { x: 0, y: 0 } : { x: dx, y: dy };
+    return vectorLength(dx, dy) < WHEEL_RADII.inner ? { x: 0, y: 0 } : { x: dx, y: dy };
 }
 
 function actualizarMira(player, state, k, now) {
@@ -554,12 +547,11 @@ function actualizarMira(player, state, k, now) {
     if (state.wheel) {
         player.aimDir ??= { x: player.flipX ? -1 : 1, y: 0 };
     } else if (state.aim) {
-        const len = Math.hypot(state.aim.x, state.aim.y);
+        const len = vectorLength(state.aim.x, state.aim.y);
         player.aimDir = { x: state.aim.x / len, y: state.aim.y / len };
     } else if (state.pointer) {
         const m = camera.toWorld(state.pointer.x, state.pointer.y);
-        const len = Math.hypot(m.x - x, m.y - y) || 1;
-        player.aimDir = { x: (m.x - x) / len, y: (m.y - y) / len };
+        player.aimDir = normalize(m.x - x, m.y - y, { x: 0, y: 0 });
     } else if (state.left || state.right || state.down) {
         const dx = state.left && !state.right ? -1 : state.right && !state.left ? 1 : player.flipX ? -1 : 1;
         player.aimDir = state.down

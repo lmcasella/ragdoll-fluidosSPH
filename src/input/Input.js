@@ -1,3 +1,5 @@
+import { vectorLength } from "../core/math/vector2.js";
+
 /**
  * Teclas físicas (KeyboardEvent.code), independientes de la distribución del teclado: el teclado y el mouse son un
  * solo dispositivo y lo maneja el jugador al que se asigna. `up` y `down` mueven en mantenido; `jump` es la tecla de
@@ -434,7 +436,7 @@ export class Input {
         PAD.weapons.forEach((button, i) => {
             if (edge(button)) state.weapon = i + 1;
         });
-        const stick = Math.hypot(rx, ry) > AIM_DEADZONE ? { x: rx, y: -ry } : null;
+        const stick = vectorLength(rx, ry) > AIM_DEADZONE ? { x: rx, y: -ry } : null;
         if (stick) state.aim = stick;
 
         this.prevButtons[id] = pad.buttons.map((b) => b.pressed);
