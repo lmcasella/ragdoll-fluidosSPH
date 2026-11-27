@@ -57,6 +57,7 @@ import { buildRenderItems } from "./src/ragdoll/renderItems.js";
 import { drawParticles, SHOT_DRAW } from "./src/render/fluidDraw.js";
 import { collectSurfaces } from "./src/render/fluidSurfaces.js";
 import { FluidLayers } from "./src/render/fluidLayers.js";
+import { buildKindSources, createLightSet, gatherLights } from "./src/render/lighting.js";
 import { WaterView } from "./src/render/waterView.js";
 import { PickupView } from "./src/render/pickupView.js";
 import { AimLaserView } from "./src/render/aimLaserView.js";
@@ -293,6 +294,11 @@ function ponerBots(ks, difficulty) {
 const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
 const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
+const lightSet = createLightSet();
+const lightSourceOfKind = buildKindSources({ lava: FLUID.LAVA, acid: FLUID.ACID });
+const lightView = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1 };
+const lightMaterialAt = (index) => store.kind[store.slotAt(index)];
 const wallContact = new WallContact(particleSystem, store, SHOT_SYSTEM);
 instances.push(wallContact);
 
@@ -1046,6 +1052,24 @@ function loop(nowMs) {
     const bottom = camera.y - camera.viewH / (2 * scale);
 
     camera.applyTo(scene.world);
+    lightView.minX = camera.x - camera.viewW / (2 * scale);
+    lightView.maxX = camera.x + camera.viewW / (2 * scale);
+    lightView.minY = bottom;
+    lightView.maxY = camera.y + camera.viewH / (2 * scale);
+    gatherLights({
+        positions: Box2D.HEAPF32,
+        firstValue: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
+        count: particleSystem.GetParticleCount(),
+        materialAt: lightMaterialAt,
+        sourceOfKind: lightSourceOfKind,
+        view: lightView,
+        output: lightSet,
+    });
+    lightScreenOrigin.originX = scene.world.position.x;
+    lightScreenOrigin.originY = scene.world.position.y;
+    lightScreenOrigin.pixelsPerMeter = scale;
+    levelView.setLights(lightSet);
+    backgroundView.setLights(lightSet, lightScreenOrigin);
     backgroundView.update({ x: camera.x, y: camera.y, zoom: camera.zoom, viewWidth: camera.viewW, viewHeight: camera.viewH });
     const offsetY = climb ? climb.offsetY : 0;
     levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale, terrain.shape, scene.world.position);
