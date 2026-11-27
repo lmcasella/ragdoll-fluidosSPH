@@ -7,8 +7,10 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ### Added
 - Fondo de planta industrial con parallax de cuatro capas (chimeneas y tanques lejos, cañerías y estructuras en el medio, vigas cerca), dibujado por el juego. En el modo Infinito cambia con la altura: piso de planta, pasarelas, y arriba chimeneas con humo y más cielo (#345).
+- Capa "Terreno" en el menú de debug: muestra la densidad de las celdas del terreno, el contorno, los polígonos convexos con sus uniones, los bordes de los tramos y hace destellar el tramo que se rehízo; el panel suma las grillas, los polígonos, los vértices y el costo de reconstruir por frame (#346).
 
 ### Changed
+- Las plataformas atravesables, el piso y las paredes pasan a ser terreno de densidad: cada una guarda su materia en una grilla de celdas de unos 5 cm y su forma física sale de ella. Sin cambios para el jugador (#346).
 - Índice de las cuentas comunes en `src/core/README.md` y regla de consultarlo antes de escribir cálculos nuevos (#343).
 - Los cálculos que estaban repetidos en varios sistemas (acotar, interpolar, distancias, signo, ángulos, rampas de color, gravedad, densidad del agua, polígonos, Newton, bisección, azar con semilla y recorridos de fixtures y cuerpos de Box2D) pasan a funciones comunes en `src/core/`, con tests propios. Sin cambios para el jugador.
 - Regla del proyecto para las vistas de PIXI: se arman una vez y en cada frame solo se actualizan. Sin cambios en el juego.
