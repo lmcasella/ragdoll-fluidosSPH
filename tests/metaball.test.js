@@ -21,7 +21,8 @@ const PIXELS_PER_METER = 32;
 const FIELD_TEXTURE_SIZE_PX = 64;
 const WATER = 4;
 const HONEY = 3;
-const STONE = 6;
+const STONE = 5;
+const STEAM = 6;
 
 /** Alfa de `n` capas de alfa `a` en `source-over`: `1 − Π(1 − a_i)`. */
 const over = (...alphas) => 1 - alphas.reduce((acc, a) => acc * (1 - a), 1);
@@ -113,6 +114,26 @@ test("drawParticles: una capa por material presente y sin mezclar materiales", (
     assert.equal(particlesOf(layerNodes.find((node) => node.zIndex === HONEY)).length, 0, "y sin partículas");
     assert.equal(layerNodes.find((node) => node.zIndex === WATER).visible, true);
     assert.equal(particlesOf(layerNodes.find((node) => node.zIndex === WATER)).length, 2);
+});
+
+test("cada capa declara límites que cubren todas sus gotas, para que PIXI no saltee el filtro de umbral", () => {
+    const { layers, parent } = newLayers();
+    run(layers, [WATER, WATER, WATER], [[1, 2, 3], [1, 2, 3], [1, 2, 3]], [0, 18]);
+    const { boundsArea, particleChildren } = parent.children[0].children[0];
+    assert.ok(boundsArea !== undefined && boundsArea.width > 0 && boundsArea.height > 0, "límites con área: ParticleContainer informa límites vacíos");
+    for (const particle of particleChildren) {
+        const halfExtent = (FIELD_TEXTURE_SIZE_PX / 2) * Math.max(particle.scaleX, particle.scaleY);
+        assert.ok(boundsArea.x <= particle.x - halfExtent && boundsArea.x + boundsArea.width >= particle.x + halfExtent, "cubre la gota en x");
+        assert.ok(boundsArea.y <= particle.y - halfExtent && boundsArea.y + boundsArea.height >= particle.y + halfExtent, "cubre la gota en y");
+    }
+});
+
+test("el vapor se dibuja difuso, sin filtro de umbral, y los líquidos con umbral", () => {
+    const { layers, parent } = newLayers();
+    run(layers, [WATER, STEAM], [[1, 2, 3], [200, 200, 200]]);
+    const filtersOf = (kind) => parent.children.find((node) => node.zIndex === kind).filters;
+    assert.equal(filtersOf(WATER).length, 1);
+    assert.equal(filtersOf(STEAM).length, 0);
 });
 
 test("cada material tiene su textura de campo, generada una vez, y el color sale del buffer como tinte", () => {
