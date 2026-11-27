@@ -93,7 +93,7 @@ Valen para todo lo nuevo y para todo lo que se toca, aunque el código de alrede
 - **Composición antes que herencia.**
 - **Patrones de diseño con nombre:** si se usa uno, se lo nombra en el docstring y, si es de arquitectura, en la tabla de patrones.
 - **Archivos chicos por subsistema:** sin tope fijo de líneas, pero un archivo que hace varias cosas se parte.
-- **Cálculos comunes en `src/core/`:** matemática, geometría, numérica, azar, constantes y fórmulas físicas y el adaptador de Box2D viven ahí y no se repiten en cada módulo.
+- **Cálculos comunes en `src/core/`:** matemática, geometría, numérica, azar, constantes y fórmulas físicas y el adaptador de Box2D viven ahí y no se repiten en cada módulo. Antes de escribir una cuenta se busca en el índice `src/core/README.md`. Va a `core` lo que usan dos o más sistemas o es matemática sin reglas del juego; lo de un solo sistema queda en él. Quien agrega algo a `core` suma su línea al índice en el mismo commit, y `doc-writer` controla que el índice coincida con el código. Si una feature necesita una cuenta que no está, `developer` lo informa en vez de decidir dónde va.
 - **Librerías de terceros:** solo si ahorran código contando sus dependencias y están mejor hechas que lo propio. Se marcan como de terceros en el docstring y en `docs/referencias.md`.
 - **Docstrings breves:** lo que dice la regla 4 y el "Reparto de la documentación", en pocas líneas.
 - **Render solo con PIXI en un solo canvas.** El HUD y los menús quedan en HTML + CSS (`docs/design/18-interfaz.md`).
