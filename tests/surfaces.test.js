@@ -57,10 +57,10 @@ function erodeOver(terrain, x) {
     return terrain.erodeAt({ x, y: SLAB.y, reach: ERODE_REACH, area: ERODE_AREA });
 }
 
-test("surfaceOf: material explícito, y por defecto piso y pared de hormigón, atravesable de vidrio y el resto de acero", () => {
+test("surfaceOf: material explícito, y por defecto piso y pared de hormigón, el resto de acero y vidrio solo declarado", () => {
     assert.equal(surfaceOf({ kind: "floor" }), "concrete");
     assert.equal(surfaceOf({ kind: "wall" }), "concrete");
-    assert.equal(surfaceOf({ kind: "platform", oneWay: true }), "glass");
+    assert.equal(surfaceOf({ kind: "platform", oneWay: true }), "steel");
     assert.equal(surfaceOf({ kind: "platform" }), "steel");
     assert.equal(surfaceOf({}), "steel");
     assert.equal(surfaceOf({ kind: "floor", material: "steel" }), "steel");
@@ -79,7 +79,7 @@ test("la tabla da el ataque del ácido: acero 1, hormigón 1/3 y vidrio 0, y el 
 
 test("el terreno asigna el material por sólido y el vidrio no pierde densidad con ácido encima", () => {
     const terrain = newTerrain();
-    terrain.addSolid({ ...SLAB, kind: "platform", oneWay: true }, { oneWay: true });
+    terrain.addSolid({ ...SLAB, kind: "platform", oneWay: true, material: "glass" }, { oneWay: true });
     assert.equal([...terrain.tiles][0].surface, "glass");
     const before = gridArea(terrain, "glass");
     assert.equal(erodeOver(terrain, SLAB.x), 0, "no quita nada");

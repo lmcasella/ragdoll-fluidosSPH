@@ -41,13 +41,12 @@ export const SURFACES = {
 
 /**
  * Material de un sólido: el de `solid.material` si lo declara y, si no, el que corresponde a su tipo: piso y pared de
- * hormigón, plataforma atravesable de vidrio y el resto de acero.
- * @param {{material?: string, kind?: string, oneWay?: boolean}} solid
+ * hormigón y el resto de acero. El vidrio solo aparece si el nivel lo declara.
+ * @param {{material?: string, kind?: string}} solid
  * @returns {keyof typeof SURFACES}
  */
 export function surfaceOf(solid) {
     if (solid.material) return solid.material;
     if (solid.kind === "floor" || solid.kind === "wall") return "concrete";
-    if (solid.oneWay) return "glass";
     return "steel";
 }
