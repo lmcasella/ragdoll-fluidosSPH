@@ -54,19 +54,19 @@ export class RagdollShapes {
     /**
      * Traza la forma de una pieza en `graphics`, en px, con la Y hacia abajo y el marco del cuerpo.
      * @param {PIXI.Graphics} graphics
-     * @param {object} item pieza de `buildRenderItems` (`type`, `cx`, `cy`, `angle` y su medida), en metros
+     * @param {object} item pieza de `buildRenderItems` (`type`, `centerX`, `centerY`, `angle` y su medida), en metros
      * @returns {PIXI.Graphics}
      */
     trace(graphics, item) {
         const scale = this.pixelsPerMeter;
-        if (item.type === "circle") return graphics.circle(item.cx * scale, -item.cy * scale, item.radius * scale);
-        const corners = item.type === "box" ? boxCorners(item.hw, item.hh) : item.vertices;
+        if (item.type === "circle") return graphics.circle(item.centerX * scale, -item.centerY * scale, item.radius * scale);
+        const corners = item.type === "box" ? boxCorners(item.halfWidth, item.halfHeight) : item.vertices;
         const cosAngle = Math.cos(item.angle);
         const sinAngle = Math.sin(item.angle);
         const points = [];
         for (const [cornerX, cornerY] of corners) {
-            const x = item.cx + cornerX * cosAngle - cornerY * sinAngle;
-            const y = item.cy + cornerX * sinAngle + cornerY * cosAngle;
+            const x = item.centerX + cornerX * cosAngle - cornerY * sinAngle;
+            const y = item.centerY + cornerX * sinAngle + cornerY * cosAngle;
             points.push(x * scale, -y * scale);
         }
         return graphics.poly(points, true);

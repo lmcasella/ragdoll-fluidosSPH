@@ -11,8 +11,8 @@ const HALF = 0.5;
  * @param {object} rag instancia de RagImporter con `bodies`
  * @param {object} json `.rag.json` del robot, con `bodies[].fixtures[].shape`
  * @param {boolean} flipX espeja las piezas en X
- * @returns {object[]} una pieza por fixture: `body`, `bodyId`, `type` ("box", "circle" o "polygon"), centro `cx` y `cy` (m),
- *   `angle` (rad) y, según el tipo, `hw` y `hh` (semiancho y semialto, m), `radius` (m) o `vertices` (`[x, y]` en m)
+ * @returns {object[]} una pieza por fixture: `body`, `bodyId`, `type` ("box", "circle" o "polygon"), centro `centerX` y `centerY` (m),
+ *   `angle` (rad) y, según el tipo, `halfWidth` y `halfHeight` (semiancho y semialto, m), `radius` (m) o `vertices` (`[x, y]` en m)
  */
 export function buildRenderItems(rag, json, flipX) {
     const mirror = flipX ? MIRRORED : NOT_MIRRORED;
@@ -25,13 +25,13 @@ export function buildRenderItems(rag, json, flipX) {
                 body,
                 bodyId: bodyDef.id,
                 type: shape.type,
-                cx: (shape.center?.[0] ?? 0) * mirror,
-                cy: shape.center?.[1] ?? 0,
+                centerX: (shape.center?.[0] ?? 0) * mirror,
+                centerY: shape.center?.[1] ?? 0,
                 angle: (shape.angle ?? 0) * mirror,
             };
             if (shape.type === "box") {
-                item.hw = shape.width * HALF;
-                item.hh = shape.height * HALF;
+                item.halfWidth = shape.width * HALF;
+                item.halfHeight = shape.height * HALF;
             } else if (shape.type === "circle") {
                 item.radius = shape.radius;
             } else if (shape.type === "polygon") {

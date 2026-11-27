@@ -26,7 +26,7 @@ function fakeBody(x, y, angle) {
 }
 
 function boxItem(body) {
-    return { body, bodyId: "b_1", type: "box", cx: 0.1, cy: 0.2, angle: 0.3, hw: 0.5, hh: 0.25 };
+    return { body, bodyId: "b_1", type: "box", centerX: 0.1, centerY: 0.2, angle: 0.3, halfWidth: 0.5, halfHeight: 0.25 };
 }
 
 test("con un JSON que trae un sprite no se crea RagdollShapes y sin sprites sí", () => {

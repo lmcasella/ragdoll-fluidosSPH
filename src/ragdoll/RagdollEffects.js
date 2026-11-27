@@ -94,8 +94,8 @@ function surfacePoint(item, along, side) {
     } else if (item.type === "box") {
         const boxSide = Math.floor(along * BOX_SIDES);
         const offset = side * 2 - 1;
-        localX = boxSide === 0 ? item.hw : boxSide === 1 ? -item.hw : offset * item.hw;
-        localY = boxSide === 2 ? item.hh : boxSide === 3 ? -item.hh : offset * item.hh;
+        localX = boxSide === 0 ? item.halfWidth : boxSide === 1 ? -item.halfWidth : offset * item.halfWidth;
+        localY = boxSide === 2 ? item.halfHeight : boxSide === 3 ? -item.halfHeight : offset * item.halfHeight;
     } else {
         const vertices = item.vertices;
         const from = vertices[Math.floor(along * vertices.length) % vertices.length];
@@ -105,8 +105,8 @@ function surfacePoint(item, along, side) {
     }
     const cosItem = Math.cos(item.angle);
     const sinItem = Math.sin(item.angle);
-    const bodyX = item.cx + localX * cosItem - localY * sinItem;
-    const bodyY = item.cy + localX * sinItem + localY * cosItem;
+    const bodyX = item.centerX + localX * cosItem - localY * sinItem;
+    const bodyY = item.centerY + localX * sinItem + localY * cosItem;
     const position = item.body.GetPosition();
     const angle = item.body.GetAngle();
     const cosBody = Math.cos(angle);

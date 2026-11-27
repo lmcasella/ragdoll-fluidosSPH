@@ -107,11 +107,11 @@ export function collectSurfaces(players, solids, reach = 0, offsetY = 0) {
             const sinBody = Math.sin(bodyAngle);
             addSurface(
                 item.type === "box" ? BOX : CIRCLE,
-                position.get_x() + item.cx * cosBody - item.cy * sinBody,
-                position.get_y() + item.cx * sinBody + item.cy * cosBody,
+                position.get_x() + item.centerX * cosBody - item.centerY * sinBody,
+                position.get_y() + item.centerX * sinBody + item.centerY * cosBody,
                 bodyAngle + item.angle,
-                item.hw,
-                item.hh,
+                item.halfWidth,
+                item.halfHeight,
                 item.radius,
             );
         }

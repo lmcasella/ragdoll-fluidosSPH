@@ -21,12 +21,12 @@ function fakePlayer(sigma, pieces = 1) {
         body: fakeBody(k, 5),
         bodyId: `b_${k}`,
         type: ["circle", "box", "polygon"][k % 3],
-        cx: 0,
-        cy: 0,
+        centerX: 0,
+        centerY: 0,
         angle: 0,
         radius: 0.3,
-        hw: 0.3,
-        hh: 0.3,
+        halfWidth: 0.3,
+        halfHeight: 0.3,
         vertices: [[-0.3, -0.3], [0.3, -0.3], [0, 0.3]],
     }));
     return {
