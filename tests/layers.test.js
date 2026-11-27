@@ -7,6 +7,7 @@ const { FLUID } = await import("../src/combat/weapons.js");
 const { ORIGIN } = await import("../src/fluids/particleStore.js");
 
 const thresholdFilterSource = readFileSync(new URL("../src/render/thresholdFilter.js", import.meta.url), "utf8");
+const liquidFilterSource = readFileSync(new URL("../src/render/liquidFilter.js", import.meta.url), "utf8");
 const renderDirectory = new URL("../src/render/", import.meta.url);
 
 /** Crea 20 gotas de agua en el aire para que aparezca una capa de fluido. */
@@ -75,7 +76,7 @@ test("la capa superpuesta apila recogibles, miras, golpes, debug y rueda de arma
     assert.deepEqual(scene.overlayLayer.children, expected);
 });
 
-test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpuesta, con el filtro de umbral y sin desenfoque", async () => {
+test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpuesta, con el filtro de líquido (umbral) y sin desenfoque", async () => {
     const game = await loadGame();
     const { scene, fluidLayers } = game.state;
     spawnWater(game);
@@ -84,9 +85,10 @@ test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpu
     assert.equal(scene.fluidParent.sortableChildren, true, "las capas de fluido se ordenan por material");
     for (const { node } of fluidLayers.layers.values()) {
         assert.equal(node.filters.length, 1);
-        assert.ok(node.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro es el de umbral");
+        assert.ok(node.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro corta con el umbral");
     }
     assert.doesNotMatch(thresholdFilterSource, /gaussian|blur/i);
+    assert.doesNotMatch(liquidFilterSource, /gaussian|blur/i);
     assert.deepEqual(worldOrder(scene), WORLD_ORDER);
 });
 

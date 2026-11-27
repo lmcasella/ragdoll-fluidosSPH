@@ -201,9 +201,12 @@ class FakeText extends FakeContainer {
     }
 }
 
-/** `FillGradient` falso: guarda sus opciones y las paradas de color en el orden en que se agregan. */
+/** `FillGradient` falso: cuenta cuántos se construyeron (`constructed`) y guarda sus opciones y las paradas de color en el orden en que se agregan. */
 class FakeFillGradient {
+    static constructed = 0;
+
     constructor(options) {
+        FakeFillGradient.constructed++;
         this.options = options;
         this.colorStops = [];
         this.destroyed = false;

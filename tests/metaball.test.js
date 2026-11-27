@@ -61,7 +61,8 @@ function newLayers() {
             return { source: {}, graphics };
         },
     };
-    return { parent, renderer, layers: new FluidLayers({ renderer, parent, filter: {}, pixelsPerMeter: PIXELS_PER_METER }) };
+    const layers = new FluidLayers({ renderer, parent, createFilter: () => ({}), updateFilter: () => {}, pixelsPerMeter: PIXELS_PER_METER });
+    return { parent, renderer, layers };
 }
 
 function fakeSystem(kinds, colors) {
@@ -108,7 +109,7 @@ test("drawParticles: una capa por material presente y sin mezclar materiales", (
     assert.equal(layerNodes.length, 3, "una capa por material presente");
     const byZ = Object.fromEntries(layerNodes.map((node) => [node.zIndex, particlesOf(node).length]));
     assert.deepEqual(byZ, { [HONEY]: 2, [WATER]: 3, [STONE]: 1 });
-    assert.ok(layerNodes.every((node) => node.filters.length === 1), "cada capa lleva el filtro de umbral");
+    assert.ok(layerNodes.every((node) => node.filters.length === 1), "cada capa lleva su filtro de líquido");
     run(layers, [WATER, WATER], [white, white]);
     assert.equal(layerNodes.find((node) => node.zIndex === HONEY).visible, false, "el material que no se usa queda oculto");
     assert.equal(particlesOf(layerNodes.find((node) => node.zIndex === HONEY)).length, 0, "y sin partículas");

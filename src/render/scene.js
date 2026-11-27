@@ -44,8 +44,8 @@ export class Scene {
 }
 
 /**
- * Crea la escena: `PIXI.Application` sin resolución extra, fondo transparente, bordes suavizados, WebGL y sin ticker propio (el loop del juego
- * llama a `render`). Su canvas va primero en `container`, debajo del HUD y las pantallas HTML.
+ * Crea la escena: `PIXI.Application` sin resolución extra, fondo transparente, bordes suavizados, WebGL, con `useBackBuffer` (sin él
+ * PIXI saltea los filtros que leen lo que hay detrás, como los del agua) y sin ticker propio (el loop del juego llama a `render`). Su canvas va primero en `container`, debajo del HUD y las pantallas HTML.
  * @param {object} options
  * @param {HTMLElement} options.container elemento que recibe el canvas
  * @param {number} options.width ancho en px
@@ -61,6 +61,7 @@ export async function createScene({ container, width, height }) {
         backgroundAlpha: 0,
         antialias: true,
         preference: "webgl",
+        useBackBuffer: true,
         autoStart: false,
     });
     container.prepend(application.canvas);
