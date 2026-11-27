@@ -1,3 +1,5 @@
+import { lerp } from "./scalar.js";
+
 /**
  * Área de un polígono de vértices intercalados `[x0, y0, x1, y1, …]` (fórmula de Gauss).
  * @param {ArrayLike<number>} vertices en m
@@ -59,8 +61,8 @@ export function clipPolygonByHalfPlane(source, sourceCount, destination, normalX
         if (side <= 0) {
             if (previousSide > 0) {
                 const fraction = previousSide / (previousSide - side);
-                destination[2 * written] = previousX + (x - previousX) * fraction;
-                destination[2 * written + 1] = previousY + (y - previousY) * fraction;
+                destination[2 * written] = lerp(previousX, x, fraction);
+                destination[2 * written + 1] = lerp(previousY, y, fraction);
                 written++;
             }
             destination[2 * written] = x;
@@ -68,8 +70,8 @@ export function clipPolygonByHalfPlane(source, sourceCount, destination, normalX
             written++;
         } else if (previousSide <= 0) {
             const fraction = previousSide / (previousSide - side);
-            destination[2 * written] = previousX + (x - previousX) * fraction;
-            destination[2 * written + 1] = previousY + (y - previousY) * fraction;
+            destination[2 * written] = lerp(previousX, x, fraction);
+            destination[2 * written + 1] = lerp(previousY, y, fraction);
             written++;
         }
         previousX = x;

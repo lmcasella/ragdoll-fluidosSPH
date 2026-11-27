@@ -1,3 +1,5 @@
+import { clampUnit } from "../core/math/scalar.js";
+
 /**
  * Piezas comunes de la interfaz HTML (docs/design/18-interfaz.md): el sprite de íconos, los glifos de botones y las
  * funciones que escriben en el DOM solo lo que cambió. Módulo hoja: lo usan `src/ui/hud.js` (partida) y `src/ui/screens.js`
@@ -136,4 +138,4 @@ export function restart(node, name) {
 }
 
 /** Porcentaje CSS de una razón, acotada a 0..1. */
-export const pct = (ratio) => `${(Math.max(0, Math.min(1, ratio)) * 100).toFixed(1)}%`;
+export const pct = (ratio) => `${(clampUnit(ratio) * 100).toFixed(1)}%`;

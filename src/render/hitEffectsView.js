@@ -1,4 +1,4 @@
-import { TAU } from "../core/math/scalar.js";
+import { TAU, lerp } from "../core/math/scalar.js";
 
 /**
  * Feedback de golpes melee, en metros y segundos (`docs/design/09-arquitectura.md`, melee). `hit`: un círculo blanco que se
@@ -46,7 +46,7 @@ export class HitEffectsView {
             }
             if (effect.rays) {
                 const innerRadius = effect.from;
-                const outerRadius = effect.from + (effect.to - effect.from) * progress;
+                const outerRadius = lerp(effect.from, effect.to, progress);
                 for (let ray = 0; ray < effect.rays; ray++) {
                     const angle = (ray / effect.rays) * TAU;
                     graphics

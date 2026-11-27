@@ -1,3 +1,5 @@
+import { signOrOne } from "../core/math/scalar.js";
+
 /**
  * Ataques melee y combo (docs/design/03-robots.md §3.7.4). `duration` y `active` (ventana en la que los rayos pueden
  * conectar) en s desde el inicio del ataque; `origin` es la articulación cuya ancla emite los rayos; `base` es la
@@ -164,7 +166,7 @@ export class Melee {
             if (dealt > 0) this.events.push({ kind: "hit", victim: owner.index });
             victim.stun(row.stun, now);
             body.ApplyLinearImpulse(this.impulse, this.point, true);
-            victim.knockback((Math.sign(dx) || 1) * row.push[0], row.push[1]);
+            victim.knockback(signOrOne(dx) * row.push[0], row.push[1]);
             victim.hit(row.reaction, now);
         }
         attacker.markConnected();

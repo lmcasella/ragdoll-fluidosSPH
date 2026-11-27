@@ -1,4 +1,6 @@
 import { ICONS, WEAPON_ICONS, icon, padGlyph, keyGlyph, make, text, html, style, custom, klass, flag, restart, pct } from "./uikit.js";
+import { clamp } from "../core/math/scalar.js";
+import { piecewiseLinear } from "../core/math/numeric.js";
 
 /**
  * HUD de partida en HTML y CSS sobre el canvas (#216, docs/design/18-interfaz.md §3.4 a §3.10, estilos en
@@ -39,24 +41,22 @@ export const HUD_STATES = ["countdown", "playing", "roundOver", "matchOver"];
 
 const FLOATERS = 6;
 
+/** Escala de las posiciones del medidor de altura: el 100 % es el fondo, en % del alto. */
+const GAUGE_PERCENT = 100;
+
 /** `m:ss` de un tiempo en segundos (se trunca a segundos enteros). */
 export function formatClock(seconds) {
     const s = Math.max(0, Math.floor(seconds));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** Canales [r, g, b] de trabajo de heatColor: se reutilizan entre llamadas. */
+const heatChannels = [0, 0, 0];
+
 /** Color CSS de la rampa de calor del daño para `t` (§3.7): interpolación lineal en RGB entre los `HUD.heatStops`. */
 export function heatColor(t) {
-    const stops = HUD.heatStops;
-    if (t <= stops[0][0]) return `rgb(${stops[0][1].join(", ")})`;
-    for (let i = 1; i < stops.length; i++) {
-        const [x1, c1] = stops[i];
-        if (t > x1) continue;
-        const [x0, c0] = stops[i - 1];
-        const k = (t - x0) / (x1 - x0);
-        return `rgb(${c0.map((v, j) => Math.round(v + (c1[j] - v) * k)).join(", ")})`;
-    }
-    return `rgb(${stops[stops.length - 1][1].join(", ")})`;
+    piecewiseLinear(HUD.heatStops, t, heatChannels);
+    return `rgb(${heatChannels.map(Math.round).join(", ")})`;
 }
 
 /** Punto de la rampa de calor para una vida `hp` en Clásico: de blanco con la vida llena a rojo con la vida en 0. */
@@ -409,7 +409,7 @@ export class Hud {
             flag(gauge.markers[k].mk, "off", !visible);
             if (!visible) return;
             slots.push(k);
-            reals.push(Math.min(100, Math.max(0, gaugeTop(p.above))));
+            reals.push(clamp(gaugeTop(p.above), 0, GAUGE_PERCENT));
         });
         const shown = spreadMarkers(reals, (marker / height) * 100);
         slots.forEach((k, i) => {

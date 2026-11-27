@@ -1,3 +1,15 @@
+import { clamp, exponentialApproachFactor, lerp } from "../core/math/scalar.js";
+
+/**
+ * Acota `value` a [`lower`, `upper`]; si el intervalo está invertido (el mundo es más chico que la vista) devuelve su centro.
+ * @param {number} value
+ * @param {number} lower
+ * @param {number} upper
+ * @returns {number}
+ */
+function clampOrCenter(value, lower, upper) {
+    return lower > upper ? (lower + upper) / 2 : clamp(value, lower, upper);
+}
 /**
  * Cámara compartida: encuadra a todos los puntos dados (los jugadores) con margen y hace zoom según la distancia entre
  * ellos. Con mundo acotado no muestra nada fuera de sus límites; con alto infinito (Infinito) puede alejarse hasta
@@ -70,18 +82,17 @@ export class Camera {
             this.viewW / (needW * this.ppm),
             this.viewH / (needH * this.ppm),
         );
-        const zoom = Math.min(Math.max(fitPlayers, fitWorld), MAX_SCALE / this.ppm);
+        const zoom = clamp(fitPlayers, fitWorld, MAX_SCALE / this.ppm);
 
         const halfW = this.viewW / (2 * this.ppm * zoom);
         const halfH = this.viewH / (2 * this.ppm * zoom);
-        const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi));
-        const x = clamp((left + right) / 2, minX + halfW, maxX - halfW);
-        const y = clamp((bottom + top) / 2, minY + halfH, maxY - halfH);
+        const x = clampOrCenter((left + right) / 2, minX + halfW, maxX - halfW);
+        const y = clampOrCenter((bottom + top) / 2, minY + halfH, maxY - halfH);
 
-        const t = snap ? 1 : 1 - Math.exp(-SMOOTHING * dt);
-        this.zoom += (zoom - this.zoom) * t;
-        this.x += (x - this.x) * t;
-        this.y += (y - this.y) * t;
+        const t = snap ? 1 : exponentialApproachFactor(SMOOTHING * dt);
+        this.zoom = lerp(this.zoom, zoom, t);
+        this.x = lerp(this.x, x, t);
+        this.y = lerp(this.y, y, t);
     }
 
     /**

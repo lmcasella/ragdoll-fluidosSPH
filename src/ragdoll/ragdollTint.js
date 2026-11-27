@@ -4,6 +4,8 @@
  * `tint` es el color final.
  */
 
+import { TAU, lerp } from "../core/math/scalar.js";
+
 /** Color del destello de golpe, `[r, g, b]` de 0 a 255. */
 const FLASH_COLOR = [255, 40, 40];
 
@@ -16,9 +18,6 @@ const WET_BLINK_HZ = 4;
 /** Mezcla media del tinte de mojado y cuánto sube y baja al parpadear (fracciones de 0 a 1). */
 const WET_MEAN = 0.35;
 const WET_SWING = 0.35;
-
-/** Una vuelta completa, en rad. */
-const FULL_TURN = Math.PI * 2;
 
 const HEX_RADIX = 16;
 const BITS_PER_CHANNEL = 8;
@@ -47,8 +46,8 @@ export function parseHexColor(hex) {
 export function mixTint(base, flash, wet) {
     let packed = 0;
     for (let channel = 0; channel < base.length; channel++) {
-        const flashed = base[channel] + (FLASH_COLOR[channel] - base[channel]) * flash;
-        const mixed = flashed + (WET_COLOR[channel] - flashed) * wet;
+        const flashed = lerp(base[channel], FLASH_COLOR[channel], flash);
+        const mixed = lerp(flashed, WET_COLOR[channel], wet);
         packed = (packed << BITS_PER_CHANNEL) | Math.round(mixed);
     }
     return packed;
@@ -60,7 +59,7 @@ export function mixTint(base, flash, wet) {
  * @param {number} now reloj de juego, en s
  */
 export function wetBlend(player, now) {
-    return player.wet && !player.dead ? WET_MEAN + WET_SWING * Math.sin(now * WET_BLINK_HZ * FULL_TURN) : 0;
+    return player.wet && !player.dead ? WET_MEAN + WET_SWING * Math.sin(now * WET_BLINK_HZ * TAU) : 0;
 }
 
 /**
