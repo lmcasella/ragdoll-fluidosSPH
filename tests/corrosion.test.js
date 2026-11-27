@@ -27,6 +27,7 @@ const MASS_TOLERANCE = 0.01;
 const FALL_SECONDS = 2;
 const FALL_DISTANCE = 1;
 const PARTICLE_SIDE_IN_RADII = 1.5;
+const ROUND_OVER_FRAMES = 200;
 
 /** Mueve todas las piezas del robot `index` para que su torso quede en (`x`, `y`). */
 function place(game, index, x, y) {
@@ -130,6 +131,23 @@ test("la masa de acero disuelta coincide con la estequiometría por el factor y 
         for (const book of store.destroyed) destroyed += book[kind];
         assert.equal(store.created[kind], live + destroyed, `masa del material ${kind}`);
     }
+});
+
+test("la ronda nueva devuelve el terreno corroído a su forma original", async () => {
+    const game = await startJet();
+    const tile = platformTile(game);
+    const startArea = materialArea(tile.grid);
+    const startPolygons = tile.polygons.length;
+    while (holeWidth(tile.grid) < ROBOT_HOLE_WIDTH) {
+        game.state.terrain.erodeAt({ x: PLATFORM.x, y: PLATFORM.y, reach: game.state.corrosion.reach, area: WIDENING_AREA });
+        game.frame();
+    }
+    assert.ok(materialArea(tile.grid) < startArea);
+    game.state.players[1].hp = 0;
+    game.frames(ROUND_OVER_FRAMES);
+    assert.equal(holeWidth(tile.grid), 0, "quedó el hueco después de la ronda nueva");
+    assert.ok(Math.abs(materialArea(tile.grid) - startArea) < MASS_TOLERANCE * startArea);
+    assert.equal(tile.polygons.length, startPolygons);
 });
 
 test("un robot lejos del hueco no se mueve y uno sobre el hueco cae", async (t) => {

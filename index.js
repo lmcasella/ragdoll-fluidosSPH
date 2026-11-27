@@ -489,7 +489,10 @@ function reiniciarRonda() {
     if (climb) {
         climb.reset(mapSeed());
         bots.forEach((bot) => bot.setNav(climb.level));
+    } else {
+        classic.terrain.restore();
     }
+    corrosion.reset();
     players.forEach((player, k) => {
         destroyRobot(player);
         players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);

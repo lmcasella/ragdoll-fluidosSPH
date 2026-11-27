@@ -138,8 +138,9 @@ export class Terrain {
                 const originX = x - width / 2 + column * tileWidth;
                 const originY = y - height / 2 + row * tileHeight;
                 const grid = new DensityGrid({ originX, originY, width: tileWidth, height: tileHeight });
-                grid.fillRectangle({ minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight });
-                const tile = { grid, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1 };
+                const fill = { minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight };
+                grid.fillRectangle(fill);
+                const tile = { grid, fill, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1 };
                 this.tiles.add(tile);
                 handle.tiles.push(tile);
                 this.rebuild(tile);
@@ -155,6 +156,17 @@ export class Terrain {
     removeSolid(handle) {
         for (const tile of handle.tiles) this.destroyTile(tile);
         handle.tiles.length = 0;
+    }
+
+    /**
+     * Devuelve cada tramo a su rectángulo original y rehace en el momento su forma: borra la corrosión acumulada al empezar
+     * una ronda. Solo se llama desde el loop, nunca dentro de un callback.
+     */
+    restore() {
+        for (const tile of this.tiles) {
+            tile.grid.fillRectangle(tile.fill);
+            this.rebuild(tile);
+        }
     }
 
     /** Quita todos los sólidos. */
