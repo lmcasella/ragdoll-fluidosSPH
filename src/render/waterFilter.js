@@ -44,6 +44,12 @@ function unitColor(color) {
     return new Float32Array(color.map((channel) => channel / CHANNEL_MAX));
 }
 
+/** Desplazamiento que se suma a `η` antes de codificarla, en m, para que las alturas negativas entren en un entero sin signo. */
+export const HEIGHT_BIAS_M = 1000;
+
+/** Paso de la altura codificada, en m (1 cm: menos de medio píxel con la cámara más cerca). */
+export const HEIGHT_STEP_M = 0.01;
+
 /**
  * Fragmento del filtro, GLSL ES 3.00. La profundidad es `η − y` con `η` leída de `uHeights`; las demás constantes de dibujo
  * están acá, en m, en px o sin unidad.
@@ -75,7 +81,12 @@ ${NOISE_FUNCTIONS}
 
 const float DRY_DEPTH_M = -1.0;
 const float COLUMN_CENTER = 0.5;
+const float TEXEL_CENTER = 0.5;
 const float WET_COLUMN = 0.5;
+const float BYTE_MAX = 255.0;
+const float BYTE_VALUES = 256.0;
+const float HEIGHT_STEP_M = ${HEIGHT_STEP_M.toFixed(4)};
+const float HEIGHT_BIAS_M = ${HEIGHT_BIAS_M.toFixed(1)};
 
 const float BODY_BRIGHTNESS = 0.55;
 const float SURFACE_VISIBLE = 0.7;
@@ -96,8 +107,10 @@ const float SURFACE_REFLECTION_SHARE = 0.5;
 
 vec2 columnAt(int column)
 {
-    int last = int(uColumnCount) - 1;
-    return texelFetch(uHeights, ivec2(clamp(column, 0, last), 0), 0).rg;
+    float index = clamp(float(column), 0.0, uColumnCount - 1.0);
+    vec4 coded = floor(texture(uHeights, vec2((index + TEXEL_CENTER) / uColumnCount, TEXEL_CENTER)) * BYTE_MAX + TEXEL_CENTER);
+    float units = (coded.r * BYTE_VALUES + coded.g) * BYTE_VALUES + coded.b;
+    return vec2(units * HEIGHT_STEP_M - HEIGHT_BIAS_M, coded.a / BYTE_MAX);
 }
 
 float surfaceDepth(vec2 world)
@@ -153,18 +166,58 @@ void main(void)
 }
 `;
 
-/** Canales por columna de la textura de alturas (RGBA): `η` en el rojo y la marca de columna mojada en el verde. */
+/** Canales por columna de la textura de alturas (RGBA8): `η` en 24 bits en rojo, verde y azul, y la marca de mojada en el alfa. */
 export const HEIGHT_CHANNELS = 4;
 
+/** Valor máximo de un byte, que la textura RGBA8 normaliza a 1. */
+const BYTE_MAX = 255;
+
+/** Valores distintos de un byte. */
+const BYTE_VALUES = 256;
+
+/** Mayor entero codificable en los tres bytes de la altura. */
+const HEIGHT_UNITS_MAX = BYTE_VALUES ** 3 - 1;
+
+const RED = 0;
+const GREEN = 1;
+const BLUE = 2;
+const ALPHA = 3;
+
 /**
- * Crea la textura de datos de una fila con una columna del campo por texel (`η` en m en el rojo y 1 si la columna está mojada en
- * el verde, float de 32 bits). Se crea una vez; quien la usa escribe `data` y llama a `source.update()` por frame.
+ * Escribe en el texel `texel` de `data` la superficie `eta` (m) y si la columna está mojada. La textura es RGBA8 porque PIXI
+ * v8.21 no sube bien una `BufferImageSource` `rgba32float` en WebGL (el filtro la leía en cero); `η` va en centímetros
+ * desplazados por `HEIGHT_BIAS_M`, repartidos en los tres primeros bytes.
+ * @param {Uint8Array} data buffer de `createWaterHeights`
+ * @param {number} texel índice del primer byte del texel
+ * @param {number} eta superficie, en m
+ * @param {boolean} wet si la columna tiene agua
+ */
+export function encodeSurfaceHeight(data, texel, eta, wet) {
+    const units = Math.min(HEIGHT_UNITS_MAX, Math.max(0, Math.round((eta + HEIGHT_BIAS_M) / HEIGHT_STEP_M)));
+    data[texel + RED] = Math.floor(units / (BYTE_VALUES * BYTE_VALUES));
+    data[texel + GREEN] = Math.floor(units / BYTE_VALUES) % BYTE_VALUES;
+    data[texel + BLUE] = units % BYTE_VALUES;
+    data[texel + ALPHA] = wet ? BYTE_MAX : 0;
+}
+
+/**
+ * Lee la superficie (m) y la marca de mojada del texel `texel`; es la inversa de `encodeSurfaceHeight`.
+ * @returns {{eta: number, wet: boolean}}
+ */
+export function decodeSurfaceHeight(data, texel) {
+    const units = (data[texel + RED] * BYTE_VALUES + data[texel + GREEN]) * BYTE_VALUES + data[texel + BLUE];
+    return { eta: units * HEIGHT_STEP_M - HEIGHT_BIAS_M, wet: data[texel + ALPHA] === BYTE_MAX };
+}
+
+/**
+ * Crea la textura de datos de una fila con una columna del campo por texel (ver `encodeSurfaceHeight`). Se crea una vez;
+ * quien la usa escribe `data` y llama a `source.update()` por frame.
  * @param {number} columnCount columnas del campo de alturas
- * @returns {{source: PIXI.BufferImageSource, data: Float32Array}}
+ * @returns {{source: PIXI.BufferImageSource, data: Uint8Array}}
  */
 export function createWaterHeights(columnCount) {
-    const data = new Float32Array(columnCount * HEIGHT_CHANNELS);
-    const source = new PIXI.BufferImageSource({ resource: data, width: columnCount, height: 1, format: "rgba32float", scaleMode: "nearest" });
+    const data = new Uint8Array(columnCount * HEIGHT_CHANNELS);
+    const source = new PIXI.BufferImageSource({ resource: data, width: columnCount, height: 1, format: "rgba8unorm", scaleMode: "nearest" });
     return { source, data };
 }
 

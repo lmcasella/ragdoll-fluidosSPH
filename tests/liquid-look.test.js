@@ -5,7 +5,7 @@ import { installFakePixi } from "./helpers/fake-pixi.js";
 
 const { FLUID_LOOK, lookOf, SHOT_DRAW } = await import("../src/render/fluidDraw.js");
 const { createLiquidFilter, updateLiquidFilter, liquidFragment, LIQUID_UNIFORM_GROUP } = await import("../src/render/liquidFilter.js");
-const { createWaterFilter, createWaterHeights, HEIGHT_CHANNELS, setWaterFilterLights, WATER_FRAGMENT, encodeWater } = await import("../src/render/waterFilter.js");
+const { createWaterFilter, createWaterHeights, decodeSurfaceHeight, HEIGHT_CHANNELS, HEIGHT_STEP_M, setWaterFilterLights, WATER_FRAGMENT, encodeWater } = await import("../src/render/waterFilter.js");
 const { FluidLayers } = await import("../src/render/fluidLayers.js");
 const { THRESHOLD_GAIN, THRESHOLD_OFFSET } = await import("../src/render/thresholdFilter.js");
 const { WaterView, writeSurfaceHeights } = await import("../src/render/waterView.js");
@@ -165,10 +165,10 @@ test("la textura de alturas lleva la superficie y la marca de columna mojada de 
     writeSurfaceHeights(water, heights.data);
     let wetColumns = 0;
     for (let column = 0; column < water.N; column++) {
-        const texel = column * HEIGHT_CHANNELS;
         const wet = column >= water.i0 && column < water.i1 && water.h[column] > water.config.hDry;
-        assert.equal(heights.data[texel + 1], wet ? 1 : 0, `marca de la columna ${column}`);
-        assert.ok(Math.abs(heights.data[texel] - (water.b[column] + water.h[column])) < 1e-4, `eta de la columna ${column}`);
+        const decoded = decodeSurfaceHeight(heights.data, column * HEIGHT_CHANNELS);
+        assert.equal(decoded.wet, wet, `marca de la columna ${column}`);
+        assert.ok(Math.abs(decoded.eta - (water.b[column] + water.h[column])) <= HEIGHT_STEP_M / 2 + 1e-9, `eta de la columna ${column}`);
         if (wet) wetColumns++;
     }
     assert.ok(wetColumns > 0, "el campo inicial tiene agua");

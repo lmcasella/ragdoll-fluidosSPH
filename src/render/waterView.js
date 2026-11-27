@@ -1,16 +1,13 @@
 import { MATERIALS } from "../fluids/materials.js";
 import { lerp } from "../core/math/scalar.js";
 import { updateLiquidFilter } from "./liquidFilter.js";
-import { HEIGHT_CHANNELS, createWaterFilter, createWaterHeights, encodeWater, setWaterFilterLights } from "./waterFilter.js";
+import { HEIGHT_CHANNELS, createWaterFilter, createWaterHeights, encodeSurfaceHeight, encodeWater, setWaterFilterLights } from "./waterFilter.js";
 
 /** Código de color de un tramo de agua sin ácido (`encodeWater(0)`): negro, con la cobertura en el alfa. */
 const CLEAR_WATER_CODE = encodeWater(0);
 
 /** Posición del centro de una celda dentro de ella, como fracción de su ancho. */
 const CELL_CENTER = 0.5;
-
-/** Canal de la textura de alturas con la marca de columna mojada (el rojo lleva `η`). */
-const WET_CHANNEL = 1;
 
 /** Fracción de la distancia entre dos puntos donde está el medio. */
 const MIDPOINT = 0.5;
@@ -123,10 +120,8 @@ export function writeSurfaceHeights(water, data) {
     const { N: columnCount, i0: firstCell, i1: endCell, b: bed, h: depth } = water;
     const wetThreshold = water.config.hDry;
     for (let column = 0; column < columnCount; column++) {
-        const texel = column * HEIGHT_CHANNELS;
         const wet = column >= firstCell && column < endCell && depth[column] > wetThreshold;
-        data[texel] = bed[column] + depth[column];
-        data[texel + WET_CHANNEL] = wet ? 1 : 0;
+        encodeSurfaceHeight(data, column * HEIGHT_CHANNELS, bed[column] + depth[column], wet);
     }
 }
 
