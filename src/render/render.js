@@ -1,7 +1,9 @@
-// Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
-// Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
+/**
+ * Dibujo en coordenadas del mundo (metros, Y hacia arriba): el contexto ya tiene aplicada la cámara.
+ * Los grosores se dividen por la escala para mantenerlos en píxeles de pantalla.
+ */
+import { COLOR_BYTES, tintOf } from "../core/color.js";
 import { MATERIALS } from "../fluids/materials.js";
-import { CanvasLayer } from "./canvasLayer.js";
 import { THRESHOLD_GAIN, THRESHOLD_OFFSET } from "./thresholdFilter.js";
 
 /** Radio dibujado de las gotas: `√(A_p / π)` con `A_p = (1,5 · 0,06 m)²` el área física de una partícula (0,0508 m), para que el área dibujada sea la física (I3). */
@@ -51,126 +53,6 @@ export function metaballAlpha(distance, peak, influence = METABALL_RADIUS) {
  */
 export function metaballVisibleRadius(peak, influence = METABALL_RADIUS, threshold = METABALL_THRESHOLD) {
     return influence * Math.sqrt(1 - Math.sqrt(threshold / peak));
-}
-
-const SPRITE_PX = 64;
-const SPRITE_STOPS = 16;
-const SPRITE_CAP = 256;
-
-/**
- * Sprites de gradiente radial por material y color. El color se cuantiza a 5 bits por canal y cada material guarda
- * hasta `cap` sprites (descarta el más viejo). `makeCanvas` crea un canvas (en Node, uno falso).
- */
-export class MetaballSprites {
-    constructor(makeCanvas, cap = SPRITE_CAP) {
-        this.makeCanvas = makeCanvas;
-        this.cap = cap;
-        this.byKind = new Map();
-        this.baked = 0;
-    }
-
-    /** Sprite de `kind` con el color RGB (0-255) y el radio visible `radius` (m); lo hornea si no está. */
-    get(kind, r, g, b, radius) {
-        let cache = this.byKind.get(kind);
-        if (cache === undefined) {
-            cache = new Map();
-            this.byKind.set(kind, cache);
-        }
-        const rq = r >> 3;
-        const gq = g >> 3;
-        const bq = b >> 3;
-        const key = (rq << 10) | (gq << 5) | bq;
-        let sprite = cache.get(key);
-        if (sprite !== undefined) return sprite;
-        if (cache.size >= this.cap) cache.delete(cache.keys().next().value);
-        sprite = this.bake((rq << 3) | (rq >> 2), (gq << 3) | (gq >> 2), (bq << 3) | (bq >> 2), metaballPeak(radius));
-        cache.set(key, sprite);
-        return sprite;
-    }
-
-    bake(r, g, b, peak) {
-        const canvas = this.makeCanvas();
-        canvas.width = SPRITE_PX;
-        canvas.height = SPRITE_PX;
-        const ctx = canvas.getContext("2d");
-        const half = SPRITE_PX / 2;
-        const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
-        for (let i = 0; i <= SPRITE_STOPS; i++) {
-            const q = i / SPRITE_STOPS;
-            gradient.addColorStop(q, `rgba(${r}, ${g}, ${b}, ${(peak * metaballProfile(q)).toFixed(4)})`);
-        }
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, SPRITE_PX, SPRITE_PX);
-        this.baked++;
-        return canvas;
-    }
-}
-
-/**
- * Una capa (`CanvasLayer` con el filtro de umbral de `thresholdFilter.js`) por material presente en el frame, para que
- * materiales distintos no se fundan entre sí. Las capas se crean al primer uso, en `parent` y ordenadas por el id del material.
- * `apply(ctx)` pone la cámara en cada contexto usado.
- */
-export class FluidLayers {
-    /**
-     * @param {object} options
-     * @param {Document} options.doc crea los canvas fuera de pantalla
-     * @param {PIXI.Container} options.parent contenedor de los sprites de las capas
-     * @param {PIXI.Filter} options.filter filtro de umbral que se aplica a cada capa
-     * @param {function(CanvasRenderingContext2D): void} options.apply pone la cámara en un contexto
-     */
-    constructor({ doc, parent, filter, apply }) {
-        this.doc = doc;
-        this.parent = parent;
-        this.parent.sortableChildren = true;
-        this.filter = filter;
-        this.apply = apply;
-        this.layers = new Map();
-        this.width = 0;
-        this.height = 0;
-        this.sprites = new MetaballSprites(() => doc.createElement("canvas"));
-    }
-
-    resize(width, height) {
-        this.width = width;
-        this.height = height;
-        for (const { layer } of this.layers.values()) layer.resize(width, height);
-    }
-
-    begin() {
-        for (const entry of this.layers.values()) entry.used = false;
-    }
-
-    /** Contexto de la capa de `kind`: la crea si falta y, en el primer pedido del frame, la muestra, la limpia y le pone la cámara. */
-    contextFor(kind) {
-        let entry = this.layers.get(kind);
-        if (entry === undefined) {
-            const layer = new CanvasLayer({ doc: this.doc, name: `fluidLayer${kind}`, parent: this.parent, width: this.width, height: this.height });
-            layer.sprite.zIndex = kind;
-            layer.sprite.filters = [this.filter];
-            entry = { layer, used: false };
-            this.layers.set(kind, entry);
-        }
-        if (!entry.used) {
-            entry.used = true;
-            entry.layer.sprite.visible = true;
-            entry.layer.clear();
-            this.apply(entry.layer.ctx);
-        }
-        return entry.layer.ctx;
-    }
-
-    /** Sube la textura de las capas usadas en este frame y oculta las que no se usaron. */
-    end() {
-        for (const { layer, used } of this.layers.values()) {
-            if (used) layer.upload();
-            else layer.sprite.visible = false;
-        }
-    }
-
-    sprite(kind, r, g, b, radius) {
-        return this.sprites.get(kind, r, g, b, radius);
-    }
 }
 
 /**
@@ -590,11 +472,11 @@ const shape = { radius: 0, x0: 0, y0: 0 };
 export const DROP_STRETCH = { time: 0.01, minSpeed: 1, max: 0.2 };
 
 /**
- * Dibuja las partículas de `particleSystem` como un sprite de campo cada una (ver `metaballPeak`) en la capa de su material
- * (`layers.contextFor(kind)`, `kind` = `store.kind` o 0 sin `store`), con el color propio de la partícula. `skin` (`SHOT_DRAW`) acerca las
- * partículas junto a un cuerpo a su superficie (ver `skinPosition`). La forma la decide `dropShape`. Dentro de la capa
- * los sprites se combinan en `source-over` y el filtro de umbral recorta el campo por el umbral. Una gota en movimiento
- * se estira a lo largo de su velocidad (`DROP_STRETCH`).
+ * Pone las partículas de `particleSystem` en las capas de `layers` (`FluidLayers`): una partícula del pool por gota, con la
+ * textura de campo de su material (`kind` = `store.kind`, o 0 sin `store`) teñida con el color del buffer del motor, que la térmica
+ * escribe por partícula. `skin` (`SHOT_DRAW`) acerca las partículas junto a un cuerpo a su superficie (ver `skinPosition`) y
+ * la forma la decide `dropShape`. Una gota en movimiento se estira a lo largo de su velocidad (`DROP_STRETCH`). Lee los buffers
+ * del heap y no crea nada nativo. Ver `docs/design/07-sph.md` §7.4.
  */
 export function drawParticles(layers, particleSystem, skin = null, store = null) {
     const count = particleSystem.GetParticleCount();
@@ -604,32 +486,24 @@ export function drawParticles(layers, particleSystem, skin = null, store = null)
     const velBase = Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2;
     const colorBase = Box2D.getPointer(particleSystem.GetColorBuffer());
     const draw = skin ?? NO_SKIN;
-    const side = 2 * METABALL_RADIUS;
+    const { pixelsPerMeter, scalePerMeter } = layers;
     layers.begin();
-    let lastKind = -1;
-    let ctx = null;
     for (let i = 0; i < count; i++) {
-        const c = colorBase + i * 4;
+        const colorOffset = colorBase + i * COLOR_BYTES;
         const kind = store !== null ? store.kind[store.slotAt(i)] : 0;
-        if (kind !== lastKind) {
-            lastKind = kind;
-            ctx = layers.contextFor(kind);
-        }
         dropShape(positions[posBase + i * 2], positions[posBase + i * 2 + 1], kind, draw, shape);
-        const sprite = layers.sprite(kind, colors[c], colors[c + 1], colors[c + 2], shape.radius);
+        const particle = layers.acquire(kind, shape.radius);
         const vx = positions[velBase + i * 2];
         const vy = positions[velBase + i * 2 + 1];
         const speed = Math.hypot(vx, vy);
-        if (speed < DROP_STRETCH.minSpeed) {
-            ctx.drawImage(sprite, shape.x0 - METABALL_RADIUS, shape.y0 - METABALL_RADIUS, side, side);
-            continue;
-        }
-        const half = METABALL_RADIUS + Math.min(DROP_STRETCH.max, (speed * DROP_STRETCH.time) / 2);
-        ctx.save();
-        ctx.translate(shape.x0, shape.y0);
-        ctx.rotate(Math.atan2(vy, vx));
-        ctx.drawImage(sprite, -half, -METABALL_RADIUS, 2 * half, side);
-        ctx.restore();
+        const stretching = speed >= DROP_STRETCH.minSpeed;
+        const half = stretching ? METABALL_RADIUS + Math.min(DROP_STRETCH.max, (speed * DROP_STRETCH.time) / 2) : METABALL_RADIUS;
+        particle.x = shape.x0 * pixelsPerMeter;
+        particle.y = shape.y0 * pixelsPerMeter;
+        particle.scaleX = half * scalePerMeter;
+        particle.scaleY = METABALL_RADIUS * scalePerMeter;
+        particle.rotation = stretching ? Math.atan2(vy, vx) : 0;
+        particle.tint = tintOf(colors[colorOffset], colors[colorOffset + 1], colors[colorOffset + 2]);
     }
     layers.end();
 }

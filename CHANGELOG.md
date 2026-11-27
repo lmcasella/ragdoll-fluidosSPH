@@ -10,6 +10,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - El código se reorganizó en `src/` por subsistema y el arranque pasó de `index.html` a `index.js`. Sin cambios para el jugador.
 - El juego se dibuja en un solo canvas con PIXI y el umbral que funde las gotas pasa de un filtro SVG a un shader propio. Se ve igual.
 - Los robots y el agua del nivel también se dibujan con PIXI: las figuras de cada robot se crean una sola vez dentro de su vista y cada frame solo se mueven. Se ve igual.
+- Las gotas de fluido también se dibujan con PIXI: cada material tiene su textura, que se crea una sola vez, y cada frame solo cambian posición, tamaño y color de cada gota. Desaparecen los canvas fuera de pantalla de los fluidos. Se ve igual.
 
 ## [0.54.2] - 2026-11-25
 

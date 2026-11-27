@@ -62,9 +62,9 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
 ## 7.4 Render
 
 - **Hoy** ✅:
-  - cada partícula es un círculo de color sólido en un canvas 2D;
-  - cada partícula es un sprite de campo (perfil (1 − (d/R)²)², R = 2,2 radios) y un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas (#213);
-  - cada material tiene su propia capa (un sprite de la escena con el filtro), así que materiales distintos no se funden entre sí.
+  - cada partícula es una partícula de PIXI (`ParticleContainer`) con la textura de campo de su material (perfil (1 − (d/R)²)², R = 2,2 radios), generada una sola vez y teñida con el color de la partícula; cada frame solo cambian su posición, escala, giro y tinte (#213, #310);
+  - un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas;
+  - cada material tiene su propia capa (un contenedor de la escena con el filtro), así que materiales distintos no se funden entre sí.
 
   El resultado son **manchas planas**, sin brillo ni volumen, y no escala a miles de partículas.
 - **Diseño** 🔨 #26 (revisado con #62): **PIXI v8 con sus filtros y filtros propios como `PIXI.Filter`, sin contexto WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).

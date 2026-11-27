@@ -210,7 +210,7 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpues
     Box2D.destroy(def);
     Box2D.destroy(at);
     const count = game.state.particleSystem.GetParticleCount();
-    const shown = () => [...fluidLayers.layers.values()].filter((entry) => entry.layer.sprite.visible).length;
+    const shown = () => [...fluidLayers.layers.values()].filter((entry) => entry.node.visible).length;
 
     game.frames(2);
     assert.equal(debug.fluidMode, "metaball");
@@ -234,7 +234,7 @@ test("D5 en puntos no se dibuja el metaball y los puntos van a la capa superpues
     assert.ok(shown() > 0, "ambos: también el metaball");
     assert.ok(game.arcs >= arcs0 + count);
 
-    const filtered = [...fluidLayers.layers.values()].every((entry) => entry.layer.sprite.filters.length === 1);
+    const filtered = [...fluidLayers.layers.values()].every((entry) => entry.node.filters.length === 1);
     assert.ok(filtered, "las capas de fluido llevan el filtro de umbral");
     assert.equal(game.state.scene.overlayLayer.sprite.filters, null, "la capa de los puntos va sin filtro");
 });

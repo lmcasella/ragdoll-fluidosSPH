@@ -1,6 +1,6 @@
 /**
  * `PIXI` falso para probar en Node (sin WebGL) lo que arma el juego: contenedores con hijos en orden, sprites con su
- * textura, `Graphics` que cuenta cuántas veces se vació y filtros. Lo mínimo que usan `src/render/` y RagImporter.
+ * textura, `Graphics` que cuenta cuántas veces se vació y filtros. Partículas y su contenedor, y un renderer que cuenta las texturas generadas. Lo mínimo que usan `src/render/` y RagImporter.
  */
 
 class FakePoint {
@@ -191,6 +191,44 @@ class FakeFillGradient {
     }
 }
 
+/**
+ * Partícula falsa de ParticleContainer: cuenta cuántas se construyeron (constructed) y guarda los campos que escribe el juego.
+ */
+class FakeParticle {
+    static constructed = 0;
+
+    constructor({ texture, anchorX = 0, anchorY = 0 }) {
+        FakeParticle.constructed++;
+        this.texture = texture;
+        this.anchorX = anchorX;
+        this.anchorY = anchorY;
+        this.x = 0;
+        this.y = 0;
+        this.scaleX = 1;
+        this.scaleY = 1;
+        this.rotation = 0;
+        this.tint = 0xffffff;
+    }
+}
+
+/** ParticleContainer falso: lista de partículas con alta y baja, como PIXI v8. */
+class FakeParticleContainer extends FakeContainer {
+    constructor(options) {
+        super();
+        this.options = options;
+        this.particleChildren = [];
+    }
+
+    addParticle(particle) {
+        this.particleChildren.push(particle);
+        return particle;
+    }
+
+    removeParticles(start = 0, end = this.particleChildren.length) {
+        return this.particleChildren.splice(start, end - start);
+    }
+}
+
 class FakeFilter {
     constructor(options) {
         this.options = options;
@@ -206,6 +244,11 @@ class FakeApplication {
         this.stage = new FakeContainer();
         this.renders = 0;
         this.renderer = {
+            generatedTextures: 0,
+            generateTexture: (graphics) => {
+                this.renderer.generatedTextures++;
+                return { source: {}, graphics };
+            },
             resize: (width, height) => {
                 this.canvas.width = width;
                 this.canvas.height = height;
@@ -226,6 +269,8 @@ export function installFakePixi() {
         Sprite: FakeSprite,
         Texture: FakeTexture,
         Graphics: FakeGraphics,
+        Particle: FakeParticle,
+        ParticleContainer: FakeParticleContainer,
         FillGradient: FakeFillGradient,
         Filter: FakeFilter,
         GlProgram: { from: (options) => options },

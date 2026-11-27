@@ -8,6 +8,7 @@ const { ORIGIN } = await import("../src/fluids/particleStore.js");
 
 const page = readFileSync(new URL("../index.js", import.meta.url), "utf8");
 const thresholdFilterSource = readFileSync(new URL("../src/render/thresholdFilter.js", import.meta.url), "utf8");
+const fluidLayersSource = readFileSync(new URL("../src/render/fluidLayers.js", import.meta.url), "utf8");
 
 /** Primer argumento de la llamada a `fn(` en `index.js`. */
 function firstArg(fn) {
@@ -59,12 +60,17 @@ test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpu
     game.frames(2);
     assert.ok(fluidLayers.layers.size > 0, "hay capas de fluido");
     assert.equal(scene.fluidParent.sortableChildren, true, "las capas de fluido se ordenan por material");
-    for (const { layer } of fluidLayers.layers.values()) {
-        assert.equal(layer.sprite.filters.length, 1);
-        assert.ok(layer.sprite.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro es el de umbral");
+    for (const { node } of fluidLayers.layers.values()) {
+        assert.equal(node.filters.length, 1);
+        assert.ok(node.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro es el de umbral");
     }
     assert.doesNotMatch(thresholdFilterSource, /gaussian|blur/i);
     assert.deepEqual(hudOrder(scene), ["fluid", "overlayLayer", "panelLayer"]);
+});
+
+test("los fluidos no usan ningún canvas fuera de pantalla ni contexto 2D", () => {
+    assert.doesNotMatch(fluidLayersSource, /createElement|getContext|OffscreenCanvas|CanvasLayer/);
+    assert.doesNotMatch(page, /FluidLayers\(\{\s*doc/);
 });
 
 test("la rueda de armas se dibuja después de la mira y los golpes", () => {
