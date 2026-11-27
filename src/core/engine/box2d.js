@@ -111,6 +111,97 @@ export function boundsOfBodies(bodies, out) {
     return out;
 }
 
+/** Máximo de vértices de un polígono de Box2D (`b2_maxPolygonVertices`). */
+export const MAX_POLYGON_VERTICES = 8;
+
+/** Bytes de un vértice en el heap: dos `float` de 32 bits (x, y). */
+const VERTEX_BYTES = 8;
+
+/** Corrimiento para pasar un puntero del heap a índice de `Box2D.HEAPF32` (elementos de 4 bytes). */
+const FLOAT_INDEX_SHIFT = 2;
+
+/** Vértices de un polígono de Box2D: menos de tres no encierran área. */
+const MINIMUM_POLYGON_VERTICES = 3;
+
+/** Vértices de una caja. */
+const BOX_VERTICES = 4;
+
+/** Valores por vértice en un arreglo intercalado (x, y). */
+const COMPONENTS_PER_VERTEX = 2;
+
+/** Fricción por defecto de Box2D para un fixture, adimensional. */
+const DEFAULT_FRICTION = 0.2;
+
+/** Filtro de colisión por defecto de Box2D: categoría 1, choca con todo, sin grupo. */
+const DEFAULT_FILTER = { categoryBits: 0x0001, maskBits: 0xffff, groupIndex: 0 };
+
+/**
+ * Crea fixtures poligonales convexos sin memoria nativa por llamada. Reserva una sola vez un `b2PolygonShape`, un
+ * `b2FixtureDef` y un buffer del heap para `MAX_POLYGON_VERTICES` vértices, y los reutiliza en cada fixture
+ * (patrón Object Pool). Quien lo crea llama a `dispose()` al terminar; los fixtures creados son del cuerpo y se quitan
+ * con `body.DestroyFixture`, nunca con `Box2D.destroy`.
+ */
+export class PolygonFixtureBuilder {
+    constructor() {
+        this.shape = new Box2D.b2PolygonShape();
+        this.definition = new Box2D.b2FixtureDef();
+        this.definition.set_shape(this.shape);
+        this.vertexPointer = Box2D._malloc(VERTEX_BYTES * MAX_POLYGON_VERTICES);
+        this.vertexArray = Box2D.wrapPointer(this.vertexPointer, Box2D.b2Vec2);
+        this.boxCorners = new Float32Array(BOX_VERTICES * COMPONENTS_PER_VERTEX);
+    }
+
+    /**
+     * Crea un fixture con un polígono convexo en `body`.
+     * @param {object} body `b2Body`
+     * @param {ArrayLike<number>} vertices vértices intercalados `[x0, y0, …]` en m, locales al cuerpo, antihorarios y convexos
+     * @param {{density?: number, friction?: number, isSensor?: boolean, filter?: {categoryBits: number, maskBits: number, groupIndex: number}, userData?: number}} [material]
+     * densidad en kg/m², fricción adimensional, si es sensor, filtro de colisión y dato de usuario (un entero)
+     * @returns {object} el `b2Fixture` creado
+     */
+    createPolygon(body, vertices, { density = 0, friction = DEFAULT_FRICTION, isSensor = false, filter = DEFAULT_FILTER, userData = 0 } = {}) {
+        const count = vertices.length / COMPONENTS_PER_VERTEX;
+        if (count < MINIMUM_POLYGON_VERTICES || count > MAX_POLYGON_VERTICES) {
+            throw new RangeError(`un polígono de Box2D lleva de ${MINIMUM_POLYGON_VERTICES} a ${MAX_POLYGON_VERTICES} vértices, no ${count}`);
+        }
+        const base = this.vertexPointer >> FLOAT_INDEX_SHIFT;
+        for (let index = 0; index < vertices.length; index++) Box2D.HEAPF32[base + index] = vertices[index];
+        this.shape.Set(this.vertexArray, count);
+        this.definition.set_density(density);
+        this.definition.set_friction(friction);
+        this.definition.set_isSensor(isSensor);
+        this.definition.set_userData(userData);
+        const nativeFilter = this.definition.get_filter();
+        nativeFilter.set_categoryBits(filter.categoryBits);
+        nativeFilter.set_maskBits(filter.maskBits);
+        nativeFilter.set_groupIndex(filter.groupIndex);
+        return body.CreateFixture(this.definition);
+    }
+
+    /**
+     * Crea un fixture con una caja alineada con los ejes del cuerpo.
+     * @param {object} body `b2Body`
+     * @param {{x: number, y: number, width: number, height: number}} box centro y tamaño, en m, locales al cuerpo
+     * @param {object} [material] ver `createPolygon`
+     * @returns {object} el `b2Fixture` creado
+     */
+    createBox(body, box, material) {
+        const left = box.x - box.width / 2;
+        const right = box.x + box.width / 2;
+        const bottom = box.y - box.height / 2;
+        const top = box.y + box.height / 2;
+        this.boxCorners.set([left, bottom, right, bottom, right, top, left, top]);
+        return this.createPolygon(body, this.boxCorners, material);
+    }
+
+    /** Libera el polígono, la definición y el buffer del heap. Los fixtures ya creados no se tocan. */
+    dispose() {
+        Box2D._free(this.vertexPointer);
+        Box2D.destroy(this.definition);
+        Box2D.destroy(this.shape);
+    }
+}
+
 /**
  * Deja una caja vacía: lista para que `mergeBounds` la agrande.
  * @param {{minX: number, minY: number, maxX: number, maxY: number}} bounds caja que se modifica

@@ -61,6 +61,25 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `createSeededRandom` | Generador pseudoaleatorio con semilla: misma semilla, misma secuencia, en [0, 1). |
 | `hashToUnit` | Hash de un entero a [0, 1), para valores repetibles sin `Math.random`. |
 
+### math/marchingSquares.js
+
+| Nombre | Qué hace |
+|---|---|
+| `DENSITY_ISO_LEVEL` | Umbral de densidad que separa lo lleno de lo vacío (0,5). |
+| `contoursOfGrid` | Anillos cerrados de una grilla de densidad (marching squares): externos antihorarios, agujeros horarios, en m. |
+
+### math/polygonSimplify.js
+
+| Nombre | Qué hace |
+|---|---|
+| `simplifyRing` | Simplifica un anillo cerrado con Douglas-Peucker y una tolerancia en m. |
+
+### math/convexDecomposition.js
+
+| Nombre | Qué hace |
+|---|---|
+| `decomposeConvex` | Parte un polígono con agujeros en piezas convexas de hasta N vértices (puente, ear clipping, Hertel-Mehlhorn). |
+
 ### physics/constants.js
 
 | Nombre | Qué hace |
@@ -90,6 +109,8 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `forEachWorldBody` | Recorre todos los cuerpos del mundo sin crear memoria nativa. |
 | `boundsOfBody` | Escribe en `out` la caja que une los fixtures de un cuerpo, en m. |
 | `boundsOfBodies` | Escribe en `out` la caja que une los fixtures de varios cuerpos, en m. |
+| `MAX_POLYGON_VERTICES` | Máximo de vértices de un polígono de Box2D (8). |
+| `PolygonFixtureBuilder` | Crea fixtures poligonales y cajas sin memoria nativa por llamada (`createPolygon`, `createBox`, `dispose`). |
 
 ### color.js
 
