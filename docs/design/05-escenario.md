@@ -89,3 +89,29 @@ Una plataforma atravesable puede ser rompible. El primer toque de un robot arran
 - **Infinito:** ver [16.4](16-ascenso.md#164-armas-e-ítem-de-reparación).
 - **Bot:** una plataforma que empezó a romperse está perdida: se baja y no la elige como destino ni para aterrizar.
 - **Fin de partida:** al terminar la partida o volver al título, todas quedan enteras.
+
+## 5.5 Plataformas de densidad (#346)
+
+Base para que el ácido corroa las plataformas (#347), para el sombreado por material (#348) y para la luz con normales (#349). En este issue el juego se ve y se juega igual que antes.
+
+- **Qué es:** cada plataforma firme (atravesable y no rompible) guarda su materia como una grilla de densidad propia, de celdas de unos 5 cm, pegada al cuerpo que la lleva (el nivel en el Clásico, el mapa que baja en el Infinito). La grilla es la verdad: la forma física y el contorno se sacan de ella y nadie los edita a mano.
+- **Por qué una grilla por plataforma y no una del nivel:** el Infinito crea y libera plataformas mientras se sube; con una grilla propia, crear y liberar es agregar o quitar un objeto, y rehacer la forma toca solo la plataforma que cambió. Una plataforma de 12 × 0,4 m son unas 2.000 celdas, en memoria de JS y no en el heap del motor.
+- **Celdas exactas:** el tamaño de celda se ajusta por plataforma para que el ancho y el alto entren en un número entero de celdas (cerca de 5 cm). Así el contorno de una plataforma entera coincide con su rectángulo y nada cambia de lugar.
+- **Contorno:** se saca con marching squares sobre la grilla y se simplifica con Douglas-Peucker con tolerancia de media celda (2,5 cm). Una plataforma entera queda en 4 vértices.
+- **Forma física:** el contorno se parte en polígonos convexos de hasta 8 vértices (el máximo de Box2D). Una plataforma entera es un solo polígono, igual a la caja de antes.
+- **Cuándo se rehace:** solo desde el loop, después de los pasos de física y después de aplicar lo que encolaron los contactos. Una grilla que cambió se marca, y la forma se rehace en ese momento, nunca dentro de un callback. Al rehacerla, la plataforma sigue siendo atravesable y un robot apoyado no la atraviesa.
+- **Qué no cambia en #346:** piso, paredes y plataformas rompibles ([5.4](#54-plataformas-rompibles-301)) siguen siendo cajas. La tabla del nivel sigue declarando rectángulos; la grilla se llena con ese rectángulo al crear la plataforma. El bot, el premio por etapa, el dibujo y el agua siguen leyendo el rectángulo. Cuando la corrosión cambie la forma (#347), esos lectores pasan a usar el contorno.
+
+**Descartado:** armar la forma como una cadena cerrada del contorno. Es hueca (lo que se mete adentro no sale) y la regla de atravesables y el contorno inelástico verían un solo tramo y no la plataforma.
+
+### Por verificar en ejecución
+
+- Que una partícula que entra en un polígono de plataforma salga por el lado más cercano, igual que con la caja.
+- Que, ya corroídas (#347), las uniones entre polígonos de una misma plataforma no traben los pies ni las partículas.
+
+### Criterios (Node)
+
+- El contorno simplificado de cada plataforma entera del Clásico y de 200 plataformas del Infinito tiene 4 vértices y coincide con su rectángulo a menos de 1 µm.
+- Cada plataforma entera es un solo polígono, con la misma caja, fricción y registro de atravesable que antes.
+- Las pruebas de atravesables (§5.3), de apoyo, del bot y de partículas sobre plataformas siguen pasando sin cambios.
+- Rehacer a la fuerza una plataforma con un robot parado encima no lo hace caer ni lo mueve más de 1 cm, y no deja memoria nativa sin liberar.
