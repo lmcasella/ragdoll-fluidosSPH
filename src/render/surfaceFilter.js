@@ -91,13 +91,14 @@ const float ${prefix}_EDGE = ${glslFloat(surface.edgeLighten)};`;
  * (juntas, remaches, granos, reflejo) están acá, en metros.
  */
 export const SURFACE_FRAGMENT = `
+precision highp float;
 in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture;
-uniform vec4 uInputSize;
-uniform vec4 uOutputFrame;
-uniform vec2 uOrigin;
-uniform float uPixelsPerMeter;
+uniform highp vec4 uInputSize;
+uniform highp vec4 uOutputFrame;
+uniform highp vec2 uOrigin;
+uniform highp float uPixelsPerMeter;
 
 const float ID_SCALE = ${glslFloat(SURFACE_ID_SCALE)};
 ${surfaceConstants()}
