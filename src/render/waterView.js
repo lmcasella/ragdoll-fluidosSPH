@@ -1,4 +1,4 @@
-import { fieldColor, waterOutline } from "./render.js";
+import { MATERIALS } from "../fluids/materials.js";
 
 /** Degradado horizontal de espacio local: de 0 a 1 a lo ancho del tramo. */
 const GRADIENT_START = { x: 0, y: 0 };
@@ -6,6 +6,96 @@ const GRADIENT_END = { x: 1, y: 0 };
 
 /** Posición del centro de una celda dentro de ella, como fracción de su ancho. */
 const CELL_CENTER = 0.5;
+
+/** Canales de un color RGB. */
+const RGB_CHANNELS = 3;
+
+/** Cota de los vértices de `waterOutline`: por celda del campo y fijos, de sobra para el peor caso de tramos de una celda. */
+const OUTLINE_VERTICES_PER_CELL = 4;
+const OUTLINE_FIXED_VERTICES = 4;
+
+/** Vértices de la línea de superficie de un tramo que no son centros de celda: la cara izquierda y la derecha. */
+const SURFACE_FACE_VERTICES = 2;
+
+/**
+ * Contorno del agua del campo (puro, sin PIXI): llena `out` y lo devuelve. Un polígono por tramo mojado (celdas
+ * consecutivas con `h > hDry`), con `out.count` tramos; el tramo `section` ocupa los vértices `out.start[section]` a
+ * `out.start[section] + out.size[section] − 1` de `out.xs` y `out.ys` (metros): lecho y superficie de la cara izquierda, los
+ * centros de celda por arriba, la cara derecha y los centros por abajo. `out.surface[section]` es la cantidad de
+ * vértices de la línea de superficie, que empieza en `out.start[section] + 1`. Los buffers se crean en la primera
+ * llamada y se reutilizan.
+ * @param {object} water campo de alturas
+ * @param {object} out se llena y se devuelve
+ */
+export function waterOutline(water, out) {
+    const { N: cellCount, i0: firstCell, i1: endCell, dx: cellWidth, x0: leftEdge, b: bed, h: depth } = water;
+    const wetThreshold = water.config.hDry;
+    const capacity = OUTLINE_VERTICES_PER_CELL * cellCount + OUTLINE_FIXED_VERTICES;
+    if (!out.xs || out.xs.length < capacity) {
+        out.xs = new Float64Array(capacity);
+        out.ys = new Float64Array(capacity);
+        out.start = new Int32Array(cellCount + 2);
+        out.size = new Int32Array(cellCount + 2);
+        out.surface = new Int32Array(cellCount + 2);
+    }
+    const { xs, ys } = out;
+    let sectionCount = 0;
+    let vertex = 0;
+    let cell = firstCell;
+    while (cell < endCell) {
+        if (depth[cell] <= wetThreshold) {
+            cell++;
+            continue;
+        }
+        let lastWet = cell;
+        while (lastWet + 1 < endCell && depth[lastWet + 1] > wetThreshold) lastWet++;
+        const leftFace = leftEdge + cell * cellWidth;
+        const rightFace = leftEdge + (lastWet + 1) * cellWidth;
+        const firstVertex = vertex;
+        xs[vertex] = leftFace;
+        ys[vertex++] = bed[cell];
+        xs[vertex] = leftFace;
+        ys[vertex++] = bed[cell] + depth[cell];
+        for (let wet = cell; wet <= lastWet; wet++) {
+            xs[vertex] = leftEdge + (wet + CELL_CENTER) * cellWidth;
+            ys[vertex++] = bed[wet] + depth[wet];
+        }
+        xs[vertex] = rightFace;
+        ys[vertex++] = bed[lastWet] + depth[lastWet];
+        xs[vertex] = rightFace;
+        ys[vertex++] = bed[lastWet];
+        for (let wet = lastWet; wet >= cell; wet--) {
+            xs[vertex] = leftEdge + (wet + CELL_CENTER) * cellWidth;
+            ys[vertex++] = bed[wet];
+        }
+        out.start[sectionCount] = firstVertex;
+        out.size[sectionCount] = vertex - firstVertex;
+        out.surface[sectionCount] = lastWet - cell + 1 + SURFACE_FACE_VERTICES;
+        sectionCount++;
+        cell = lastWet + 1;
+    }
+    out.count = sectionCount;
+    return out;
+}
+
+/**
+ * Color del agua del campo en `x` (puro, sin PIXI): llena `out` y lo devuelve con el RGB entero. Falso color de
+ * la fracción másica de H2SO4 `w` (docs/design/14-agua.md §14.3, Render): `f = 1 − 10^(−α w / w_a)`, con
+ * `α = MATERIALS.acid.tintAbsorbance` (Beer–Lambert), de `water.config.draw.color` hacia `MATERIALS.acid.tint`.
+ * Con `w` = 0 es exactamente `draw.color`. El tinte es una aproximación de juego: el ácido real es incoloro.
+ * @param {object} water campo de alturas
+ * @param {number} x posición, en m
+ * @param {number[]} out RGB entero (0-255) que se llena y se devuelve
+ */
+export function fieldColor(water, x, out = [0, 0, 0]) {
+    const { color } = water.config.draw;
+    const { tint, tintAbsorbance, species } = MATERIALS.acid;
+    const tintFraction = 1 - 10 ** ((-tintAbsorbance * water.acidFractionAt(x)) / species.H2SO4);
+    for (let channel = 0; channel < RGB_CHANNELS; channel++) {
+        out[channel] = Math.round(color[channel] + tintFraction * (tint[channel] - color[channel]));
+    }
+    return out;
+}
 
 /**
  * Agua del nivel como un `PIXI.Graphics` que se limpia y se redibuja cada frame desde el campo de alturas

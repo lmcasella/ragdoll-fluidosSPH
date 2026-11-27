@@ -16,7 +16,9 @@ const { MATERIALS, SIGMA_W, REACTIONS } = await import("../../src/fluids/materia
 const { SINK, ORIGIN } = await import("../../src/fluids/particleStore.js");
 const { KIND_MATERIAL } = await import("../../src/water/immersion.js");
 const { FLUID, WEAPONS } = await import("../../src/combat/weapons.js");
-const { SHOT_DRAW, collectSurfaces, dropShape, waterOutline } = await import("../../src/render/render.js");
+const { SHOT_DRAW, dropShape } = await import("../../src/render/fluidDraw.js");
+const { collectSurfaces } = await import("../../src/render/fluidSurfaces.js");
+const { waterOutline } = await import("../../src/render/waterView.js");
 
 /** Pasos fijos por segundo (`STEP_SETTINGS.dt` = 1/60 s). */
 export const STEPS_PER_SECOND = 60;

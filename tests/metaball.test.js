@@ -13,7 +13,7 @@ const {
     drawParticles,
     SHOT_DRAW: DRAW,
     PARTICLE_RADIUS,
-} = await import("../src/render/render.js");
+} = await import("../src/render/fluidDraw.js");
 const { FluidLayers } = await import("../src/render/fluidLayers.js");
 const { tintOf } = await import("../src/core/color.js");
 

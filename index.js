@@ -48,19 +48,18 @@ import {
     wheelSector,
     wheelWeapon,
 } from "./src/combat/weapons.js";
-import {
-    buildRenderItems,
-    drawAimLaser,
-    drawHits,
-    drawParticles,
-    drawPickups,
-    drawWeaponWheel,
-    WHEEL_RADII,
-    SHOT_DRAW,
-    collectSurfaces,
-} from "./src/render/render.js";
+import { buildRenderItems } from "./src/ragdoll/renderItems.js";
+import { drawParticles, SHOT_DRAW } from "./src/render/fluidDraw.js";
+import { collectSurfaces } from "./src/render/fluidSurfaces.js";
 import { FluidLayers } from "./src/render/fluidLayers.js";
 import { WaterView } from "./src/render/waterView.js";
+import { PickupView } from "./src/render/pickupView.js";
+import { AimLaserView } from "./src/render/aimLaserView.js";
+import { HitEffectsView } from "./src/render/hitEffectsView.js";
+import { WeaponWheelView, WHEEL_RADII } from "./src/render/weaponWheelView.js";
+import { DebugView } from "./src/render/debugView.js";
+import { DebugPanel } from "./src/ui/debugPanel.js";
+import { wordIndexOf } from "./src/core/heap.js";
 import { RagdollPainter } from "./src/ragdoll/RagdollPainter.js";
 import { parseHexColor } from "./src/ragdoll/ragdollTint.js";
 
@@ -133,9 +132,8 @@ const ROBOT_RIG = {
 const PIXELS_PER_METER = robotRag.json.units.pixelsPerMeter;
 
 const gameContainer = document.getElementById("gameContainer");
-const scene = await createScene({ container: gameContainer, doc: document, width: window.innerWidth, height: window.innerHeight });
-const overlayCtx = scene.overlayLayer.ctx;
-const panelCtx = scene.panelLayer.ctx;
+const scene = await createScene({ container: gameContainer, width: window.innerWidth, height: window.innerHeight });
+const debugPanel = new DebugPanel(document, gameContainer);
 const fluidLayers = new FluidLayers({
     renderer: scene.application.renderer,
     parent: scene.fluidParent,
@@ -318,6 +316,12 @@ const viscosity = new Viscosity(particleSystem, store, thermal);
 const buoyancy = new Buoyancy(water, MATERIALS, { splash: { store, seed: Number.isFinite(botSeed) ? botSeed : null } });
 buoyancy.register(players);
 const debug = new Debug();
+const overlayOptions = { parent: scene.overlayLayer, pixelsPerMeter: PIXELS_PER_METER };
+const pickupView = new PickupView({ ...overlayOptions, weapons: WEAPONS });
+const aimLaserView = new AimLaserView({ ...overlayOptions, playerCount: players.length });
+const hitEffectsView = new HitEffectsView(overlayOptions);
+const debugView = new DebugView({ ...overlayOptions, debug });
+const weaponWheelView = new WeaponWheelView({ ...overlayOptions, playerCount: players.length });
 const adhesion = new Adhesion(particleSystem, store, wallContact);
 instances.push(adhesion);
 let pickups = new Pickups(world, damage, LEVEL.pickups);
@@ -679,10 +683,36 @@ function datosDebug(frameDt) {
     };
 }
 
-// Solo para las pruebas en Node (tests/helpers/game.js)
+/** Referencias del heap para los puntos del debug (`DebugView.drawPoints`); solo se arman con los puntos encendidos. */
+function debugPointRefs() {
+    return {
+        heap: Box2D.HEAPF32,
+        bytes: Box2D.HEAPU8,
+        positionIndex: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
+        color: Box2D.getPointer(particleSystem.GetColorBuffer()),
+        count: particleSystem.GetParticleCount(),
+        radius: particleSystem.GetRadius(),
+    };
+}
+
+/** Referencias para las capas de vectores del debug (`DebugView.drawLayers`); solo se arman con alguna capa encendida. */
+function debugLayerRefs() {
+    return {
+        particles: {
+            heap: Box2D.HEAPF32,
+            positionIndex: wordIndexOf(Box2D.getPointer(particleSystem.GetPositionBuffer())),
+            velocityIndex: wordIndexOf(Box2D.getPointer(particleSystem.GetVelocityBuffer())),
+            count: particleSystem.GetParticleCount(),
+        },
+        pieces: buoyancy.pieces,
+        water,
+    };
+}
+
+/** Solo para las pruebas en Node (`tests/helpers/game.js`): expone el estado del juego en `globalThis.game`. */
 if (globalThis.__TEST_HOOKS__) {
     globalThis.game = {
-        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
+        asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, debugView, debugPanel, pickupView, aimLaserView, hitEffectsView, weaponWheelView, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
         get flood() { return flood; },
         get pickups() { return pickups; },
         get climb() { return climb; },
@@ -991,10 +1021,7 @@ function loop(nowMs) {
     const scale = camera.scale;
     const bottom = camera.y - camera.viewH / (2 * scale);
 
-    for (const layer of scene.layers) layer.clear();
-    camera.apply(overlayCtx);
     camera.applyTo(scene.world);
-    camera.applyTo(scene.fluidParent);
     const offsetY = climb ? climb.offsetY : 0;
     levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
@@ -1009,44 +1036,25 @@ function loop(nowMs) {
         player.painter.paint(PLAYER_TINTS[k], scale, now);
     });
     waterView.draw(water, scale, climb ? { floor: flood.floor, bottom } : null);
-    overlayCtx.save();
-    overlayCtx.translate(0, pickups.offsetY);
-    drawPickups(overlayCtx, pickups.points, WEAPONS);
-    overlayCtx.restore();
+    pickupView.update(pickups.points, pickups.offsetY);
     players.forEach((player, k) => {
-        drawAimLaser(overlayCtx, laserDe(player), PLAYER_COLORS[k], scale);
+        aimLaserView.draw(k, laserDe(player), PLAYER_COLORS[k], scale);
     });
-    drawHits(overlayCtx, melee.hits, scale, now);
-    if (debug.fluidMode !== "metaball") {
-        debug.drawPoints(overlayCtx, {
-            heap: Box2D.HEAPF32,
-            bytes: Box2D.HEAPU8,
-            pos: Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2,
-            color: Box2D.getPointer(particleSystem.GetColorBuffer()),
-            count: particleSystem.GetParticleCount(),
-            radius: particleSystem.GetRadius(),
-        });
-    }
-    if (debug.active) {
-        debug.frame(datosDebug(frameDt));
-        debug.drawLayer(overlayCtx, scale, {
-            particles: {
-                heap: Box2D.HEAPF32,
-                pos: Box2D.getPointer(particleSystem.GetPositionBuffer()) >> 2,
-                vel: Box2D.getPointer(particleSystem.GetVelocityBuffer()) >> 2,
-                count: particleSystem.GetParticleCount(),
-            },
-            pieces: buoyancy.pieces,
-            water,
-        });
-    }
+    hitEffectsView.draw(melee.hits, scale, now);
+    debugView.drawPoints(debug.fluidMode !== "metaball" ? debugPointRefs() : null);
+    if (debug.active) debug.frame(datosDebug(frameDt));
+    debugView.drawLayers(scale, debug.anyLayer ? debugLayerRefs() : null);
     players.forEach((player, k) => {
         const wheel = controls[k].wheel;
         const owned = WEAPONS.filter((w) => player.tanks.has(w.id));
-        if (!wheel || player.dead || owned.length === 0) return;
+        if (!wheel || player.dead || owned.length === 0) {
+            weaponWheelView.hide(k);
+            return;
+        }
         const pos = player.torso.GetPosition();
-        drawWeaponWheel(
-            overlayCtx,
+        const direction = direccionRueda(wheel, player);
+        weaponWheelView.show(
+            k,
             pos.get_x(),
             pos.get_y(),
             owned.map((w) => ({
@@ -1055,7 +1063,7 @@ function loop(nowMs) {
                 fill: player.tanks.get(w.id) / w.tank,
                 equipped: w.id === player.weapon,
             })),
-            ((d) => wheelSector(d.x, d.y, owned.length))(direccionRueda(wheel, player)),
+            wheelSector(direction.x, direction.y, owned.length),
         );
     });
 
@@ -1063,7 +1071,7 @@ function loop(nowMs) {
     for (const event of hud.events) if (!(cuentaMuda && event === "count")) audio.playUi(event, uiNow);
     hud.events.length = 0;
     cuentaMuda = false;
-    debug.drawPanel(panelCtx, scene.panelLayer.width, scene.panelLayer.height);
+    debugPanel.update(debug.panelLines());
     scene.render();
     if (match.state === "title") {
         screens.update({

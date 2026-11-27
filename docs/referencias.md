@@ -55,7 +55,7 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
 | **Separación de operadores (Lie–Trotter)** | Sophus Lie y Hale Trotter (1959) | Las fuentes (absorción, reacción) se aplican aparte del avance del campo. | `src/water/water.js:255`, `index.js:484` | [Wikipedia](https://en.wikipedia.org/wiki/Operator_splitting) |
 | **Paso fijo con acumulador** | Glenn Fiedler (2004) | Simula en pasos de 1/60 s sin importar el frame; la escala de tiempo da la cámara lenta. | `index.js:418`, `index.js:440`, `index.js:472` | [artículo](https://gafferongames.com/post/fix_your_timestep/) |
 | **Secuencia áurea (equidistribución)** | Hermann Weyl (1916) | `(i · φ⁻¹) mod 1` reparte puntos de forma pareja y determinista. | `src/combat/weapons.js:88`, `src/combat/weapons.js:174`, `src/water/flood.js:7`, `src/water/flood.js:89` | [Wikipedia](https://en.wikipedia.org/wiki/Equidistribution_theorem) |
-| **Hash entero xorshift-multiply** | George Marsaglia (2003) | Da piezas y ángulos repetibles sin `Math.random` (chispas del cortocircuito). | `src/render/render.js:94`, `src/render/render.js:106` | [Wikipedia](https://en.wikipedia.org/wiki/Xorshift) |
+| **Hash entero xorshift-multiply** | George Marsaglia (2003) | Da piezas y ángulos repetibles sin `Math.random` (chispas del cortocircuito). | `src/ragdoll/RagdollEffects.js:66`, `src/ai/bot.js:126` | [Wikipedia](https://en.wikipedia.org/wiki/Xorshift) |
 
 ## Física de cuerpos rígidos y ragdoll
 
@@ -78,13 +78,13 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
 | **Rotación 2D con espejo** | — | Lleva la boca del arma del sistema local del cuerpo al del mundo, con `flipX`. | `src/ragdoll/ActiveRagdoll.js:278` | — |
 | **Apuntado por la línea del cañón** | — | Corrige el ángulo del hombro con `asin(offset / dist)` para que la línea del cañón, y no la del hombro, pase por el objetivo. | `src/ragdoll/ActiveRagdoll.js:326` | — |
 | **Camino angular más corto** | — | Evita que el brazo gire por el otro lado al cruzar ±π. | `src/ragdoll/ActiveRagdoll.js:341` | — |
-| **Distancia a una caja orientada y a un círculo** | — | Acerca el segundo círculo de cada gota hasta tocar la superficie del cuerpo. | `src/render/render.js:356` | [Wikipedia](https://en.wikipedia.org/wiki/Signed_distance_function) |
-| **Grilla uniforme** | — | Cada celda lista las superficies cercanas, para consultar solo las de la celda de la gota. | `src/render/render.js:300`, `src/render/render.js:304` | [Wikipedia](https://en.wikipedia.org/wiki/Grid_(spatial_index)) |
+| **Distancia a una caja orientada y a un círculo** | — | Acerca el segundo círculo de cada gota hasta tocar la superficie del cuerpo. | `src/render/fluidSurfaces.js:135` | [Wikipedia](https://en.wikipedia.org/wiki/Signed_distance_function) |
+| **Grilla uniforme** | — | Cada celda lista las superficies cercanas, para consultar solo las de la celda de la gota. | `src/render/fluidSurfaces.js:67`, `src/render/fluidSurfaces.js:139` | [Wikipedia](https://en.wikipedia.org/wiki/Grid_(spatial_index)) |
 | **Fórmula del área de Gauss (shoelace)** | Carl Friedrich Gauss | Área de un polígono como `½ \|Σ (xₐ y_b − x_b yₐ)\|`; el test mide con ella el área que dibuja `waterOutline`. | `tests/helpers/drawn-area.js:18`, `tests/helpers/invariants-run.js:231` | [Wikipedia](https://en.wikipedia.org/wiki/Shoelace_formula) |
 | **Muestreo en grilla regular (regla del punto medio)** | — | El área de la unión de círculos y cápsulas se cuenta como las celdas de 2,5 mm cuyo centro cae dentro, fila por fila. | `tests/helpers/drawn-area.js:61`, `tests/helpers/drawn-area.js:142` | [Wikipedia](https://en.wikipedia.org/wiki/Midpoint_rule) |
-| **Cámara con encuadre y suavizado exponencial** | Robert G. Brown (1956) | Encuadra a los jugadores con margen y mueve cámara y zoom con `1 − e^{−k dt}`, independiente del frame. | `src/render/camera.js:37`, `src/render/camera.js:63` | [Wikipedia](https://en.wikipedia.org/wiki/Exponential_smoothing) |
-| **Transformación afín de cámara** | — | Pasa de metros con Y hacia arriba a píxeles y de la pantalla al mundo. | `src/render/camera.js:70`, `src/render/camera.js:75` | [Wikipedia](https://es.wikipedia.org/wiki/Transformaci%C3%B3n_af%C3%ADn) |
-| **Metaballs (efecto "goo")** | James Blinn (1982) | Une las gotas vecinas en una sola masa de líquido, aproximado con desenfoque y umbral. | `index.html:64`, `index.js:406` | [Wikipedia](https://en.wikipedia.org/wiki/Metaballs) |
+| **Cámara con encuadre y suavizado exponencial** | Robert G. Brown (1956) | Encuadra a los jugadores con margen y mueve cámara y zoom con `1 − e^{−k dt}`, independiente del frame. | `src/render/camera.js:46`, `src/render/camera.js:81` | [Wikipedia](https://en.wikipedia.org/wiki/Exponential_smoothing) |
+| **Transformación afín de cámara** | — | Pasa de metros con Y hacia arriba a píxeles y de la pantalla al mundo. | `src/render/camera.js:98`, `src/render/camera.js:105` | [Wikipedia](https://es.wikipedia.org/wiki/Transformaci%C3%B3n_af%C3%ADn) |
+| **Metaballs (efecto "goo")** | James Blinn (1982) | Une las gotas vecinas en una sola masa de líquido: cada gota suma un campo `(1 − q²)²` y un `PIXI.Filter` corta con umbral el campo sumado, sin desenfoque. | `src/render/fluidDraw.js:40`, `src/render/thresholdFilter.js:52` | [Wikipedia](https://en.wikipedia.org/wiki/Metaballs) |
 | **Zona muerta radial** | — | El stick de apuntar solo cuenta si la norma `√(x² + y²)` supera el umbral. | `src/input/Input.js:48`, `src/input/Input.js:208` | [Wikipedia](https://en.wikipedia.org/wiki/Deadband) |
 
 ## Criterios de validación
@@ -124,6 +124,7 @@ Matemáticos, conceptos, leyes físicas y algoritmos que usa el proyecto, y los 
 | **Pegar la miel con `BeginParticleBodyContact`** | Erin Catto | Una consulta geométrica por paso (`src/combat/damage.js:145`). | Un robot quieto en el charco deja de recibir avisos. | `docs/design/12-decisiones.md:33` | [sitio oficial](https://box2d.org/) |
 | **Tensión superficial (`TENSILE`) en los disparos** | Google | Tensiones en 0 (`src/combat/weapons.js:28`). | Causaba el rebote de las gotas y no daba cohesión física. | `docs/design/12-decisiones.md:31` | [sitio oficial](https://google.github.io/liquidfun/) |
 | **`b2DistanceJoint` para el gancho** | Erin Catto | `b2RopeJoint`. | Es una barra rígida y empuja hacia afuera. | `docs/design/12-decisiones.md:38` | [sitio oficial](https://box2d.org/) |
+| **Desenfoque más umbral con un filtro SVG para fundir las gotas** | — | La suma de campos por gota con umbral en un `PIXI.Filter` (`src/render/thresholdFilter.js:60`). | El campo de cada partícula reemplaza al desenfoque (#310). | `docs/design/07-sph.md:73` | — |
 | **Pegado por columnas de miel disuelta en el campo** | — | Miel inmiscible con pegado por partículas. | La miel se volvía agua (regresión). | `docs/design/14-agua.md` (D11, #110) | — |
 
 <hr>

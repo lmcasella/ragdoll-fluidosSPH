@@ -4,7 +4,7 @@ Maqueta: `interfaz/maqueta.html`. Vale para estilo (colores, tipografía, glifos
 
 Todas las medidas están en **px de referencia sobre 1920 × 1080** y escalan con el canvas: `px_real = px_ref × --u`, con `--u: calc(min(100cqw / 1920, 100cqh / 1080))` en un contenedor `container-type: size`.
 
-Capas: canvas del juego → canvas de partículas → **capa de interfaz (HTML)** con `pointer-events: none` salvo en menús.
+Capas: canvas del juego (PIXI, con las partículas y la capa superpuesta) → **capa de interfaz (HTML)**, que incluye el panel de debug (`src/ui/debugPanel.js`), con `pointer-events: none` salvo en menús.
 
 El HUD y los menús quedan en HTML + CSS aunque el juego pase a dibujarse en un solo canvas: son texto y layout, que el navegador resuelve mejor y que ya escalan con `--u` (decisión del 24/11).
 

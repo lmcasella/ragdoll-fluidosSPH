@@ -21,7 +21,8 @@ import {
 import { UnionArea, CELL, polygonArea } from "../helpers/drawn-area.js";
 
 const { ShallowWater } = await import("../../src/water/water.js");
-const { waterOutline, dropShape, SHOT_DRAW } = await import("../../src/render/render.js");
+const { dropShape, SHOT_DRAW } = await import("../../src/render/fluidDraw.js");
+const { waterOutline } = await import("../../src/render/waterView.js");
 
 const run = await runStandardScene();
 const num = (v, digits = 3) => Number(v).toPrecision(digits);

@@ -60,7 +60,7 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
     game.setPad(0, { buttons: [FIRE], axes: AIM_RIGHT });
     game.frames(90);
     assert.equal(game.state.particleSystem.GetParticleCount(), 0);
-    assert.equal(game.laserMoves, 0, "ninguna mira láser");
+    assert.equal(game.laserStrokes, 0, "ninguna mira láser");
     const panel = game.state.hud.panels[0];
     assert.equal(panel.num.textContent, "100");
     assert.ok(panel.row2.classes.has("none"), "sin arma: el puño y sin tanque");
@@ -81,7 +81,7 @@ test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) e
     game.setPad(0, { buttons: [FIRE], axes: AIM_RIGHT });
     game.frames(20);
     assert.ok(game.state.particleSystem.GetParticleCount() > 0, "con arma el gatillo dispara");
-    assert.ok(game.laserMoves > 0, "con arma se dibuja la mira");
+    assert.ok(game.laserStrokes > 0, "con arma se dibuja la mira");
 });
 
 test("Clásico: sigue arrancando con agua y el tanque lleno", async () => {

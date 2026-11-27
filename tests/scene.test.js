@@ -83,7 +83,7 @@ test("la cámara usa los px por metro del JSON del robot y su zoom máximo es 64
     assert.ok(Math.abs(closeCamera.scale - MAX_SCALE) < 1e-9, `escala ${closeCamera.scale}`);
 });
 
-test("la cámara pone en el mundo PIXI el mismo zoom con Y invertida y la misma posición que en Canvas 2D", () => {
+test("la cámara pone en el mundo PIXI el mismo zoom con Y invertida y deja el punto de la cámara en el centro de la vista", () => {
     installFakePixi();
     const camera = new Camera({ minX: 0, maxX: 56, minY: 0, maxY: 31.5 }, ROBOT_PIXELS_PER_METER);
     camera.resize(VIEW_WIDTH, VIEW_HEIGHT);
@@ -99,7 +99,7 @@ test("la cámara pone en el mundo PIXI el mismo zoom con Y invertida y la misma 
     assert.ok(Math.abs(pixelX - screen.x) < 1e-9 && Math.abs(pixelY - screen.y) < 1e-9, `escala ${scale}`);
 });
 
-test("tras cambiar el tamaño y la proporción, cada capa 2D, su textura y su sprite miden lo mismo que el canvas de la escena", async () => {
+test("tras cambiar el tamaño y la proporción, el canvas de la escena mide lo mismo que la ventana y sigue siendo el único", async () => {
     const game = await loadGame();
     const { scene } = game.state;
     game.frames(SETTLE_FRAMES);
@@ -110,16 +110,10 @@ test("tras cambiar el tamaño y la proporción, cada capa 2D, su textura y su sp
         game.frames(SETTLE_FRAMES);
         const sceneCanvas = scene.application.canvas;
         assert.deepEqual([sceneCanvas.width, sceneCanvas.height], [width, height], "el canvas de la escena");
-        for (const layer of scene.layers) {
-            const label = `${layer.canvas.id} a ${width}x${height}`;
-            assert.deepEqual([layer.canvas.width, layer.canvas.height], [width, height], `canvas de ${label}`);
-            assert.deepEqual([layer.texture.source.width, layer.texture.source.height], [width, height], `textura de ${label}`);
-            assert.deepEqual([layer.sprite.renderedWidth, layer.sprite.renderedHeight], [width, height], `sprite de ${label}`);
-        }
+        assert.equal(document.querySelectorAll("canvas").length, 1, `un solo canvas a ${width}x${height}`);
     }
 });
-
-test("tras cambiar el tamaño, el mundo PIXI y los canvas 2D comparten la transformación de la cámara", async () => {
+test("tras cambiar el tamaño, el mundo, las capas de fluido y la capa superpuesta comparten la transformación de la cámara", async () => {
     const game = await loadGame();
     const { scene, camera } = game.state;
     for (const { width, height } of RESIZED_VIEWS) {
@@ -135,9 +129,11 @@ test("tras cambiar el tamaño, el mundo PIXI y los canvas 2D comparten la transf
         const expectedY = height / 2 + camera.y * camera.scale;
         assert.ok(Math.abs(world.position.x - expectedX) < MAX_POSITION_ERROR, `posición x a ${width}x${height}`);
         assert.ok(Math.abs(world.position.y - expectedY) < MAX_POSITION_ERROR, `posición y a ${width}x${height}`);
-        const { fluidParent } = scene;
-        assert.deepEqual([fluidParent.scale.x, fluidParent.scale.y], [world.scale.x, world.scale.y], `las capas de fluido escalan como el mundo a ${width}x${height}`);
-        assert.deepEqual([fluidParent.position.x, fluidParent.position.y], [world.position.x, world.position.y], `las capas de fluido se mueven como el mundo a ${width}x${height}`);
+        const { fluidParent, overlayLayer } = scene;
+        for (const [layer, name] of [[fluidParent, "las capas de fluido"], [overlayLayer, "la capa superpuesta"]]) {
+            assert.equal(layer.parent, world, `${name} cuelga de world`);
+            assert.deepEqual([layer.scale.x, layer.scale.y, layer.position.x, layer.position.y], [1, 1, 0, 0], `${name} sigue a la cámara solo por world a ${width}x${height}`);
+        }
     }
 });
 test("el trazo de las plataformas mide siempre unos 2 px en pantalla, con cualquier zoom", async () => {

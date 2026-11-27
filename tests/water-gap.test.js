@@ -6,7 +6,8 @@ import "./helpers/fluid-bench.js";
 const { stepWorld } = await import("../lib/ragimporter.js");
 const { createParticleSystem } = await import("../src/fluids/particles.js");
 const { SHOT_SYSTEM } = await import("../src/combat/weapons.js");
-const { collectSurfaces, skinPosition, PARTICLE_RADIUS, SHOT_DRAW } = await import("../src/render/render.js");
+const { collectSurfaces, skinPosition } = await import("../src/render/fluidSurfaces.js");
+const { PARTICLE_RADIUS, SHOT_DRAW } = await import("../src/render/fluidDraw.js");
 
 const SECONDS = 8;
 // Tolerancia del borde dibujado respecto de la superficie (m); el agua se mete SKIN_OVERLAP = 0,02 m bajo el cuerpo
@@ -15,7 +16,7 @@ const TOUCH = 0.01;
 const FLOOR = { x: 0, y: -0.5, w: 10, h: 1 };
 const WALLS = [{ x: -3.5, y: 2, w: 1, h: 6 }, { x: 3.5, y: 2, w: 1, h: 6 }];
 const SOLIDS = [FLOOR, ...WALLS];
-const BOX = { hw: 0.5, hh: 0.5 };
+const BOX = { halfWidth: 0.5, halfHeight: 0.5 };
 
 function positions(system) {
     const base = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
@@ -44,14 +45,14 @@ function settledWater(radius, params, flags = 0) {
     }
     const boxDef = new Box2D.b2BodyDef();
     boxDef.set_type(Box2D.b2_dynamicBody);
-    const at = new Box2D.b2Vec2(0, BOX.hh);
+    const at = new Box2D.b2Vec2(0, BOX.halfHeight);
     boxDef.set_position(at);
     const box = world.CreateBody(boxDef);
     Box2D.destroy(at);
     Box2D.destroy(boxDef);
     center.set_x(0);
     center.set_y(0);
-    shape.SetAsBox(BOX.hw, BOX.hh, center, 0);
+    shape.SetAsBox(BOX.halfWidth, BOX.halfHeight, center, 0);
     box.CreateFixture(shape, 50);
 
     const system = createParticleSystem(world, { radius, ...params });
@@ -70,13 +71,13 @@ function settledWater(radius, params, flags = 0) {
 
 // Un "jugador" con la caja como única pieza, con la forma de los renderItems de buildRenderItems
 function playerOf(box) {
-    return [{ renderItems: [{ body: box, type: "box", cx: 0, cy: 0, angle: 0, hw: BOX.hw, hh: BOX.hh }] }];
+    return [{ renderItems: [{ body: box, type: "box", centerX: 0, centerY: 0, angle: 0, halfWidth: BOX.halfWidth, halfHeight: BOX.halfHeight }] }];
 }
 
 // Distancia del centro (x, y) a la caja, al piso y a las paredes
 function distanceToSolids(x, y, box) {
     const p = box.GetPosition();
-    const boxD = Math.hypot(Math.max(Math.abs(x - p.get_x()) - BOX.hw, 0), Math.max(Math.abs(y - p.get_y()) - BOX.hh, 0));
+    const boxD = Math.hypot(Math.max(Math.abs(x - p.get_x()) - BOX.halfWidth, 0), Math.max(Math.abs(y - p.get_y()) - BOX.halfHeight, 0));
     const all = [boxD];
     for (const s of SOLIDS) {
         all.push(Math.hypot(Math.max(Math.abs(x - s.x) - s.w / 2, 0), Math.max(Math.abs(y - s.y) - s.h / 2, 0)));

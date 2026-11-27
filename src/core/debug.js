@@ -1,6 +1,7 @@
 /**
  * Monitor de física (#29, docs/design/14-agua.md §14.12 y §14.17). Módulo hoja: no importa ningún sistema del juego;
- * `index.js` le pasa datos planos una vez por frame y las referencias que la capa necesita para dibujar.
+ * `index.js` le pasa datos planos una vez por frame. Solo lleva el estado y los textos del panel: las capas del mundo las
+ * dibuja `src/render/debugView.js` y el panel es HTML (`src/ui/debugPanel.js`).
  *
  * - `alpha`: peso de la muestra nueva en el promedio móvil exponencial de todo número del panel;
  * - `maxArrows`: tope de flechas de velocidad de partículas por frame;
@@ -18,22 +19,11 @@ export const DEBUG = {
     materials: { ACID: "ácido", LAVA: "lava", HONEY: "miel", WATER: "agua", STONE: "piedra", STEAM: "vapor" },
 };
 
-/** Panel del menú de debug en px; `below` es la fracción del alto bajo la que empieza, para quedar debajo del HUD de partida (128 de 1080). */
-const PANEL = { x: 8, y: 8, below: 0.13, width: 360, line: 15, pad: 6, font: "12px monospace" };
-
-const GRAVITY = 10;
-
 /**
  * Modos de dibujo de los fluidos, en el orden en que los recorre la fila "Fluidos" del menú: `"metaball"` (como el juego), `"puntos"` (un círculo
  * por partícula) y `"ambos"`.
  */
 export const FLUID_MODES = ["metaball", "puntos", "ambos"];
-
-/** Trazos de la capa de vectores: ancho en píxeles y alfa de todos los colores. */
-const STROKE = { px: 1, alpha: 0.5 };
-
-/** Alfa de los círculos del modo de puntos. */
-const POINT_ALPHA = 0.8;
 
 /**
  * Filas del menú de debug, en orden: `id` (clave del estado), `label` y, si no es sí/no, sus `options`. Las cuatro
@@ -48,18 +38,16 @@ export const DEBUG_ROWS = [
     { id: "bots", label: "Bots" },
 ];
 
-const stroke = (r, g, b) => `rgba(${r}, ${g}, ${b}, ${STROKE.alpha})`;
-
 /**
- * Error relativo `|a − b| / |b|`. Es la fórmula de la deriva de volumen del test W1 (`tests/slow/shallow-water.test.js`) y
+ * Error relativo `|medido − referencia| / |referencia|`. Es la fórmula de la deriva de volumen del test W1 (`tests/slow/shallow-water.test.js`) y
  * la del panel.
  */
-export function relativeError(a, b) {
-    return Math.abs(a - b) / Math.abs(b);
+export function relativeError(measured, reference) {
+    return Math.abs(measured - reference) / Math.abs(reference);
 }
 
-const fixed = (v, digits) => (Number.isFinite(v) ? v.toFixed(digits) : "-");
-const point = (p) => (p ? `${fixed(p.x, 1)}, ${fixed(p.y, 1)}` : "-");
+const fixed = (value, digits) => (Number.isFinite(value) ? value.toFixed(digits) : "-");
+const point = (position) => (position ? `${fixed(position.x, 1)}, ${fixed(position.y, 1)}` : "-");
 
 /**
  * Estado del monitor: el menú de debug (`open`, fila `cursor`) y sus opciones: `stats` (panel de estadísticas, que se
@@ -75,7 +63,6 @@ export class Debug {
         this.stats = false;
         this.fluidMode = FLUID_MODES[0];
         this.layers = { velocidades: false, fuerzas: false, columnas: false, bots: false };
-        this.fills = new Map();
         this.laps = {};
         this.last = 0;
         this.avg = { fps: 0, contacts: 0, cflSubsteps: 0, drift: 0, ms: {}, particles: {} };
@@ -176,7 +163,7 @@ export class Debug {
 
     /** Líneas del menú: una por fila de `DEBUG_ROWS`, con el cursor en la elegida. */
     menuLines() {
-        return DEBUG_ROWS.map((row, i) => `${i === this.cursor ? "▶" : " "} ${row.label}: ${this.valueOf(row.id)}`);
+        return DEBUG_ROWS.map((row, index) => `${index === this.cursor ? "▶" : " "} ${row.label}: ${this.valueOf(row.id)}`);
     }
 
     /** Líneas de texto de las estadísticas con los valores promediados. */
@@ -197,145 +184,11 @@ export class Debug {
     }
 
     /**
-     * Dibuja el menú arriba a la izquierda de un lienzo de HUD (píxeles), y debajo las estadísticas si `stats` está en
-     * sí. Con el menú cerrado no dibuja nada.
+     * Líneas del panel de debug: el menú y, debajo, las estadísticas si `stats` está en sí. `null` con el menú cerrado.
+     * @returns {string[]|null}
      */
-    drawPanel(ctx, width, height) {
-        if (!this.open) return;
-        const lines = this.stats ? [...this.menuLines(), "", ...this.lines()] : this.menuLines();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.font = PANEL.font;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
-        const top = Math.max(PANEL.y, PANEL.below * height);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-        ctx.fillRect(PANEL.x, top, PANEL.width, lines.length * PANEL.line + 2 * PANEL.pad);
-        ctx.fillStyle = "#e8ffe8";
-        lines.forEach((text, i) => ctx.fillText(text, PANEL.x + PANEL.pad, top + PANEL.pad + i * PANEL.line));
-    }
-
-    /**
-     * Dibuja cada partícula como un círculo relleno de radio `radius` (m) con el color de su buffer de color y alfa
-     * `POINT_ALPHA`, con `ctx` ya en metros. Solo en los modos `"puntos"` y `"ambos"`. `refs`: `{ heap, bytes, pos, color,
-     * count, radius }` (vistas `Float32Array` y `Uint8Array` del heap, índice de palabra de posición, offset en bytes del
-     * buffer de color). Los estilos se cachean por color: no crea objetos nativos ni cadenas nuevas por frame.
-     */
-    drawPoints(ctx, { heap, bytes, pos, color, count, radius }) {
-        if (this.fluidMode === "metaball") return;
-        let last = -1;
-        for (let i = 0; i < count; i++) {
-            const c = color + 4 * i;
-            const key = (bytes[c] << 16) | (bytes[c + 1] << 8) | bytes[c + 2];
-            if (key !== last) {
-                last = key;
-                let fill = this.fills.get(key);
-                if (fill === undefined) {
-                    fill = `rgba(${bytes[c]}, ${bytes[c + 1]}, ${bytes[c + 2]}, ${POINT_ALPHA})`;
-                    this.fills.set(key, fill);
-                }
-                ctx.fillStyle = fill;
-            }
-            ctx.beginPath();
-            ctx.arc(heap[pos + 2 * i], heap[pos + 2 * i + 1], radius, 0, 2 * Math.PI);
-            ctx.fill();
-        }
-    }
-
-    /**
-     * Dibuja la capa de vectores con `ctx` ya en metros (Y arriba, `scale` píxeles por metro): solo las capas en sí.
-     * `refs`: `particles` `{ heap, pos, vel, count }` (vista `Float32Array` del heap y los índices de palabra de los
-     * buffers de posición y velocidad), `pieces` (las piezas de `Buoyancy`: `cx`, `cy`, `buoyancy`, `drag`, `body`) y
-     * `water` (el campo: `h`, `b`, `uOf`, `x0`, `dx`, `i0`, `i1`, `config.hDry`).
-     */
-    drawLayer(ctx, scale, refs) {
-        if (!this.anyLayer) return;
-        ctx.lineWidth = STROKE.px / scale;
-        if (this.layers.velocidades) this.drawParticles(ctx, scale, refs.particles);
-        if (this.layers.fuerzas) this.drawForces(ctx, refs.pieces);
-        if (this.layers.columnas) this.drawColumns(ctx, scale, refs.water);
-        if (this.layers.bots) this.drawBots(ctx);
-    }
-
-    /** Flechas de velocidad de hasta `maxArrows` partículas, muestreadas a paso fijo sobre el buffer. */
-    drawParticles(ctx, scale, { heap, pos, vel, count }) {
-        if (count === 0) return;
-        const stride = Math.ceil(count / DEBUG.maxArrows);
-        const head = 3 / scale;
-        ctx.strokeStyle = stroke(255, 255, 255);
-        ctx.beginPath();
-        for (let i = 0; i < count; i += stride) {
-            const x = heap[pos + 2 * i];
-            const y = heap[pos + 2 * i + 1];
-            const dx = heap[vel + 2 * i] * DEBUG.arrowTime;
-            const dy = heap[vel + 2 * i + 1] * DEBUG.arrowTime;
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + dx, y + dy);
-            const len = Math.hypot(dx, dy);
-            if (len > head) {
-                const ux = dx / len;
-                const uy = dy / len;
-                ctx.lineTo(x + dx - head * (ux + 0.5 * uy), y + dy - head * (uy - 0.5 * ux));
-                ctx.moveTo(x + dx, y + dy);
-                ctx.lineTo(x + dx - head * (ux - 0.5 * uy), y + dy - head * (uy + 0.5 * ux));
-            }
-        }
-        ctx.stroke();
-    }
-
-    /** Empuje (cian) y arrastre (magenta) de cada pieza: el largo es `forceScale` por la fuerza sobre el peso de la pieza. */
-    drawForces(ctx, pieces) {
-        const arrow = (piece, force, weight) => {
-            if (force.x === 0 && force.y === 0) return;
-            const k = DEBUG.forceScale / weight;
-            ctx.moveTo(piece.cx, piece.cy);
-            ctx.lineTo(piece.cx + force.x * k, piece.cy + force.y * k);
-        };
-        ctx.strokeStyle = stroke(51, 224, 255);
-        ctx.beginPath();
-        for (const piece of pieces) arrow(piece, piece.buoyancy, Math.max(piece.body.GetMass() * GRAVITY, 1e-6));
-        ctx.stroke();
-        ctx.strokeStyle = stroke(255, 85, 221);
-        ctx.beginPath();
-        for (const piece of pieces) arrow(piece, piece.drag, Math.max(piece.body.GetMass() * GRAVITY, 1e-6));
-        ctx.stroke();
-    }
-
-    /** Barra de `h` (del lecho a la superficie) y vector de `u` sobre ella en las columnas mojadas, hasta `maxColumns`. */
-    drawColumns(ctx, scale, water) {
-        const { i0, i1, h, b, x0, dx } = water;
-        const hd = water.config.hDry;
-        const stride = Math.ceil((i1 - i0) / DEBUG.maxColumns);
-        ctx.strokeStyle = stroke(80, 200, 255);
-        ctx.beginPath();
-        for (let i = i0; i < i1; i += stride) {
-            if (h[i] <= hd) continue;
-            const x = x0 + (i + 0.5) * dx;
-            ctx.moveTo(x, b[i]);
-            ctx.lineTo(x, b[i] + h[i]);
-        }
-        ctx.stroke();
-        ctx.strokeStyle = stroke(255, 225, 77);
-        ctx.beginPath();
-        for (let i = i0; i < i1; i += stride) {
-            if (h[i] <= hd) continue;
-            const x = x0 + (i + 0.5) * dx;
-            const y = b[i] + h[i];
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + water.uOf(i) * DEBUG.arrowTime, y);
-        }
-        ctx.stroke();
-    }
-
-    /** Línea de cada bot a su meta, o a su objetivo si no tiene meta. */
-    drawBots(ctx) {
-        ctx.strokeStyle = stroke(255, 179, 71);
-        ctx.beginPath();
-        for (const bot of this.bots) {
-            const to = bot.goal ?? bot.target;
-            if (!to || !bot.from) continue;
-            ctx.moveTo(bot.from.x, bot.from.y);
-            ctx.lineTo(to.x, to.y);
-        }
-        ctx.stroke();
+    panelLines() {
+        if (!this.open) return null;
+        return this.stats ? [...this.menuLines(), "", ...this.lines()] : this.menuLines();
     }
 }

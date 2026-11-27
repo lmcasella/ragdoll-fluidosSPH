@@ -2,7 +2,7 @@
 
 Estado: implementado (#25 y #169, natural y en movimiento). Decisiones de juego del game designer (19/11); diseño técnico de `architect`. Es el brief de `developer`: lo que no está acá no se decide en la implementación, se pregunta.
 
-Código nuevo: `src/level/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood` en `src/water/flood.js`. Cambios en `water.js`, `immersion.js`, `buoyancy.js`, `render.js`, `pickups.js`, `bot.js`, `damage.js`, `camera.js`, `menu.js`, `index.js` y `tests/helpers/game.js`.
+Código nuevo: `src/level/climb.js` (`CLIMB`, `ClimbGenerator`, `Climb`) y `RisingFlood` en `src/water/flood.js`. Cambios en `water.js`, `immersion.js`, `buoyancy.js`, `src/render/`, `pickups.js`, `bot.js`, `damage.js`, `camera.js`, `menu.js`, `index.js` y `tests/helpers/game.js`.
 
 ## 16.1 Qué es
 
@@ -82,7 +82,7 @@ Misma interfaz que `Flood` (`active`, `level`, `config.start`, `step(roundTime, 
 
 - `immersion.js`: el rango de x es `[x0 + i0·dx, x0 + i1·dx)` en vez de `[x0, x0 + N·dx)`, y los índices de columna se recortan a `[i0, i1 − 1]`.
 - `buoyancy.js`: `c0`, `c1` y el rango de descarte, recortados al span.
-- `render.js`: `waterOutline` y el degradado recorren solo el span. `drawWater` recibe un argumento opcional `deep = { floor, bottom }`: si `floor > 0`, pinta además un rectángulo del color del agua entre las caras del span, desde `floor` hasta `bottom` (borde inferior de la cámara). Así no se ve el fondo efectivo. I3f no aplica a ese rectángulo.
+- `src/render/waterView.js`: `waterOutline` y el degradado recorren solo el span. `WaterView.draw` recibe un argumento opcional `deep = { floor, bottom }`: si `floor > 0`, pinta además un rectángulo del color del agua entre las caras del span, desde `floor` hasta `bottom` (borde inferior de la cámara). Así no se ve el fondo efectivo. I3f no aplica a ese rectángulo.
 
 ### Regla de ahogo
 
@@ -115,7 +115,7 @@ dispose()
 - **`Pickups`:** `add({ x, y, weapon })` → punto (`y` local; crea el cuerpo en `y + offsetY` y el hook como hoy el constructor), `shift(offsetY)` (mueve los cuerpos con el mapa) y `remove(point)` (quita el hook, descarta lo encolado de ese punto, `DestroyBody` y lo saca de `points`). El constructor y `dispose` pasan a usarlos.
 - **`Bot`:** el grafo es local: `update` toma `game.offsetY` (`this.offsetY`) y las alturas del mundo que se comparan con un nodo se llevan a local (`supportOf`, `minTop`, la altura del rival, `airControl`); así `setNav` y la meta no cambian por el desplazamiento. Salta en vertical solo con velocidad horizontal ≤ `jump.settle` y, encajado `stuck.time` s sin apoyo, salta de un lado a otro. `setNav(level)` = `this.nav = buildNav(level, this.config)`, traduce `committed`, `goal` y `foeNode` (son índices de nodo) al nodo igual del grafo nuevo, o los anula si ya no existe, y pone `replanAt = 0`; así un salto en el aire no pierde su destino cuando se genera o libera una fila. El bot sube de preferencia en vertical: las aristas con solapamiento ≥ `BOT.through.overlap` y desnivel ≤ `reach.up.dy` cuestan `BOT.cost.through` (0,6) contra `BOT.cost.jump` (1) de las demás, y la ruta es de costo mínimo (Dijkstra). El constructor ya acepta `level`.
 - **`Camera`:** `setBounds(bounds)` (no toca `x`, `y` ni `zoom`) y el getter `top` (`y + viewH / (2 · scale)`). Con `maxY: Infinity` la cuenta actual ya funciona: `fitWorld` queda dado por el ancho.
-- **`render.js`:** `collectSurfaces(players, solids, reach, offsetY)` suma `offsetY` a los sólidos locales; `drawLevel` y `drawPickups` se dibujan con `ctx.translate(0, offsetY)`.
+- **`src/render/`:** `collectSurfaces(players, solids, reach, offsetY)` (`fluidSurfaces.js`) suma `offsetY` a los sólidos locales; `LevelView` y `PickupView` ponen `offsetY` como posición de su contenedor.
 - **`menu.js`:** `map.default = "infinite"`; Infinito sin `disabled` ni `note`.
 - **`tests/helpers/game.js`:** `options.map`, default `"classic"`, se escribe en `game.menu.values.map` antes de `arrancarPartida()`. Los tests existentes siguen en Clásico.
 
@@ -128,7 +128,7 @@ dispose()
 - **`reiniciarRonda`**: en Infinito, `climb.reset(seed)` **antes** de `spawnRobot`, que usa `climb.spawns`.
 - **`spawnOnGround`**: en Infinito la superficie es el tope de la plataforma sorteada (sin rayo); en Clásico, el rayo desde `LEVEL.bounds.maxY`.
 - **`limpiarParticulas`**: `minY` = `flood.floor` en Infinito y `LEVEL.bounds.minY` en Clásico. x sigue en 0–56.
-- **Dibujo:** `drawLevel` con `ctx.translate(0, offsetY)`, `collectSurfaces(players, solids, reach, offsetY)` y `drawHud(..., flood.config.start)`.
+- **Dibujo:** `LevelView` y `PickupView` reciben `offsetY` y lo ponen como posición de su contenedor, `collectSurfaces(players, solids, reach, offsetY)`, y el HUD HTML recibe `flood.config.start` en sus datos del frame.
 - **`__TEST_HOOKS__`:** `flood`, `pickups`, `climb` y `map` como getters, porque cambian con el mapa.
 
 ### Orden en el frame (Infinito)

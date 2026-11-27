@@ -2,7 +2,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { LEVEL } from "../../src/level/level.js";
 import { WEAPONS } from "../../src/combat/weapons.js";
-import { fieldColor } from "../../src/render/render.js";
+import { fieldColor } from "../../src/render/waterView.js";
 
 const CIRCLE = 0;
 const POLYGON = 2;
