@@ -47,6 +47,19 @@ export function forEachBody(bodies, visit, context) {
     for (const body of bodies.values()) visit(body, context);
 }
 
+/**
+ * Llama a `visit(body, context)` por cada cuerpo del mundo, en el orden de su lista enlazada de Box2D. No reserva
+ * memoria nativa. No crear ni destruir cuerpos desde `visit`.
+ * @param {object} world `b2World`
+ * @param {(body: object, context: object) => void} visit se llama una vez por cuerpo
+ * @param {object} context datos del recorrido que recibe `visit`
+ */
+export function forEachWorldBody(world, visit, context) {
+    for (let body = world.GetBodyList(); Box2D.getPointer(body) !== NULL_POINTER; body = body.GetNext()) {
+        visit(body, context);
+    }
+}
+
 /** Datos de trabajo de `boundsOfBody` y `boundsOfBodies`: la caja que se acumula y una caja para leer cada fixture. */
 const boundsScan = { target: null, fixtureBox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } };
 

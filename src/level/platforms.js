@@ -1,4 +1,4 @@
-import { boundsOfBodies, fixtureBounds, forEachBody, forEachFixture } from "../core/engine/box2d.js";
+import { boundsOfBodies, fixtureBounds, forEachBody, forEachFixture, forEachWorldBody } from "../core/engine/box2d.js";
 
 /**
  * Recalcula los contactos de un fixture (`Refilter`): no cambia sus datos.
@@ -188,14 +188,21 @@ export class OneWayPlatforms {
         if (changed) this.refilter(owner);
     }
 
+    /**
+     * Registra un cuerpo dinámico que no pertenece a una instancia de RagImporter.
+     * @param {object} body `b2Body`
+     * @param {Set<number>} seen punteros de los cuerpos implícitos vistos en este recorrido
+     */
+    trackImplicitBody(body, seen) {
+        const ptr = Box2D.getPointer(body);
+        if (body.GetType() !== Box2D.b2_dynamicBody || this.byBody.has(ptr)) return;
+        seen.add(ptr);
+        if (!this.implicit.has(ptr)) this.implicit.set(ptr, { bodies: [body], drops: new Map(), pairs: new Map() });
+    }
+
     syncImplicit() {
         const seen = new Set();
-        for (let body = this.world.GetBodyList(); Box2D.getPointer(body) !== 0; body = body.GetNext()) {
-            const ptr = Box2D.getPointer(body);
-            if (body.GetType() !== Box2D.b2_dynamicBody || this.byBody.has(ptr)) continue;
-            seen.add(ptr);
-            if (!this.implicit.has(ptr)) this.implicit.set(ptr, { bodies: [body], drops: new Map(), pairs: new Map() });
-        }
+        forEachWorldBody(this.world, (body, visited) => this.trackImplicitBody(body, visited), seen);
         for (const ptr of this.implicit.keys()) if (!seen.has(ptr)) this.implicit.delete(ptr);
     }
 

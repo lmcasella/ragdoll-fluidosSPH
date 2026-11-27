@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newScene, addBox } from "./helpers/film-scene.js";
 
-const { forEachFixture, fixtureBounds, forEachBody, boundsOfBody, boundsOfBodies } = await import("../src/core/engine/box2d.js");
+const { forEachFixture, fixtureBounds, forEachBody, forEachWorldBody, boundsOfBody, boundsOfBodies } = await import("../src/core/engine/box2d.js");
 
 const STATIC_BODY = 0;
 const BOX_HALF_WIDTH = 1;
@@ -51,6 +51,14 @@ test("forEachBody también recorre un arreglo de cuerpos", () => {
     const visited = [];
     forEachBody([...scene.bodies.values()], (body, context) => context.push(body), visited);
     assert.equal(visited.length, 2);
+    scene.dispose();
+});
+
+test("forEachWorldBody visita todos los cuerpos del mundo", () => {
+    const scene = sceneWithBoxes();
+    const visited = new Set();
+    forEachWorldBody(scene.world, (body, context) => context.add(body.GetPosition().get_x()), visited);
+    assert.deepEqual([...visited].sort((first, second) => first - second), [2, 8]);
     scene.dispose();
 });
 
