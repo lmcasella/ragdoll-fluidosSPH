@@ -1048,7 +1048,7 @@ function loop(nowMs) {
     camera.applyTo(scene.world);
     backgroundView.update({ x: camera.x, y: camera.y, zoom: camera.zoom, viewWidth: camera.viewW, viewHeight: camera.viewH });
     const offsetY = climb ? climb.offsetY : 0;
-    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale, terrain.shape);
+    levelView.update(climb ? climb.level : LEVEL, offsetY, now, scale, terrain.shape, scene.world.position);
     collectSurfaces(players, (climb ? climb.level : LEVEL).solids, SHOT_DRAW.snapReach, offsetY);
     debug.mark("dibujo");
     if (debug.metaballOn) drawParticles(fluidLayers, particleSystem, SHOT_DRAW, store);
