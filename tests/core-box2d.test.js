@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newScene, addBox } from "./helpers/film-scene.js";
 
-const { forEachFixture, fixtureBounds, forEachBody } = await import("../src/core/engine/box2d.js");
+const { forEachFixture, fixtureBounds, forEachBody, boundsOfBody, boundsOfBodies } = await import("../src/core/engine/box2d.js");
 
 const STATIC_BODY = 0;
 const BOX_HALF_WIDTH = 1;
@@ -43,5 +43,26 @@ test("forEachBody visita todos los cuerpos en orden de inserción", () => {
     const visited = [];
     forEachBody(scene.bodies, (body, context) => context.push(body), visited);
     assert.deepEqual(visited, [scene.bodies.get("left"), scene.bodies.get("right")]);
+    scene.dispose();
+});
+
+test("forEachBody también recorre un arreglo de cuerpos", () => {
+    const scene = sceneWithBoxes();
+    const visited = [];
+    forEachBody([...scene.bodies.values()], (body, context) => context.push(body), visited);
+    assert.equal(visited.length, 2);
+    scene.dispose();
+});
+
+test("boundsOfBody y boundsOfBodies unen las cajas de los fixtures y reinician la salida", () => {
+    const scene = sceneWithBoxes();
+    const out = { minX: -99, minY: -99, maxX: 99, maxY: 99 };
+    const tolerance = 0.1;
+    assert.equal(boundsOfBody(scene.bodies.get("left"), out), out);
+    assert.ok(Math.abs(out.minX - 1) < tolerance && Math.abs(out.maxX - 3) < tolerance);
+    assert.ok(Math.abs(out.minY - 2.5) < tolerance && Math.abs(out.maxY - 3.5) < tolerance);
+    boundsOfBodies(scene.bodies, out);
+    assert.ok(Math.abs(out.minX - 1) < tolerance && Math.abs(out.maxX - 9) < tolerance);
+    assert.ok(Math.abs(out.minY - 2.5) < tolerance && Math.abs(out.maxY - 5.5) < tolerance);
     scene.dispose();
 });
