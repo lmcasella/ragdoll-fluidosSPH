@@ -1,4 +1,5 @@
 import { lerp } from "../core/math/scalar.js";
+import { pointInPolygon } from "../core/math/ringNesting.js";
 
 /**
  * Nivel estático como geometría de `PIXI.Graphics`, que PIXI conserva entre frames (ver `docs/design/07-sph.md` §7.4).
@@ -27,6 +28,58 @@ const VALUES_PER_VERTEX = 2;
 
 /** Estado que se guarda de una plataforma rota para detectar cuándo cambia (las intactas guardan su `crack`, de 0 a 1). */
 const BROKEN_STATE = -1;
+
+/** Distancia del punto de prueba al medio de un lado, hacia afuera del anillo, en m: menos que una celda de la grilla. */
+const SEAM_PROBE = 0.001;
+
+/**
+ * Caja de un anillo intercalado, en m.
+ * @param {number[]} ring
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
+ */
+function ringBounds(ring) {
+    const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
+        bounds.minX = Math.min(bounds.minX, ring[index]);
+        bounds.maxX = Math.max(bounds.maxX, ring[index]);
+        bounds.minY = Math.min(bounds.minY, ring[index + 1]);
+        bounds.maxY = Math.max(bounds.maxY, ring[index + 1]);
+    }
+    return bounds;
+}
+
+/**
+ * Lados de los anillos del terreno que dan afuera, como `[x1, y1, x2, y2]` en m. Un lado es costura entre dos tramos si
+ * el punto apenas afuera de su medio (a la derecha del lado: afuera de un externo y adentro de un agujero) cae dentro
+ * de materia de otro anillo, por la regla par-impar sobre los demás anillos; esos lados no se trazan.
+ * @param {number[][]} rings externos y agujeros, vértices intercalados en m
+ * @returns {number[][]}
+ */
+function exposedEdges(rings) {
+    const bounds = rings.map(ringBounds);
+    const insideOtherMaterial = (x, y, self) => {
+        let inside = false;
+        rings.forEach((ring, index) => {
+            const box = bounds[index];
+            if (index === self || x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) return;
+            if (pointInPolygon(x, y, ring)) inside = !inside;
+        });
+        return inside;
+    };
+    const edges = [];
+    rings.forEach((ring, self) => {
+        for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
+            const next = (index + VALUES_PER_VERTEX) % ring.length;
+            const [x1, y1, x2, y2] = [ring[index], ring[index + 1], ring[next], ring[next + 1]];
+            const length = Math.hypot(x2 - x1, y2 - y1);
+            if (length === 0) continue;
+            const probeX = (x1 + x2) / 2 + ((y2 - y1) / length) * SEAM_PROBE;
+            const probeY = (y1 + y2) / 2 - ((x2 - x1) / length) * SEAM_PROBE;
+            if (!insideOtherMaterial(probeX, probeY, self)) edges.push([x1, y1, x2, y2]);
+        }
+    });
+    return edges;
+}
 
 /**
  * Mezcla lineal de dos colores `[r, g, b]` (0-255) como texto CSS.
@@ -131,7 +184,7 @@ export class LevelView {
 
     /**
      * Dibuja todos los sólidos fijos con un solo relleno y un solo trazo: los contornos del terreno si hay, con sus
-     * agujeros recortados, y si no los rectángulos.
+     * agujeros recortados y sin trazar las costuras entre tramos, y si no los rectángulos.
      */
     buildFixed(solids, terrainShape) {
         const graphics = this.fixedGraphics;
@@ -141,7 +194,10 @@ export class LevelView {
             graphics.fill(SOLID_FILL);
             this.addRings(graphics, terrainShape.rings.filter((ring) => !ringIsOuter(ring)));
             graphics.cut();
-            this.addRings(graphics, terrainShape.rings);
+            const scale = this.pixelsPerMeter;
+            for (const [x1, y1, x2, y2] of exposedEdges(terrainShape.rings)) {
+                graphics.moveTo(x1 * scale, y1 * scale).lineTo(x2 * scale, y2 * scale);
+            }
         } else {
             for (const solid of solids) {
                 if (solid.breakable) continue;
