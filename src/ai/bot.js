@@ -2,6 +2,11 @@ import { LEVEL } from "../level/level.js";
 import { PAD } from "../input/Input.js";
 import { getRaycaster } from "../core/raycast.js";
 import { WEAPONS, weaponById } from "../combat/weapons.js";
+import { GEOMETRY_TOLERANCE, clamp, clampUnit, signOr, signOrOne } from "../core/math/scalar.js";
+import { vectorLength, distance as pointDistance, normalize } from "../core/math/vector2.js";
+import { createSeededRandom } from "../core/math/random.js";
+import { GRAVITY } from "../core/physics/constants.js";
+import { fallTime } from "../core/physics/formulas.js";
 
 /**
  * Valores del bot de prueba (#151). Distancias en m, tiempos en s, ángulos en rad.
@@ -92,14 +97,12 @@ export function botConfig(difficulty) {
     return { ...BOT, reaction: [...preset.reaction], defense: preset.defense, idle: preset.idle === true, shoot: { ...BOT.shoot, aimError: preset.aimError } };
 }
 
-const GRAVITY = 10;
+/** Dirección de apuntado de trabajo de `Bot.aim`: se reutiliza para no crear objetos por frame. */
+const AIM_DIRECTION = { x: 0, y: 0 };
 
 /** Altura máxima (m) de un punto de aparición sobre la plataforma que lo sostiene. */
 const PICKUP_ABOVE = 1.2;
 const WALK_DEADZONE = 0.15;
-
-/** Tolerancia numérica (m) de las comparaciones de alturas. */
-const EPS = 1e-9;
 
 /** Diferencia de tope (m) bajo la que dos plataformas cuentan como del mismo nivel. */
 const SAME_LEVEL = 0.35;
@@ -116,18 +119,6 @@ const FLEE_MARGIN = 0.3;
 
 /** Cuenta (`crack`) desde la que una plataforma armada deja de servir como destino de un salto en el aire. */
 const AIR_CRACK = 0.8;
-
-/** Generador pseudoaleatorio determinista (mulberry32): mismo `seed`, misma secuencia. */
-export function seededRandom(seed) {
-    let a = seed >>> 0;
-    return () => {
-        a = (a + 0x6d2b79f5) >>> 0;
-        let t = a;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
 
 /**
  * Plataformas del nivel como nodos (`minX`, `maxX`, `top`, `oneWay`), sin el lecho de la pileta, y las aristas
@@ -177,8 +168,6 @@ export function canReach(dy, gap, reach = BOT.reach) {
     return dy > 0 ? (dy <= up.dy && gap <= up.gap) || (dy <= short.dy && gap <= short.gap) : gap <= downGap;
 }
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
 /**
  * Margen de un salto de `dy` (m, hacia arriba) y hueco `gap` (m) respecto de la regla de `reach`: la distancia normalizada al
  * borde de la regla, en [0, 1] (1 en el centro, 0 en el límite o fuera). Con `dy` > 0 es lo que más sobra de los dos rectángulos
@@ -186,9 +175,9 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
  */
 export function jumpMargin(dy, gap, reach = BOT.reach) {
     const { up, short, downGap } = reach;
-    if (dy <= 0) return clamp(1 - gap / downGap, 0, 1);
+    if (dy <= 0) return clampUnit(1 - gap / downGap);
     const inside = (r) => Math.min(1 - dy / r.dy, 1 - gap / r.gap);
-    return clamp(Math.max(inside(up), inside(short)), 0, 1);
+    return clampUnit(Math.max(inside(up), inside(short)));
 }
 
 /**
@@ -243,14 +232,14 @@ export function landingNode(nodes, x, low, vy, line, speed = AIR_SPEED) {
         if (isLost(n, AIR_CRACK) || n.top > low + LANDING_SLACK) return;
         const gap = Math.max(0, n.minX - x, x - n.maxX);
         const fall = Math.max(0, low - n.top);
-        const time = (vy + Math.sqrt(vy * vy + 2 * GRAVITY * fall)) / GRAVITY;
+        const time = fallTime(vy, fall);
         const found = { index, gap, above: n.top >= line, top: n.top };
         if (nearest === null || gap < nearest.gap) nearest = found;
         if (gap > speed * time) return;
         if (
             best === null ||
             found.above > best.above ||
-            (found.above === best.above && (found.top > best.top + EPS || (Math.abs(found.top - best.top) <= EPS && gap < best.gap)))
+            (found.above === best.above && (found.top > best.top + GEOMETRY_TOLERANCE || (Math.abs(found.top - best.top) <= GEOMETRY_TOLERANCE && gap < best.gap)))
         ) {
             best = found;
         }
@@ -285,7 +274,7 @@ export class Bot {
         this.k = k;
         this.config = config;
         this.raycaster = getRaycaster(world);
-        this.rng = rng ?? seededRandom(seed);
+        this.rng = rng ?? createSeededRandom(seed);
         this.nav = buildNav(level, config);
         /** Desplazamiento vertical (m) del mapa (Infinito): el grafo es local, la altura en el mundo es `top + offsetY`. */
         this.offsetY = 0;
@@ -398,9 +387,9 @@ export class Bot {
     }
 
     aim(dx, dy) {
-        const len = Math.hypot(dx, dy) || 1;
-        this.pad.axes[2] = dx / len;
-        this.pad.axes[3] = -dy / len;
+        const direction = normalize(dx, dy, AIM_DIRECTION);
+        this.pad.axes[2] = direction.x;
+        this.pad.axes[3] = -direction.y;
     }
 
     /** Camina hacia `x` si está a más de `WALK_DEADZONE`. */
@@ -452,14 +441,14 @@ export class Bot {
         }
         const x = me.torso.GetPosition().get_x();
         const y = me.torso.GetPosition().get_y() - this.offsetY;
-        if (me.grounded || a === null || Math.hypot(x - a.x, y - a.y) > this.config.stuck.radius) {
+        if (me.grounded || a === null || pointDistance(x, y, a.x, a.y) > this.config.stuck.radius) {
             this.anchor = { x, y, at: now };
             return false;
         }
         if (now - a.at < this.config.stuck.time) return false;
         const phase = Math.floor((now - a.at - this.config.stuck.time) / UNSTICK_PHASE);
         const node = this.nearestNode(x, y);
-        const inward = node ? Math.sign((node.minX + node.maxX) / 2 - x) || 1 : 1;
+        const inward = node ? signOrOne((node.minX + node.maxX) / 2 - x) : 1;
         const destination = this.committed === null ? 0 : Math.sign((this.nav.nodes[this.committed].minX + this.nav.nodes[this.committed].maxX) / 2 - x);
         this.walk(phase % 2 === 0 ? inward : destination !== 0 && destination !== inward ? destination : -inward);
         this.pulse(PAD.jump);
@@ -472,7 +461,7 @@ export class Bot {
         let bestDistance = Infinity;
         this.nav.nodes.forEach((n) => {
             if (isLost(n)) return;
-            const distance = Math.hypot(Math.max(0, n.minX - x, x - n.maxX), n.top - y);
+            const distance = vectorLength(Math.max(0, n.minX - x, x - n.maxX), n.top - y);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = n;
@@ -517,7 +506,7 @@ export class Bot {
         const foePos = foe.torso.GetPosition();
         const dx = foePos.get_x() - mx;
         const dy = foePos.get_y() - me.torso.GetPosition().get_y();
-        return { dx, dy, adx: Math.abs(dx), dir: Math.sign(dx) || me.side };
+        return { dx, dy, adx: Math.abs(dx), dir: signOr(dx, me.side) };
     }
 
     think(game, now) {
@@ -685,7 +674,7 @@ export class Bot {
     steerInside(me) {
         const px = me.torso.GetPosition().get_x();
         const node = this.nearestNode(px, me.lowestPoint() - this.offsetY);
-        if (node !== null) this.walk(Math.sign((node.minX + node.maxX) / 2 - px) || 1);
+        if (node !== null) this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
     }
 
     /** Modo `air`: corrige el vuelo hacia el destino y golpea al rival de abajo solo si el aterrizaje es seguro. */
@@ -847,17 +836,17 @@ export class Bot {
         const { nodes, edges } = this.nav;
         const top = nodes[cur].top;
         const kept = this.refuge;
-        let best = kept !== null && kept !== cur && dist[kept] !== Infinity && nodes[kept].top > top + EPS ? kept : null;
+        let best = kept !== null && kept !== cur && dist[kept] !== Infinity && nodes[kept].top > top + GEOMETRY_TOLERANCE ? kept : null;
         if (best === null) {
             nodes.forEach((n, i) => {
-                if (dist[i] === Infinity || n.top <= top + EPS) return;
+                if (dist[i] === Infinity || n.top <= top + GEOMETRY_TOLERANCE) return;
                 if (best === null || dist[i] < dist[best]) best = i;
             });
         }
         if (best === null) {
             nodes.forEach((n, i) => {
                 if (i === cur || dist[i] === Infinity || Math.abs(n.top - top) > SAME_LEVEL) return;
-                if (!edges[i].some((j) => nodes[j].top > n.top + EPS)) return;
+                if (!edges[i].some((j) => nodes[j].top > n.top + GEOMETRY_TOLERANCE)) return;
                 if (best === null || dist[i] < dist[best]) best = i;
             });
         }
@@ -879,8 +868,8 @@ export class Bot {
         let target = null;
         let bestDistance = Infinity;
         this.nav.nodes.forEach((n, i) => {
-            if (isLost(n) || n.top <= a.top + EPS) return;
-            const distance = Math.hypot(Math.max(0, n.minX - px, px - n.maxX), n.top - py);
+            if (isLost(n) || n.top <= a.top + GEOMETRY_TOLERANCE) return;
+            const distance = vectorLength(Math.max(0, n.minX - px, px - n.maxX), n.top - py);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 target = i;
@@ -1014,7 +1003,7 @@ export class Bot {
             let hops = 0;
             for (let n = node; parent[n] !== -1; n = parent[n]) hops++;
             if (hops > this.config.pickupReach) continue;
-            const isLower = this.nav.nodes[node].top < this.nav.nodes[cur].top - 1e-9;
+            const isLower = this.nav.nodes[node].top < this.nav.nodes[cur].top - GEOMETRY_TOLERANCE;
             const slot = isLower ? lower : best;
             if (slot === null || dist[node] < slot.cost) {
                 const found = { point, node, cost: dist[node] };
@@ -1045,11 +1034,11 @@ export class Bot {
             this.aimOffset = (this.rng() * 2 - 1) * cfg.aimError;
             this.aimStamp = now;
         }
-        const sign = Math.sign(dx) || 1;
+        const sign = signOrOne(dx);
         const lift = this.lift(adx, dy, weaponById(me.weapon)?.speed ?? 14);
         const angle = Math.atan2(dy + lift, adx) + this.aimOffset;
         this.aim(sign * Math.cos(angle), Math.sin(angle));
-        if (Math.hypot(adx, dy) >= this.config.reserveRange && tank <= this.config.reserve * weaponById(me.weapon).tank) return;
+        if (vectorLength(adx, dy) >= this.config.reserveRange && tank <= this.config.reserve * weaponById(me.weapon).tank) return;
         if (now >= this.burstUntil && now >= this.burstReadyAt) {
             this.burstUntil = now + this.config.burst;
             this.burstReadyAt = this.burstUntil + this.config.burstCooldown;
@@ -1159,7 +1148,7 @@ export class Bot {
         let result = this.dijkstra(from, this.riskMin);
         if (this.riskMin > 0) {
             const { nodes } = this.nav;
-            const up = nodes.some((n, i) => result.dist[i] !== Infinity && n.top > nodes[from].top + EPS);
+            const up = nodes.some((n, i) => result.dist[i] !== Infinity && n.top > nodes[from].top + GEOMETRY_TOLERANCE);
             if (!up) result = this.dijkstra(from, 0);
         }
         this.cache = { frame: this.frame, key, result };
@@ -1172,7 +1161,7 @@ export class Bot {
         const dist = nodes.map(() => Infinity);
         const parent = nodes.map(() => -2);
         const done = nodes.map(() => false);
-        const safeUp = nodes.map((a, i) => edges[i].some((to, k) => !isLost(nodes[to]) && margins[i][k] >= minMargin && nodes[to].top > a.top + EPS));
+        const safeUp = nodes.map((a, i) => edges[i].some((to, k) => !isLost(nodes[to]) && margins[i][k] >= minMargin && nodes[to].top > a.top + GEOMETRY_TOLERANCE));
         dist[from] = 0;
         parent[from] = -1;
         for (;;) {
@@ -1183,7 +1172,7 @@ export class Bot {
             edges[node].forEach((to, k) => {
                 const step = costs[node][k] + (nodes[to].solid?.breakable ? this.config.cost.breakable : 0);
                 if (isLost(nodes[to]) || nodes[to].top < this.minTop || dist[node] + step >= dist[to]) return;
-                const rising = nodes[to].top > nodes[node].top + EPS;
+                const rising = nodes[to].top > nodes[node].top + GEOMETRY_TOLERANCE;
                 if (margins[node][k] < minMargin && !(rising && !safeUp[node])) return;
                 dist[to] = dist[node] + step;
                 parent[to] = node;
@@ -1270,7 +1259,7 @@ export class Bot {
             }
             return;
         }
-        const dir = Math.sign((b.minX + b.maxX) / 2 - px) || 1;
+        const dir = signOrOne((b.minX + b.maxX) / 2 - px);
         this.walk(dir);
         if (dy < jump.dropBelow) return;
         const dist = Math.max(0, b.minX - px, px - b.maxX);

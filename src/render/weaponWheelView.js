@@ -1,5 +1,5 @@
 import { tintOf } from "../core/color.js";
-import { QUARTER_TURN, TAU } from "../core/mathConstants.js";
+import { QUARTER_TURN, TAU, clampUnit } from "../core/math/scalar.js";
 import { INK_COLOR, createLabel } from "./labelText.js";
 
 /** Radios de la rueda de armas en metros, alrededor del torso: borde interno, externo y externo del sector apuntado. */
@@ -103,7 +103,7 @@ export class WeaponWheelView {
         const bottom = (labelY - TANK_BAR.below) * scale;
         const height = TANK_BAR.height * scale;
         graphics.rect(left, bottom, TANK_BAR.width * scale, height).fill({ color: TANK_BAR.backColor, alpha: TANK_BAR.backAlpha });
-        graphics.rect(left, bottom, TANK_BAR.width * scale * Math.max(0, Math.min(1, fill)), height).fill({ color: TANK_BAR.fillColor });
+        graphics.rect(left, bottom, TANK_BAR.width * scale * clampUnit(fill), height).fill({ color: TANK_BAR.fillColor });
     }
 
     /**

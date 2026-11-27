@@ -2,7 +2,9 @@ import { LEVEL } from "../level/level.js";
 import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
 import { ORIGIN } from "../fluids/particleStore.js";
 import { SIGMA_W } from "../fluids/materials.js";
-import { seededRandom } from "../ai/bot.js";
+import { createSeededRandom } from "../core/math/random.js";
+import { TAU } from "../core/math/scalar.js";
+import { solveBisection } from "../core/math/numeric.js";
 import { CLIMB, halfWidth, stageOf } from "../level/climb.js";
 
 /** Paso (m) de integración del ancho libre. */
@@ -75,15 +77,9 @@ export function freeWidth(height, level = LEVEL) {
 
 /** Nivel (m) que encierra `area` (m²) sobre `pool.surface`: la inversa de `waterArea`, por bisección. */
 export function levelOfArea(area, level = LEVEL) {
-    let lo = level.pool.surface;
-    let hi = level.bounds.maxY;
-    if (area <= 0) return lo;
-    for (let k = 0; k < BISECTION_STEPS; k++) {
-        const mid = (lo + hi) / 2;
-        if (waterArea(mid, level) < area) lo = mid;
-        else hi = mid;
-    }
-    return (lo + hi) / 2;
+    const surface = level.pool.surface;
+    if (area <= 0) return surface;
+    return solveBisection(waterArea, area, level, surface, level.bounds.maxY, BISECTION_STEPS);
 }
 
 /**
@@ -98,7 +94,7 @@ export function levelOfArea(area, level = LEVEL) {
  * viento `windMax · sin(2π t / windPeriod)` m/s. Las gotas caen como partículas y `Immersion` las absorbe en el
  * campo. El nivel resulta de la conservación de la masa. Se corta cuando la curva está en `maxLevel` y el nivel
  * medio del campo (`meanLevel`) también. Antes de `start` no llueve. Una vez por paso fijo, antes de `stepWorld`.
- * El azar sale de `seededRandom(seed)`: sin `seed` es nueva en cada ronda.
+ * El azar sale de `createSeededRandom(seed)`: sin `seed` es nueva en cada ronda.
  *
  * `meanLevel` es el nivel `η` medio: el que ocuparía todo el volumen de agua agregado desde el arranque (el del
  * campo más el de las gotas de lluvia que todavía están como partículas, en vuelo o retenidas en plataformas) si se
@@ -132,21 +128,21 @@ export class Flood {
 
     /** Reinicia el azar de la ronda: con semilla fija repite la lluvia; sin ella es nueva. */
     reseed() {
-        this.random = seededRandom(this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0);
-        this.windPhase = 2 * Math.PI * this.random();
-        this.gustPhase = 2 * Math.PI * this.random();
+        this.random = createSeededRandom(this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0);
+        this.windPhase = TAU * this.random();
+        this.gustPhase = TAU * this.random();
     }
 
     /** Velocidad horizontal del viento (m/s) en el tiempo de ronda `t`. */
     wind(t) {
         const { windMax, windPeriod } = this.config;
-        return windMax * Math.sin((2 * Math.PI * t) / windPeriod + this.windPhase);
+        return windMax * Math.sin((TAU * t) / windPeriod + this.windPhase);
     }
 
     /** Factor de ráfaga en `t`: de `gustMin` a `gustMax`, con media 1. */
     gust(t) {
         const { gustMin, gustMax, gustPeriod } = this.config;
-        return (gustMax + gustMin) / 2 + ((gustMax - gustMin) / 2) * Math.sin((2 * Math.PI * t) / gustPeriod + this.gustPhase);
+        return (gustMax + gustMin) / 2 + ((gustMax - gustMin) / 2) * Math.sin((TAU * t) / gustPeriod + this.gustPhase);
     }
 
     get active() {

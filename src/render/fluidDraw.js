@@ -1,5 +1,6 @@
 import { COLOR_BYTES, tintOf } from "../core/color.js";
 import { VECTOR_COMPONENTS, wordIndexOf } from "../core/heap.js";
+import { vectorLength } from "../core/math/vector2.js";
 import { skinPosition } from "./fluidSurfaces.js";
 import { THRESHOLD_GAIN, THRESHOLD_OFFSET } from "./thresholdFilter.js";
 
@@ -179,7 +180,7 @@ export function drawParticles(layers, particleSystem, skin = null, store = null)
         const particle = layers.acquire(kind, shape.radius, diffuse);
         const velocityX = floats[velocityBase + vectorOffset];
         const velocityY = floats[velocityBase + vectorOffset + 1];
-        const speed = Math.hypot(velocityX, velocityY);
+        const speed = vectorLength(velocityX, velocityY);
         const stretching = speed >= DROP_STRETCH.minSpeed;
         const reachAlongVelocity = stretching
             ? METABALL_RADIUS + Math.min(DROP_STRETCH.max, speed * DROP_STRETCH.time * HALF)

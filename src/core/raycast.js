@@ -1,7 +1,8 @@
-// Raycast sobre el mundo de Box2D (world.RayCast). Usa un solo callback y dos vectores reutilizados:
-// no reserva memoria nativa por rayo (regla 7.4 de RagImporter).
-// El valor que devuelve ReportFixture define el modo, como en la materia:
-//   -1 ignora la forma (sensores y cuerpos excluidos), fraction recorta el rayo y deja el impacto más cercano.
+/**
+ * Raycast sobre el mundo de Box2D (`world.RayCast`). Usa un solo callback y dos vectores reutilizados: no crea memoria
+ * nativa por rayo. El valor que devuelve `ReportFixture` define el modo: -1 ignora la forma (sensores y cuerpos
+ * excluidos) y `fraction` recorta el rayo, de modo que queda el impacto más cercano.
+ */
 export class Raycaster {
     constructor(world) {
         this.world = world;
@@ -33,7 +34,10 @@ export class Raycaster {
         return fraction;
     }
 
-    // Impacto más cercano entre (x1, y1) y (x2, y2), o null. ignore: Set de punteros de cuerpos
+    /**
+     * Impacto más cercano entre (x1, y1) y (x2, y2), o null.
+     * @param {Set<number>|null} ignore punteros de los cuerpos que el rayo atraviesa
+     */
     cast(x1, y1, x2, y2, ignore = null) {
         this.count++;
         this.p1.set_x(x1);
@@ -50,7 +54,7 @@ export class Raycaster {
 
 const raycasters = new WeakMap();
 
-// Un Raycaster por mundo, compartido entre jugadores y sistemas
+/** Un `Raycaster` por mundo, compartido entre jugadores y sistemas (patrón Servicio compartido por mundo). */
 export function getRaycaster(world) {
     let raycaster = raycasters.get(world);
     if (!raycaster) {

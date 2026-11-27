@@ -1,6 +1,7 @@
 import { COLOR_BYTES, tintOf } from "../core/color.js";
 import { DEBUG } from "../core/debug.js";
-import { GRAVITY } from "../core/physicsConstants.js";
+import { vectorLength } from "../core/math/vector2.js";
+import { GRAVITY } from "../core/physics/constants.js";
 import { VECTOR_COMPONENTS } from "../core/heap.js";
 
 /** Trazo de las capas de vectores: ancho en px de pantalla y alfa de todos los colores. */
@@ -159,7 +160,7 @@ export class DebugView {
             const deltaY = heap[velocityIndex + VECTOR_COMPONENTS * index + 1] * DEBUG.arrowTime;
             this.addSegment(graphics, x, y, x + deltaX, y + deltaY);
             segments++;
-            const length = Math.hypot(deltaX, deltaY);
+            const length = vectorLength(deltaX, deltaY);
             if (length > headLength) {
                 const directionX = deltaX / length;
                 const directionY = deltaY / length;

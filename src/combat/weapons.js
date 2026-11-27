@@ -1,6 +1,8 @@
 import { PARTICLE } from "../fluids/particles.js";
 import { ORIGIN } from "../fluids/particleStore.js";
 import { SIGMA_W } from "../fluids/materials.js";
+import { TAU } from "../core/math/scalar.js";
+import { distance } from "../core/math/vector2.js";
 
 /**
  * Armas de fluido (datos) y emisor de chorros. El emisor recibe el sistema de partículas, el sistema de daño y
@@ -99,8 +101,8 @@ export function cycleWeapon(player, step) {
  */
 export function wheelSector(x, y, count) {
     if (count <= 0 || (x === 0 && y === 0)) return -1;
-    const turn = (Math.atan2(x, y) + Math.PI / count + 2 * Math.PI) % (2 * Math.PI);
-    return Math.min(count - 1, Math.floor((turn / (2 * Math.PI)) * count));
+    const turn = (Math.atan2(x, y) + Math.PI / count + TAU) % TAU;
+    return Math.min(count - 1, Math.floor((turn / TAU) * count));
 }
 
 /** Arma del inventario `tanks` (ordenada como la tabla) a la que apunta la dirección de la rueda, o null. */
@@ -187,7 +189,7 @@ export class ShotEmitter {
         if (this.raycaster) {
             const span = MUZZLE_OFFSET + step * (n - 1) + PARTICLE_RADIUS;
             const hit = this.raycaster.cast(muzzle.x, muzzle.y, muzzle.x + muzzle.dx * span, muzzle.y + muzzle.dy * span, player.ownBodies ?? null);
-            if (hit) reach = Math.hypot(hit.x - muzzle.x, hit.y - muzzle.y) - PARTICLE_RADIUS;
+            if (hit) reach = distance(hit.x, hit.y, muzzle.x, muzzle.y) - PARTICLE_RADIUS;
         }
         this.props.kind = weapon.id;
         this.props.shot = this.damage.shotId(k, weapon.id, now);

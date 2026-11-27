@@ -1,4 +1,5 @@
 import { MATERIALS } from "../fluids/materials.js";
+import { clampUnit, lerp } from "../core/math/scalar.js";
 
 /** Degradado horizontal de espacio local: de 0 a 1 a lo ancho del tramo. */
 const GRADIENT_START = { x: 0, y: 0 };
@@ -92,7 +93,7 @@ export function fieldColor(water, x, out = [0, 0, 0]) {
     const { tint, tintAbsorbance, species } = MATERIALS.acid;
     const tintFraction = 1 - 10 ** ((-tintAbsorbance * water.acidFractionAt(x)) / species.H2SO4);
     for (let channel = 0; channel < RGB_CHANNELS; channel++) {
-        out[channel] = Math.round(color[channel] + tintFraction * (tint[channel] - color[channel]));
+        out[channel] = Math.round(lerp(color[channel], tint[channel], tintFraction));
     }
     return out;
 }
@@ -142,7 +143,7 @@ export class WaterView {
         const addStop = (x) => {
             fieldColor(water, x, this.stopColor);
             const [red, green, blue] = this.stopColor;
-            gradient.addColorStop(Math.min(1, Math.max(0, (x - left) / width)), `rgb(${red}, ${green}, ${blue})`);
+            gradient.addColorStop(clampUnit((x - left) / width), `rgb(${red}, ${green}, ${blue})`);
         };
         addStop(left);
         for (let cell = first; cell <= end; cell += step) addStop(x0 + (cell + CELL_CENTER) * dx);

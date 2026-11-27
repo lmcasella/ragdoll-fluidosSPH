@@ -1,3 +1,5 @@
+import { clamp } from "../core/math/scalar.js";
+
 /**
  * Menú principal (#154) como datos. Cada fila tiene `id`, `label` y sus `values` (`id`, `label`, y opcionalmente
  * `disabled` con su `note`); `default` es el `id` inicial. Las filas `controls` y `play` no tienen valores: al
@@ -131,7 +133,7 @@ export class Menu {
 
     /** Mueve el cursor a la fila siguiente en la dirección `dir`; en los extremos se queda. */
     move(dir) {
-        this.cursor = Math.max(0, Math.min(this.table.rows.length - 1, this.cursor + dir));
+        this.cursor = clamp(this.cursor + dir, 0, this.table.rows.length - 1);
     }
 
     /** Cambia el valor de la fila actual al contiguo en la dirección `dir` que no esté deshabilitado. */
@@ -153,6 +155,9 @@ export class Menu {
  * null }`); si el conjunto de dispositivos guardado no es el conectado, vale `defaultAssignment`.
  */
 export const CONTROLS = { storageKey: "ragdoll-fluidos.controls.v1", players: 2, columns: ["J1", "Sin jugar", "J2"] };
+
+/** Índice de la última columna de la asignación de controles. */
+const LAST_COLUMN = CONTROLS.columns.length - 1;
 
 /**
  * Asignación por defecto de los dispositivos `ids` (el teclado, `"keyboard"`, primero): sin gamepads, el teclado en
@@ -241,7 +246,7 @@ export class ControlsScreen {
             const joining = !this.joined.has(d.id) && (d.select || d.a);
             if (joining) this.joined.add(d.id);
             if (d.x) {
-                const column = Math.max(0, Math.min(2, this.column(d.id) + d.x));
+                const column = clamp(this.column(d.id) + d.x, 0, LAST_COLUMN);
                 this.assignment[d.id] = column === 1 ? null : column === 0 ? 0 : 1;
             }
             if (d.back) result ??= "back";
@@ -344,7 +349,7 @@ export class HelpScreen {
     /** Aplica las intenciones de un frame; devuelve "back" al volver y `null` en el resto. */
     update({ x = 0, tab = 0, back = false }) {
         const dir = tab || x;
-        if (dir) this.tab = Math.max(0, Math.min(HELP.tabs.length - 1, this.tab + dir));
+        if (dir) this.tab = clamp(this.tab + dir, 0, HELP.tabs.length - 1);
         return back ? "back" : null;
     }
 

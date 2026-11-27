@@ -1,3 +1,21 @@
+import { boundsOfBodies, fixtureBounds, forEachBody, forEachFixture, forEachWorldBody } from "../core/engine/box2d.js";
+
+/**
+ * Recalcula los contactos de un fixture (`Refilter`): no cambia sus datos.
+ * @param {object} fixture `b2Fixture`
+ */
+function refilterFixture(fixture) {
+    fixture.Refilter();
+}
+
+/**
+ * Recalcula los contactos de todos los fixtures de un cuerpo.
+ * @param {object} body `b2Body`
+ */
+function refilterBody(body) {
+    forEachFixture(body, refilterFixture, null);
+}
+
 /**
  * Valores de las plataformas atravesables: `tolerance` (m) es cuánto puede estar el punto más bajo del dueño por debajo
  * del tope para seguir apoyado (y cuánto por encima para poder bajar); `dropMaxTime` (s) corta la bajada si el dueño no
@@ -42,6 +60,7 @@ export class OneWayPlatforms {
         /** Puntero de cuerpo dinámico sin dueño → su dueño propio. */
         this.implicit = new Map();
         this.box = { minX: 0, maxX: 0, low: 0, high: 0 };
+        this.bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
         this.noDrops = new Map();
         this.filter = new Box2D.JSContactFilter();
         this.filter.ShouldCollide = (ptrA, ptrB) => this.shouldCollide(ptrA, ptrB);
@@ -59,11 +78,11 @@ export class OneWayPlatforms {
     }
 
     refresh(platform) {
-        const aabb = platform.fixture.GetAABB(0);
-        platform.minX = aabb.get_lowerBound().get_x();
-        platform.maxX = aabb.get_upperBound().get_x();
-        platform.bottom = aabb.get_lowerBound().get_y();
-        platform.top = aabb.get_upperBound().get_y();
+        const bounds = fixtureBounds(platform.fixture, this.bounds);
+        platform.minX = bounds.minX;
+        platform.maxX = bounds.maxX;
+        platform.bottom = bounds.minY;
+        platform.top = bounds.maxY;
     }
 
     removePlatform(fixture) {
@@ -169,43 +188,36 @@ export class OneWayPlatforms {
         if (changed) this.refilter(owner);
     }
 
+    /**
+     * Registra un cuerpo dinámico que no pertenece a una instancia de RagImporter.
+     * @param {object} body `b2Body`
+     * @param {Set<number>} seen punteros de los cuerpos implícitos vistos en este recorrido
+     */
+    trackImplicitBody(body, seen) {
+        const ptr = Box2D.getPointer(body);
+        if (body.GetType() !== Box2D.b2_dynamicBody || this.byBody.has(ptr)) return;
+        seen.add(ptr);
+        if (!this.implicit.has(ptr)) this.implicit.set(ptr, { bodies: [body], drops: new Map(), pairs: new Map() });
+    }
+
     syncImplicit() {
         const seen = new Set();
-        for (let body = this.world.GetBodyList(); Box2D.getPointer(body) !== 0; body = body.GetNext()) {
-            const ptr = Box2D.getPointer(body);
-            if (body.GetType() !== Box2D.b2_dynamicBody || this.byBody.has(ptr)) continue;
-            seen.add(ptr);
-            if (!this.implicit.has(ptr)) this.implicit.set(ptr, { bodies: [body], drops: new Map(), pairs: new Map() });
-        }
+        forEachWorldBody(this.world, (body, visited) => this.trackImplicitBody(body, visited), seen);
         for (const ptr of this.implicit.keys()) if (!seen.has(ptr)) this.implicit.delete(ptr);
     }
 
     refilter(owner) {
-        for (const body of owner.bodies) {
-            for (let fixture = body.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
-                fixture.Refilter();
-            }
-        }
+        forEachBody(owner.bodies, refilterBody, null);
     }
 
     /** Caja del dueño (unión de los `GetAABB` de sus fixtures) en `this.box`; no reserva memoria. */
     measure(owner) {
         const box = this.box;
-        box.minX = Infinity;
-        box.maxX = -Infinity;
-        box.low = Infinity;
-        box.high = -Infinity;
-        for (const body of owner.bodies) {
-            for (let fixture = body.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
-                const aabb = fixture.GetAABB(0);
-                const lower = aabb.get_lowerBound();
-                const upper = aabb.get_upperBound();
-                box.minX = Math.min(box.minX, lower.get_x());
-                box.maxX = Math.max(box.maxX, upper.get_x());
-                box.low = Math.min(box.low, lower.get_y());
-                box.high = Math.max(box.high, upper.get_y());
-            }
-        }
+        const bounds = boundsOfBodies(owner.bodies, this.bounds);
+        box.minX = bounds.minX;
+        box.maxX = bounds.maxX;
+        box.low = bounds.minY;
+        box.high = bounds.maxY;
         return box;
     }
 

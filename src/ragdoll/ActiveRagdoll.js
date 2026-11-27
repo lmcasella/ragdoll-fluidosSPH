@@ -1,6 +1,47 @@
 import { getRaycaster } from "../core/raycast.js";
 import { MATERIALS } from "../fluids/materials.js";
+import { clamp, lerp, shortestAngleDifference, wrapAngle } from "../core/math/scalar.js";
+import { distance, cross, rotateLocalToWorld } from "../core/math/vector2.js";
+import { forEachBody, boundsOfBodies } from "../core/engine/box2d.js";
+import { GRAVITY } from "../core/physics/constants.js";
 
+/** Cambio de velocidad lineal que `ActiveRagdoll.changeVelocity` aplica a todas las piezas: se reutiliza para no crear objetos por frame. */
+const velocityChange = { addX: 0, addY: 0, scaleY: 1, scratch: null };
+
+/** Caja de trabajo de `ActiveRagdoll.lowestPoint`: se reutiliza para no crear objetos por frame. */
+const bodiesBox = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+
+/**
+ * Pasa la velocidad lineal de un cuerpo por `velocityChange`: `y' = y · scaleY + addY` y `x' = x + addX`.
+ * @param {object} body `b2Body`
+ * @param {{addX: number, addY: number, scaleY: number, scratch: object}} change cambio y vector nativo de trabajo
+ */
+function applyVelocityChange(body, change) {
+    const velocity = body.GetLinearVelocity();
+    change.scratch.set_x(velocity.get_x() + change.addX);
+    change.scratch.set_y(velocity.get_y() * change.scaleY + change.addY);
+    body.SetLinearVelocity(change.scratch);
+}
+
+/** Resultado de `ActiveRagdoll.resting`: se reutiliza para no crear objetos por frame. */
+const supportScan = { found: false };
+
+/**
+ * Marca en `scan.found` si alguna pieza de `body` toca algo del mapa que no es un cuerpo dinámico ni un sensor.
+ * @param {object} body `b2Body`
+ * @param {{found: boolean}} scan resultado acumulado; una vez en `true` no se vuelve a mirar
+ */
+function scanBodySupport(body, scan) {
+    if (scan.found) return;
+    for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+        const contact = edge.get_contact();
+        if (!contact.IsTouching() || contact.GetFixtureA().IsSensor() || contact.GetFixtureB().IsSensor()) continue;
+        if (edge.get_other().GetType() !== Box2D.b2_dynamicBody) {
+            scan.found = true;
+            return;
+        }
+    }
+}
 /** Salud máxima de un robot. */
 export const MAX_HP = 100;
 
@@ -37,8 +78,6 @@ const JUMP_SPEED = 9;
  * sube; `fastFall` es la fracción de la gravedad que se suma por paso con el stick abajo mientras cae.
  */
 export const JUMP = { cut: 0.5, fastFall: 0.3 };
-/** Gravedad del mundo (m/s²), la misma con la que se crea en `index.js`. */
-const GRAVITY = 10;
 const WALK_FRICTION = 0.85;
 
 /**
@@ -133,7 +172,6 @@ export class ActiveRagdoll {
         this.knockoutEnd = 0;
         /** Nocauts de este robot en la ronda: alarga el siguiente (`KNOCKOUT.step`). */
         this.knockouts = 0;
-        this.boxes = new Float32Array(4 * (this.countFixtures() + 1));
         this.framesGrounded = 0;
         this.jumping = false;
         this.clipState = null;
@@ -401,15 +439,29 @@ export class ActiveRagdoll {
         this.rollReadyAt = now + ROLL.duration + ROLL.cooldown;
     }
 
-    // Empuje del robot entero: suma la misma velocidad a todas sus piezas (como el salto). Un impulso
-    // sobre una sola pieza de 1 kg apenas mueve a un robot de 13 piezas.
+    /**
+     * Empuje del robot entero: suma la misma velocidad a todas sus piezas (como el salto). Un impulso sobre una sola
+     * pieza de 1 kg apenas mueve a un robot de 13 piezas.
+     * @param {number} vx Velocidad a sumar en X, m/s.
+     * @param {number} vy Velocidad a sumar en Y, m/s.
+     */
     knockback(vx, vy) {
-        for (const body of this.rag.bodies.values()) {
-            const v = body.GetLinearVelocity();
-            this.scratch.set_x(v.get_x() + vx);
-            this.scratch.set_y(v.get_y() + vy);
-            body.SetLinearVelocity(this.scratch);
-        }
+        this.changeVelocity(vx, vy, 1);
+    }
+
+    /**
+     * Cambia la velocidad lineal de todas las piezas por igual, para no deformar el ragdoll: `x' = x + addX` y
+     * `y' = y · scaleY + addY`.
+     * @param {number} addX Velocidad a sumar en X, m/s.
+     * @param {number} addY Velocidad a sumar en Y, m/s.
+     * @param {number} scaleY Factor de la velocidad vertical previa.
+     */
+    changeVelocity(addX, addY, scaleY) {
+        velocityChange.addX = addX;
+        velocityChange.addY = addY;
+        velocityChange.scaleY = scaleY;
+        velocityChange.scratch = this.scratch;
+        forEachBody(this.rag.bodies, applyVelocityChange, velocityChange);
     }
 
     // Tras recibir un golpe, el control no pisa la velocidad durante `duration`: deja actuar al empuje
@@ -498,14 +550,9 @@ export class ActiveRagdoll {
      */
     resting() {
         if (this.inWater) return true;
-        for (const body of this.rag.bodies.values()) {
-            for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
-                const contact = edge.get_contact();
-                if (!contact.IsTouching() || contact.GetFixtureA().IsSensor() || contact.GetFixtureB().IsSensor()) continue;
-                if (edge.get_other().GetType() !== Box2D.b2_dynamicBody) return true;
-            }
-        }
-        return false;
+        supportScan.found = false;
+        forEachBody(this.rag.bodies, scanBodySupport, supportScan);
+        return supportScan.found;
     }
 
     /**
@@ -588,62 +635,16 @@ export class ActiveRagdoll {
         this.wetTimer = 0;
     }
 
-    // Borde inferior (m) de la pieza más baja: AABB de las fixtures, sin crear objetos nativos
+    /**
+     * Borde inferior de la pieza más baja: el mínimo del AABB de sus fixtures, sin crear objetos nativos.
+     * @returns {number} Altura, m.
+     */
     lowestPoint() {
-        let lowest = Infinity;
-        for (const body of this.rag.bodies.values()) {
-            for (let fixture = body.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
-                lowest = Math.min(lowest, fixture.GetAABB(0).get_lowerBound().get_y());
-            }
-        }
-        return lowest;
+        return boundsOfBodies(this.rag.bodies, bodiesBox).minY;
     }
 
     get wet() {
         return this.wetTimer > 0;
-    }
-
-    countFixtures() {
-        let n = 0;
-        for (const body of this.rag.bodies.values()) {
-            for (let f = body.GetFixtureList(); Box2D.getPointer(f) !== 0; f = f.GetNext()) n++;
-        }
-        return n;
-    }
-
-    // [minX, minY, maxX, maxY] de cada fixture y, al final, de la caja que las une. Devuelve un buffer
-    // reutilizado (sin memoria nativa nueva) que vale hasta la próxima llamada
-    fixtureBoxes() {
-        const out = this.boxes;
-        let n = 0;
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        for (const body of this.rag.bodies.values()) {
-            for (let f = body.GetFixtureList(); Box2D.getPointer(f) !== 0; f = f.GetNext()) {
-                const aabb = f.GetAABB(0);
-                const lo = aabb.get_lowerBound();
-                const hi = aabb.get_upperBound();
-                const x0 = lo.get_x();
-                const y0 = lo.get_y();
-                const x1 = hi.get_x();
-                const y1 = hi.get_y();
-                out[n++] = x0;
-                out[n++] = y0;
-                out[n++] = x1;
-                out[n++] = y1;
-                if (x0 < minX) minX = x0;
-                if (y0 < minY) minY = y0;
-                if (x1 > maxX) maxX = x1;
-                if (y1 > maxY) maxY = y1;
-            }
-        }
-        out[n++] = minX;
-        out[n++] = minY;
-        out[n++] = maxX;
-        out[n++] = maxY;
-        return out;
     }
 
     // Estados con duración (quemaduras); una vez por paso fijo
@@ -675,7 +676,11 @@ export class ActiveRagdoll {
         return false;
     }
 
-    // Boca del arma y dirección del cañón en el mundo (sigue al cuerpo del arma, con flipX)
+    /**
+     * Boca del arma y dirección del cañón en el mundo (sigue al cuerpo del arma, con flipX).
+     * @returns {{x: number, y: number, dx: number, dy: number}|null} Punto, m, y dirección unitaria; 
+ull si el rig no tiene arma.
+     */
     muzzle() {
         const gun = this.rig.gun;
         if (!gun) return null;
@@ -689,20 +694,17 @@ export class ActiveRagdoll {
         const ly = gun.muzzle[1];
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
-        return {
-            x: px + lx * cos - ly * sin,
-            y: py + lx * sin + ly * cos,
-            dx: cos * mirror,
-            dy: sin * mirror,
-        };
+        const world = { x: 0, y: 0, dx: cos * mirror, dy: sin * mirror };
+        return rotateLocalToWorld(lx, ly, cos, sin, px, py, world);
     }
 
-    // Ángulo nativo de la articulación (sin espejar); el objetivo se toma por el camino más corto
-    // desde el ángulo actual para que el brazo no salte al cruzar ±π
-    // Con rig.gun: el ángulo se resuelve para que la línea del cañón (no la del hombro) pase por el objetivo.
-    // Los joints de rig.aimHold (codos) quedan en reposo para que ningún clip mueva la cadena del arma.
     /**
-     * El primer joint de `rig.aimJoints` lleva el arma y apunta por la línea del cañón; los demás apuntan con su propia geometría, para que ninguno quede trabado donde lo dejó un clip.
+     * Apunta los brazos al punto dado. Cada joint de `rig.aimJoints` toma el objetivo por el camino más corto desde su
+     * ángulo nativo actual (sin espejar), para que el brazo no salte al cruzar ±π. RagImporter normaliza el objetivo a
+     * (-π, π]: cerca de ±π se frena del lado actual (histéresis) y más allá se da la vuelta por delante. El primer joint
+     * lleva el arma y apunta por la línea del cañón (no la del hombro) hacia el objetivo; los demás apuntan con su propia
+     * geometría, para que ninguno quede trabado donde lo dejó un clip. Los joints de `rig.aimHold` (codos) quedan en
+     * reposo para que ningún clip mueva la cadena del arma.
      * @param {number} targetX Punto a apuntar, m.
      * @param {number} targetY Punto a apuntar, m.
      * @param {number} [now] Reloj de simulación, s; el mismo que reciben `punch`, `stun` y `hurt`.
@@ -724,10 +726,9 @@ export class ActiveRagdoll {
             const current = joint.GetJointAngle();
             let desired;
             if (muzzle && index === 0) {
-                // Distancia (con signo) de la línea del cañón al pivote del hombro
                 const gunAngle = Math.atan2(muzzle.dy, muzzle.dx);
-                const offset = -(muzzle.x - ax) * muzzle.dy + (muzzle.y - ay) * muzzle.dx;
-                const dist = Math.hypot(targetX - ax, targetY - ay);
+                const offset = cross(muzzle.dx, muzzle.dy, muzzle.x - ax, muzzle.y - ay);
+                const dist = distance(targetX, targetY, ax, ay);
                 const toTarget = Math.atan2(targetY - ay, targetX - ax);
                 const wanted = dist > Math.abs(offset) ? toTarget - Math.asin(offset / dist) : toTarget;
                 desired = current + (wanted - gunAngle);
@@ -739,13 +740,10 @@ export class ActiveRagdoll {
                     forward -
                     this.rig.aimOffset * mirror;
             }
-            const delta = desired - current;
-            let target = current + Math.atan2(Math.sin(delta), Math.cos(delta));
-            // RagImporter normaliza el objetivo a (-π, π]: cerca de ±π se frena del lado actual
-            // (histéresis) y más allá se da la vuelta por delante
+            let target = current + shortestAngleDifference(current, desired);
             const overshoot = Math.abs(target) - AIM_LIMIT;
             if (overshoot > AIM_HYSTERESIS) {
-                target = Math.atan2(Math.sin(desired), Math.cos(desired));
+                target = wrapAngle(desired);
             } else if (overshoot > 0) {
                 target = Math.sign(target) * AIM_LIMIT;
             }
@@ -898,11 +896,7 @@ export class ActiveRagdoll {
         }
 
         if (input.jump && this.framesGrounded > 5 && !this.isStunned()) {
-            for (const body of this.rag.bodies.values()) {
-                this.scratch.set_x(body.GetLinearVelocity().get_x());
-                this.scratch.set_y(JUMP_SPEED);
-                body.SetLinearVelocity(this.scratch);
-            }
+            this.changeVelocity(0, JUMP_SPEED, 0);
             this.framesGrounded = 0;
             this.jumping = true;
             this.jumpAt = now;
@@ -919,9 +913,9 @@ export class ActiveRagdoll {
 
         const state = this.resolveState(input, velX, isMoving, blocking, now);
         if (state === "walk" || state === "walkBack") {
-            const target = Math.min(WALK_ANIM.maxSpeed, Math.max(WALK_ANIM.minSpeed, Math.abs(velX) / WALK_ANIM.refSpeed));
+            const target = clamp(Math.abs(velX) / WALK_ANIM.refSpeed, WALK_ANIM.minSpeed, WALK_ANIM.maxSpeed);
             this.animSpeed = this.clipState === "walk" || this.clipState === "walkBack"
-                ? this.animSpeed + (target - this.animSpeed) * WALK_ANIM.smoothing
+                ? lerp(this.animSpeed, target, WALK_ANIM.smoothing)
                 : target;
             this.enterState(state, this.animSpeed);
         } else {
@@ -930,24 +924,20 @@ export class ActiveRagdoll {
         }
     }
 
-    // Resta `dv` m/s a la velocidad vertical de todas las piezas (gravedad extra)
+    /**
+     * Resta velocidad vertical a todas las piezas (gravedad extra).
+     * @param {number} dv Velocidad a restar, m/s.
+     */
     pull(dv) {
-        for (const body of this.rag.bodies.values()) {
-            const v = body.GetLinearVelocity();
-            this.scratch.set_x(v.get_x());
-            this.scratch.set_y(v.get_y() - dv);
-            body.SetLinearVelocity(this.scratch);
-        }
+        this.changeVelocity(0, -dv, 1);
     }
 
-    // Multiplica la velocidad vertical de todas las piezas por `factor`, igual para todas para no deformar el ragdoll
+    /**
+     * Multiplica la velocidad vertical de todas las piezas por el mismo factor, para no deformar el ragdoll.
+     * @param {number} factor Factor de la velocidad vertical.
+     */
     scaleVertical(factor) {
-        for (const body of this.rag.bodies.values()) {
-            const v = body.GetLinearVelocity();
-            this.scratch.set_x(v.get_x());
-            this.scratch.set_y(v.get_y() * factor);
-            body.SetLinearVelocity(this.scratch);
-        }
+        this.changeVelocity(0, 0, factor);
     }
 
     destroy() {

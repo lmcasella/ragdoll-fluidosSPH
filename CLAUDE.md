@@ -129,6 +129,7 @@ Antes de implementar una funcionalidad, ubicarla en estos patrones. Si no encaja
   - `dev` es la **rama de integración**: todas las ramas de trabajo salen de `dev` actualizado y sus PRs van a `dev` (`gh pr create --base dev`).
   - Nunca se commitea directo en `main` ni en `dev`.
 - **Un issue, una rama** de trabajo.
+- Excepción: un refactor partido en varios issues por subsistema va en una sola rama y un solo PR que enlaza todos sus issues (`Closes #a, Closes #b…`), con un tramo de commits por issue; cada issue se cierra a mano al mergear.
 - **Cerrar issues a mano:** GitHub solo cierra con `Closes #<n>` al mergear en la rama por defecto (`main`). Al mergear en `dev`, el issue se cierra con `gh issue close <n> --comment "Mergeado en dev (#<pr>)"`.
 - **Release:** cada merge de `dev` a `main` es un deploy y cada deploy es un release con su tag. Se hace con un PR `dev → main` titulado `chore(infra): release vX.Y.Z`, que en `dev` pasa el `## [Unreleased]` del changelog a `## [X.Y.Z] - AAAA-MM-DD`. Al mergearlo, el CI crea el tag `vX.Y.Z`, el release de GitHub y el deploy. Si el tag ya existe, el CI falla y no publica.
 - **Hotfix:** sale de `main`, va a `main` con su versión de parche y después se mergea `main` en `dev`.

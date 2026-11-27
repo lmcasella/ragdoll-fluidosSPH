@@ -7,6 +7,10 @@
 import { FLUID, WEAPONS, particleDamage } from "./weapons.js";
 import { SINK } from "../fluids/particleStore.js";
 import { MATERIALS } from "../fluids/materials.js";
+import { boundsOfBody } from "../core/engine/box2d.js";
+
+/** Caja de trabajo de DamageSystem.torsoTop: se reutiliza para no crear objetos por frame. */
+const TORSO_BOX = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 const IMPACT_SPEED = 11; // m/s; un salto normal aterriza a ~9 m/s y no daña
 const IMPACT_DAMAGE = 2; // por m/s por encima del umbral
@@ -156,11 +160,7 @@ export class DamageSystem {
 
     /** Altura (m) del punto más alto del torso: el máximo del AABB de sus fixtures. */
     torsoTop(player) {
-        let top = -Infinity;
-        for (let fixture = player.torso.GetFixtureList(); Box2D.getPointer(fixture) !== 0; fixture = fixture.GetNext()) {
-            top = Math.max(top, fixture.GetAABB(0).get_upperBound().get_y());
-        }
-        return top;
+        return boundsOfBody(player.torso, TORSO_BOX).maxY;
     }
 
     /**

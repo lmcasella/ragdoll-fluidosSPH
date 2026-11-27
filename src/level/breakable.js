@@ -1,3 +1,5 @@
+import { fixtureBounds, forEachBody } from "../core/engine/box2d.js";
+
 /**
  * Valores de las plataformas rompibles. `defaultTime` (s) es el aguante si el sólido declara `breakable: true` sin
  * duración propia; `respawn` (s) es cuánto tarda en reaparecer; `below` (m) es cuánto puede estar el punto más bajo del
@@ -9,6 +11,26 @@ export const BREAKABLE = {
     below: 0.05,
 };
 
+/** Caja de trabajo del fixture de la plataforma y resultado de `BreakablePlatforms.occupied`: se reutilizan para no crear objetos por frame. */
+const FIXTURE_BOX = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+const stepScan = { target: 0, found: false };
+
+/**
+ * Marca en `scan.found` si alguna pieza de `body` toca el fixture `scan.target`.
+ * @param {object} body `b2Body`
+ * @param {{target: number, found: boolean}} scan puntero del fixture buscado y resultado acumulado
+ */
+function scanBodyForStep(body, scan) {
+    if (scan.found) return;
+    for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+        const contact = edge.get_contact();
+        if (!contact.IsTouching()) continue;
+        if (Box2D.getPointer(contact.GetFixtureA()) === scan.target || Box2D.getPointer(contact.GetFixtureB()) === scan.target) {
+            scan.found = true;
+            return;
+        }
+    }
+}
 /**
  * Plataformas que se rompen `duration` s después del primer toque de un robot apoyado y reaparecen `respawn` s después.
  * Al romperse, la fixture pasa a sensor (`SetSensor(true)` + `Refilter()`) para no destruir memoria nativa ni
@@ -111,17 +133,13 @@ export class BreakablePlatforms {
      * genera mientras el robot la cruza desde abajo) y su punto más bajo está a `below` m o menos bajo el tope.
      */
     occupied(fixture, players) {
-        const target = Box2D.getPointer(fixture);
-        const top = fixture.GetAABB(0).get_upperBound().get_y();
+        const top = fixtureBounds(fixture, FIXTURE_BOX).maxY;
+        stepScan.target = Box2D.getPointer(fixture);
+        stepScan.found = false;
         for (const player of players) {
             if (player.dead || player.lowestPoint() < top - this.config.below) continue;
-            for (const body of player.rag.bodies.values()) {
-                for (let edge = body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
-                    const contact = edge.get_contact();
-                    if (!contact.IsTouching()) continue;
-                    if (Box2D.getPointer(contact.GetFixtureA()) === target || Box2D.getPointer(contact.GetFixtureB()) === target) return true;
-                }
-            }
+            forEachBody(player.rag.bodies, scanBodyForStep, stepScan);
+            if (stepScan.found) return true;
         }
         return false;
     }

@@ -1,14 +1,8 @@
 import { MATERIALS } from "../fluids/materials.js";
 import { shortCircuitDps } from "./ActiveRagdoll.js";
-
-/** Una vuelta completa, en rad. */
-const FULL_TURN = Math.PI * 2;
-
-const UINT32_RANGE = 4294967296;
-const HASH_SHIFT_FIRST = 15;
-const HASH_SHIFT_SECOND = 12;
-const HASH_MULTIPLIER_FIRST = 0x2c1b3c6d;
-const HASH_MULTIPLIER_SECOND = 0x297a2d39;
+import { TAU } from "../core/math/scalar.js";
+import { rotateLocalToWorld } from "../core/math/vector2.js";
+import { hashToUnit } from "../core/math/random.js";
 
 /** Frecuencia con que se repiten las chispas del cortocircuito, en Hz: por tick de reloj y no por frame, para que se vean como destellos. */
 const SPARK_TICK_HZ = 12;
@@ -58,16 +52,8 @@ const UNIT_CENTER = 0.5;
 
 const surface = [0, 0];
 
-/**
- * Hash entero a [0, 1): da piezas y ángulos repetibles sin `Math.random` (xorshift-multiply, ver `docs/referencias.md`).
- * @param {number} seed entero
- * @returns {number}
- */
-function hashToUnit(seed) {
-    let mixed = Math.imul(seed ^ (seed >>> HASH_SHIFT_FIRST), HASH_MULTIPLIER_FIRST);
-    mixed = Math.imul(mixed ^ (mixed >>> HASH_SHIFT_SECOND), HASH_MULTIPLIER_SECOND);
-    return ((mixed ^ (mixed >>> HASH_SHIFT_FIRST)) >>> 0) / UINT32_RANGE;
-}
+/** Punto de trabajo de surfacePoint: se reutiliza para no crear objetos por frame. */
+const bodyPoint = { x: 0, y: 0 };
 
 /**
  * Chispas por destello según el daño del cortocircuito: `SPARKS_PER_FRAME` con agua limpia y proporcional al dps
@@ -89,8 +75,8 @@ function surfacePoint(item, along, side) {
     let localX;
     let localY;
     if (item.type === "circle") {
-        localX = Math.cos(along * FULL_TURN) * item.radius;
-        localY = Math.sin(along * FULL_TURN) * item.radius;
+        localX = Math.cos(along * TAU) * item.radius;
+        localY = Math.sin(along * TAU) * item.radius;
     } else if (item.type === "box") {
         const boxSide = Math.floor(along * BOX_SIDES);
         const offset = side * 2 - 1;
@@ -103,16 +89,12 @@ function surfacePoint(item, along, side) {
         localX = from[0] + (to[0] - from[0]) * side;
         localY = from[1] + (to[1] - from[1]) * side;
     }
-    const cosItem = Math.cos(item.angle);
-    const sinItem = Math.sin(item.angle);
-    const bodyX = item.centerX + localX * cosItem - localY * sinItem;
-    const bodyY = item.centerY + localX * sinItem + localY * cosItem;
+    rotateLocalToWorld(localX, localY, Math.cos(item.angle), Math.sin(item.angle), item.centerX, item.centerY, bodyPoint);
     const position = item.body.GetPosition();
     const angle = item.body.GetAngle();
-    const cosBody = Math.cos(angle);
-    const sinBody = Math.sin(angle);
-    surface[0] = position.get_x() + bodyX * cosBody - bodyY * sinBody;
-    surface[1] = position.get_y() + bodyX * sinBody + bodyY * cosBody;
+    rotateLocalToWorld(bodyPoint.x, bodyPoint.y, Math.cos(angle), Math.sin(angle), position.get_x(), position.get_y(), bodyPoint);
+    surface[0] = bodyPoint.x;
+    surface[1] = bodyPoint.y;
 }
 
 /**
@@ -169,7 +151,7 @@ export class RagdollEffects {
             const position = items[Math.floor(hashToUnit(seed + SPARK_SEED.piece) * items.length)].body.GetPosition();
             let x = position.get_x();
             let y = position.get_y();
-            let heading = hashToUnit(seed + SPARK_SEED.heading) * FULL_TURN;
+            let heading = hashToUnit(seed + SPARK_SEED.heading) * TAU;
             this.graphics.moveTo(x * scale, y * scale);
             for (let segment = 0; segment < SPARK_SEGMENTS; segment++) {
                 heading += (hashToUnit(seed + SPARK_SEED.turn + segment) - UNIT_CENTER) * SPARK_TURN_RANGE;

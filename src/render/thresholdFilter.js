@@ -1,3 +1,5 @@
+import { clampUnit } from "../core/math/scalar.js";
+
 /**
  * Umbral de las gotas: el `PIXI.Filter` propio que funde las gotas vecinas de una capa de fluido (ver `docs/design/07-sph.md` §7.4).
  * Reproduce una matriz de color que deja el color igual y lleva el alfa a `alfa · GAIN + OFFSET` limitado a 0-1.
@@ -50,7 +52,7 @@ void main(void)
  * @returns {number} alfa de salida, de 0 a 1
  */
 export function thresholdAlpha(alpha) {
-    return Math.min(1, Math.max(0, alpha * THRESHOLD_GAIN + THRESHOLD_OFFSET));
+    return clampUnit(alpha * THRESHOLD_GAIN + THRESHOLD_OFFSET);
 }
 
 /**

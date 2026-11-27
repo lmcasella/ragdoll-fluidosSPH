@@ -1,9 +1,9 @@
 import { FLUID } from "../combat/weapons.js";
 import { MATERIALS, SIGMA_W } from "../fluids/materials.js";
 import { SINK } from "../fluids/particleStore.js";
-
-/** Densidad del agua (kg/m³). */
-const RHO_W = 1000;
+import { clamp } from "../core/math/scalar.js";
+import { vectorLength } from "../core/math/vector2.js";
+import { GRAVITY, WATER_DENSITY } from "../core/physics/constants.js";
 
 /** Repasos de absorción por paso: lo absorbido sube `η` y puede tapar gotas vecinas que todavía no tocaban el agua. */
 const MAX_ABSORB_PASSES = 4;
@@ -42,7 +42,7 @@ export const KIND_MATERIAL = {
  * (`passes`): ahí no condensa y sigue subiendo (#112).
  */
 export class Immersion {
-    constructor(system, store, water, { gravity = 10 } = {}) {
+    constructor(system, store, water, { gravity = GRAVITY } = {}) {
         this.system = system;
         this.store = store;
         this.water = water;
@@ -151,8 +151,8 @@ export class Immersion {
         const s = (x - water.x0) / dx - 0.5;
         const i = Math.floor(s);
         const w1 = s - i;
-        const c0 = Math.min(Math.max(i, i0), i1 - 1);
-        const c1 = Math.min(Math.max(i + 1, i0), i1 - 1);
+        const c0 = clamp(i, i0, i1 - 1);
+        const c1 = clamp(i + 1, i0, i1 - 1);
         let deltaK = this.columnKinetic(c0, c0 === c1 ? 1 : 1 - w1, area, momentum);
         if (c1 !== c0) deltaK += this.columnKinetic(c1, w1, area, momentum);
         const kinetic = 0.5 * sg * SIGMA_W * area * (vx * vx + vy * vy);
@@ -178,11 +178,11 @@ export class Immersion {
         const rho = water.densityAt(x);
         const current = water.velocityAt(x);
         const vx = heap[vel + 2 * i];
-        const vy = heap[vel + 2 * i + 1] + ((this.gravity * rho) / (RHO_W * sg)) * dt;
+        const vy = heap[vel + 2 * i + 1] + ((this.gravity * rho) / (WATER_DENSITY * sg)) * dt;
         const rx = vx - current;
-        const k = (0.5 * rho * material.Cd * diameter * Math.hypot(rx, vy)) / (sg * RHO_W * area);
+        const k = (0.5 * rho * material.Cd * diameter * vectorLength(rx, vy)) / (sg * WATER_DENSITY * area);
         let f = (k * dt) / (1 + k * dt);
-        const column = Math.min(Math.max(Math.floor((x - water.x0) / water.dx), water.i0), water.i1 - 1);
+        const column = clamp(Math.floor((x - water.x0) / water.dx), water.i0, water.i1 - 1);
         const massColumn = SIGMA_W * water.h[column] * water.dx;
         const massParticle = sg * SIGMA_W * area;
         const cap = massColumn / (massParticle + massColumn);

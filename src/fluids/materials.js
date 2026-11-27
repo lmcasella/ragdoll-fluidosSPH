@@ -1,3 +1,5 @@
+import { STEFAN_BOLTZMANN } from "../core/physics/constants.js";
+
 /**
  * Densidad areal del agua en la rebanada 2D (kg/m²): `σ_w = ρ_w · b`, con espesor equivalente b = 12 mm.
  * Ver docs/design/14-agua.md §14.1.
@@ -74,7 +76,7 @@ export const MATERIALS = {
     heat: {
         filmBoiling: 500,
         convection: 10,
-        stefanBoltzmann: 5.670374e-8,
+        stefanBoltzmann: STEFAN_BOLTZMANN,
         shearCoefficient: 0,
         condensation: { liquid: 1e6, stone: 2e4 },
     },
