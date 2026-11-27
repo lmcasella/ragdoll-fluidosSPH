@@ -1,20 +1,15 @@
 import { MATERIALS, SIGMA_W, K_MU } from "../fluids/materials.js";
+import { NEGLIGIBLE_EXTENT, RELATIVE_TOLERANCE, GEOMETRY_TOLERANCE } from "../core/math/scalar.js";
+import { vectorLength, cross, rotateLocalToWorld } from "../core/math/vector2.js";
+import { polygonCentroid, clipPolygonByHalfPlane, clipSegmentToBand } from "../core/math/geometry.js";
+import { GRAVITY, WATER_DENSITY } from "../core/physics/constants.js";
 import { bodyShapes } from "../fluids/bodyShapes.js";
 import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
 import { ORIGIN } from "../fluids/particleStore.js";
 import { createSeededRandom } from "../core/math/random.js";
 
-/** Densidad del agua (kg/m³). */
-const RHO_W = 1000;
-
 /** Espesor `b` de la rebanada 2D (m): `σ_w / ρ_w`. Pasa las fuerzas por unidad de ancho a newtons. */
-const THICKNESS = SIGMA_W / RHO_W;
-
-/** Área (m²) por debajo de la cual un corte de franja se descarta por ser una esquirla numérica. */
-const MIN_AREA = 1e-12;
-
-/** Tolerancia (m) para asignar una arista vertical a la franja que la contiene cuando cae justo en una cara. */
-const FACE_EPS = 1e-9;
+const THICKNESS = SIGMA_W / WATER_DENSITY;
 
 /**
  * Datos de las salpicaduras (docs/design/14-agua.md §14.5). `efficiency` es la fracción del trabajo que el arrastre de
@@ -24,42 +19,6 @@ const FACE_EPS = 1e-9;
  * salpica: solo sale agua (límite declarado).
  */
 export const SPLASH = { efficiency: 0.08, angle: Math.PI / 3, spread: (10 * Math.PI) / 180, maxHoney: 0.01, maxAcid: 0.005 };
-
-/**
- * Recorta el polígono `src` (`n` vértices `[x, y, …]`) con el semiplano `a x + b y ≤ c` (Sutherland–Hodgman) y deja el
- * resultado en `dst`. Devuelve la cantidad de vértices.
- */
-function clip(src, n, dst, a, b, c) {
-    let m = 0;
-    let px = src[2 * n - 2];
-    let py = src[2 * n - 1];
-    let pd = a * px + b * py - c;
-    for (let i = 0; i < n; i++) {
-        const x = src[2 * i];
-        const y = src[2 * i + 1];
-        const d = a * x + b * y - c;
-        if (d <= 0) {
-            if (pd > 0) {
-                const t = pd / (pd - d);
-                dst[2 * m] = px + (x - px) * t;
-                dst[2 * m + 1] = py + (y - py) * t;
-                m++;
-            }
-            dst[2 * m] = x;
-            dst[2 * m + 1] = y;
-            m++;
-        } else if (pd <= 0) {
-            const t = pd / (pd - d);
-            dst[2 * m] = px + (x - px) * t;
-            dst[2 * m + 1] = py + (y - py) * t;
-            m++;
-        }
-        px = x;
-        py = y;
-        pd = d;
-    }
-    return m;
-}
 
 /**
  * Flotación de Arquímedes por pieza sobre el campo de alturas `ShallowWater` (docs/design/14-agua.md §14.5). Una vez por
@@ -87,7 +46,7 @@ function clip(src, n, dst, a, b, c) {
  * `buoyancy` y `drag` (fuerza media del último paso, N, `{ x, y }`: el arrastre incluye el viscoso y el tope). Reusa buffers y dos `b2Vec2` propios: `dispose` los libera.
  */
 export class Buoyancy {
-    constructor(water, materials = MATERIALS, { gravity = 10, dragScale = 1, viscousK = K_MU, splash = null } = {}) {
+    constructor(water, materials = MATERIALS, { gravity = GRAVITY, dragScale = 1, viscousK = K_MU, splash = null } = {}) {
         this.water = water;
         this.drag = materials.drag;
         this.gravity = gravity;
@@ -99,6 +58,9 @@ export class Buoyancy {
         this.polyA = new Float64Array(128);
         this.polyB = new Float64Array(128);
         this.world = new Float64Array(32);
+        this.worldPoint = { x: 0, y: 0 };
+        this.centroid = { x: 0, y: 0, area: 0 };
+        this.segmentRange = { from: 0, to: 1 };
         this.area = new Float64Array(N);
         this.cx = new Float64Array(N);
         this.cy = new Float64Array(N);
@@ -217,8 +179,10 @@ export class Buoyancy {
         const angle = body.GetAngle();
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
-        const cxm = px + cos * piece.lx - sin * piece.ly;
-        const cym = py + sin * piece.lx + cos * piece.ly;
+        const { worldPoint, centroid, segmentRange } = this;
+        rotateLocalToWorld(piece.lx, piece.ly, cos, sin, px, py, worldPoint);
+        const cxm = worldPoint.x;
+        const cym = worldPoint.y;
         const vel = body.GetLinearVelocity();
         const vcx = vel.get_x();
         const vcy = vel.get_y();
@@ -238,10 +202,9 @@ export class Buoyancy {
             let minY = Infinity;
             let maxY = -Infinity;
             for (let i = 0; i < n; i++) {
-                const lxv = verts[2 * i];
-                const lyv = verts[2 * i + 1];
-                const wx = px + cos * lxv - sin * lyv;
-                const wy = py + sin * lxv + cos * lyv;
+                rotateLocalToWorld(verts[2 * i], verts[2 * i + 1], cos, sin, px, py, worldPoint);
+                const wx = worldPoint.x;
+                const wy = worldPoint.y;
                 world[2 * i] = wx;
                 world[2 * i + 1] = wy;
                 if (wx < minX) minX = wx;
@@ -258,31 +221,23 @@ export class Buoyancy {
                 const zeta = b[c] + h[c];
                 if (minY >= zeta) continue;
                 const xl = x0 + c * dx;
-                let m = clip(world, n, polyA, -1, 0, -xl);
+                let m = clipPolygonByHalfPlane(world, n, polyA, -1, 0, -xl);
                 if (m < 3) continue;
-                m = clip(polyA, m, polyB, 1, 0, xl + dx);
+                m = clipPolygonByHalfPlane(polyA, m, polyB, 1, 0, xl + dx);
                 if (m < 3) continue;
-                m = clip(polyB, m, polyA, 0, 1, zeta);
+                m = clipPolygonByHalfPlane(polyB, m, polyA, 0, 1, zeta);
                 if (m < 3) continue;
-                let a2 = 0;
-                let sx = 0;
-                let sy = 0;
-                for (let i = 0, j = m - 1; i < m; j = i++) {
-                    const cross = polyA[2 * j] * polyA[2 * i + 1] - polyA[2 * i] * polyA[2 * j + 1];
-                    a2 += cross;
-                    sx += (polyA[2 * j] + polyA[2 * i]) * cross;
-                    sy += (polyA[2 * j + 1] + polyA[2 * i + 1]) * cross;
-                }
-                const area = a2 / 2;
-                if (area <= MIN_AREA) continue;
-                const ccx = sx / (6 * area);
-                const ccy = sy / (6 * area);
+                polygonCentroid(polyA, m, centroid);
+                const area = centroid.area;
+                if (area <= NEGLIGIBLE_EXTENT) continue;
+                const ccx = centroid.x;
+                const ccy = centroid.y;
                 this.column(c);
                 const f = this.rho[c] * gb * area;
                 const fx = -this.slope(c) * f;
                 jx += fx * dt;
                 jy += f * dt;
-                jl += ((ccx - cxm) * f - (ccy - cym) * fx) * dt;
+                jl += cross(ccx - cxm, ccy - cym, fx, f) * dt;
                 if (this.store) this.markStrip(c, m, maxY > zeta);
                 this.area[c] += area;
                 this.cx[c] += area * ccx;
@@ -309,7 +264,7 @@ export class Buoyancy {
         for (let c = lo; c <= hi; c++) sub += this.area[c];
         for (let c = lo; c <= hi; c++) {
             const area = this.area[c];
-            if (area <= MIN_AREA) {
+            if (area <= NEGLIGIBLE_EXTENT) {
                 this.clearColumn(c);
                 continue;
             }
@@ -328,12 +283,12 @@ export class Buoyancy {
                 const vy = k * rvy;
                 dX += vx;
                 dY += vy;
-                dL += rx * vy - ry * vx;
+                dL += cross(rx, ry, vx, vy);
             }
             const massCol = SIGMA_W * h[c] * dx;
             const reduced = (mass * massCol) / (mass + massCol);
-            const limit = reduced * Math.hypot(rvx, rvy);
-            const mag = Math.hypot(dX, dY);
+            const limit = reduced * vectorLength(rvx, rvy);
+            const mag = vectorLength(dX, dY);
             if (mag > limit && mag > 0) {
                 const s = limit / mag;
                 dX *= s;
@@ -496,15 +451,15 @@ export class Buoyancy {
         const { x0, dx, h, b, config } = water;
         const ex = bx - ax;
         const ey = by - ay;
-        const len = Math.hypot(ex, ey);
-        if (len < 1e-12) return;
+        const len = vectorLength(ex, ey);
+        if (len < NEGLIGIBLE_EXTENT) return;
         const nx = ey / len;
         const ny = -ex / len;
-        const vertical = Math.abs(ex) < 1e-12;
+        const vertical = Math.abs(ex) < NEGLIGIBLE_EXTENT;
         let c0;
         let c1;
         if (vertical) {
-            c0 = Math.floor((ax - x0) / dx - FACE_EPS * Math.sign(nx));
+            c0 = Math.floor((ax - x0) / dx - GEOMETRY_TOLERANCE * Math.sign(nx));
             c1 = c0;
         } else {
             c0 = Math.floor((Math.min(ax, bx) - x0) / dx);
@@ -514,41 +469,36 @@ export class Buoyancy {
         c1 = Math.min(c1, water.i1 - 1);
         for (let c = c0; c <= c1; c++) {
             if (h[c] <= config.hDry) continue;
-            let t0 = 0;
-            let t1 = 1;
+            const range = this.segmentRange;
+            range.from = 0;
+            range.to = 1;
             if (!vertical) {
                 const xl = x0 + c * dx;
-                let ta = (xl - ax) / ex;
-                let tb = (xl + dx - ax) / ex;
-                if (ta > tb) [ta, tb] = [tb, ta];
-                t0 = Math.max(t0, ta);
-                t1 = Math.min(t1, tb);
+                clipSegmentToBand(range, ax, ex, xl, xl + dx);
             }
             const zeta = b[c] + h[c];
-            if (Math.abs(ey) < 1e-12) {
+            if (Math.abs(ey) < NEGLIGIBLE_EXTENT) {
                 if (ay > zeta) continue;
             } else {
-                const ts = (zeta - ay) / ey;
-                if (ey > 0) t1 = Math.min(t1, ts);
-                else t0 = Math.max(t0, ts);
+                clipSegmentToBand(range, ay, ey, -Infinity, zeta);
             }
-            if (t1 - t0 <= 1e-12) continue;
-            const tm = (t0 + t1) / 2;
+            if (range.to - range.from <= NEGLIGIBLE_EXTENT) continue;
+            const tm = (range.from + range.to) / 2;
             const mx = ax + tm * ex;
             const my = ay + tm * ey;
             this.column(c);
             const rvx = vcx - omega * (my - cym) - water.uOf(c);
             const rvy = vcy + omega * (mx - cxm);
-            const speed = Math.hypot(rvx, rvy);
-            if (speed < 1e-9) continue;
+            const speed = vectorLength(rvx, rvy);
+            if (speed < RELATIVE_TOLERANCE) continue;
             const facing = (nx * rvx + ny * rvy) / speed;
             if (facing <= 0) continue;
-            const coef = 0.5 * this.rho[c] * cd * facing * (t1 - t0) * len * speed * THICKNESS * dt;
+            const coef = 0.5 * this.rho[c] * cd * facing * (range.to - range.from) * len * speed * THICKNESS * dt;
             const dX = -coef * rvx;
             const dY = -coef * rvy;
             this.jx[c] += dX;
             this.jy[c] += dY;
-            this.jl[c] += (mx - cxm) * dY - (my - cym) * dX;
+            this.jl[c] += cross(mx - cxm, my - cym, dX, dY);
             if (c < this.lo) this.lo = c;
             if (c > this.hi) this.hi = c;
         }
