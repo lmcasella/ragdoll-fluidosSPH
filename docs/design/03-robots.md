@@ -135,7 +135,7 @@ Mecánica nueva para la entrega (X, intención `grapple`). Un rayo en la direcci
    - la ronda se reinicia.
 
    En todos los casos se destruye el joint fuera del paso y empieza el cooldown.
-5. **Dibujo:** una línea de la boca al ancla (`render.js`, en el color del jugador).
+5. **Dibujo:** una línea de la boca al ancla (`src/render/`, en el color del jugador).
 
 ### Agua
 
@@ -226,7 +226,7 @@ El arma va en el brazo **trasero** (`back_*`): `b_3` cuelga de `b_13` por `j_10`
 | `tests/aim-jump.test.js:84-88` | Rig real con `joint_10…`, `joint_11…` y el clip `jump` | Nombres v5 y la lista nueva de clips |
 | `tests/punch.test.js:39-45` | `clipState === "punch"`, `isPunching()` | Pasa a medir el combo (R6, R7) |
 | `tests/walk-anim.test.js:37` | Clip `walk` | Mismo nombre; se vuelve a medir `refSpeed` |
-| `src/render/render.js`, `src/combat/damage.js`, `src/ragdoll/grapple.js` (🔨) | Solo `id` de cuerpos | Ninguno |
+| `src/render/`, `src/combat/damage.js`, `src/ragdoll/grapple.js` (🔨) | Solo `id` de cuerpos | Ninguno |
 
 ### 3.7.2 Masas y fixtures v4 vs v5
 
@@ -342,7 +342,7 @@ Además, para todos: impulso de 5 N·s en el punto de impacto (como hoy), daño 
   - al atacante no le pasa nada: ni retroceso ni aturdimiento (decidido el 19/11 para la entrega; premiar el bloqueo queda como idea de pulido).
 - **Rotura de guardia (#136):** un golpe cuya fila de `MELEE` tiene `breaksGuard: true` (solo `combo3`) que cumple las dos condiciones de arriba no queda bloqueado: sin daño, el receptor sale de `block`, queda aturdido `MELEE.guardBreakStun` = 0,7 s (no puede volver a `block` aunque mantenga LT, porque el bloqueo exige no estar aturdido), no recibe el `push` de la fila (el código no lo aplica), sí el impulso en el punto y la reacción de la fila; el ataque cuenta como conectado. Evento de feedback `blockBreak` (sonido `block_break_1..3`, sin `hit`, `hurt` ni `block`) y `kind: "blockBreak"` en `hits`: 8 líneas radiales de 0,15 a 0,8 m en 0,35 s, naranja.
 - **Qué no frena:** chorros de fluido, quemaduras, cortocircuito, pileta, impacto fuerte por `BeginContact` (caídas, choques) y el gancho.
-- **Feedback:** `Melee` agrega a su lista `hits` un evento `{ x, y, time, kind }` con `kind` = `"hit"`, `"block"` o `"blockBreak"` (#136: como `"block"`, pero 8 líneas de 0,15 a 0,8 m en 0,35 s, en naranja). `render.js` (`drawHits`) dibuja `"hit"` como hoy (destello blanco de 0,2 s) y `"block"` como 6 líneas radiales que salen del punto de contacto, de 0,15 a 0,45 m, en 0,25 s, en blanco azulado. Datos `HIT_FX` en `render.js`. La lista reemplaza a `golpes` de `index.js`.
+- **Feedback:** `Melee` agrega a su lista `hits` un evento `{ x, y, time, kind }` con `kind` = `"hit"`, `"block"` o `"blockBreak"` (#136: como `"block"`, pero 8 líneas de 0,15 a 0,8 m en 0,35 s, en naranja). `HitEffectsView` (`src/render/hitEffectsView.js`) dibuja `"hit"` como hoy (destello blanco de 0,2 s) y `"block"` como 6 líneas radiales que salen del punto de contacto, de 0,15 a 0,45 m, en 0,25 s, en blanco azulado. Datos `HIT_FX` en `src/render/hitEffectsView.js`. La lista reemplaza a `golpes` de `index.js`.
 
 ### 3.7.6 Roll
 
@@ -361,7 +361,7 @@ Además, para todos: impulso de 5 N·s en el punto de impacto (como hoy), daño 
 | Datos en tablas | `MELEE` (ataques, combo), `AIR` y `ROLL`; claves de clips y `arms` en `ROBOT_RIG`. Un ataque nuevo es una fila de `MELEE` y una clave de clip |
 | Intención, no dispositivo | `Input` suma `block`, `roll` y `kick` ([10.2](10-controles.md#102-intenciones-de-input)); `ActiveRagdoll` no lee dispositivos |
 | Paso fijo | `roll` es movimiento: se aplica en `move()` una vez por paso y usa el mismo flanco pendiente que `jump` (`jumpPending` pasa a guardar también `roll`). `punch` y `kick` son golpes: se aceptan una vez por frame (como hoy `player.punch(now)`). La resolución de los rayos, una vez por paso después de `stepWorld` |
-| Juntar durante el paso, actuar después | El melee no usa callbacks de Box2D: son rayos después de `stepWorld`. Los eventos de feedback se encolan en `Melee.hits` y los consume `render.js` al dibujar |
+| Juntar durante el paso, actuar después | El melee no usa callbacks de Box2D: son rayos después de `stepWorld`. Los eventos de feedback se encolan en `Melee.hits` y los consume `HitEffectsView` al dibujar |
 | Memoria nativa | `Melee` crea en el constructor los dos `b2Vec2` de trabajo que hoy crea `index.js` (impulso y punto) y los libera en `dispose()`. Nada nativo por golpe |
 | Contrato de RagImporter | Solo `play`, `stop`, `setJointAngle`, `clearJointOverride` y velocidades de cuerpos, como hoy. No se escriben motores ni se tocan joints. `lib/` no cambia |
 | Raíz de composición | `index.js` crea `Melee`, arma `ROBOT_RIG` (claves, `arms`, `melee`), difiere el giro durante el roll, pasa `!player.armsBusy` al emisor y `melee.hits` a `drawHits` |

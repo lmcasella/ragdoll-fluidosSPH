@@ -11,6 +11,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 - El juego se dibuja en un solo canvas con PIXI y el umbral que funde las gotas pasa de un filtro SVG a un shader propio. Se ve igual.
 - Los robots y el agua del nivel también se dibujan con PIXI: las figuras de cada robot se crean una sola vez dentro de su vista y cada frame solo se mueven. Se ve igual.
 - Las gotas de fluido también se dibujan con PIXI: cada material tiene su textura, que se crea una sola vez, y cada frame solo cambian posición, tamaño y color de cada gota. Desaparecen los canvas fuera de pantalla de los fluidos. Los líquidos se ven igual que antes, con borde nítido, y el vapor pasa a verse difuso, como una nube.
+- Los recogibles, la mira láser, los golpes, la rueda de armas y las capas de debug del mundo también se dibujan con PIXI, y el panel de debug pasa a HTML como el resto de la interfaz. Ya no quedan canvas fuera de pantalla y `src/render/render.js` se repartió entre los módulos de cada tema. Se ve igual.
 
 ## [0.54.2] - 2026-11-25
 

@@ -18,7 +18,9 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 | `src/water/immersion.js` ✅ #39 | Puente agua del nivel → disparos ([07-sph §7.6](07-sph.md#76-puente-agua--disparos--39)). `Immersion(shotSystem, levelWater, { weapons = WEAPONS, bounds = LEVEL.bounds, gravity = 10, ...IMMERSION })`. `IMMERSION` (exportado) = `{ cell: 0.5, calmSpeed: 4, minNeighbors: 4, fullDepth: 0.5 }`. `step(dt)`, una vez por paso después de `stepWorld`: arma la grilla de agua tranquila, escribe la velocidad de los disparos sumergidos según `WEAPONS[].immersion` y llena `submerged`/`kinds`/`count` (para #30). `reset()` deja `count` en 0. **Solo importa datos**: `weapons.js` (`WEAPONS`, `fluidFromColor`) y `level.js` (`LEVEL`). No crea objetos de `Box2D.*`: buffers JS tipados creados en el constructor y lectura y escritura directa en `HEAPF32`/`HEAPU8`, con punteros releídos en cada paso. Un solo motivo de cambio: la interacción entre los dos sistemas de partículas. No va en `flood.js` (la pileta existe sin inundación) ni en `damage.js` (no es daño) |
 | `src/match/round.js` | Rondas, victorias, cámara lenta, revancha; reloj de ronda (`roundTime`, ✅ #22) |
 | `src/water/flood.js` ✅ #22 | Inundación: nivel objetivo según el tiempo de ronda, emisión de lluvia en el agua del nivel, escurrido de charcos altos y reinicio. Importa solo `level.js` (datos). No aplica daño: expone `level` (curva) y `surfaceAt(x)` (superficie real) y `DamageSystem` moja. Desde #40 ✅ aplica `LEVEL.pool.flags` a su `b2ParticleDef`, para que la lluvia tenga las mismas flags que la pileta |
-| `src/render/render.js` | Dibujo del nivel, robots, fluidos, mira, golpes y HUD. Desde #13 ✅, barra de tanque (recibe la tabla de armas como parámetro y no la importa). Desde #18 ✅, chispas de mojado |
+| `src/render/scene.js`, `levelView.js`, `waterView.js`, `fluidLayers.js`, `fluidDraw.js`, `fluidSurfaces.js` | Escena PIXI de un solo canvas (`world` con la cámara, capas de fluido y capa superpuesta) y dibujo del nivel, el agua del campo y las gotas de fluido |
+| `src/render/pickupView.js`, `aimLaserView.js`, `hitEffectsView.js`, `weaponWheelView.js`, `debugView.js` | Capa superpuesta en PIXI (`Graphics` reutilizados): recogibles, mira láser, golpes, rueda de armas y capas de debug del mundo. Reciben datos, no importan sistemas del juego |
+| `src/ui/debugPanel.js` | Panel de debug en HTML y CSS (menú y estadísticas); módulo hoja que recibe las líneas ya armadas |
 | `src/level/pickups.js` | Puntos de aparición de armas y de ítems de reparación (`HEALTH`: suma salud al recogerse, y en Infinito levanta al robot en nocaut), con sensor circular y reaparición en segundos de juego |
 | `src/ai/bot.js` | Bot de prueba que maneja a un jugador: acercarse, golpear (también en el aire, con patada), disparar con error de puntería, reaccionar a los golpes del rival y defenderse; valores en `BOT` por dificultad |
 | `src/ui/menu.js` | Datos del menú principal (filas, valores, opción inicial) y `storageKey` de `localStorage` donde se recuerda la última elección |
@@ -45,7 +47,7 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 - `src/combat/melee.js` (nuevo; `Melee`, datos `MELEE`): rayos de los ataques, daño, bloqueo, empuje, reacción y eventos de feedback (`hits`). Sale de `index.js` (`golpear`, `PUNCH_*`, `golpes`). No importa nada: recibe `raycaster`, `damage` (solo `ownerOf`) y los jugadores.
 - `src/ragdoll/ActiveRagdoll.js`: máquina de clips nueva (estados de aire, combo, bloqueo, roll, reacciones, `idle`, `aim`), `armsBusy`, datos `AIR` y `ROLL`. Recibe `MELEE` dentro del rig; no importa `melee.js`.
 - `src/input/Input.js`: intenciones `block`, `roll` y `kick`; en `KEYBOARD_LAYOUT` (solo J1), `block` en Shift izquierdo o derecho ([10.1](10-controles.md#101-mapeo--remapeo-pedido-por-el-usuario-el-1811)).
-- `src/render/render.js`: `drawHits` distingue `"hit"` y `"block"` (datos `HIT_FX`); recibe los eventos, no importa `melee.js`.
+- `src/render/hitEffectsView.js`: `HitEffectsView` distingue `"hit"` y `"block"` (datos `HIT_FX`); recibe los eventos, no importa `melee.js`.
 - `src/ragdoll/clips.js`: sin cambios de código; se usa también para `roll_back` y para quitar las pistas de mira de más clips.
 - `index.js`: nombres v5 en `AIM_JOINTS`/`AIM_HOLD`, `ROBOT_RIG` nuevo, giro diferido durante el roll, `!armsBusy` hacia el emisor y el gancho.
 
@@ -54,9 +56,9 @@ Los **patrones** que sigue el código (raíz de composición, paso fijo, juntar 
 - `weapons.js` → `particles.js` y `level.js` → `particles.js` (#40).
 - `index.js` → `weapons.js`.
 - `immersion.js` → `weapons.js` y `level.js` (#39): solo datos y sin ciclos, porque ninguno de los dos importa `immersion.js`.
-- `render.js` y `ActiveRagdoll.js` no lo importan: reciben datos.
+- `src/render/` y `ActiveRagdoll.js` no lo importan: reciben datos.
 
-**Prueba de gameplay en Node** (#13): `tests/helpers/game.js` carga `index.js` con LiquidFun real y stubs de DOM: canvas con contexto no-op, `window`, `fetch` de archivos locales, `requestAnimationFrame` manual, `performance.now` controlado y `navigator.getGamepads` simulado.
+**Prueba de gameplay en Node** (#13): `tests/helpers/game.js` carga `index.js` con LiquidFun real y stubs de DOM y de PIXI (`tests/helpers/fake-pixi.js`): un solo canvas, `window`, `fetch` de archivos locales, `requestAnimationFrame` manual, `performance.now` controlado y `navigator.getGamepads` simulado.
 - Para medir, `index.js` deja un handle de solo lectura en `globalThis.game` (`players`, `particleSystem`, `damage`, `emitter`, `match`; con #39, `immersion`). Es parte de la raíz de composición y ningún módulo de `src/` lo lee.
 - Los tests que necesitan otra disposición modifican `LEVEL.spawns` importando `src/level/level.js` antes de cargar el script. Es la misma instancia del módulo.
 

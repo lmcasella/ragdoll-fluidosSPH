@@ -117,7 +117,7 @@ Antes de implementar una funcionalidad, ubicarla en estos patrones. Si no encaja
 | **Memoria nativa** | todo lo que use `Box2D.*` | El heap es fijo de 16 MiB. Cada `new Box2D.*` temporal se libera con `Box2D.destroy`. En código que corre cada frame se reutilizan vectores de trabajo y no se crea nada nativo. Lo que es del mundo (cuerpos, fixtures, joints) nunca se destruye con `Box2D.destroy`. Las estructuras nativas sin binding (el buffer de contactos partícula↔partícula) se leen solo en `src/fluids/contacts.js`, en solo lectura, con el offset buscado y validado al arrancar, nunca fijo. |
 | **Contrato de RagImporter** | `lib/` | `lib/` es una copia de ragassembler2d y no se edita acá. El juego no destruye joints ni fixtures de una instancia, ni escribe motores. Los joints que crea el juego sobre cuerpos de una instancia (el gancho) son del juego: se destruyen con `world.DestroyJoint` antes de destruir la instancia (giro, ronda nueva), porque Box2D los borra con el cuerpo y dejaría el handle colgado. Se permite `Fixture.Refilter()` sobre fixtures de una instancia (plataformas atravesables): no cambia sus datos, solo recalcula contactos. Lo que le falte a la librería se registra como issue del juego y se propone al usuario antes de tocar ragassembler2d. |
 
-**Unidades:** metros, radianes y Y hacia arriba en datos y física. Píxeles solo al dibujar (`src/render/render.js` con la cámara) y en el HUD.
+**Unidades:** metros, radianes y Y hacia arriba en datos y física. Píxeles solo al dibujar (`src/render/` con la cámara) y en el HUD.
 
 ## Convenciones de Git
 
