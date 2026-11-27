@@ -1,6 +1,6 @@
 import { COLOR_BYTES, tintOf } from "../core/color.js";
 import { DEBUG } from "../core/debug.js";
-import { GRAVITY } from "../core/physicsConstants.js";
+import { GRAVITY } from "../core/physics/constants.js";
 import { VECTOR_COMPONENTS } from "../core/heap.js";
 
 /** Trazo de las capas de vectores: ancho en px de pantalla y alfa de todos los colores. */

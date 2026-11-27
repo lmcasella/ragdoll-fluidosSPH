@@ -1,4 +1,4 @@
-import { TAU } from "../core/mathConstants.js";
+import { TAU } from "../core/math/scalar.js";
 
 /**
  * Feedback de golpes melee, en metros y segundos (`docs/design/09-arquitectura.md`, melee). `hit`: un círculo blanco que se

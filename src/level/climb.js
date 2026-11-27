@@ -1,5 +1,8 @@
 import { LEVEL } from "./level.js";
-import { BOT, canReach, seededRandom } from "../ai/bot.js";
+import { BOT, canReach } from "../ai/bot.js";
+import { clamp, lerp } from "../core/math/scalar.js";
+import { intersectIntervals, subtractIntervals } from "../core/math/geometry.js";
+import { createSeededRandom } from "../core/math/random.js";
 import { FLUID, refillTanks } from "../combat/weapons.js";
 
 /**
@@ -86,29 +89,8 @@ export const CLIMB = {
 /** Holgura horizontal (m) y vertical (m) con que un robot cuenta como apoyado en una plataforma. */
 const SUPPORT_SLACK = { x: 0.3, y: 0.35 };
 
-/** Tolerancia numérica (m) de las comparaciones de geometría. */
-const EPS = 1e-9;
-
 /** Holgura (m) con que `span` aparta una plataforma de las prohibidas, para que el borde no quede en un solape por redondeo. */
 const SPAN_PAD = 1e-6;
-
-/** Recorta cada intervalo de `list` a [`lo`, `hi`] y descarta los vacíos. */
-function intersect(list, lo, hi) {
-    return list.map(([a, b]) => [Math.max(a, lo), Math.min(b, hi)]).filter(([a, b]) => a <= b);
-}
-
-/** Quita (`lo`, `hi`) de cada intervalo de `list`. */
-function subtract(list, lo, hi) {
-    const out = [];
-    for (const [a, b] of list) {
-        if (hi <= a || lo >= b) out.push([a, b]);
-        else {
-            if (lo > a) out.push([a, lo]);
-            if (hi < b) out.push([hi, b]);
-        }
-    }
-    return out;
-}
 
 /** Número de etapa de la altura local `y` (m); la etapa `n` ocupa `y` ∈ [15n, 15n + 15). */
 export function stageOf(y, config = CLIMB) {
@@ -189,7 +171,7 @@ export function pickSpawns(platforms, random, config = CLIMB) {
 
 /**
  * Generador determinista por filas (docs/design/16-ascenso.md §16.3). JS puro, sin `Box2D`. Una sola secuencia de
- * `seededRandom(seed)` consumida fila por fila: el mapa no depende de cuándo se genera cada una. Cada fila queda
+ * `createSeededRandom(seed)` consumida fila por fila: el mapa no depende de cuándo se genera cada una. Cada fila queda
  * `branches.rows.spacing` m sobre la anterior y lleva de 1 a 4 plataformas (pesos `rows.counts`, sin más de `rows.maxRun`
  * filas seguidas con la misma cantidad), cada una corrida en vertical a ±`rows.shift`. Cada plataforma puede caer en cualquier x entre paredes
  * y es alcanzable desde otra de la fila anterior o de su misma fila (`reach`, `canReach`), y su x se restringe por construcción para no pisar a otra,
@@ -202,8 +184,8 @@ export function pickSpawns(platforms, random, config = CLIMB) {
 export class ClimbGenerator {
     constructor(seed, config = CLIMB) {
         this.config = config;
-        this.random = seededRandom(seed);
-        this.breakableRandom = seededRandom((seed ^ 0x517cc1b7) >>> 0);
+        this.random = createSeededRandom(seed);
+        this.breakableRandom = createSeededRandom((seed ^ 0x517cc1b7) >>> 0);
         this.index = 0;
         this.fallbacks = 0;
         this.items = [];
@@ -234,7 +216,7 @@ export class ClimbGenerator {
         const mix = (a, b) => {
             if (Array.isArray(a)) return a.map((v, i) => mix(v, b[i]));
             if (typeof a === "object") return Object.fromEntries(Object.keys(a).map((n) => [n, mix(a[n], b[n])]));
-            return a + (b - a) * k;
+            return lerp(a, b, k);
         };
         return mix(first, last);
     }
@@ -268,7 +250,7 @@ export class ClimbGenerator {
         if (single) return Math.min(this.uniform(this.byStage(rows.singleWidth.first, rows.singleWidth.last, stageOf(top, this.config))), 2 * half);
         let w = this.uniform(this.widthRange(stageOf(top, this.config)));
         if (this.random() < tail.chance) w *= this.random() < 0.5 ? tail.long : tail.short;
-        return Math.min(Math.max(w, minWidth), 2 * half);
+        return clamp(w, minWidth, 2 * half);
     }
 
     /** Última salida cuando ninguna posición valió: sobre la plataforma más alta, con su mismo centro. */
@@ -352,13 +334,13 @@ export class ClimbGenerator {
             if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
             else merged.push([...r]);
         }
-        let list = intersect(merged, lo, hi);
-        for (const p of urgent) list = intersect(list, p.minX - gapFor(top - p.top) - w / 2, p.maxX + gapFor(top - p.top) + w / 2);
+        let list = intersectIntervals(merged, lo, hi);
+        for (const p of urgent) list = intersectIntervals(list, p.minX - gapFor(top - p.top) - w / 2, p.maxX + gapFor(top - p.top) + w / 2);
         for (const q of this.items) {
             const apart = Math.abs(top - q.top);
             if (apart >= air) continue;
             const pad = apart <= sameHeight ? separation : 0;
-            list = subtract(list, q.minX - w / 2 - pad - SPAN_PAD, q.maxX + w / 2 + pad + SPAN_PAD);
+            list = subtractIntervals(list, q.minX - w / 2 - pad - SPAN_PAD, q.maxX + w / 2 + pad + SPAN_PAD);
         }
         return list;
     }
@@ -580,7 +562,7 @@ export class Climb {
         this.applyScroll();
         for (const p of this.generator.base) this.addPlatform(p);
         this.generate(60);
-        const random = seededRandom((seed ^ 0x9e3779b9) >>> 0);
+        const random = createSeededRandom((seed ^ 0x9e3779b9) >>> 0);
         const all = this.items.filter((item) => item.kind === "platform").map((item) => ({ x: item.solid.x, w: item.solid.w, y: item.top }));
         const climbable = (p) =>
             all.some((q) => canReach(q.y - p.y, Math.max(0, q.x - q.w / 2 - (p.x + p.w / 2), p.x - p.w / 2 - (q.x + q.w / 2)), this.config.reach) && q.y > p.y);

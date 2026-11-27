@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { CLIMB, ClimbGenerator, pickSpawns } from "../src/level/climb.js";
-import { seededRandom } from "../src/ai/bot.js";
+import { createSeededRandom } from "../src/core/math/random.js";
 
 const noop = () => {};
 
@@ -68,7 +68,7 @@ test("aparición: en 50 semillas los jugadores quedan sobre plataformas de la et
         const platforms = [...generator.base];
         let p;
         while ((p = generator.next()).y < CLIMB.stageHeight) platforms.push(p);
-        const spawns = pickSpawns(platforms, seededRandom(seed), CLIMB);
+        const spawns = pickSpawns(platforms, createSeededRandom(seed), CLIMB);
         const [a, b] = spawns;
         const on = (s) => platforms.some((q) => Math.abs(s.x - q.x) <= q.w / 2 && Math.abs(s.y - q.y) < 1e-9);
         assert.ok(on(a) && on(b), `semilla ${seed}: sobre un tope`);
@@ -82,7 +82,7 @@ test("aparición: en 50 semillas los jugadores quedan sobre plataformas de la et
 
 test("aparición con una sola plataforma válida: los dos jugadores quedan sobre ella, separados y mirándose (#201)", () => {
     const platform = { x: 28, w: 12, y: 5 };
-    const [a, b] = pickSpawns([platform], seededRandom(7), CLIMB);
+    const [a, b] = pickSpawns([platform], createSeededRandom(7), CLIMB);
     for (const s of [a, b]) {
         assert.equal(s.y, platform.y);
         assert.ok(Math.abs(s.x - platform.x) <= platform.w / 2);

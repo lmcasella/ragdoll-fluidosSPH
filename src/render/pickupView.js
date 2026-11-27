@@ -1,5 +1,5 @@
 import { tintOf } from "../core/color.js";
-import { TAU } from "../core/mathConstants.js";
+import { TAU } from "../core/math/scalar.js";
 import { createLabel } from "./labelText.js";
 
 /** Radio del ícono de un arma recogible, en metros (el sensor mide 0,5 m). */

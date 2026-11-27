@@ -1,5 +1,5 @@
 import { tintOf } from "../core/color.js";
-import { QUARTER_TURN, TAU } from "../core/mathConstants.js";
+import { QUARTER_TURN, TAU } from "../core/math/scalar.js";
 import { INK_COLOR, createLabel } from "./labelText.js";
 
 /** Radios de la rueda de armas en metros, alrededor del torso: borde interno, externo y externo del sector apuntado. */

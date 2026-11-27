@@ -2,7 +2,7 @@ import { MATERIALS, SIGMA_W, K_MU } from "../fluids/materials.js";
 import { bodyShapes } from "../fluids/bodyShapes.js";
 import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
 import { ORIGIN } from "../fluids/particleStore.js";
-import { seededRandom } from "../ai/bot.js";
+import { createSeededRandom } from "../core/math/random.js";
 
 /** Densidad del agua (kg/m³). */
 const RHO_W = 1000;
@@ -141,7 +141,7 @@ export class Buoyancy {
         if (!this.store) return;
         this.carry.fill(0);
         this.pending.fill(0);
-        this.random = seededRandom(this.seed ?? (Math.random() * 2 ** 32) >>> 0);
+        this.random = createSeededRandom(this.seed ?? (Math.random() * 2 ** 32) >>> 0);
     }
 
     /** Libera los vectores nativos. */

@@ -2,7 +2,7 @@ import { LEVEL } from "../level/level.js";
 import { FLUID, weaponById, particleFlags } from "../combat/weapons.js";
 import { ORIGIN } from "../fluids/particleStore.js";
 import { SIGMA_W } from "../fluids/materials.js";
-import { seededRandom } from "../ai/bot.js";
+import { createSeededRandom } from "../core/math/random.js";
 import { CLIMB, halfWidth, stageOf } from "../level/climb.js";
 
 /** Paso (m) de integración del ancho libre. */
@@ -98,7 +98,7 @@ export function levelOfArea(area, level = LEVEL) {
  * viento `windMax · sin(2π t / windPeriod)` m/s. Las gotas caen como partículas y `Immersion` las absorbe en el
  * campo. El nivel resulta de la conservación de la masa. Se corta cuando la curva está en `maxLevel` y el nivel
  * medio del campo (`meanLevel`) también. Antes de `start` no llueve. Una vez por paso fijo, antes de `stepWorld`.
- * El azar sale de `seededRandom(seed)`: sin `seed` es nueva en cada ronda.
+ * El azar sale de `createSeededRandom(seed)`: sin `seed` es nueva en cada ronda.
  *
  * `meanLevel` es el nivel `η` medio: el que ocuparía todo el volumen de agua agregado desde el arranque (el del
  * campo más el de las gotas de lluvia que todavía están como partículas, en vuelo o retenidas en plataformas) si se
@@ -132,7 +132,7 @@ export class Flood {
 
     /** Reinicia el azar de la ronda: con semilla fija repite la lluvia; sin ella es nueva. */
     reseed() {
-        this.random = seededRandom(this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0);
+        this.random = createSeededRandom(this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0);
         this.windPhase = 2 * Math.PI * this.random();
         this.gustPhase = 2 * Math.PI * this.random();
     }
