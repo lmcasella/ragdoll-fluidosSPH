@@ -228,3 +228,27 @@ vec3 lightSum(vec3 point, vec3 normal, float shiftY, float shaded)
     return total;
 }
 `;
+
+/**
+ * Función de GLSL del brillo especular de las luces puntuales, para superficies de agua que reflejan la luz: `lightSpecular`
+ * suma, por luz, su caída por `pow(normal · mitad, shininess)`, con `mitad` entre la dirección a la luz y la de la vista
+ * (hacia el jugador). Va después de `LIGHT_FUNCTIONS`, de donde usa `lightFalloff`, `uLights` y `uLightCount`.
+ */
+export const LIGHT_SPECULAR_FUNCTIONS = `
+const vec3 SPECULAR_VIEW_DIRECTION = vec3(0.0, 0.0, 1.0);
+
+vec3 lightSpecular(vec3 point, vec3 normal, float shininess)
+{
+    vec3 total = vec3(0.0);
+    for (int index = 0; index < MAX_LIGHTS; index++) {
+        if (float(index) >= uLightCount) break;
+        vec4 placement = uLights[index * ${VEC4_PER_LIGHT}];
+        vec4 tint = uLights[index * ${VEC4_PER_LIGHT} + 1];
+        vec3 toLight = vec3(placement.xy, LIGHT_HEIGHT) - point;
+        float lightDistance = length(toLight);
+        vec3 halfway = normalize(toLight / lightDistance + SPECULAR_VIEW_DIRECTION);
+        total += tint.rgb * lightFalloff(lightDistance, placement.z, placement.w) * pow(max(0.0, dot(normal, halfway)), shininess);
+    }
+    return total;
+}
+`;
