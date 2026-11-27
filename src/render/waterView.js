@@ -9,6 +9,9 @@ const CLEAR_WATER_CODE = encodeWater(0);
 /** Posición del centro de una celda dentro de ella, como fracción de su ancho. */
 const CELL_CENTER = 0.5;
 
+/** Fracción de la distancia entre dos puntos donde está el medio. */
+const MIDPOINT = 0.5;
+
 /** Canales de un color RGB. */
 const RGB_CHANNELS = 3;
 
@@ -237,14 +240,14 @@ export class WaterView {
             graphics.closePath().fill({ color: CLEAR_WATER_CODE });
             const cells = outline.surface[section] - SURFACE_FACE_VERTICES;
             for (let edge = 0; edge <= cells; edge++) {
-                const middle = (xs[surfaceVertex(first, edge)] + xs[surfaceVertex(first, edge + 1)]) / 2;
+                const middle = (xs[surfaceVertex(first, edge)] + xs[surfaceVertex(first, edge + 1)]) * MIDPOINT;
                 const code = encodeWater(acidTintFraction(water, middle));
                 if (code !== CLEAR_WATER_CODE) this.fillStrip(first, cells, edge, code);
             }
         }
     }
 
-    /** Quita el `Graphics` del mundo y lo destruye junto con su filtro. */
+    /** Quita el `Graphics` del mundo y lo destruye. */
     destroy() {
         this.graphics.parent?.removeChild(this.graphics);
         this.graphics.destroy();
