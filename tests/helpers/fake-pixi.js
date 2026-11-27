@@ -201,9 +201,12 @@ class FakeText extends FakeContainer {
     }
 }
 
-/** `FillGradient` falso: guarda sus opciones y las paradas de color en el orden en que se agregan. */
+/** `FillGradient` falso: cuenta cuántos se construyeron (`constructed`) y guarda sus opciones y las paradas de color en el orden en que se agregan. */
 class FakeFillGradient {
+    static constructed = 0;
+
     constructor(options) {
+        FakeFillGradient.constructed++;
         this.options = options;
         this.colorStops = [];
         this.destroyed = false;
@@ -283,6 +286,24 @@ class FakeFilter {
     }
 }
 
+/** Fuente de textura de datos falsa: guarda el buffer y cuenta las construcciones y las actualizaciones. */
+class FakeBufferImageSource {
+    static constructed = 0;
+
+    constructor(options) {
+        FakeBufferImageSource.constructed++;
+        this.options = options;
+        this.resource = options.resource;
+        this.updates = 0;
+    }
+
+    update() {
+        this.updates++;
+    }
+
+    destroy() {}
+}
+
 class FakeApplication {
     async init(options) {
         this.options = options;
@@ -323,6 +344,7 @@ export function installFakePixi() {
         FillGradient: FakeFillGradient,
         Rectangle: FakeRectangle,
         Filter: FakeFilter,
+        BufferImageSource: FakeBufferImageSource,
         GlProgram: { from: (options) => options },
     };
     return globalThis.PIXI;

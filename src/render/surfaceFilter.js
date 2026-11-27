@@ -1,5 +1,6 @@
 import { SURFACES } from "../level/surfaces.js";
 import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { NOISE_FUNCTIONS } from "./glslNoise.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
 
 /**
@@ -111,8 +112,7 @@ ${LIGHT_FUNCTIONS}
 const float ID_SCALE = ${glslFloat(SURFACE_ID_SCALE)};
 ${surfaceConstants()}
 
-const vec2 HASH_SCALE = vec2(123.34, 456.21);
-const float HASH_MIX = 45.32;
+${NOISE_FUNCTIONS}
 const int NOISE_OCTAVES = 4;
 const float OCTAVE_FREQUENCY_GAIN = 2.0;
 const float OCTAVE_AMPLITUDE_GAIN = 0.5;
@@ -150,25 +150,6 @@ const float SPECULAR_SHININESS = 24.0;
 const float SPECULAR_STRENGTH = 0.35;
 const float SPECULAR_WEAR_LIMIT = 0.1;
 const vec3 VIEW_DIRECTION = vec3(0.0, 0.0, 1.0);
-
-float hash(vec2 cell)
-{
-    vec2 scrambled = fract(cell * HASH_SCALE);
-    scrambled += dot(scrambled, scrambled + HASH_MIX);
-    return fract(scrambled.x * scrambled.y);
-}
-
-float valueNoise(vec2 point)
-{
-    vec2 cell = floor(point);
-    vec2 local = fract(point);
-    vec2 smoothed = local * local * (3.0 - 2.0 * local);
-    float lowerLeft = hash(cell);
-    float lowerRight = hash(cell + vec2(1.0, 0.0));
-    float upperLeft = hash(cell + vec2(0.0, 1.0));
-    float upperRight = hash(cell + vec2(1.0, 1.0));
-    return mix(mix(lowerLeft, lowerRight, smoothed.x), mix(upperLeft, upperRight, smoothed.x), smoothed.y);
-}
 
 float fractalNoise(vec2 point)
 {

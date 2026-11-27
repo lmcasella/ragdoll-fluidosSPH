@@ -6,6 +6,7 @@ import { LEVEL } from "../../src/level/level.js";
 import { SIGMA_W, MATERIALS } from "../../src/fluids/materials.js";
 import { fieldColor } from "../../src/render/waterView.js";
 import { WaterView } from "../../src/render/waterView.js";
+import { encodeWater } from "../../src/render/waterFilter.js";
 import { installFakePixi } from "../helpers/fake-pixi.js";
 import { relativeError as rel } from "../../src/core/debug.js";
 
@@ -515,29 +516,24 @@ test("Q5 fieldColor: con w = 0 es exactamente draw.color, crece monótona hacia 
     report(t, "Q5 fieldColor", ws.map((w, k) => `w ${100 * w} %: [${colors[k]}]`).join("; "), "w = 0 → draw.color; monótono hacia el tinte", "igualdad exacta");
 });
 
-test("WaterView: relleno plano sin ácido y degradado con una parada cada colorStep celdas y en las dos caras en el tramo con ácido", () => {
+test("WaterView: relleno de código plano sin ácido y un trapecio con el código de ácido en los tramos entre centros con ácido, sin crear degradados", () => {
     const PIXI = installFakePixi();
     const water = make(LEVEL, WATER_FIELD, "WaterView");
-    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32 });
-    const SCREEN_SCALE = 20;
-    view.draw(water, SCREEN_SCALE);
-    assert.equal(view.gradients.length, 0);
-    assert.equal(view.graphics.fills[0].color, `rgb(${WATER_FIELD.draw.color.join(", ")})`);
+    const view = new WaterView({ parent: new PIXI.Container(), pixelsPerMeter: 32, look: { refraction: 0.06, fresnel: 0.8 }, draw: WATER_FIELD.draw, water });
+    view.draw(water);
+    const sections = view.graphics.fills.length;
+    assert.ok(sections > 0, "hay agua");
+    assert.ok(view.graphics.fills.every((fill) => fill.color === encodeWater(0)), "sin ácido, todo con el código plano");
     const i = Math.round((24 - water.x0) / water.dx);
     setAcid(water, i, 0.04);
-    view.draw(water, SCREEN_SCALE);
-    assert.equal(view.gradients.length, 1);
-    const [gradient] = view.gradients;
-    assert.strictEqual(view.graphics.fills[0].fill, gradient);
-    const wet = [];
-    for (let c = 0; c < water.N; c++) if (water.h[c] > water.config.hDry) wet.push(c);
-    const cells = wet.filter((c) => c >= Math.round((18 - water.x0) / water.dx) && c < Math.round((38 - water.x0) / water.dx)).length;
-    assert.equal(gradient.colorStops.length, 2 + Math.ceil(cells / WATER_FIELD.draw.colorStep));
-    assert.equal(gradient.colorStops[0].offset, 0);
-    assert.equal(gradient.colorStops.at(-1).offset, 1);
-    for (let k = 1; k < gradient.colorStops.length; k++) assert.ok(gradient.colorStops[k].offset >= gradient.colorStops[k - 1].offset);
-    view.draw(water, SCREEN_SCALE);
-    assert.equal(gradient.destroyed, true, "el degradado del frame anterior se destruye");
+    const gradientsBefore = PIXI.FillGradient.constructed;
+    view.draw(water);
+    const acidFills = view.graphics.fills.filter((fill) => fill.color !== encodeWater(0));
+    assert.ok(acidFills.length >= 1 && acidFills.length <= 2, `trapecios con ácido: ${acidFills.length}`);
+    assert.equal(view.graphics.fills.length, sections + acidFills.length);
+    for (const fill of acidFills) assert.ok((fill.color >> 16) > 0 && (fill.color & 0xffff) === 0, "el ácido va solo en el canal rojo");
+    view.draw(water);
+    assert.equal(PIXI.FillGradient.constructed, gradientsBefore, "no se crean degradados");
 });
 test("C1 (#111) consolidate: película fina en varias celdas sobre lecho plano deja las mojadas en ≥ hMin o aisladas y conserva h, q, E, M y A (1e-12)", (t) => {
     const water = make(tank(20), WATER_FIELD, "C1");

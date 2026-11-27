@@ -26,11 +26,12 @@ const FIELD_TEXTURE_HALF_PX = FIELD_TEXTURE_SIZE_PX / 2;
 
 /**
  * Una capa por material presente en el frame, para que materiales distintos no se fundan entre sí (ver
- * `docs/design/07-sph.md` §7.4). Cada capa es un `PIXI.Container` con el filtro de umbral que lleva un `PIXI.ParticleContainer`;
+ * `docs/design/07-sph.md` §7.4). Cada capa es un `PIXI.Container` con el filtro de líquido de su material (Factory Method:
+ * `createFilter`) que lleva un `PIXI.ParticleContainer`;
  * este usa una sola textura de campo, generada la primera vez que aparece el material. Las partículas del contenedor son un
  * pool (Object Pool): se reutilizan entre frames y cada frame solo cambian posición, escala, rotación y tinte.
  * Las capas se crean al primer uso, en `parent`, y se ordenan por el id del material. Un material difuso (el vapor) va sin
- * filtro de umbral. `ParticleContainer` de PIXI v8 informa límites vacíos y el sistema de filtros saltea un filtro sin área,
+ * filtro. `ParticleContainer` de PIXI v8 informa límites vacíos y el sistema de filtros saltea un filtro sin área,
  * así que cada frame se le escriben los límites de sus partículas en `boundsArea`.
  */
 export class FluidLayers {
@@ -38,14 +39,16 @@ export class FluidLayers {
      * @param {object} options
      * @param {PIXI.Renderer} options.renderer genera las texturas de campo
      * @param {PIXI.Container} options.parent contenedor de las capas; sigue a la cámara como el mundo
-     * @param {PIXI.Filter} options.filter filtro de umbral que se aplica a cada capa
+     * @param {(kind: number) => PIXI.Filter} options.createFilter crea el filtro de la capa de un material; se llama una vez por material
+     * @param {(filter: PIXI.Filter, frame: object) => void} options.updateFilter pone en un filtro los datos del frame, sin crear objetos
      * @param {number} options.pixelsPerMeter px por metro de la geometría del mundo
      */
-    constructor({ renderer, parent, filter, pixelsPerMeter }) {
+    constructor({ renderer, parent, createFilter, updateFilter, pixelsPerMeter }) {
         this.renderer = renderer;
         this.parent = parent;
         this.parent.sortableChildren = true;
-        this.filter = filter;
+        this.createFilter = createFilter;
+        this.updateFilter = updateFilter;
         this.pixelsPerMeter = pixelsPerMeter;
         this.scalePerMeter = (2 * pixelsPerMeter) / FIELD_TEXTURE_SIZE_PX;
         this.layers = new Map();
@@ -65,7 +68,7 @@ export class FluidLayers {
      * genera con el radio visible `radius` (m) la primera vez que aparece el material.
      * @param {number} kind material de la partícula (`store.kind`)
      * @param {number} radius radio visible de una gota aislada del material, en m
-     * @param {boolean} diffuse el material se dibuja difuso, sin filtro de umbral
+     * @param {boolean} diffuse el material se dibuja difuso, sin filtro
      * @returns {PIXI.Particle}
      */
     acquire(kind, radius, diffuse) {
@@ -95,6 +98,16 @@ export class FluidLayers {
     }
 
     /**
+     * Pone los datos del frame (tiempo y cámara) en el filtro de cada capa que tiene uno, sin crear objetos.
+     * @param {object} frame datos que entiende `updateFilter`
+     */
+    setFrame(frame) {
+        for (const layer of this.layers.values()) {
+            if (layer.filter !== null) this.updateFilter(layer.filter, frame);
+        }
+    }
+
+    /**
      * Escribe en `boundsArea` del `ParticleContainer` el rectángulo (px, en coordenadas de la capa) que cubre todas sus partículas
      * con su textura escalada y girada.
      * @param {{particles: PIXI.ParticleContainer, bounds: PIXI.Rectangle}} layer capa con partículas en este frame
@@ -119,11 +132,11 @@ export class FluidLayers {
     }
 
     /**
-     * Capa de `kind`: la crea con su textura de campo, su `ParticleContainer` y, salvo que sea difusa, el filtro de umbral si es
+     * Capa de `kind`: la crea con su textura de campo, su `ParticleContainer` y, salvo que sea difusa, su filtro si es
      * la primera vez.
      * @param {number} kind material de la partícula (`store.kind`)
      * @param {number} radius radio visible de una gota aislada del material, en m
-     * @param {boolean} diffuse el material se dibuja difuso, sin filtro de umbral
+     * @param {boolean} diffuse el material se dibuja difuso, sin filtro
      */
     layerFor(kind, radius, diffuse) {
         let layer = this.layers.get(kind);
@@ -132,10 +145,11 @@ export class FluidLayers {
         const particles = new PIXI.ParticleContainer({ dynamicProperties: { position: true, vertex: true, rotation: true, color: true } });
         const node = new PIXI.Container();
         node.zIndex = kind;
-        node.filters = diffuse ? [] : [this.filter];
+        const filter = diffuse ? null : this.createFilter(kind);
+        node.filters = filter === null ? [] : [filter];
         node.addChild(particles);
         this.parent.addChild(node);
-        layer = { node, particles, texture, bounds: new PIXI.Rectangle(), pool: [], used: 0 };
+        layer = { node, particles, texture, filter, bounds: new PIXI.Rectangle(), pool: [], used: 0 };
         this.layers.set(kind, layer);
         return layer;
     }

@@ -11,13 +11,13 @@ import { Camera } from "./src/render/camera.js";
 import { createScene } from "./src/render/scene.js";
 import { LevelView } from "./src/render/levelView.js";
 import { BackgroundView } from "./src/render/backgroundView.js";
-import { createThresholdFilter } from "./src/render/thresholdFilter.js";
+import { createLiquidFilter, updateLiquidFilter } from "./src/render/liquidFilter.js";
 import { LEVEL, buildLevel } from "./src/level/level.js";
 import { OneWayPlatforms } from "./src/level/platforms.js";
 import { BreakablePlatforms } from "./src/level/breakable.js";
 import { Flood, RisingFlood, supportHeight } from "./src/water/flood.js";
 import { CLIMB, Climb, StagePrizes } from "./src/level/climb.js";
-import { ShallowWater } from "./src/water/water.js";
+import { ShallowWater, WATER_FIELD } from "./src/water/water.js";
 import { Immersion } from "./src/water/immersion.js";
 import { Evaporation } from "./src/fluids/evaporation.js";
 import { Corrosion } from "./src/fluids/corrosion.js";
@@ -54,7 +54,7 @@ import {
     wheelWeapon,
 } from "./src/combat/weapons.js";
 import { buildRenderItems } from "./src/ragdoll/renderItems.js";
-import { drawParticles, SHOT_DRAW } from "./src/render/fluidDraw.js";
+import { drawParticles, lookOf, SHOT_DRAW } from "./src/render/fluidDraw.js";
 import { collectSurfaces } from "./src/render/fluidSurfaces.js";
 import { FluidLayers } from "./src/render/fluidLayers.js";
 import { buildKindSources, createLightSet, gatherLights } from "./src/render/lighting.js";
@@ -143,12 +143,20 @@ const debugPanel = new DebugPanel(document, gameContainer);
 const fluidLayers = new FluidLayers({
     renderer: scene.application.renderer,
     parent: scene.fluidParent,
-    filter: createThresholdFilter(),
+    createFilter: (kind) => createLiquidFilter(lookOf(kind)),
+    updateFilter: updateLiquidFilter,
     pixelsPerMeter: PIXELS_PER_METER,
 });
 const backgroundView = new BackgroundView({ parent: scene.backgroundLayer, pixelsPerMeter: PIXELS_PER_METER });
 const levelView = new LevelView({ parent: scene.levelLayer, pixelsPerMeter: PIXELS_PER_METER });
-const waterView = new WaterView({ parent: scene.waterLayer, pixelsPerMeter: PIXELS_PER_METER });
+const water = new ShallowWater();
+const waterView = new WaterView({
+    parent: scene.waterLayer,
+    pixelsPerMeter: PIXELS_PER_METER,
+    look: lookOf(FLUID.WATER),
+    draw: WATER_FIELD.draw,
+    water,
+});
 
 const camera = new Camera(LEVEL.bounds, PIXELS_PER_METER);
 const hud = new Hud(document, gameContainer);
@@ -298,6 +306,7 @@ const lightSet = createLightSet();
 const lightSourceOfKind = buildKindSources({ lava: FLUID.LAVA, acid: FLUID.ACID });
 const lightView = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1 };
+const liquidFrame = { time: 0, originX: 0, originY: 0, pixelsPerMeter: 1 };
 const lightMaterialAt = (index) => store.kind[store.slotAt(index)];
 const wallContact = new WallContact(particleSystem, store, SHOT_SYSTEM);
 instances.push(wallContact);
@@ -308,7 +317,6 @@ damage.register(players);
 const emitter = new ShotEmitter(store, damage, WEAPONS, raycaster);
 const melee = new Melee(raycaster, damage);
 const match = new Match(players.length);
-const water = new ShallowWater();
 let flood = new Flood(store, water, LEVEL, Number.isFinite(botSeed) ? botSeed : null);
 const immersion = new Immersion(particleSystem, store, water);
 const evaporation = new Evaporation(particleSystem, store);
@@ -1080,11 +1088,18 @@ function loop(nowMs) {
         fluidLayers.begin();
         fluidLayers.end();
     }
+    liquidFrame.time = now;
+    liquidFrame.originX = lightScreenOrigin.originX;
+    liquidFrame.originY = lightScreenOrigin.originY;
+    liquidFrame.pixelsPerMeter = scale;
+    fluidLayers.setFrame(liquidFrame);
+    waterView.setFrame(liquidFrame);
+    waterView.setLights(lightSet);
     debug.mark("fluidos");
     players.forEach((player, k) => {
         player.painter.paint(PLAYER_TINTS[k], scale, now);
     });
-    waterView.draw(water, scale, climb ? { floor: flood.floor, bottom } : null);
+    waterView.draw(water, climb ? { floor: flood.floor, bottom } : null);
     pickupView.update(pickups.points, pickups.offsetY);
     players.forEach((player, k) => {
         aimLaserView.draw(k, laserDe(player), PLAYER_COLORS[k], scale);

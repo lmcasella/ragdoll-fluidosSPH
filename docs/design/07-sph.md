@@ -66,7 +66,7 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - un filtro de umbral propio (`PIXI.Filter`) con solo el umbral de alfa (0,5) funde las gotas vecinas de los líquidos; el vapor va sin umbral y se ve difuso, como una nube;
   - cada material tiene su propia capa (un contenedor de la escena con el filtro), así que materiales distintos no se funden entre sí;
   - una gota en movimiento se estira a lo largo de su velocidad, para que el chorro se vea como un hilo continuo y no como una fila de bolitas (tabla `DROP_STRETCH`); vale igual para disparos y lluvia;
-  - las capas de fluido van encima del agua del nivel y de los robots, y debajo de la capa superpuesta (recogibles, mira, golpes, rueda de armas y debug del mundo); todo en el único canvas de la escena.
+  - las capas de fluido van encima de los robots y debajo del agua del nivel, que las refracta y oscurece con la profundidad como al resto de lo que tiene detrás, y debajo de la capa superpuesta (recogibles, mira, golpes, rueda de armas y debug del mundo); todo en el único canvas de la escena.
 
   El resultado son **manchas planas**, sin brillo ni volumen. El costo del dibujo con miles de partículas todavía no está medido ([9.2](09-arquitectura.md#92-rendimiento-medido)).
 - **Diseño** 🔨 #26 (revisado con #62): **PIXI v8 con sus filtros y filtros propios como `PIXI.Filter`, sin contexto WebGL propio**, y solo para las partículas (disparos, lluvia en vuelo, vapor, fuego). El agua del nivel es un polígono del campo de alturas ([14.3](14-agua.md#render)).
@@ -74,6 +74,12 @@ Las fuerzas de cada sistema (damping, presión, viscosidad, tensión superficial
   - Mejoras sobre lo de hoy: un color por material y por temperatura (lo escribe la térmica), brillo propio en lava y fuego con una capa de mezcla aditiva dentro de la misma escena (nada de un segundo canvas), y borde más claro por un segundo pase con el umbral corrido.
   - Presupuesto: ≤ 2 ms con GPU hasta ~4.000 círculos (relevamiento `F` de #62; el costo escala con la cantidad de círculos, no con el goo).
   - Se descartó el metaball en shader (`metaball.frag.glsl`): exige WebGL propio, que el usuario descartó para el examen.
+- **Aspecto por material** 🔨 #350, con filtros de PIXI sobre las mismas capas:
+  - **Agua** (la del nivel y las gotas): deja ver lo que tiene detrás, deformado por ondas que se mueven con el tiempo. Mirada de frente es transparente; en la superficie y en el borde de las gotas brilla más y se vuelve casi opaca (efecto fresnel), con una línea de reflejo en la superficie. Cuanto más profunda, más oscura y menos se ve el fondo. Refleja la luz de la lava cercana ([13.3](13-arte.md#133-luz)).
+  - **Lava:** brilla con luz propia. Es lisa, sin textura: el interior es más claro que el borde, con un degradé suave; alrededor tiene un halo naranja que se suma a lo que hay detrás. El color sigue la temperatura que escribe la térmica, así que la lava que se enfría deja de brillar.
+  - **Ácido:** como el agua, sin refracción, con un brillo verde tenue en el borde.
+  - **Miel y el resto:** volumen con un borde más claro y un reflejo arriba, sin brillo propio.
+  - El halo y el borde salen del campo de las partículas, no de un desenfoque. El costo no baja los fps de forma medible.
 - **Lluvia en vuelo** (#44, **retirado**): los trazos finos de la lluvia, con su canvas aparte, ya no existen. Desde #101 el dibujo de una partícula depende solo de su material, no de su velocidad ni de si es lluvia o disparo ([14.16, I3](14-agua.md#i3-volumen-dibujado-igual-al-físico)), y desde #310 la lluvia es una gota más de la capa del agua, estirada a lo largo de su velocidad como cualquier gota en movimiento (ver "Hoy").
 - **Hueco agua-cuerpo** ✅ #45:
   - **Medición** (LiquidFun real, paso fijo del juego, agua en reposo contra piso, pared y una caja dinámica; tests/water-gap.test.js): el centro de las partículas de la primera fila queda a **0,46 m** de la superficie de cualquier cuerpo (1,85 radios físicos de 0,25 m), igual contra el piso estático que contra una pieza dinámica del robot. Con el círculo dibujado de 0,28 m el borde queda a **0,18 m** del cuerpo.

@@ -59,7 +59,7 @@ Si el código y `DESIGN.md` no coinciden, se resuelve antes de seguir: o se corr
   | `M2 – Armas y fluidos` | 21/11 |
   | `M3 – Escenario e inundación` | 22/11 |
   | `M4 – Cierre de entrega` | 24/11 |
-  | `M5 – Pulido y defensa` | 1/12 |
+  | `M5 – Pulido` | 1/12 |
 
   M1 (combate) ya está en `main`.
 - **Labels** (un tipo, un scope y una prioridad por issue):

@@ -4,8 +4,8 @@
  * y `docs/design/12-decisiones.md`. Debajo de `world` va `backgroundLayer`, el fondo con parallax (`docs/design/13-arte.md`
  * §13.1): queda fuera de `world` porque cada una de sus capas tiene su propia posición y zoom. Orden de abajo a arriba,
  * todo dentro de `world` (una sola cámara): nivel, robots
- * (`ragdollLayer`, con la Y invertida porque RagImporter espera la Y hacia abajo), chispas y burbujas, agua, capas de
- * fluido por material y capa superpuesta (recogibles, mira, golpes, rueda y capas de debug del mundo), que se dibujan
+ * (`ragdollLayer`, con la Y invertida porque RagImporter espera la Y hacia abajo), chispas y burbujas, capas de
+ * fluido por material, agua (debajo de ella quedan las partículas, que el agua refracta) y capa superpuesta (recogibles, mira, golpes, rueda y capas de debug del mundo), que se dibujan
  * encima del agua y de los robots. El HUD, los menús y el panel de debug son HTML (`docs/design/18-interfaz.md`): el
  * juego tiene un solo canvas.
  */
@@ -25,7 +25,7 @@ export class Scene {
         this.waterLayer = new PIXI.Container();
         this.fluidParent = new PIXI.Container();
         this.overlayLayer = new PIXI.Container();
-        this.world.addChild(this.levelLayer, this.ragdollLayer, this.effectsLayer, this.waterLayer, this.fluidParent, this.overlayLayer);
+        this.world.addChild(this.levelLayer, this.ragdollLayer, this.effectsLayer, this.fluidParent, this.waterLayer, this.overlayLayer);
     }
 
     /**
@@ -44,8 +44,8 @@ export class Scene {
 }
 
 /**
- * Crea la escena: `PIXI.Application` sin resolución extra, fondo transparente, bordes suavizados, WebGL y sin ticker propio (el loop del juego
- * llama a `render`). Su canvas va primero en `container`, debajo del HUD y las pantallas HTML.
+ * Crea la escena: `PIXI.Application` sin resolución extra, fondo transparente, bordes suavizados, WebGL, con `useBackBuffer` (sin él
+ * PIXI saltea los filtros que leen lo que hay detrás, como los del agua) y sin ticker propio (el loop del juego llama a `render`). Su canvas va primero en `container`, debajo del HUD y las pantallas HTML.
  * @param {object} options
  * @param {HTMLElement} options.container elemento que recibe el canvas
  * @param {number} options.width ancho en px
@@ -61,6 +61,7 @@ export async function createScene({ container, width, height }) {
         backgroundAlpha: 0,
         antialias: true,
         preference: "webgl",
+        useBackBuffer: true,
         autoStart: false,
     });
     container.prepend(application.canvas);

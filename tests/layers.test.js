@@ -7,6 +7,7 @@ const { FLUID } = await import("../src/combat/weapons.js");
 const { ORIGIN } = await import("../src/fluids/particleStore.js");
 
 const thresholdFilterSource = readFileSync(new URL("../src/render/thresholdFilter.js", import.meta.url), "utf8");
+const liquidFilterSource = readFileSync(new URL("../src/render/liquidFilter.js", import.meta.url), "utf8");
 const renderDirectory = new URL("../src/render/", import.meta.url);
 
 /** Crea 20 gotas de agua en el aire para que aparezca una capa de fluido. */
@@ -36,10 +37,10 @@ function worldOrder(scene) {
     return scene.world.children.map((child) => names.get(child));
 }
 
-const WORLD_ORDER = ["level", "ragdoll", "effects", "water", "fluid", "overlay"];
+const WORLD_ORDER = ["level", "ragdoll", "effects", "fluid", "water", "overlay"];
 
-/** #53: la mira, los golpes y el debug se dibujan por encima de las partículas, y estas por encima del nivel y los robots. */
-test("de abajo a arriba: nivel, robots, agua, fluidos y capa superpuesta", async () => {
+/** #53: la mira, los golpes y el debug se dibujan por encima de las partículas, y estas por encima del nivel y los robots y debajo del agua del nivel, que las refracta. */
+test("de abajo a arriba: nivel, robots, fluidos, agua y capa superpuesta", async () => {
     const game = await loadGame();
     const { scene } = game.state;
     assert.deepEqual(worldOrder(scene), WORLD_ORDER);
@@ -75,7 +76,7 @@ test("la capa superpuesta apila recogibles, miras, golpes, debug y rueda de arma
     assert.deepEqual(scene.overlayLayer.children, expected);
 });
 
-test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpuesta, con el filtro de umbral y sin desenfoque", async () => {
+test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpuesta, con el filtro de líquido (umbral) y sin desenfoque", async () => {
     const game = await loadGame();
     const { scene, fluidLayers } = game.state;
     spawnWater(game);
@@ -84,9 +85,10 @@ test("las capas de fluido van entre el mundo (nivel, robots y agua) y la superpu
     assert.equal(scene.fluidParent.sortableChildren, true, "las capas de fluido se ordenan por material");
     for (const { node } of fluidLayers.layers.values()) {
         assert.equal(node.filters.length, 1);
-        assert.ok(node.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro es el de umbral");
+        assert.ok(node.filters[0].options.glProgram.fragment.includes("clamp"), "el filtro corta con el umbral");
     }
     assert.doesNotMatch(thresholdFilterSource, /gaussian|blur/i);
+    assert.doesNotMatch(liquidFilterSource, /gaussian|blur/i);
     assert.deepEqual(worldOrder(scene), WORLD_ORDER);
 });
 

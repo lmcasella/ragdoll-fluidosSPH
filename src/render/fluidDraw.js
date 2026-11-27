@@ -2,6 +2,7 @@ import { COLOR_BYTES, tintOf } from "../core/color.js";
 import { VECTOR_COMPONENTS, wordIndexOf } from "../core/heap.js";
 import { vectorLength } from "../core/math/vector2.js";
 import { skinPosition } from "./fluidSurfaces.js";
+import { LIGHTING } from "./lighting.js";
 import { THRESHOLD_GAIN, THRESHOLD_OFFSET } from "./thresholdFilter.js";
 
 /**
@@ -106,6 +107,38 @@ export const SHOT_DRAW = {
         6: { radiusScale: 1.04, diffuse: true },
     },
 };
+
+/** Color del halo de un material sin halo. */
+const NO_GLOW_COLOR = [0, 0, 0];
+
+/**
+ * Aspecto de cada material de las capas de fluido (`docs/design/07-sph.md` §7.4, "Aspecto por material"), que lee
+ * `liquidFilter.js`. Se indexa por `store.kind` como `SHOT_DRAW.kinds`. `refraction`: desplazamiento máximo del fondo visto a
+ * través del líquido, en m (mayor que 0 solo en el agua). `fresnel`: de 0 a 1, cuánto más transparente es el centro que el borde
+ * (opacidad del centro `1 − fresnel`, el borde siempre opaco). `rim`: de 0 a 1, cuánto se aclara el borde. `glow`: de 0 a 1,
+ * fuerza del halo emisivo que se suma a lo que hay detrás, con `glowColor` (RGB de 0 a 1). `emissive`: de 0 a 1, brillo propio
+ * con interior más claro que el borde. `crust`: de 0 a 1, costra oscura con grietas incandescentes. Los colores de halo son los
+ * de las luces de `LIGHTING.sources`. El vapor se dibuja difuso, sin filtro, y no tiene fila.
+ */
+export const FLUID_LOOK = {
+    1: { refraction: 0, fresnel: 0.5, rim: 0.3, glow: 0.25, glowColor: LIGHTING.sources.acid.color, emissive: 0 },
+    2: { refraction: 0, fresnel: 0, rim: 0.2, glow: 1, glowColor: LIGHTING.sources.lava.color, emissive: 1 },
+    3: { refraction: 0, fresnel: 0.4, rim: 0.35, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 },
+    4: { refraction: 0.06, fresnel: 0.8, rim: 0.35, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 },
+    5: { refraction: 0, fresnel: 0, rim: 0.2, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 },
+};
+
+/** Fila de `FLUID_LOOK` de un material sin fila: sin ningún efecto. */
+const NO_LOOK = { refraction: 0, fresnel: 0, rim: 0, glow: 0, glowColor: NO_GLOW_COLOR, emissive: 0 };
+
+/**
+ * Aspecto del material `kind`.
+ * @param {number} kind material (`store.kind`)
+ * @returns {object} su fila de `FLUID_LOOK`, o una sin efectos si no tiene
+ */
+export function lookOf(kind) {
+    return FLUID_LOOK[kind] ?? NO_LOOK;
+}
 
 /** Fila de `SHOT_DRAW.kinds` de un material sin fila: sin escala ni difusión. */
 const DEFAULT_KIND = { radiusScale: 1, diffuse: false };
