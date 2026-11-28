@@ -120,7 +120,7 @@ test("un pedazo muestra su tramo de la caja: su centro cae en su desplazamiento 
     assert.ok(Math.abs(center.x - piece.offsetX) < COORDINATE_TOLERANCE && Math.abs(center.y - piece.offsetY) < COORDINATE_TOLERANCE);
 });
 
-test("la marca de embalaje es una gota del color del arma o una llave para la reparación, un poco translúcida, y se pinta una sola vez", () => {
+test("la marca de embalaje es una gota del color del arma o una llave para la reparación, multiplicada sobre la madera, y se pinta una sola vez", () => {
     const { view } = newView();
     const lava = WEAPONS.find((weapon) => weapon.id === FLUID.LAVA);
     const repair = { point: { kind: "repair" }, ...POSE_B, wear: 0 };
@@ -129,7 +129,7 @@ test("la marca de embalaje es una gota del color del arma o una llave para la re
     const [drop, wrench] = view.crateEntries.map((entry) => entry.stamp);
     assert.equal(drop.polygons.length, 1);
     assert.deepEqual(drop.fills, [{ color: tintOf(...lava.color), alpha: CRATE_STAMP.alpha }]);
-    assert.ok(CRATE_STAMP.alpha > 0 && CRATE_STAMP.alpha < 1, "translúcida");
+    assert.deepEqual([drop.blendMode, wrench.blendMode], ["multiply", "multiply"], "tiñe la madera sin tapar la veta");
     assert.equal(wrench.polygons[0].length, ITEM_SHAPES.wrench.outline.length * 2);
     assert.deepEqual(wrench.fills, [{ color: tintOf(...NUT.edge), alpha: CRATE_STAMP.alpha }]);
     const clears = [drop.clears, wrench.clears];

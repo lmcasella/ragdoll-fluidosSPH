@@ -62,12 +62,11 @@ test("la mira y los golpes se dibujan en gráficos de la capa superpuesta, no en
     assert.ok(order.indexOf(weaponWheelView.wheels[0].node) > order.indexOf(hitEffectsView.graphics), "la rueda de armas va después de la mira y los golpes");
 });
 
-test("la capa superpuesta apila recogibles, paneles de las cajas, miras, golpes, debug y rueda de armas, en ese orden", async () => {
+test("la capa superpuesta apila recogibles, miras, golpes, debug y rueda de armas, en ese orden", async () => {
     const game = await loadGame();
     const { scene, pickupView, crateView, aimLaserView, hitEffectsView, debugView, weaponWheelView } = game.state;
     const expected = [
         pickupView.container,
-        crateView.panelContainer,
         ...aimLaserView.graphics,
         hitEffectsView.graphics,
         debugView.pointsGraphics,

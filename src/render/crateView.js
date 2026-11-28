@@ -21,9 +21,10 @@ const RED_SHIFT = 16;
 /**
  * Marca de embalaje pintada en el frente de la caja (`docs/design/04-fluidos.md` §4.2): `size` es el alto de la gota o el
  * largo de la llave, en m (la caja mide 0,7 m); `alpha`, la opacidad de la pintura; `wrenchTilt`, el giro de la llave sobre
- * la caja, en rad. La llave toma el verde del ítem de reparación (`NUT.edge`).
+ * la caja, en rad; `blendMode`, cómo se mezcla con la madera: multiplicar tiñe sin tapar la veta ni el desgaste. La llave
+ * toma el verde del ítem de reparación (`NUT.edge`).
  */
-export const CRATE_STAMP = { size: 0.42, alpha: 0.75, wrenchTilt: 0.785 };
+export const CRATE_STAMP = { size: 0.42, alpha: 1, wrenchTilt: 0.785, blendMode: "multiply" };
 
 /**
  * Tinte que escala el canal verde del color codificado de la madera (que se dibuja con desgaste 1) por `wear`, de 0 a 1:
@@ -59,22 +60,21 @@ function drawWoodRectangle(graphics, size, pixelsPerMeter) {
  * cada uno lleva su propio filtro de materiales (`createSurfaceFilter`), creado con la entrada: la madera se dibuja en el marco
  * local del cuerpo (`updateSurfaceFilterFrame`), así la veta y los listones se mueven y giran con él, con la luz del escenario.
  * Un pedazo muestra su tramo de la caja entera (su desplazamiento dentro de ella). El desgaste va en el tinte, de 0 (nueva)
- * a 1 (a punto de romperse). Encima, en la capa superpuesta, la marca de embalaje (`CRATE_STAMP`: una gota del color del
- * arma o una llave inglesa para la reparación) se pinta una vez, queda quieta sobre la caja y gira con ella. No lee Box2D:
- * recibe los datos planos de `Crates`.
+ * a 1 (a punto de romperse). Encima, en la misma capa del nivel (debajo de los robots) y multiplicada sobre la madera, la
+ * marca de embalaje (`CRATE_STAMP`: una gota del color del arma o una llave inglesa para la reparación) se pinta una vez,
+ * queda quieta sobre la caja y gira con ella. No lee Box2D: recibe los datos planos de `Crates`.
  */
 export class CrateView {
     /**
      * @param {object} options
      * @param {PIXI.Container} options.levelParent capa del nivel, en px a `pixelsPerMeter` con la cámara aplicada
-     * @param {PIXI.Container} options.parent capa superpuesta, con la misma cámara
      * @param {number} options.pixelsPerMeter px por metro de la geometría
      * @param {object[]} options.weapons tabla de armas (`id`, `name`, `color`)
      * @param {number} options.crateSide lado de la caja, en m
      * @param {{width: number, height: number}} options.pieceSize ancho y alto de cada pedazo, en m
      * @param {(filter: PIXI.Filter) => void} options.registerOccluder recibe cada filtro de material al crearse, para que el mapa de luz lo apague al dibujar la oclusión
      */
-    constructor({ levelParent, parent, pixelsPerMeter, weapons, crateSide, pieceSize, registerOccluder }) {
+    constructor({ levelParent, pixelsPerMeter, weapons, crateSide, pieceSize, registerOccluder }) {
         this.pixelsPerMeter = pixelsPerMeter;
         this.weapons = weapons;
         this.crateSide = crateSide;
@@ -85,8 +85,8 @@ export class CrateView {
         this.frame = { centerX: 0, centerY: 0, angle: 0, offsetX: 0, offsetY: 0 };
         this.bodyContainer = new PIXI.Container();
         levelParent.addChild(this.bodyContainer);
-        this.panelContainer = new PIXI.Container();
-        parent.addChild(this.panelContainer);
+        this.stampContainer = new PIXI.Container();
+        levelParent.addChild(this.stampContainer);
         this.crateEntries = [];
         this.pieceEntries = [];
     }
@@ -183,7 +183,8 @@ export class CrateView {
         if (this.crateEntries[index] === undefined) {
             const { graphics: body, filter } = this.createWoodNode({ width: this.crateSide, height: this.crateSide });
             const stamp = new PIXI.Graphics();
-            this.panelContainer.addChild(stamp);
+            stamp.blendMode = CRATE_STAMP.blendMode;
+            this.stampContainer.addChild(stamp);
             this.crateEntries[index] = { body, filter, stamp, point: null, drawable: false };
         }
         return this.crateEntries[index];
