@@ -1235,7 +1235,7 @@ function loop(nowMs) {
     }
     const terrain = currentTerrain();
     debug.mark("dibujo");
-    if (terrain.update(simTime) > 0) wallContact.invalidate();
+    if (terrain.update(simTime, stepsLastFrame) > 0) wallContact.invalidate();
     debug.mark("corrosión");
     const scale = camera.scale;
     const bottom = camera.y - camera.viewH / (2 * scale);
