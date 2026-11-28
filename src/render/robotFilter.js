@@ -3,6 +3,7 @@ import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
 import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
 import { glslColor, glslFloat } from "./surfaceFilter.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
+import { RENDER_QUALITY } from "./renderQuality.js";
 
 /**
  * Filtro de los robots (`docs/design/13-arte.md` §13.4): un solo `PIXI.Filter` sobre la capa de robots que los muestra como
@@ -134,6 +135,7 @@ void main(void)
 export function createRobotFilter() {
     return new PIXI.Filter({
         glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: ROBOT_FRAGMENT, name: SHADER_NAME }),
+        resolution: RENDER_QUALITY.filterResolution,
         resources: {
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
