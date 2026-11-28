@@ -304,9 +304,9 @@ test("las rompibles van en el contenedor con el filtro y codifican su grieta en 
 
 test("la luz base y el brillo del acero dan contraste sin luces cercanas sin oscurecer la plataforma en promedio", async () => {
     const { LIGHTING } = await import("../src/render/lighting.js");
-    const { base } = LIGHTING;
-    assert.equal(base.ambient, 0.22);
-    assert.equal(base.intensity, 0.95);
+    const { base, fill } = LIGHTING;
+    assert.deepEqual(base, { direction: [-0.45, 0.89], front: 0.8, color: [1, 0.93, 0.82], intensity: 1.1, ambient: 0.18 });
+    assert.deepEqual(fill, { color: [0.45, 0.55, 0.75], intensity: 0.25 });
     assert.ok(SURFACE_FRAGMENT.includes("const float SPECULAR_STRENGTH = 0.6;"));
     const [directionX, directionY] = base.direction;
     const facingFlat = base.front / Math.hypot(directionX, directionY, base.front);

@@ -5,16 +5,20 @@
  */
 
 /**
- * Valores de la luz. `base`: dirección en el plano de la pantalla (unitaria, Y arriba) y `front`, la parte de la dirección
- * que apunta hacia el jugador, para que una cara plana también reciba luz; `color` e `intensity` de la luz base y
- * `ambient` del aire. `sources`: luz de cada material de fluido por nombre (`color` RGB de 0 a 1, `intensity`, `range` en m
- * hasta donde llega). `height`: altura de la fuente sobre el plano de las plataformas, en m. `zoneSize`: lado de las zonas
- * en que se juntan las partículas, en m; `minParticles`: partículas mínimas para que una zona sea luz;
- * `fullIntensityParticles`: partículas con las que la zona da la intensidad completa. `backgroundScales`: cuánta luz
- * recibe cada una de las capas del fondo, de la más cercana a la más lejana de las que se iluminan.
+ * Valores de la luz. `base`: la luz clave, cálida y algo lateral: dirección en el plano de la pantalla (unitaria, Y arriba)
+ * y `front`, la parte de la dirección que apunta hacia el jugador, para que una cara plana también reciba luz; `color` e
+ * `intensity` de la clave y `ambient` del aire. `fill`: relleno frío desde el lado contrario de la clave (misma altura y
+ * `front`, con la X invertida), sin especular: `color` e `intensity`. `sources`: luz de cada material de fluido por nombre
+ * (`color` RGB de 0 a 1, `intensity`, `range` en m hasta donde llega). `height`: altura de la fuente sobre el plano de las
+ * plataformas, en m. `zoneSize`: lado de las zonas en que se juntan las partículas, en m; `minParticles`: partículas mínimas
+ * para que una zona sea luz; `fullIntensityParticles`: partículas con las que la zona da la intensidad completa.
+ * `backgroundLayers`: de la capa más cercana a la más lejana, cuánta luz puntual recibe (`pointLight`), cuánto la aclara
+ * la clave en un degradé vertical, más clara arriba (`keyLight`), y cuánto la tiñe la niebla (`fog`, de 0 a 1) hacia
+ * `backgroundFogColor` (RGB de 0 a 1), que separa los planos.
  */
 export const LIGHTING = {
-    base: { direction: [-0.35, 0.94], front: 1, color: [0.55, 0.62, 0.75], intensity: 0.95, ambient: 0.22 },
+    base: { direction: [-0.45, 0.89], front: 0.8, color: [1, 0.93, 0.82], intensity: 1.1, ambient: 0.18 },
+    fill: { color: [0.45, 0.55, 0.75], intensity: 0.25 },
     sources: {
         lava: { color: [1, 0.55, 0.2], intensity: 1.6, range: 6 },
         acid: { color: [0.45, 1, 0.35], intensity: 0.5, range: 3 },
@@ -23,7 +27,13 @@ export const LIGHTING = {
     zoneSize: 2,
     minParticles: 6,
     fullIntensityParticles: 40,
-    backgroundScales: [0.6, 0.3],
+    backgroundLayers: [
+        { pointLight: 0.6, keyLight: 0.12, fog: 0 },
+        { pointLight: 0.3, keyLight: 0.09, fog: 0.08 },
+        { pointLight: 0, keyLight: 0.06, fog: 0.18 },
+        { pointLight: 0, keyLight: 0.04, fog: 0.3 },
+    ],
+    backgroundFogColor: [0.28, 0.31, 0.38],
 };
 
 /** Luces como máximo por pantalla. */
@@ -172,18 +182,51 @@ export function createPointLightUniforms() {
 }
 
 /**
- * Definiciones de uniforms de la luz base (dirección 3D unitaria, color por intensidad y ambiente), con los valores de `LIGHTING.base`.
+ * Dirección 3D unitaria hacia una luz de `LIGHTING`, con la X multiplicada por `mirrorX`.
+ * @param {number} mirrorX 1 para la dirección de la clave, -1 para la del relleno
+ * @returns {Float32Array}
+ */
+function lightDirection(mirrorX) {
+    const { direction, front } = LIGHTING.base;
+    const length = Math.hypot(direction[0], direction[1], front);
+    return new Float32Array([(mirrorX * direction[0]) / length, direction[1] / length, front / length]);
+}
+
+/**
+ * Definiciones de uniforms de la luz base: dirección 3D unitaria y color por intensidad de la clave y del relleno, y el
+ * ambiente, con los valores de `LIGHTING.base` y `LIGHTING.fill`.
  * @returns {object}
  */
 export function createBaseLightUniforms() {
-    const { direction, front, color, intensity, ambient } = LIGHTING.base;
-    const length = Math.hypot(direction[0], direction[1], front);
+    const { color, intensity, ambient } = LIGHTING.base;
+    const fill = LIGHTING.fill;
     return {
-        uBaseDirection: { value: new Float32Array([direction[0] / length, direction[1] / length, front / length]), type: "vec3<f32>" },
+        uBaseDirection: { value: lightDirection(1), type: "vec3<f32>" },
         uBaseColor: { value: new Float32Array(color.map((channel) => channel * intensity)), type: "vec3<f32>" },
+        uFillDirection: { value: lightDirection(-1), type: "vec3<f32>" },
+        uFillColor: { value: new Float32Array(fill.color.map((channel) => channel * fill.intensity)), type: "vec3<f32>" },
         uAmbient: { value: ambient, type: "f32" },
     };
 }
+
+/**
+ * Función de GLSL de la luz base para los filtros con normales: declara los uniforms de `createBaseLightUniforms` y define
+ * `baseLight`, el ambiente más la clave y el relleno pesados por el coseno con la normal.
+ */
+export const BASE_LIGHT_FUNCTIONS = `
+uniform highp vec3 uBaseDirection;
+uniform highp vec3 uBaseColor;
+uniform highp vec3 uFillDirection;
+uniform highp vec3 uFillColor;
+uniform highp float uAmbient;
+
+vec3 baseLight(vec3 normal)
+{
+    vec3 key = uBaseColor * max(0.0, dot(normal, uBaseDirection));
+    vec3 fill = uFillColor * max(0.0, dot(normal, uFillDirection));
+    return vec3(uAmbient) + key + fill;
+}
+`;
 
 /**
  * Copia las luces del frame en los uniforms de un filtro, sin crear objetos.

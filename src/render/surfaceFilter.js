@@ -1,5 +1,5 @@
 import { SURFACES } from "../level/surfaces.js";
-import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { BASE_LIGHT_FUNCTIONS, LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
 import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
 import { NOISE_FUNCTIONS } from "./glslNoise.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
@@ -105,9 +105,7 @@ uniform highp vec4 uOutputFrame;
 uniform highp vec2 uOrigin;
 uniform highp float uPixelsPerMeter;
 uniform highp float uLightShiftY;
-uniform highp vec3 uBaseDirection;
-uniform highp vec3 uBaseColor;
-uniform highp float uAmbient;
+${BASE_LIGHT_FUNCTIONS}
 ${LIGHT_FUNCTIONS}
 ${BEVEL_FUNCTIONS}
 
@@ -339,7 +337,7 @@ vec3 surfaceNormal(int id, vec2 world, vec2 bevel)
 vec3 litColor(vec3 albedo, vec3 normal, vec3 point, float specularAmount)
 {
     float facing = max(0.0, dot(normal, uBaseDirection));
-    vec3 light = vec3(uAmbient) + uBaseColor * facing + lightSum(point, normal, uLightShiftY, 1.0);
+    vec3 light = baseLight(normal) + lightSum(point, normal, uLightShiftY, 1.0);
     vec3 halfway = normalize(uBaseDirection + VIEW_DIRECTION);
     float specular = specularAmount * SPECULAR_STRENGTH * pow(max(0.0, dot(normal, halfway)), SPECULAR_SHININESS) * facing;
     return albedo * light + uBaseColor * specular;

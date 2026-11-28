@@ -1,6 +1,6 @@
 import { SURFACES } from "../level/surfaces.js";
 import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
-import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { BASE_LIGHT_FUNCTIONS, LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
 import { glslColor, glslFloat } from "./surfaceFilter.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
 import { RENDER_QUALITY } from "./renderQuality.js";
@@ -31,8 +31,8 @@ const INITIAL_PIXELS_PER_METER = 1;
  * Fragmento del filtro, GLSL ES 1.00 tras la conversión de PIXI (sin `texelFetch`, `textureSize` ni operaciones de enteros).
  * Medidas en metros. `PAINT_BRIGHTNESS`: cuánto del color de la pieza queda con la pintura satinada. `PAINT_WEAR_MIX`: parte
  * que se mezcla hacia el acero de las plataformas en los `PAINT_WEAR_WIDTH` más externos de la silueta. `LIGHT_FLOOR`:
- * piso del multiplicador de luz, para que el destello y el mojado sigan leyéndose. La luz se divide por la de una cara plana, así el color
- * del jugador queda igual donde no hay relieve. El bisel mide al menos MIN_BEVEL_PX px para que se vea con la cámara lejos.
+ * piso del multiplicador de luz, para que el destello y el mojado sigan leyéndose. La luz base (clave y relleno) se divide por la de una cara plana, así el color
+ * del jugador queda igual donde no hay relieve; las luces puntuales se suman sin dividir, para que alumbren de verdad. El bisel mide al menos MIN_BEVEL_PX px para que se vea con la cámara lejos.
  */
 export const ROBOT_FRAGMENT = `
 precision highp float;
@@ -43,9 +43,7 @@ uniform highp vec4 uInputSize;
 uniform highp vec4 uOutputFrame;
 uniform highp vec2 uOrigin;
 uniform highp float uPixelsPerMeter;
-uniform highp vec3 uBaseDirection;
-uniform highp vec3 uBaseColor;
-uniform highp float uAmbient;
+${BASE_LIGHT_FUNCTIONS}
 ${LIGHT_FUNCTIONS}
 ${BEVEL_FUNCTIONS}
 
@@ -118,11 +116,12 @@ void main(void)
     paint = mix(paint, JOINT_PAINT, joint);
 
     float facing = max(0.0, dot(normal, uBaseDirection));
-    vec3 light = vec3(uAmbient) + uBaseColor * facing + lightSum(vec3(world, 0.0), normal, 0.0, 1.0);
+    vec3 flatNormal = vec3(0.0, 0.0, 1.0);
+    vec3 baseRelief = baseLight(normal) / baseLight(flatNormal);
+    vec3 light = baseRelief + lightSum(vec3(world, 0.0), normal, 0.0, 1.0);
     vec3 halfway = normalize(uBaseDirection + VIEW_DIRECTION);
     float specular = SPECULAR_STRENGTH * pow(max(0.0, dot(normal, halfway)), SPECULAR_SHININESS) * facing;
-    vec3 flatLight = vec3(uAmbient) + uBaseColor * max(0.0, uBaseDirection.z);
-    vec3 color = paint * max(light / flatLight, vec3(LIGHT_FLOOR)) + uBaseColor * specular;
+    vec3 color = paint * max(light, vec3(LIGHT_FLOOR)) + uBaseColor * specular;
     finalColor = vec4(color * encoded.a, encoded.a);
 }
 `;
