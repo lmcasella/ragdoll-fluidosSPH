@@ -157,7 +157,19 @@ test("LevelView y BackgroundView reciben las luces sin redibujar sus Graphics", 
     assert.deepEqual([level.fixedBuilds, background.segmentBuilds], builds);
     assert.equal(pixi.Filter.constructed, created);
     const lit = background.layers.filter((layer) => layer.container.filters?.length === 1);
-    assert.equal(lit.length, LIGHTING.backgroundScales.length, "solo las capas cercanas llevan filtro de luz");
-    assert.deepEqual(lit, background.layers.slice(-LIGHTING.backgroundScales.length));
+    assert.equal(lit.length, LIGHTING.backgroundLayers.length, "todas las capas llevan filtro de luz y niebla");
+    assert.deepEqual(lit, background.layers.slice(-LIGHTING.backgroundLayers.length));
     assert.equal(lit[0].container.filters[0].resources.lightUniforms.uniforms.uLightCount, 1);
+});
+
+test("el fondo suma la luz clave en degradé vertical y la niebla crece con la lejanía, sin tocar el dibujo", () => {
+    const pixi = installFakePixi();
+    const background = new BackgroundView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
+    const fogs = background.lightFilters.map((filter) => filter.resources.lightUniforms.uniforms.uFog);
+    assert.deepEqual(fogs, LIGHTING.backgroundLayers.map((look) => look.fog));
+    assert.ok(fogs.every((fog, nearness) => nearness === 0 || fog >= fogs[nearness - 1]), "más niebla cuanto más lejos");
+    assert.ok(LIGHT_FILTER_FRAGMENT.includes("uKeyColor") && LIGHT_FILTER_FRAGMENT.includes("uFogColor"));
+    assert.ok(LIGHT_FILTER_FRAGMENT.includes("screen.y / uViewHeight"), "degradé por la altura de pantalla");
+    updateLightFilter(background.lightFilters[0], { originX: 0, originY: 0, pixelsPerMeter: 1, viewHeight: 600 });
+    assert.equal(background.lightFilters[0].resources.lightUniforms.uniforms.uViewHeight, 600);
 });

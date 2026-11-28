@@ -30,6 +30,11 @@ test("el fragment tiene bisel, junta, pintura gastada, suma de luces y especular
     assert.ok(ROBOT_FRAGMENT.includes("uInputSize") && ROBOT_FRAGMENT.includes("uOutputFrame"));
 });
 
+test("las luces puntuales de los robots suman sin dividir por la luz de una cara plana", () => {
+    assert.ok(ROBOT_FRAGMENT.includes("baseLight(normal) / baseLight(flatNormal)"));
+    assert.ok(ROBOT_FRAGMENT.includes("baseRelief + lightSum("));
+    assert.ok(!/lightSum\([^)]*\)\s*\/\s*flat/.test(ROBOT_FRAGMENT), "la luz puntual no se normaliza");
+});
 test("el filtro se crea una vez y la cámara y las luces se actualizan sin reconstruirlo ni crear buffers", () => {
     const pixi = installFakePixi();
     const layer = new pixi.Container();

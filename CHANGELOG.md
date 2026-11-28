@@ -6,6 +6,8 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [Unreleased]
 
 ### Added
+- Sombras proyectadas: las plataformas y las cajas proyectan sombra sobre el fondo, y los robots sobre el fondo y las plataformas de atrás, en dirección contraria a la luz clave; cerca de la lava o el ácido caen alejándose de ellos (#349).
+- Luz clave fuerte, cálida y algo lateral, con relleno frío del lado contrario: más contraste en el relieve, el brillo y el grano. La lava y el ácido alumbran más a los robots, y el fondo suma un degradé de luz y una niebla que separa los planos (#349).
 - Las plataformas rompibles son de chapa fina y oxidada, con nervaduras y grietas oscuras que crecen con la cuenta de rotura (#348).
 - Fondo de planta industrial con parallax de cuatro capas (chimeneas y tanques lejos, cañerías y estructuras en el medio, vigas cerca), dibujado por el juego. En el modo Infinito cambia con la altura: piso de planta, pasarelas, y arriba chimeneas con humo y más cielo (#345).
 - Capa "Terreno" en el menú de debug: muestra la densidad de las celdas del terreno, el contorno, los polígonos convexos con sus uniones, los bordes de los tramos y hace destellar el tramo que se rehízo; el panel suma las grillas, los polígonos, los vértices y el costo de reconstruir por frame (#346).
