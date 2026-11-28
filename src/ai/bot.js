@@ -38,7 +38,7 @@ import { fallTime } from "../core/physics/formulas.js";
  *   `foeClear` (el rival a menos de `dx` m en horizontal y hasta `dy` m por encima tapa el salto en vertical: despega del extremo del solape más lejano a él);
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
  *   `replan`: cada cuánto reelige destino;
- * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
+ * - `pickupReach`: por un arma que no tiene o con el tanque vacío, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
  * - `crateRange`: distancia horizontal (m) al centro de la caja de un ítem a la que deja de acercarse y la golpea;
  * - `crateStandHeight`: altura (m) sobre el centro de una caja hasta la que los pies cuentan como parado encima de ella (y a `crateRange` en horizontal): el bot se baja por el costado en vez de quedarse sobre la caja;
  * - `crateClearance`: distancia horizontal (m) al centro de una caja apoyada en la plataforma a la que elige el punto de despegue o de aterrizaje de un salto;
@@ -1019,21 +1019,23 @@ export class Bot {
     }
 
     /**
-     * Sin arma o con los tanques vacíos (puntos de arma), o con salud menor que `repairHp` (puntos de reparación), va al
-     * punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach` aristas o menos.
-     * Un punto con caja (`point.crate`) cuenta por la posición actual de la caja y se descarta si queda fuera de ese alcance
-     * (o no está sobre una plataforma). Devuelve verdadero si usó el frame.
+     * Busca un arma que no tiene o cuyo tanque está vacío (puntos de arma), o con salud menor que `repairHp` (puntos de
+     * reparación): va al punto de aparición más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach`
+     * aristas o menos. Un punto con caja (`point.crate`) cuenta por la posición actual de la caja, la rompe para sacar el
+     * ítem y se descarta si queda fuera de ese alcance (o no está sobre una plataforma). Devuelve verdadero si usó el frame.
      */
     seekPickup(me, cur, points) {
-        const wantsWeapon = !this.armed(me);
         const wantsRepair = me.hp < this.config.repairHp;
-        if (cur === null || !(wantsWeapon || wantsRepair)) return false;
-        const { dist, parent } = this.search(cur);
+        const wantsWeapon = (weapon) => !((me.tanks.get(weapon) ?? 0) > 0);
+        if (cur === null) return false;
+        let search = null;
         let best = null;
         let lower = null;
         for (const point of points) {
             const crate = point.crate ?? null;
-            if (!(point.active || crate) || !(point.kind === "repair" ? wantsRepair : wantsWeapon)) continue;
+            if (!(point.active || crate) || !(point.kind === "repair" ? wantsRepair : wantsWeapon(point.weapon))) continue;
+            search ??= this.search(cur);
+            const { dist, parent } = search;
             const node = crate ? this.pickupNode(crate.x, crate.y - this.offsetY) : this.pickupNode(point.x, point.y);
             if (node === null || dist[node] === Infinity) continue;
             let hops = 0;
