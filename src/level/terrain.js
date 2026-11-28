@@ -11,11 +11,12 @@ import { SURFACES, surfaceOf } from "./surfaces.js";
 /**
  * Valores del terreno de densidad (`docs/design/05-escenario.md` §5.5): `maxTileSize` (m) es el lado máximo de un tramo de
  * una pieza grande; `minRebuildInterval` (s de juego) es cada cuánto como mucho se rehace la forma de un tramo;
- * `rebuildBudgetMs` (ms) es lo que puede gastar un frame en rehacer tramos; `wearRedrawInterval` (s de juego) es cada
+ * `rebuildBudgetMs` (ms) es lo que puede gastar un frame en rehacer tramos; `maxStepsForRebuild` es el tope de pasos de física
+ * de un frame que todavía rehace tramos; `maxRebuildDeferral` (s de juego) es lo máximo que una forma sucia espera por eso; `wearRedrawInterval` (s de juego) es cada
  * cuánto como mucho se publica el desgaste de un tramo para redibujarlo; `simplifyCells` es la
  * tolerancia de simplificación del contorno, en celdas; `minPieceCells` es el área mínima de un polígono convexo, en celdas².
  */
-export const TERRAIN = { maxTileSize: 4, minRebuildInterval: 0.1, rebuildBudgetMs: 2, wearRedrawInterval: 0.25, simplifyCells: 0.5, minPieceCells: 0.5 };
+export const TERRAIN = { maxTileSize: 4, minRebuildInterval: 0.1, rebuildBudgetMs: 2, maxStepsForRebuild: 1, maxRebuildDeferral: 0.25, wearRedrawInterval: 0.25, simplifyCells: 0.5, minPieceCells: 0.5 };
 
 /** Un anillo con menos vértices que esto no encierra área. */
 const MINIMUM_RING_VERTICES = 3;
@@ -286,7 +287,7 @@ export class Terrain {
         const localY = y - this.offsetY;
         for (const { grid, surface } of this.tiles) {
             if (SURFACES[surface].acidAttack === 0 || !gridNear(grid, localX, localY, reach)) continue;
-            if (grid.cellsWithin(localX, localY, reach).candidates.length > 0) return true;
+            if (grid.hasMatterWithin(localX, localY, reach)) return true;
         }
         return false;
     }
@@ -312,18 +313,23 @@ export class Terrain {
      * tramos que esperan se rehacen del que lleva más tiempo sucio al que menos, hasta gastar `config.rebuildBudgetMs` en
      * el frame (siempre se rehace al menos uno si hay alguno para rehacer, así ninguno se queda sin turno); los que sobran
      * quedan para el próximo frame.
+     * Un frame con más de `config.maxStepsForRebuild` pasos de física no rehace ninguna forma y la deja para un frame más
+     * liviano, salvo la que lleva `config.maxRebuildDeferral` o más esperando.
      * @param {number} [time] reloj de juego, en s
+     * @param {number} [stepsThisFrame] pasos de física que corrió el frame; sin él, el frame siempre rehace
      * @returns {number} tramos rehechos: con más de 0 hubo fixtures destruidos y quien llama invalida lo que dependa de ellos
      */
-    update(time = 0) {
+    update(time = 0, stepsThisFrame = 0) {
         this.frame++;
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
         this.waiting.length = 0;
+        const busyFrame = stepsThisFrame > this.config.maxStepsForRebuild;
         for (const tile of this.tiles) {
             if (tile.grid.shapeDirty) {
                 tile.dirtySince ??= time;
-                if (time - tile.rebuiltAt >= this.config.minRebuildInterval) this.waiting.push(tile);
+                const stalled = time - tile.dirtySince >= this.config.maxRebuildDeferral;
+                if (time - tile.rebuiltAt >= this.config.minRebuildInterval && (!busyFrame || stalled)) this.waiting.push(tile);
             } else if (tile.grid.wearDirty && time - tile.wearPublishedAt >= this.config.wearRedrawInterval) {
                 this.publishWear(tile, time);
             }

@@ -394,7 +394,9 @@ function standingTrace({ game, tile }, rebuild) {
     const trace = [];
     let grounded = true;
     const defaultInterval = TERRAIN.minRebuildInterval;
+    const defaultMaxSteps = TERRAIN.maxStepsForRebuild;
     TERRAIN.minRebuildInterval = 0;
+    TERRAIN.maxStepsForRebuild = Infinity;
     try {
         for (let frame = 0; frame < FORCED_REBUILDS; frame++) {
             if (rebuild) tile.grid.shapeDirty = true;
@@ -406,6 +408,7 @@ function standingTrace({ game, tile }, rebuild) {
         }
     } finally {
         TERRAIN.minRebuildInterval = defaultInterval;
+        TERRAIN.maxStepsForRebuild = defaultMaxSteps;
     }
     return { trace, grounded };
 }
@@ -445,4 +448,41 @@ test("rehacer a la fuerza una plataforma atravesable bajo un robot parado no lo 
     const lowest = platforms.measure(platforms.owners.get(0)).low;
     assert.ok(Math.abs(lowest - stepTop) < ONE_WAY.tolerance, "sigue sobre el tope y no lo atravesó");
     assert.equal(players[0].dead, false);
+});
+
+test("un frame con más pasos que maxStepsForRebuild no rehace y el siguiente de un paso sí", () => {
+    const terrain = newFloorTerrain();
+    const [tile] = terrain.tiles;
+    tile.grid.shapeDirty = true;
+    assert.equal(terrain.update(0, TERRAIN.maxStepsForRebuild + 1), 0, "frame de 2 pasos: no rehace");
+    assert.equal(tile.grid.shapeDirty, true, "sigue sucio");
+    assert.equal(terrain.update(TERRAIN.minRebuildInterval, TERRAIN.maxStepsForRebuild), 1, "frame de 1 paso: rehace");
+    assert.equal(tile.grid.shapeDirty, false);
+    terrain.dispose();
+});
+
+test("una forma diferida por frames de muchos pasos se rehace igual al llegar a maxRebuildDeferral", () => {
+    const terrain = newFloorTerrain();
+    const [tile] = terrain.tiles;
+    const busySteps = TERRAIN.maxStepsForRebuild + 1;
+    tile.grid.shapeDirty = true;
+    assert.equal(terrain.update(0, busySteps), 0);
+    assert.equal(terrain.update(TERRAIN.maxRebuildDeferral / 2, busySteps), 0, "todavía dentro del tope");
+    assert.equal(terrain.update(TERRAIN.maxRebuildDeferral, busySteps), 1, "pasado el tope se rehace aunque el frame sea pesado");
+    terrain.dispose();
+});
+
+test("hasMatterWithin coincide con cellsWithin: celdas llenas, vacías, en el borde y fuera de la grilla", () => {
+    const grid = new DensityGrid({ originX: 1, originY: 2, width: 1, height: 1 });
+    grid.fillRectangle({ minX: 1, minY: 2, maxX: 1.5, maxY: 2.5 });
+    const radius = grid.cellWidth;
+    const probes = [
+        [1.25, 2.25, radius], [1.75, 2.75, radius], [1.5, 2.5, radius / 4], [1.9, 2.9, radius / 4],
+        [1, 2, radius], [2, 3, radius], [0, 0, radius], [5, 5, radius], [1.5, 2.5, 10], [1.75, 2.25, radius * 3],
+    ];
+    for (const [x, y, reach] of probes) {
+        assert.equal(grid.hasMatterWithin(x, y, reach), grid.cellsWithin(x, y, reach).candidates.length > 0, `punto ${x}, ${y}, radio ${reach}`);
+    }
+    assert.ok(probes.some(([x, y, reach]) => grid.hasMatterWithin(x, y, reach)), "hay consultas con materia");
+    assert.ok(probes.some(([x, y, reach]) => !grid.hasMatterWithin(x, y, reach)), "hay consultas sin materia");
 });
