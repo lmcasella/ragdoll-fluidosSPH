@@ -310,7 +310,7 @@ const robotFilter = createRobotFilter();
 scene.ragdollLayer.filters = [robotFilter];
 const lightSourceOfKind = buildKindSources({ lava: FLUID.LAVA, acid: FLUID.ACID });
 const lightView = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1 };
+const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1, viewHeight: 1 };
 const liquidFrame = { time: 0, originX: 0, originY: 0, pixelsPerMeter: 1 };
 const lightMaterialAt = (index) => store.kind[store.slotAt(index)];
 const wallContact = new WallContact(particleSystem, store, SHOT_SYSTEM);
@@ -1120,6 +1120,7 @@ function loop(nowMs) {
     lightScreenOrigin.originX = scene.world.position.x;
     lightScreenOrigin.originY = scene.world.position.y;
     lightScreenOrigin.pixelsPerMeter = scale;
+    lightScreenOrigin.viewHeight = camera.viewH;
     levelView.setLights(lightSet);
     crateView.setLights(lightSet);
     updateRobotFilter(robotFilter, lightScreenOrigin);

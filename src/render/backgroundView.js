@@ -33,8 +33,8 @@ export class BackgroundView {
         });
         parent.addChild(this.container);
         this.segmentBuilds = 0;
-        this.lightFilters = LIGHTING.backgroundScales.map((scale, nearness) => {
-            const filter = createLightFilter({ scale });
+        this.lightFilters = LIGHTING.backgroundLayers.map((look, nearness) => {
+            const filter = createLightFilter(look);
             this.layers[this.layers.length - 1 - nearness].container.filters = [filter];
             return filter;
         });
