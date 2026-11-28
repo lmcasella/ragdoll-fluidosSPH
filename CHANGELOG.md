@@ -24,6 +24,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 
 ### Changed
 - La corrosión ya no da tirones: los frames con 2 pasos de física dejan para el siguiente la reconstrucción del terreno que se corroe, y detectar el contacto del ácido con el terreno es más barato (#364).
+- La corrosión del ácido sobre la plataforma central ya no traba el juego al principio: rehacer el tramo que se corroe pasa de unos 40 ms a poco más de 1 ms (#364).
 - En máquinas lentas el juego se ralentiza parejo en vez de dar tirones: como máximo corren 2 pasos de física por frame, el atraso que no entra se descarta y la ronda, la inundación y la física se ralentizan juntas (#247).
 - `?bench=1` informa la física por paso (mediana, p95 y p99) y los pasos por frame (mediana y máximo); la física por subsistema pasa a rotularse "física (frame)" porque suma todos los pasos del frame (#247).
 - La miel cuesta menos de simular, con el mismo comportamiento (#247).
