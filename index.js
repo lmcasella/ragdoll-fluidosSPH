@@ -978,7 +978,9 @@ function simular(frameDt, enTitulo) {
     lastMatchState = match.state;
     audio.playMusic(musicaActual());
     accumulator += frameDt * match.timeScale;
-    simTime += frameDt * match.timeScale;
+    const pendingSteps = consumeFixedSteps(accumulator, STEP_SETTINGS.dt, MAX_STEPS_PER_FRAME);
+    accumulator = pendingSteps.accumulator;
+    simTime += frameDt * match.timeScale - pendingSteps.discarded;
     const now = simTime;
 
     players.forEach((player, k) => {
@@ -1015,9 +1017,7 @@ function simular(frameDt, enTitulo) {
     });
 
     debug.mark("control");
-    const pendingSteps = consumeFixedSteps(accumulator, STEP_SETTINGS.dt, MAX_STEPS_PER_FRAME);
     stepsLastFrame = pendingSteps.steps;
-    accumulator = pendingSteps.accumulator;
     for (let stepIndex = 0; stepIndex < pendingSteps.steps; stepIndex++) {
         players.forEach((player, k) => {
             controls[k].jump = jumpPending[k] === "jump";

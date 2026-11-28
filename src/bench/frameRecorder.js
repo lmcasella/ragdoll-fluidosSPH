@@ -76,7 +76,7 @@ export class FrameRecorder {
     summary(name) {
         const group = this.groupOf(name);
         const frames = sortedCopy(group.frameMs);
-        const emptyStep = { median: 0, p95: 0, p99: 0 };
+        const emptyStep = { median: null, p95: null, p99: null };
         if (frames.length === 0) {
             const stepsPerFrame = { median: 0, max: 0 };
             return { frames: 0, median: 0, p95: 0, p99: 0, worst: 0, maxParticles: 0, gpuMedian: null, laps: {}, step: emptyStep, stepsPerFrame };
