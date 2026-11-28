@@ -143,6 +143,8 @@ test("recoger un arma de un punto del mapa suena pickup", async () => {
     const game = await boot(fake);
     await unlock(game);
     const point = game.state.pickups.points.find((p) => p.weapon === 2);
+    game.state.crates.enqueueDamage(point.crate, Infinity);
+    game.frames(2);
     place(game, 0, point.x, point.y);
     game.frames(5);
     const events = fake.plays.map((p) => eventOf(p.buffer.url));
