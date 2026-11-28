@@ -56,6 +56,12 @@ test("el fragment del mapa de luz marcha 16 pasos con cota constante y omite 0,1
     for (const bound of bounds) assert.match(bound, /^(MAX_LIGHTS|\d+)$/, "cota constante");
 });
 
+test("el mapa de luz toma la posición de pantalla del píxel en la textura de destino, no de vTextureCoord", () => {
+    for (const declaration of ["uInputSize", "uOutputFrame", "uOutputTexture"]) assert.ok(LIGHT_MAP_FRAGMENT.includes(`uniform highp vec4 ${declaration};`), declaration);
+    assert.ok(LIGHT_MAP_FRAGMENT.includes("vec2 screen = (vTextureCoord * uInputSize.xy + uOutputFrame.xy) / uOutputTexture.xy * uScreenSize;"));
+    assert.ok(!LIGHT_MAP_FRAGMENT.includes("vTextureCoord * uScreenSize"));
+});
+
 test("el filtro del mapa de luz se dibuja a la resolución del destino y con el antialias de RENDER_QUALITY", () => {
     installFakePixi();
     const filter = createLightMapFilter();

@@ -8,7 +8,9 @@ import { RENDER_QUALITY } from "./renderQuality.js";
  * Filtro del mapa de luz (`docs/design/13-arte.md` §13.3): se aplica a un cuadrilátero del tamaño de la pantalla que se
  * dibuja en la textura del mapa de luz. Por cada píxel suma las luces puntuales con su caída; las de los robots (las que
  * tienen radio de fuente) multiplican además por la visibilidad, que sale de marchar desde el píxel hacia la luz sobre el
- * mapa de oclusión. Se dibuja a la resolución de la textura de destino (`resolution: "inherit"`), no a la del canvas.
+ * mapa de oclusión. La posición de pantalla sale de la del píxel en la textura de destino (`uInputSize` y `uOutputFrame`, porque
+ * `vTextureCoord` es relativo a la textura de trabajo, que puede ser mayor que el área), dividida por el tamaño de esa
+ * textura (`uOutputTexture`) y multiplicada por `uScreenSize`. Se dibuja a la resolución de la textura de destino (`resolution: "inherit"`), no a la del canvas.
  */
 
 const SHADER_NAME = "light-map-filter";
@@ -37,6 +39,9 @@ uniform sampler2D uOcclusion;
 uniform highp vec2 uOrigin;
 uniform highp float uPixelsPerMeter;
 uniform highp vec2 uScreenSize;
+uniform highp vec4 uInputSize;
+uniform highp vec4 uOutputFrame;
+uniform highp vec4 uOutputTexture;
 ${LIGHT_FUNCTIONS}
 
 const float MARCH_STEPS = ${glslFloat(LIGHT_MAP.marchSteps)};
@@ -67,7 +72,7 @@ float visibility(vec2 pixel, vec2 lightPosition, float sourceRadius)
 
 void main(void)
 {
-    vec2 screen = vTextureCoord * uScreenSize;
+    vec2 screen = (vTextureCoord * uInputSize.xy + uOutputFrame.xy) / uOutputTexture.xy * uScreenSize;
     vec2 pixel = vec2(screen.x - uOrigin.x, uOrigin.y - screen.y) / uPixelsPerMeter;
     vec3 total = vec3(0.0);
     float marched = 0.0;
