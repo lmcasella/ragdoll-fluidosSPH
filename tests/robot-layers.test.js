@@ -17,8 +17,7 @@ const ORIGINAL_ARM = ["b_13", "b_3"];
 const COPY_ARM = ["b_15", "b_14"];
 const ORIGINAL_LEG = ["b_9", "b_8", "b_4"];
 const COPY_LEG = ["b_18", "b_17", "b_16"];
-const CORE = ["b_2", "b_6"];
-const HEAD = ["b_1"];
+const CORE = ["b_1", "b_2", "b_6"];
 
 /**
  * Ids de cuerpo de los hijos de `view` en el orden en que PIXI los dibuja: por `zIndex` y, a igual capa, por orden de alta.
@@ -53,18 +52,17 @@ function assertLayersInOrder(order, groups) {
 
 test("mirando a la derecha, el juego de miembros copia (front_*) queda adelante y el original atrás", () => {
     const order = drawOrder(1);
-    assertLayersInOrder(order, [ORIGINAL_ARM, ORIGINAL_LEG, CORE, HEAD, COPY_LEG, COPY_ARM]);
+    assertLayersInOrder(order, [ORIGINAL_ARM, ORIGINAL_LEG, CORE, COPY_LEG, COPY_ARM]);
 });
 
 test("mirando a la izquierda, el juego original queda adelante y la copia atrás", () => {
-    assertLayersInOrder(drawOrder(-1), [COPY_ARM, COPY_LEG, CORE, HEAD, ORIGINAL_LEG, ORIGINAL_ARM]);
+    assertLayersInOrder(drawOrder(-1), [COPY_ARM, COPY_LEG, CORE, ORIGINAL_LEG, ORIGINAL_ARM]);
 });
 
-test("las capas de la tabla van de atrás hacia adelante y el torso y la pelvis son el cuerpo y la cabeza va sobre ellos", () => {
-    const { backArm, backLeg, core, head, frontLeg, frontArm } = ROBOT_DRAW_LAYER;
-    assert.ok(backArm < backLeg && backLeg < core && core < head && head < frontLeg && frontLeg < frontArm);
+test("las capas de la tabla van de atrás hacia adelante y la cabeza, el torso y la pelvis son el cuerpo", () => {
+    const { backArm, backLeg, core, frontLeg, frontArm } = ROBOT_DRAW_LAYER;
+    assert.ok(backArm < backLeg && backLeg < core && core < frontLeg && frontLeg < frontArm);
     for (const id of CORE) assert.equal(robotLayerOf(id, 1), core);
-    assert.equal(robotLayerOf("b_1", 1), head);
     assert.equal(robotLayerOf("b_13", 1), backArm);
     assert.equal(robotLayerOf("b_13", -1), frontArm);
 });
@@ -73,5 +71,5 @@ test("cada cuerpo del JSON con miembros está en la tabla de capas", () => {
     const limbIds = [...ORIGINAL_ARM, ...COPY_ARM, ...ORIGINAL_LEG, ...COPY_LEG];
     for (const id of limbIds) assert.notEqual(robotLayerOf(id, 1), ROBOT_DRAW_LAYER.core, id);
     const jsonIds = ROBOT_JSON.bodies.map((body) => body.id).sort();
-    assert.deepEqual([...limbIds, ...CORE, ...HEAD].sort(), jsonIds);
+    assert.deepEqual([...limbIds, ...CORE].sort(), jsonIds);
 });
