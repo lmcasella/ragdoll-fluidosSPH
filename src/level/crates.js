@@ -12,7 +12,7 @@ const TWO_HITS_DAMAGE = MELEE.combo.sequence
     .reduce((total, attackName) => total + MELEE.attacks[attackName].damage, 0);
 
 /**
- * Cajas de acero que encierran los ítems del mapa (`docs/design/04-fluidos.md` §4.2). Distancias en m, masas en kg, tiempos
+ * Cajas de madera que encierran los ítems del mapa (`docs/design/04-fluidos.md` §4.2). Distancias en m, masas en kg, tiempos
  * en s, velocidades en m/s.
  * - `side` y `mass`: lado de la caja y masa de la rebanada 2D (la densidad sale de `mass / side²`, en kg/m²); `friction`:
  *   fricción de la caja y de sus pedazos, adimensional;

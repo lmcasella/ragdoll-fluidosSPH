@@ -36,7 +36,7 @@ import { FLUID, refillTanks } from "../combat/weapons.js";
  * - `flood`: `surface` (m) del agua al empezar, `start` (s), `speed` base (m/s), `perStage` (m/s por etapa), `depth` del
  *   fondo efectivo, `catchUp` (alcance: a la velocidad se suma `min(max, rate · max(0, d − gap))` m/s, con `d` la distancia
  *   en m de la superficie a la altura de apoyo del robot vivo más bajo, sin contar saltos; `gap` en m, `rate` en 1/s, `max` en m/s) y `sinkBelow` (m bajo el nivel desde donde se libera lo hundido);
- * - `crates`: falso, los ítems aparecen sin caja (la subida necesita zonas de aterrizaje libres);
+ * - `crates`: verdadero, cada ítem aparece dentro de una caja (`src/level/crates.js`, `docs/design/04-fluidos.md` §4.2) que cae sobre su plataforma; se libera con la geometría que queda abajo (`update`) y al empezar la ronda (`reset`);
  * - `ahead`: cuánto por encima de la cámara se genera;
  * - `loadout`: equipo inicial del mapa (el clásico usa `LOADOUT` de `src/combat/weapons.js`): sin arma ni tanques, solo melee;
  * - `stagePrize`: premio del primer robot que se apoya en una plataforma de la etapa `n ≥ 1`, una vez por etapa y por
@@ -72,7 +72,7 @@ export const CLIMB = {
     spawn: { distance: [4, 10], dy: 3, inset: 0.8, tries: 400, maxTop: 7 },
     scroll: { base: 0.15, perStage: 0.02 },
     reach: BOT.reach,
-    crates: false,
+    crates: true,
     pickupLift: 0.6,
     pickups: [
         { period: 9, weights: { WATER: 1 } },
