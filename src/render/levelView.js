@@ -18,11 +18,14 @@ const BREAKABLE_SHAKE = 0.06;
 /** Frecuencia angular de la vibración de una plataforma rompible, en rad/s. */
 const BREAKABLE_SHAKE_RATE = 55;
 
-/** Grosor del trazo de los sólidos en pantalla, en px: no cambia con el zoom, como en el dibujo en Canvas 2D. */
-const OUTLINE_SCREEN_PX = 2;
+/**
+ * Grosor del trazo de solape de los sólidos fijos en pantalla, en px: el trazo del mismo color que el relleno agranda cada
+ * forma medio píxel por lado, así dos tramos vecinos se pisan y no queda una franja de 1 px entre sus bordes suavizados.
+ */
+const SEAM_OVERLAP_SCREEN_PX = 1;
 
 /** Cambio relativo del grosor del trazo (en la geometría) a partir del cual se reconstruye el nivel para seguir el zoom. */
-const OUTLINE_REBUILD_TOLERANCE = 0.1;
+const OVERLAP_REBUILD_TOLERANCE = 0.1;
 
 /** Valores por vértice en un anillo intercalado: x e y. */
 const VALUES_PER_VERTEX = 2;
@@ -63,8 +66,7 @@ function ringIsOuter(ring) {
 
 /**
  * Vista del nivel: sólidos fijos con el filtro de materiales y plataformas rompibles aparte. Con terreno de densidad
- * dibuja un `Graphics` por tramo y solo redibuja el tramo cuya forma o desgaste cambió (y los vecinos de uno cuya forma
- * cambió, por las costuras); sin terreno, los rectángulos de los sólidos en un solo `Graphics`. Patrón: vista de PIXI en
+ * dibuja un `Graphics` por tramo y solo redibuja el tramo cuya forma o desgaste cambió; sin terreno, los rectángulos de los sólidos en un solo `Graphics`. Patrón: vista de PIXI en
  * modo retenido (crea sus `Graphics` y su filtro una sola vez; los de los tramos quitados vuelven a un pool).
  */
 export class LevelView {
@@ -89,7 +91,7 @@ export class LevelView {
         this.shapeVersion = -1;
         this.tilesVersion = -1;
         this.redrawAll = false;
-        this.outlineWidth = 0;
+        this.overlapWidth = 0;
         this.breakableStates = [];
         this.breakableCount = -1;
         this.fixedBuilds = 0;
@@ -108,7 +110,7 @@ export class LevelView {
     /**
      * Reconstruye la geometría solo si cambió: los sólidos fijos cuando cambia el conjunto de sólidos o el terreno (y de
      * este, solo los tramos que cambiaron) y los rompibles cuando cambia su grieta o su rotura, y las dos cuando el zoom
-     * cambia el grosor del trazo más que `OUTLINE_REBUILD_TOLERANCE`. El desplazamiento vertical se aplica como posición,
+     * cambia el grosor del trazo más que `OVERLAP_REBUILD_TOLERANCE`. El desplazamiento vertical se aplica como posición,
      * sin reconstruir.
      * @param {{ solids: object[] }} level sólidos en metros (`x`, `y`, `w`, `h` del centro)
      * @param {number} offsetY desplazamiento vertical del nivel, en m
@@ -121,9 +123,9 @@ export class LevelView {
      */
     update(level, offsetY, now, screenScale, terrainShape = null, screenOrigin = { x: 0, y: 0 }) {
         const { solids } = level;
-        const outlineWidth = (OUTLINE_SCREEN_PX * this.pixelsPerMeter) / screenScale;
-        if (Math.abs(outlineWidth - this.outlineWidth) > this.outlineWidth * OUTLINE_REBUILD_TOLERANCE) {
-            this.outlineWidth = outlineWidth;
+        const overlapWidth = (SEAM_OVERLAP_SCREEN_PX * this.pixelsPerMeter) / screenScale;
+        if (Math.abs(overlapWidth - this.overlapWidth) > this.overlapWidth * OVERLAP_REBUILD_TOLERANCE) {
+            this.overlapWidth = overlapWidth;
             this.solidCount = -1;
             this.redrawAll = true;
         }
@@ -195,12 +197,12 @@ export class LevelView {
             if (ofSurface.length === 0) continue;
             for (const solid of ofSurface) this.addRectangle(graphics, solid, 0);
             graphics.fill({ color: encodeSurface({ surface, wear: 0 }) });
+            graphics.stroke({ width: this.overlapWidth, color: encodeSurface({ surface, wear: 0 }) });
         }
     }
 
     /**
-     * Redibuja los tramos del terreno cuya forma o desgaste cambió desde que se dibujaron, y los vecinos de los que
-     * cambiaron de forma (una costura entre dos tramos aparece o desaparece con el contorno del vecino).
+     * Redibuja los tramos del terreno cuya forma o desgaste cambió desde que se dibujaron.
      * @param {{tilesVersion: number, tiles: object[]}} terrainShape
      */
     drawTerrainTiles(terrainShape) {
@@ -241,8 +243,8 @@ export class LevelView {
     }
 
     /**
-     * Dibuja un tramo: sus contornos con los agujeros recortados y las celdas con desgaste (una forma por celda,
-     * agrupadas por nivel de desgaste).
+     * Dibuja un tramo: sus contornos con los agujeros recortados, el trazo de solape con los tramos vecinos y las celdas con
+     * desgaste (una forma por celda, agrupadas por nivel de desgaste).
      * @param {object} tile tramo publicado
      */
     drawTile(tile) {
@@ -258,6 +260,8 @@ export class LevelView {
         graphics.fill({ color: encodeSurface({ surface, wear: 0 }) });
         this.addRings(graphics, rings.filter((ring) => !ringIsOuter(ring)));
         graphics.cut();
+        this.addRings(graphics, rings);
+        graphics.stroke({ width: this.overlapWidth, color: encodeSurface({ surface, wear: 0 }) });
         this.drawWear(graphics, tile);
     }
 
@@ -291,7 +295,7 @@ export class LevelView {
             const shake = crack > 0 ? Math.sin(now * BREAKABLE_SHAKE_RATE) * BREAKABLE_SHAKE * crack : 0;
             this.addRectangle(graphics, solid, shake);
             graphics.fill(mixColor(BREAKABLE_FILL, BREAKABLE_WARN, crack));
-            graphics.stroke({ width: this.outlineWidth, color: BREAKABLE_STROKE });
+            graphics.stroke({ width: this.overlapWidth, color: BREAKABLE_STROKE });
         }
         this.breakableBuilds++;
     }

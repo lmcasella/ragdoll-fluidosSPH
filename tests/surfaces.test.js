@@ -211,7 +211,10 @@ test("LevelView pinta cada tramo con el color de su material y no redibuja si no
     const colorOf = (tile) => view.tileEntries.get(tile).graphics.fills.map((fill) => fill.color);
     assert.deepEqual(colorOf(steel), [encodeSurface({ surface: "steel", wear: 0 })]);
     assert.deepEqual(colorOf(concrete), [encodeSurface({ surface: "concrete", wear: 0 })]);
-    assert.equal(view.tileEntries.get(steel).graphics.strokes.length, 0, "sin trazo de contorno");
+    const strokes = view.tileEntries.get(steel).graphics.strokes;
+    assert.equal(strokes.length, 1, "un solo trazo por tramo: el solape con los vecinos");
+    assert.equal(strokes[0].color, encodeSurface({ surface: "steel", wear: 0 }), "del color del relleno, no un contorno claro");
+    assert.ok(Math.abs(strokes[0].width * SCREEN_SCALE / PIXELS_PER_METER - 1) < RATIO_TOLERANCE, "mide 1 px de pantalla: medio píxel por lado");
     assert.equal(view.fixedContainer.children.length, 3, "los rectángulos sin terreno y un Graphics por tramo");
     view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     assert.equal(view.fixedBuilds, builds, "misma forma y mismo desgaste: no redibuja");
