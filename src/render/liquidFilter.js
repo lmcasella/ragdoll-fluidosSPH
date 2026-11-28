@@ -159,6 +159,7 @@ export function createLiquidFilter(look) {
         }),
         blendRequired: refractive,
         resolution: RENDER_QUALITY.filterResolution,
+        antialias: RENDER_QUALITY.filterAntialias,
         resources: {
             [LIQUID_UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },

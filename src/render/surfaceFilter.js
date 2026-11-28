@@ -288,6 +288,7 @@ export function createSurfaceFilter() {
     return new PIXI.Filter({
         glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: SURFACE_FRAGMENT, name: SHADER_NAME }),
         resolution: RENDER_QUALITY.filterResolution,
+        antialias: RENDER_QUALITY.filterAntialias,
         resources: {
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },

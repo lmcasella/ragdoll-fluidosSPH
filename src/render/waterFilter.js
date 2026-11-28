@@ -241,6 +241,7 @@ export function createWaterFilter({ look, color, acidColor, lineColor, lineWidth
         glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: WATER_FRAGMENT, name: "water-filter" }),
         blendRequired: true,
         resolution: RENDER_QUALITY.filterResolution,
+        antialias: RENDER_QUALITY.filterAntialias,
         resources: {
             uHeights: heights,
             [LIQUID_UNIFORM_GROUP]: {

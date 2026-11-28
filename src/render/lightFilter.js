@@ -1,5 +1,6 @@
 import { LIGHT_FUNCTIONS, applyLights, createPointLightUniforms } from "./lighting.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
+import { RENDER_QUALITY } from "./renderQuality.js";
 
 /**
  * Filtro de luz sin normales (`docs/design/13-arte.md` §13.3), para las capas del fondo: suma a lo dibujado la luz de las
@@ -51,6 +52,7 @@ void main(void)
 export function createLightFilter({ scale }) {
     return new PIXI.Filter({
         glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: LIGHT_FILTER_FRAGMENT, name: SHADER_NAME }),
+        antialias: RENDER_QUALITY.filterAntialias,
         resources: {
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
