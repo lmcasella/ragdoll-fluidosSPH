@@ -2,7 +2,7 @@ import { FLUID } from "../combat/weapons.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
 import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
-import { BodySubstepCache, bodyWorldPoint, bodyWorldVector, bodyLocalPoint, bodyLocalVector } from "./bodySubstepCache.js";
+import { BodySubstepCache, bodyWorldPoint, bodyWorldVector, bodyLocalPoint, bodyLocalVector } from "../core/engine/bodySubstepCache.js";
 import { BODY_TYPE } from "../core/engine/box2d.js";
 import { exponentialApproachFactor } from "../core/math/scalar.js";
 import { vectorLength, normalize, dot, cross } from "../core/math/vector2.js";

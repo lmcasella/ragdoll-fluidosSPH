@@ -120,6 +120,16 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `MAX_POLYGON_VERTICES` | Máximo de vértices de un polígono de Box2D (8). |
 | `PolygonFixtureBuilder` | Crea fixtures poligonales y cajas sin memoria nativa por llamada (`createPolygon`, `createBox`, `dispose`). |
 
+### engine/bodySubstepCache.js
+
+| Nombre | Qué hace |
+|---|---|
+| `BodySubstepCache` | Guarda por subpaso la transformada, el tipo, el centro de masa y las inversas de masa e inercia de cada cuerpo, leídos del binding una sola vez. |
+| `bodyWorldPoint` | Punto local del cuerpo a mundo, bit a bit igual que `b2Body::GetWorldPoint`, en m. |
+| `bodyWorldVector` | Vector local del cuerpo a mundo, igual que `b2Body::GetWorldVector`. |
+| `bodyLocalPoint` | Punto de mundo a local del cuerpo, igual que `b2Body::GetLocalPoint`, en m. |
+| `bodyLocalVector` | Vector de mundo a local del cuerpo, igual que `b2Body::GetLocalVector`. |
+
 ### color.js
 
 | Nombre | Qué hace |

@@ -1,19 +1,19 @@
-import { BODY_TYPE } from "../core/engine/box2d.js";
+import { BODY_TYPE } from "./box2d.js";
 
 const toFloat32 = Math.fround;
 
 /**
  * Datos de un cuerpo que no cambian durante un subpaso: transformada, tipo, centro de masa e inversas de masa e inercia.
- * `Adhesion` solo cambia velocidades dentro del subpaso, así que se leen una vez por cuerpo y por subpaso del binding de
- * Box2D en lugar de una vez por partícula.
+ * Valen durante todo el subpaso mientras quien los usa solo cambie velocidades y no mueva cuerpos, así que se leen del
+ * binding de Box2D una vez por cuerpo y por subpaso en lugar de una vez por partícula.
  */
 function createBodyData() {
     return { body: null, tick: 0, type: BODY_TYPE.STATIC, x: 0, y: 0, cos: 1, sin: 0, centerX: 0, centerY: 0, inverseMass: 0, inverseInertia: 0 };
 }
 
 /**
- * Caché de datos de cuerpos por subpaso, indexada por el puntero nativo del cuerpo (patrón Flyweight: un registro por
- * cuerpo, reutilizado). `beginSubstep` invalida todo; `get` lee del binding la primera vez que se pide un cuerpo en el
+ * Caché de datos de cuerpos por subpaso, indexada por el puntero nativo del cuerpo (caché por subpaso, memoización: un
+ * registro por cuerpo, reutilizado). `beginSubstep` invalida todo; `get` lee del binding la primera vez que se pide un cuerpo en el
  * subpaso. Los registros se crean una sola vez y no se crea memoria nativa.
  */
 export class BodySubstepCache {
