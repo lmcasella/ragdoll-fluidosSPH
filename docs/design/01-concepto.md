@@ -10,7 +10,7 @@ Dos robots con ragdoll activo se disparan agua, ácido, lava, fuego y viento, y 
 
 1. **La física es el juego.** Cada mecánica sale de la simulación, no de animaciones armadas: el daño viene de contactos reales, el empuje de impulsos reales y los efectos de fluidos de partículas reales.
 2. **Fluidos con personalidad.** Cada fluido se comporta distinto, tanto en lo físico como en lo táctico, y se combinan entre sí (lava + agua = piedra y vapor).
-3. **Legible y caótico.** Lo que pasa tiene que entenderse de un vistazo (destello rojo en la parte golpeada, chispas cuando un robot se moja, el viento visible), aunque el resultado sea caótico.
+3. **Legible y caótico.** Lo que pasa tiene que entenderse de un vistazo (destello blanco en la parte golpeada, chispas cuando un robot se moja, el viento visible), aunque el resultado sea caótico.
 4. **Partidas cortas, cero instalación.** Rondas de 1 a 2 minutos en el navegador, dos jugadores en la misma pantalla, con gamepad.
 
 **Referencias:** Gang Beasts y Human: Fall Flat (ragdoll activo), Stick Fight (1v1 con física), Noita (simulación de materiales como mecánica).

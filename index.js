@@ -76,7 +76,7 @@ import { parseHexColor } from "./src/ragdoll/ragdollTint.js";
 RagImporter.configure({ Box2D, PIXI });
 
 const LASER_RANGE = 25;
-const PLAYER_COLORS = ["#ff9933", "#33b5ff"];
+const PLAYER_COLORS = ["#5468ff", "#f23a2e"];
 const PLAYER_TINTS = PLAYER_COLORS.map(parseHexColor);
 const PLAYER_LIGHT_COLORS = PLAYER_TINTS.map(unitRgbOfBytes);
 

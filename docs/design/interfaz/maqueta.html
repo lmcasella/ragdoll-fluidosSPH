@@ -17,12 +17,12 @@
   --water-deep: #18397a;
   --water-surface: #9ad6ff;
 
-  --p1: #ff9933;
-  --p1-soft: rgba(255, 153, 51, .22);
-  --p1-ink: #1f1103;
-  --p2: #33b5ff;
-  --p2-soft: rgba(51, 181, 255, .22);
-  --p2-ink: #03182a;
+  --p1: #5468ff;
+  --p1-soft: rgba(84, 104, 255, .22);
+  --p1-ink: #060a26;
+  --p2: #f23a2e;
+  --p2-soft: rgba(242, 58, 46, .22);
+  --p2-ink: #1f0404;
 
   --panel: rgba(11, 12, 19, .86);
   --panel-2: #161824;
@@ -37,7 +37,7 @@
 
   --focus: #ffd84a;
   --focus-ink: #1d1600;
-  --danger: #ff4d5e;
+  --danger: #ff3dc8;
   --hazard: #ffcc44;
   --flood: #40dcff;
   --chip: #ffffff;
@@ -298,9 +298,9 @@ body {
 .pnl.r .bar .chip, .pnl.r .bar .fillb { left: auto; right: 0; }
 .bar .chip { background: var(--chip); }
 .bar .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2 * var(--u)), rgba(0, 0, 0, .55) calc(25% - 2 * var(--u)) 25%); }
-.p1c .fillb { background: linear-gradient(180deg, #ffc27f, var(--p1) 55%, #d9741a); }
-.p2c .fillb { background: linear-gradient(180deg, #9ddcff, var(--p2) 55%, #1a8fd1); }
-.bar.low .fillb { background: linear-gradient(180deg, #ff98a2, var(--danger) 55%, #c7283a); animation: lowpulse .8s ease-in-out infinite; }
+.p1c .fillb { background: linear-gradient(180deg, #a3aeff, var(--p1) 55%, #3445d6); }
+.p2c .fillb { background: linear-gradient(180deg, #ff8c84, var(--p2) 55%, #b81e14); }
+.bar.low .fillb { background: linear-gradient(180deg, #ff9fe4, var(--danger) 55%, #c21d93); animation: lowpulse .8s ease-in-out infinite; }
 .num.low { color: var(--danger); }
 .hit .chip { animation: chipdrain 1.4s ease-in 0s infinite; }
 .pnl.shake { animation: shake 1.4s linear infinite; }
@@ -766,7 +766,7 @@ body {
     </div></div>
     <ul class="notes">
       <li><b>Arriba, con fondo propio:</b> los paneles de vida salen de las esquinas de abajo (donde está la pileta y después el agua) y van arriba sobre un fondo oscuro. Ya no compiten con el mapa.</li>
-      <li><b>Vida = barra del color del jugador + número grande.</b> Marcas cada 25. Con menos de 30 se pone roja y late; la insignia "J1" sigue naranja para no perder quién es.</li>
+      <li><b>Vida = barra del color del jugador + número grande.</b> Marcas cada 25. Con menos de 30 se pone magenta y late; la insignia "J1" sigue con el color del jugador para no perder quién es.</li>
       <li><b>Feedback de daño (J2):</b> el robot destella, sube un número "−12" sobre la cabeza, aparece una barrita sobre él y en el panel queda un tramo blanco con lo perdido, que se vacía enseguida. El panel tiembla apenas.</li>
       <li><b>Marcador central "Al mejor de 3":</b> rombos de victorias de cada lado, ronda y reloj al medio, y abajo el aviso de inundación con franjas de peligro.</li>
     </ul>

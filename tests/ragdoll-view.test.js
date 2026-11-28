@@ -19,9 +19,9 @@ const PIXELS_PER_METER = ROBOT_JSON.units.pixelsPerMeter;
 const SETTLE_FRAMES = 10;
 const WATCH_FRAMES = 60;
 const POSE_TOLERANCE = 1e-6;
-const FLASH_RED = 0xff2828;
-const PLAYER_COLOR = parseHexColor("#ff9933");
-const PLAYER_COLOR_PACKED = 0xff9933;
+const FLASH_WHITE = 0xffffff;
+const PLAYER_COLOR = parseHexColor("#5468ff");
+const PLAYER_COLOR_PACKED = 0x5468ff;
 const WHITE_TINT = 0xffffff;
 const ANCHOR_CENTER = 0.5;
 const TEXTURES = createFakeRobotTextures();
@@ -90,7 +90,7 @@ test("el color del jugador, el destello y el mojado se aplican a la pintura y el
     checkPaint(PLAYER_COLOR_PACKED, "color del jugador");
     player.flashAmount = () => 1;
     tintParts(sprites.parts, player, PLAYER_COLOR, 0);
-    checkPaint(FLASH_RED, "destello");
+    checkPaint(FLASH_WHITE, "destello");
     player.flashAmount = () => 0;
     player.wet = true;
     tintParts(sprites.parts, player, PLAYER_COLOR, 0);
@@ -106,11 +106,11 @@ test("un robot muerto no parpadea con el mojado", () => {
     assert.equal(front.paint.tint, PLAYER_COLOR_PACKED);
 });
 test("mixTint iguala la mezcla de color de Canvas 2D: base, destello y mojado redondeados por canal", () => {
-    assert.equal(mixTint([255, 153, 51], 0, 0), 0xff9933);
-    assert.equal(mixTint([255, 153, 51], 1, 0), 0xff2828);
+    assert.equal(mixTint([84, 104, 255], 0, 0), 0x5468ff);
+    assert.equal(mixTint([255, 153, 51], 1, 0), 0xffffff);
     assert.equal(mixTint([255, 153, 51], 0, 1), 0x28dcff);
     const half = mixTint([200, 100, 0], 0.5, 0);
-    assert.equal(half, (Math.round(227.5) << 16) | (70 << 8) | 20);
+    assert.equal(half, (Math.round(227.5) << 16) | (Math.round(177.5) << 8) | Math.round(127.5));
 });
 
 test("la sincronización pone cada contenedor en la pose del cuerpo, en px y con la Y y el ángulo invertidos", () => {

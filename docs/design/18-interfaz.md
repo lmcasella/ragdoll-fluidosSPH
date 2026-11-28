@@ -21,8 +21,8 @@ El HUD y los menús quedan en HTML + CSS aunque el juego pase a dibujarse en un 
 
 | Token | Valor | Uso |
 |---|---|---|
-| `--p1` / `--p1-ink` | `#ff9933` / `#1f1103` | J1: insignia, franja, barra, rombos, fichas. `-ink` = texto sobre el color |
-| `--p2` / `--p2-ink` | `#33b5ff` / `#03182a` | J2, ídem |
+| `--p1` / `--p1-ink` | `#5468ff` / `#060a26` | J1 azul: insignia, franja, barra, rombos, fichas. `-ink` = texto sobre el color |
+| `--p2` / `--p2-ink` | `#f23a2e` / `#1f0404` | J2 rojo, ídem |
 | `--p1-soft` / `--p2-soft` | color al 22 % | Fondo degradado de columnas de jugador |
 | `--panel` | `rgba(11,12,19,.86)` | Fondo de todo panel sobre el escenario |
 | `--panel-2` / `--panel-3` | `#161824` / `#1f2230` | Superficies sólidas, fichas |
@@ -30,7 +30,7 @@ El HUD y los menús quedan en HTML + CSS aunque el juego pase a dibujarse en un 
 | `--scrim` | `rgba(8,9,14,.62)` | Velo sobre el escenario en menús (controles: .82) |
 | `--text` / `--text-2` / `--text-3` | `#f3f5fa` / `#b4b8c8` / `#737889` | Primario / secundario / apagado |
 | `--focus` / `--focus-ink` | `#ffd84a` / `#1d1600` | **Solo foco y acción primaria** |
-| `--danger` | `#ff4d5e` | Vida baja, zona de peligro del medidor |
+| `--danger` | `#ff3dc8` | Vida baja, zona de peligro del medidor. Magenta para no confundirse con el rojo de J2 |
 | `--hazard` | `#ffcc44` | Franjas del aviso de inundación próxima (siempre con franjas, nunca liso) |
 | `--flood` | `#40dcff` | Ícono de inundación en curso / agua que sube |
 | `--chip` | `#ffffff` | Tramo de vida recién perdida |
@@ -38,7 +38,7 @@ El HUD y los menús quedan en HTML + CSS aunque el juego pase a dibujarse en un 
 | `--w-agua` `--w-acido` `--w-lava` `--w-miel` | `#5aaaff` `#32ff32` `#ff5014` `#ffc832` | Ícono y tanque del arma (los de `WEAPONS`) |
 | `--g-a` `--g-b` `--g-x` `--g-y` | `#6bd66b` `#ff6060` `#4fa8ff` `#ffd84a` | Glifos de botones frontales |
 
-Regla: el color de un jugador siempre va con su insignia "J1"/"J2" o con su lado de pantalla, porque miel ≈ naranja y agua ≈ celeste. Las armas se distinguen además por ícono.
+Regla: el color de un jugador siempre va con su insignia "J1"/"J2" o con su lado de pantalla, porque el azul de J1 queda cerca del agua y el rojo de J2 cerca de la lava y del calor. El rojo de J2 y el magenta de peligro no van en el mismo elemento. Las armas se distinguen además por ícono.
 
 ### Tipografía (Google Fonts)
 
@@ -265,7 +265,7 @@ Con `prefers-reduced-motion: reduce`: sin temblor, sacudón, latidos ni rebotes;
 5. Fin de ronda sin línea de causa.
 6. "Muñeco" se muestra solo con el ícono de maniquí, sin descripción.
 7. En Infinito el panel muestra la vida como en el Clásico y, en nocaut, el contador de segundos sobre el robot.
-8. Sin destello blanco del robot: alcanzan el número flotante y la barrita.
+8. El robot golpeado destella en blanco (`03-robots.md`); la interfaz suma el número flotante y la barrita.
 9. Ningún texto visible de la interfaz usa palabras de muerte biológica ("ahogar", "ahogo", "se ahogó"): los robots no se ahogan. Cuando un robot cae al agua se dice "cortocircuito"; la zona roja del medidor de Infinito no lleva texto, solo el degradado rojo. Los identificadores del código (`drown…`) no cambian: esto vale solo para el texto.
 10. El teclado es solo de J1 y un solo jugador puede usar teclado y mouse a la vez: no hay teclado de J2. La pantalla de controles de teclado lleva una sola tarjeta.
 11. La especificación manda sobre la maqueta, que no se actualiza. "¡YA!" queda como texto. Revancha y menú van solo con íconos (↻ y casita).
