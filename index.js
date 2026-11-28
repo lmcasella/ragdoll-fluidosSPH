@@ -899,8 +899,12 @@ function simularPausa() {
     sonarTransicion();
 }
 
-/** Avanza la partida un frame: input, rondas, pasos de física y limpieza. Con el menú de debug abierto no se llama. */
-function simular(frameDt, enTitulo) {
+/**
+ * Avanza la partida un frame: input, rondas, pasos de física y limpieza. Con el menú de debug abierto no se llama.
+ * `frameDt` es el tiempo de juego del frame, topeado a `MAX_FRAME_SECONDS`; `realFrameDt` es el tiempo real, que usa el
+ * recorte de partículas por rendimiento.
+ */
+function simular(frameDt, enTitulo, realFrameDt) {
     if (match.state === "paused") {
         simularPausa();
         return;
@@ -1065,7 +1069,7 @@ function simular(frameDt, enTitulo) {
         for (const { k } of stagePrizes.apply(players, now)) audio.play("pickup", k, now);
     }
     limpiarParticulas();
-    store.trim(frameDt * 1000, frameDt);
+    store.trim(realFrameDt * 1000, realFrameDt);
     debug.mark("limpieza");
 }
 
@@ -1179,8 +1183,18 @@ function createBench() {
 
 const bench = benchMode ? createBench() : null;
 
+/**
+ * Tiempo máximo de juego por frame, en s: lo que simulan `MAX_STEPS_PER_FRAME` pasos. Topear el `dt` del frame acá hace
+ * que la ronda, la inundación, los relojes y la física se ralenticen juntos cuando el frame se atrasa (`docs/design/09-arquitectura.md` §9.3).
+ */
+const MAX_FRAME_SECONDS = MAX_STEPS_PER_FRAME * STEP_SETTINGS.dt;
+
+/** Tope del tiempo real de un frame, en s, para que una pestaña en segundo plano no dé un salto enorme al volver. */
+const MAX_REAL_FRAME_SECONDS = 0.25;
+
 function loop(nowMs) {
-    const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
+    const realFrameDt = Math.min((nowMs - lastTime) / 1000, MAX_REAL_FRAME_SECONDS);
+    const frameDt = Math.min(realFrameDt, MAX_FRAME_SECONDS);
     lastTime = nowMs;
     uiNow = nowMs / 1000;
     const enTitulo = match.state === "title";
@@ -1200,7 +1214,7 @@ function loop(nowMs) {
     }
     debug.update(input.menu);
     debug.begin();
-    if (!debug.open) simular(frameDt, enTitulo);
+    if (!debug.open) simular(frameDt, enTitulo, realFrameDt);
     const now = simTime;
 
     const points = players.map((p) => {
@@ -1286,7 +1300,7 @@ function loop(nowMs) {
     });
     hitEffectsView.draw(melee.hits, scale, now);
     debugView.drawPoints(debug.fluidMode !== "metaball" ? debugPointRefs() : null);
-    if (debug.active) debug.frame(datosDebug(frameDt));
+    if (debug.active) debug.frame(datosDebug(realFrameDt));
     debugView.drawLayers(scale, debug.anyLayer ? debugLayerRefs() : null);
     players.forEach((player, k) => {
         const wheel = controls[k].wheel;
