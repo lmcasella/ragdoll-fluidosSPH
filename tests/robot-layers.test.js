@@ -5,9 +5,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { installFakePixi } from "./helpers/fake-pixi.js";
+import { createFakeRobotTextures, installFakePixi } from "./helpers/fake-pixi.js";
 import { buildRenderItems } from "../src/ragdoll/renderItems.js";
-import { RagdollShapes } from "../src/ragdoll/RagdollShapes.js";
+import { RagdollSprites } from "../src/ragdoll/RagdollSprites.js";
 import { ROBOT_DRAW_LAYER, robotLayerOf } from "../src/ragdoll/robotLayers.js";
 
 const ROBOT_JSON = JSON.parse(readFileSync(new URL("../assets/robot.rag.json", import.meta.url), "utf8"));
@@ -29,13 +29,10 @@ function drawOrder(side) {
     const view = new PIXI.Container();
     const rag = { bodies: new Map(ROBOT_JSON.bodies.map((body) => [body.id, null])) };
     const items = buildRenderItems(rag, ROBOT_JSON, side < 0);
-    const shapes = new RagdollShapes({ view, items, pixelsPerMeter: PIXELS_PER_METER, side });
+    const sprites = new RagdollSprites({ view, items, textures: createFakeRobotTextures(), pixelsPerMeter: PIXELS_PER_METER, side });
     assert.equal(view.sortableChildren, true);
     const owner = new Map();
-    for (const part of shapes.parts) {
-        owner.set(part.fill, part.bodyId);
-        owner.set(part.outline, part.bodyId);
-    }
+    for (const part of sprites.parts) owner.set(part.display, part.bodyId);
     const sorted = view.children.map((child, index) => ({ child, index })).sort((first, second) => first.child.zIndex - second.child.zIndex || first.index - second.index);
     return sorted.map(({ child }) => owner.get(child));
 }

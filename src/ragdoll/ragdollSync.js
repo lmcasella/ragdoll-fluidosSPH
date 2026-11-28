@@ -1,26 +1,16 @@
 /**
- * Un hijo de `rag.view` por cada fixture del robot: el cuerpo que lo mueve, el id de ese cuerpo en el JSON, lo que se
- * dibuja (`fill`, que recibe el tinte de los efectos) y su contorno opcional (`outline`, que nunca se tiñe). `tint`
- * guarda el último tinte puesto, para no repetirlo.
+ * Un hijo de `rag.view` por cada cuerpo del robot: el cuerpo que lo mueve, el id de ese cuerpo en el JSON, el contenedor
+ * que se mueve (`display`), la pintura que recibe el tinte de los efectos (`paint`) y su oscurecido (`shade`, de 0 a 1,
+ * menor que 1 en las piezas de atrás). `tint` guarda el último tinte puesto, para no repetirlo.
  * @typedef {object} RagdollPart
  * @property {*} body `Box2D.b2Body` que mueve la pieza
  * @property {string} bodyId id del cuerpo en el JSON del robot
- * @property {PIXI.Container} fill
- * @property {PIXI.Container|null} outline
+ * @property {PIXI.Container} display
+ * @property {PIXI.Container} paint
+ * @property {PIXI.Container} trim detalle de acero, con su tinte fijo
+ * @property {number} shade
  * @property {number} [tint] último tinte puesto, `0xRRGGBB`
  */
-
-/**
- * Pone un hijo de `rag.view` en la pose de su cuerpo.
- * @param {PIXI.Container} display
- * @param {number} x posición, en px (Y hacia abajo)
- * @param {number} y posición, en px (Y hacia abajo)
- * @param {number} rotation ángulo, en rad (sentido horario)
- */
-function placeDisplay(display, x, y, rotation) {
-    display.position.set(x, y);
-    display.rotation = rotation;
-}
 
 /**
  * Sincroniza los hijos de `rag.view` con la física: es lo único que se hace por frame con la geometría. `rag.view` cuelga
@@ -32,10 +22,7 @@ function placeDisplay(display, x, y, rotation) {
 export function syncParts(parts, pixelsPerMeter) {
     for (const part of parts) {
         const position = part.body.GetPosition();
-        const x = position.get_x() * pixelsPerMeter;
-        const y = -position.get_y() * pixelsPerMeter;
-        const rotation = -part.body.GetAngle();
-        placeDisplay(part.fill, x, y, rotation);
-        if (part.outline) placeDisplay(part.outline, x, y, rotation);
+        part.display.position.set(position.get_x() * pixelsPerMeter, -position.get_y() * pixelsPerMeter);
+        part.display.rotation = -part.body.GetAngle();
     }
 }

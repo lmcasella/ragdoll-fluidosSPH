@@ -1,14 +1,16 @@
 /**
- * Dibujo del robot y del agua en PIXI (#309, docs/design/03-robots.md y 14-agua.md): las figuras viven en `rag.view`,
- * no se crean si el JSON trae sprites, los efectos son `tint` sobre cualquier hijo y después del spawn no se crea nada por frame.
+ * Dibujo del robot y del agua en PIXI (#309, #351, docs/design/03-robots.md y 14-agua.md): el arte por pieza vive en `rag.view`,
+ * los efectos son `tint` sobre la pintura y después del spawn no se crea nada por frame.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadGame } from "./helpers/game.js";
-import { installFakePixi } from "./helpers/fake-pixi.js";
-import { RagdollShapes, createRagdollShapes } from "../src/ragdoll/RagdollShapes.js";
-import { mixTint, parseHexColor, tintParts } from "../src/ragdoll/ragdollTint.js";
+import { createFakeRobotTextures, installFakePixi } from "./helpers/fake-pixi.js";
+import { RagdollSprites } from "../src/ragdoll/RagdollSprites.js";
+import { ROBOT_ART } from "../src/ragdoll/robotArt.js";
+import { isRobotBackLayer, robotLayerOf } from "../src/ragdoll/robotLayers.js";
+import { mixTint, parseHexColor, scaleTint, tintParts } from "../src/ragdoll/ragdollTint.js";
 import { syncParts } from "../src/ragdoll/ragdollSync.js";
 import { MATERIALS } from "../src/fluids/materials.js";
 
@@ -20,49 +22,89 @@ const POSE_TOLERANCE = 1e-6;
 const FLASH_RED = 0xff2828;
 const PLAYER_COLOR = parseHexColor("#ff9933");
 const PLAYER_COLOR_PACKED = 0xff9933;
+const WHITE_TINT = 0xffffff;
+const ANCHOR_CENTER = 0.5;
+const TEXTURES = createFakeRobotTextures();
 
-function fakeBody(x, y, angle) {
-    return { GetPosition: () => ({ get_x: () => x, get_y: () => y }), GetAngle: () => angle };
+/** Cuerpo falso cuya pose se escribe en `pose`. */
+function fakeBody() {
+    const body = { pose: { x: 0, y: 0, angle: 0 } };
+    body.GetPosition = () => ({ get_x: () => body.pose.x, get_y: () => body.pose.y });
+    body.GetAngle = () => body.pose.angle;
+    return body;
 }
 
-function boxItem(body) {
-    return { body, bodyId: "b_1", type: "box", centerX: 0.1, centerY: 0.2, angle: 0.3, halfWidth: 0.5, halfHeight: 0.25 };
-}
-
-test("con un JSON que trae un sprite no se crea RagdollShapes y sin sprites sí", () => {
+/**
+ * Arma los sprites de un robot entero con cuerpos falsos.
+ * @param {number} side lado al que mira el robot, 1 o -1
+ */
+function buildSprites(side) {
     installFakePixi();
     const view = new PIXI.Container();
-    const items = [boxItem(fakeBody(0, 0, 0))];
-    const withSprite = { ...ROBOT_JSON, sprites: [{ id: "sprite_1", src: "robot.png" }] };
-    const before = PIXI.Graphics.constructed;
-    assert.equal(createRagdollShapes({ view, items, json: withSprite }), null);
-    assert.equal(PIXI.Graphics.constructed, before, "no se crea ningún Graphics");
-    assert.equal(view.children.length, 0);
-    const shapes = createRagdollShapes({ view, items, json: ROBOT_JSON });
-    assert.ok(shapes instanceof RagdollShapes);
-    assert.equal(view.children.length, 2 * items.length, "un relleno y un contorno por pieza, dentro de la vista");
+    const bodies = new Map(ROBOT_JSON.bodies.map((body) => [body.id, fakeBody()]));
+    const items = ROBOT_JSON.bodies.map((body) => ({ body: bodies.get(body.id), bodyId: body.id }));
+    const sprites = new RagdollSprites({ view, items, textures: TEXTURES, pixelsPerMeter: PIXELS_PER_METER, side });
+    return { view, sprites, bodies };
+}
+test("cada cuerpo del robot tiene un contenedor con la pintura y el detalle de su pieza, en su capa y a escala", () => {
+    for (const side of [1, -1]) {
+        const { view, sprites } = buildSprites(side);
+        assert.equal(view.sortableChildren, true);
+        assert.equal(sprites.parts.length, ROBOT_JSON.bodies.length);
+        const spriteScale = (ROBOT_ART.sideMeters * PIXELS_PER_METER) / ROBOT_ART.rasterPixels;
+        for (const part of sprites.parts) {
+            const textures = TEXTURES[ROBOT_ART.pieceOfBody[part.bodyId]];
+            assert.equal(part.display.parent, view);
+            assert.deepEqual(part.display.children, [part.paint, part.trim]);
+            assert.equal(part.paint.texture, textures.paint);
+            assert.equal(part.trim.texture, textures.trim);
+            assert.equal(part.display.zIndex, robotLayerOf(part.bodyId, side), `${part.bodyId} lado ${side}`);
+            assert.equal(part.paint.anchor.x, ANCHOR_CENTER);
+            assert.equal(part.paint.anchor.y, ANCHOR_CENTER);
+            assert.ok(Math.abs(part.paint.scale.x - spriteScale * side) < POSE_TOLERANCE, "espejado según el lado");
+            assert.ok(Math.abs(part.trim.scale.y - spriteScale) < POSE_TOLERANCE);
+        }
+    }
 });
 
-test("el destello y el mojado se aplican como tint sobre un hijo Sprite, sin suponer que es un Graphics", () => {
-    installFakePixi();
-    const sprite = new PIXI.Sprite(PIXI.Texture.from({ width: 1, height: 1 }));
-    const parts = [{ body: fakeBody(0, 0, 0), bodyId: "b_1", fill: sprite, outline: null }];
+test("las piezas de atrás llevan el oscurecido en la pintura y en el detalle, y las de adelante no", () => {
+    for (const side of [1, -1]) {
+        const { sprites } = buildSprites(side);
+        for (const part of sprites.parts) {
+            const isBack = isRobotBackLayer(robotLayerOf(part.bodyId, side));
+            assert.equal(part.shade, isBack ? ROBOT_ART.backShade : 1, part.bodyId);
+            assert.equal(part.trim.tint, scaleTint(WHITE_TINT, part.shade), part.bodyId);
+        }
+        assert.ok(sprites.parts.some((part) => part.shade < 1));
+    }
+});
+
+test("el color del jugador, el destello y el mojado se aplican a la pintura y el detalle no cambia", () => {
+    const { sprites } = buildSprites(1);
     const player = { wet: false, dead: false, flashAmount: () => 0 };
-    tintParts(parts, player, PLAYER_COLOR, 0);
-    assert.equal(sprite.tint, PLAYER_COLOR_PACKED, "color por jugador");
+    const trimTints = sprites.parts.map((part) => part.trim.tint);
+    const checkPaint = (expected, label) => {
+        for (const part of sprites.parts) assert.equal(part.paint.tint, scaleTint(expected, part.shade), `${label} ${part.bodyId}`);
+    };
+    tintParts(sprites.parts, player, PLAYER_COLOR, 0);
+    checkPaint(PLAYER_COLOR_PACKED, "color del jugador");
     player.flashAmount = () => 1;
-    tintParts(parts, player, PLAYER_COLOR, 0);
-    assert.equal(sprite.tint, FLASH_RED, "destello pleno");
+    tintParts(sprites.parts, player, PLAYER_COLOR, 0);
+    checkPaint(FLASH_RED, "destello");
     player.flashAmount = () => 0;
     player.wet = true;
-    tintParts(parts, player, PLAYER_COLOR, 0);
-    assert.equal(sprite.tint, mixTint(PLAYER_COLOR, 0, 0.35), "mojado en la fase 0 del parpadeo");
-    assert.notEqual(sprite.tint, PLAYER_COLOR_PACKED);
-    player.dead = true;
-    tintParts(parts, player, PLAYER_COLOR, 0);
-    assert.equal(sprite.tint, PLAYER_COLOR_PACKED, "un robot muerto no parpadea");
+    tintParts(sprites.parts, player, PLAYER_COLOR, 0);
+    checkPaint(mixTint(PLAYER_COLOR, 0, 0.35), "mojado");
+    assert.deepEqual(sprites.parts.map((part) => part.trim.tint), trimTints, "el detalle conserva su tinte fijo");
 });
 
+test("un robot muerto no parpadea con el mojado", () => {
+    const { sprites } = buildSprites(1);
+    const player = { wet: true, dead: true, flashAmount: () => 0 };
+    tintParts(sprites.parts, player, PLAYER_COLOR, 0);
+    const front = sprites.parts.find((part) => part.shade === 1);
+    assert.equal(front.paint.tint, PLAYER_COLOR_PACKED);
+});
 test("mixTint iguala la mezcla de color de Canvas 2D: base, destello y mojado redondeados por canal", () => {
     assert.equal(mixTint([255, 153, 51], 0, 0), 0xff9933);
     assert.equal(mixTint([255, 153, 51], 1, 0), 0xff2828);
@@ -71,30 +113,17 @@ test("mixTint iguala la mezcla de color de Canvas 2D: base, destello y mojado re
     assert.equal(half, (Math.round(227.5) << 16) | (70 << 8) | 20);
 });
 
-test("la sincronización pone cada hijo en la pose del cuerpo, en px y con la Y y el ángulo invertidos", () => {
-    installFakePixi();
-    const view = new PIXI.Container();
-    const body = fakeBody(2, 3, 0.5);
-    const shapes = new RagdollShapes({ view, items: [boxItem(body)], pixelsPerMeter: PIXELS_PER_METER });
-    syncParts(shapes.parts, PIXELS_PER_METER);
-    for (const child of view.children) {
-        assert.equal(child.position.x, 2 * PIXELS_PER_METER);
-        assert.equal(child.position.y, -3 * PIXELS_PER_METER);
-        assert.equal(child.rotation, -0.5);
+test("la sincronización pone cada contenedor en la pose del cuerpo, en px y con la Y y el ángulo invertidos", () => {
+    const { sprites, bodies } = buildSprites(1);
+    for (const [index, part] of sprites.parts.entries()) {
+        bodies.get(part.bodyId).pose = { x: index + 2, y: index + 3, angle: 0.5 + index };
     }
-});
-
-test("el contorno se rehace solo cuando el zoom cambia su grosor más de un 10 %", () => {
-    installFakePixi();
-    const shapes = new RagdollShapes({ view: new PIXI.Container(), items: [boxItem(fakeBody(0, 0, 0))], pixelsPerMeter: PIXELS_PER_METER });
-    const SCREEN_SCALE = 40;
-    shapes.followZoom(SCREEN_SCALE);
-    shapes.followZoom(SCREEN_SCALE);
-    shapes.followZoom(SCREEN_SCALE * 1.05);
-    assert.equal(shapes.outlineBuilds, 1, "un cambio chico de zoom no lo rehace");
-    shapes.followZoom(SCREEN_SCALE * 2);
-    assert.equal(shapes.outlineBuilds, 2, "un cambio grande sí");
-    assert.ok(Math.abs(shapes.outlineWidth * SCREEN_SCALE * 2 / PIXELS_PER_METER - 1.5) < POSE_TOLERANCE, "1,5 px en pantalla");
+    syncParts(sprites.parts, PIXELS_PER_METER);
+    for (const [index, part] of sprites.parts.entries()) {
+        assert.equal(part.display.position.x, (index + 2) * PIXELS_PER_METER);
+        assert.equal(part.display.position.y, -(index + 3) * PIXELS_PER_METER);
+        assert.equal(part.display.rotation, -(0.5 + index));
+    }
 });
 
 test("en el juego, todo lo que dibuja el robot está dentro de rag.view, colgada de la capa de robots, en la escala del JSON", async () => {
@@ -105,15 +134,14 @@ test("en el juego, todo lo que dibuja el robot está dentro de rag.view, colgada
     for (const player of players) {
         const { view } = player.rag;
         assert.equal(view.parent, scene.ragdollLayer);
-        assert.equal(player.painter.shapes.pixelsPerMeter, PIXELS_PER_METER);
-        assert.equal(view.children.length, 2 * player.renderItems.length);
-        for (const part of player.painter.shapes.parts) {
-            assert.equal(part.fill.parent, view);
-            assert.equal(part.outline.parent, view);
+        assert.equal(player.painter.pixelsPerMeter, PIXELS_PER_METER);
+        assert.equal(view.children.length, ROBOT_JSON.bodies.length, "un contenedor por cuerpo");
+        for (const part of player.painter.parts) {
+            assert.equal(part.display.parent, view);
             const position = part.body.GetPosition();
-            assert.ok(Math.abs(part.fill.position.x - position.get_x() * PIXELS_PER_METER) < POSE_TOLERANCE);
-            assert.ok(Math.abs(part.fill.position.y + position.get_y() * PIXELS_PER_METER) < POSE_TOLERANCE);
-            assert.ok(Math.abs(part.fill.rotation + part.body.GetAngle()) < POSE_TOLERANCE);
+            assert.ok(Math.abs(part.display.position.x - position.get_x() * PIXELS_PER_METER) < POSE_TOLERANCE);
+            assert.ok(Math.abs(part.display.position.y + position.get_y() * PIXELS_PER_METER) < POSE_TOLERANCE);
+            assert.ok(Math.abs(part.display.rotation + part.body.GetAngle()) < POSE_TOLERANCE);
         }
     }
 });

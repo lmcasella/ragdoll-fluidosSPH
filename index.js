@@ -70,6 +70,7 @@ import { DebugView } from "./src/render/debugView.js";
 import { DebugPanel } from "./src/ui/debugPanel.js";
 import { wordIndexOf } from "./src/core/heap.js";
 import { RagdollPainter } from "./src/ragdoll/RagdollPainter.js";
+import { ROBOT_ART_LAYERS, ROBOT_ART_PIECES, robotArtPath } from "./src/ragdoll/robotArt.js";
 import { parseHexColor } from "./src/ragdoll/ragdollTint.js";
 
 RagImporter.configure({ Box2D, PIXI });
@@ -140,6 +141,23 @@ const ROBOT_RIG = {
 
 /** Px por metro de la geometría dibujada: la del JSON del robot, la única escala del juego (`docs/design/07-sph.md` §7.4). */
 const PIXELS_PER_METER = robotRag.json.units.pixelsPerMeter;
+
+/**
+ * Carga las texturas del arte del robot, una por capa de cada pieza de `ROBOT_ART`; las vistas las reciben ya cargadas.
+ * @returns {Promise<Object<string, {paint: PIXI.Texture, trim: PIXI.Texture}>>}
+ */
+async function loadRobotTextures() {
+    const entries = await Promise.all(
+        ROBOT_ART_PIECES.map(async (piece) => {
+            const layers = await Promise.all(
+                ROBOT_ART_LAYERS.map(async (layer) => [layer, await PIXI.Assets.load(robotArtPath(piece, layer))]),
+            );
+            return [piece, Object.fromEntries(layers)];
+        }),
+    );
+    return Object.fromEntries(entries);
+}
+const robotTextures = await loadRobotTextures();
 
 const gameContainer = document.getElementById("gameContainer");
 const scene = await createScene({ container: gameContainer, width: window.innerWidth, height: window.innerHeight });
@@ -225,7 +243,12 @@ function spawnRobotRaw(x, y, flipX) {
         robotRag.json,
         flipX,
     );
-    robot.painter = new RagdollPainter({ player: robot, json: robotRag.json, effectsParent: scene.effectsLayer });
+    robot.painter = new RagdollPainter({
+        player: robot,
+        json: robotRag.json,
+        textures: robotTextures,
+        effectsParent: scene.effectsLayer,
+    });
     return robot;
 }
 
