@@ -30,7 +30,8 @@ const INITIAL_PIXELS_PER_METER = 1;
  * Fragmento del filtro, GLSL ES 1.00 tras la conversión de PIXI (sin `texelFetch`, `textureSize` ni operaciones de enteros).
  * Medidas en metros. `PAINT_BRIGHTNESS`: cuánto del color de la pieza queda con la pintura satinada. `PAINT_WEAR_MIX`: parte
  * que se mezcla hacia el acero de las plataformas en los `PAINT_WEAR_WIDTH` más externos de la silueta. `LIGHT_FLOOR`:
- * piso del multiplicador de luz, para que el destello y el mojado sigan leyéndose.
+ * piso del multiplicador de luz, para que el destello y el mojado sigan leyéndose. La luz se divide por la de una cara plana, así el color
+ * del jugador queda igual donde no hay relieve. El bisel mide al menos MIN_BEVEL_PX px para que se vea con la cámara lejos.
  */
 export const ROBOT_FRAGMENT = `
 precision highp float;
@@ -52,14 +53,21 @@ const vec3 JOINT_PAINT = vec3(0.10, 0.11, 0.13);
 const float JOINT_CODE_LIMIT = 0.08;
 const float JOINT_DEPTH = 0.03;
 const float BEVEL_WIDTH = 0.04;
-const float BEVEL_HEIGHT = 0.03;
-const float PAINT_BRIGHTNESS = ${glslFloat(0.85)};
+const float BEVEL_HEIGHT = 0.05;
+const float MIN_BEVEL_PX = 3.0;
+const float MIN_WEAR_PX = 1.5;
+const float PAINT_BRIGHTNESS = ${glslFloat(0.95)};
 const float PAINT_WEAR_WIDTH = 0.02;
 const float PAINT_WEAR_MIX = ${glslFloat(0.5)};
-const float LIGHT_FLOOR = ${glslFloat(0.6)};
-const float SPECULAR_SHININESS = 24.0;
-const float SPECULAR_STRENGTH = ${glslFloat(0.35)};
+const float LIGHT_FLOOR = ${glslFloat(0.75)};
+const float SPECULAR_SHININESS = 16.0;
+const float SPECULAR_STRENGTH = ${glslFloat(0.5)};
 const vec3 VIEW_DIRECTION = vec3(0.0, 0.0, 1.0);
+
+float bevelWidth()
+{
+    return max(BEVEL_WIDTH, MIN_BEVEL_PX / uPixelsPerMeter);
+}
 
 float jointAt(vec2 textureCoord)
 {
@@ -71,17 +79,17 @@ float jointAt(vec2 textureCoord)
 
 vec2 jointSlope(vec2 textureCoord)
 {
-    vec2 tap = vec2(BEVEL_WIDTH * uPixelsPerMeter) / uInputSize.xy;
+    vec2 tap = vec2(bevelWidth() * uPixelsPerMeter) / uInputSize.xy;
     float right = jointAt(textureCoord + vec2(tap.x, 0.0));
     float left = jointAt(textureCoord - vec2(tap.x, 0.0));
     float up = jointAt(textureCoord - vec2(0.0, tap.y));
     float down = jointAt(textureCoord + vec2(0.0, tap.y));
-    return -JOINT_DEPTH / (2.0 * BEVEL_WIDTH) * vec2(right - left, up - down);
+    return -JOINT_DEPTH / (2.0 * bevelWidth()) * vec2(right - left, up - down);
 }
 
 float outerEdgeAmount(vec2 textureCoord)
 {
-    vec2 tap = vec2(PAINT_WEAR_WIDTH * uPixelsPerMeter) / uInputSize.xy;
+    vec2 tap = vec2(max(PAINT_WEAR_WIDTH, MIN_WEAR_PX / uPixelsPerMeter) * uPixelsPerMeter) / uInputSize.xy;
     float right = coverageAt(textureCoord + vec2(tap.x, 0.0));
     float left = coverageAt(textureCoord - vec2(tap.x, 0.0));
     float up = coverageAt(textureCoord - vec2(0.0, tap.y));
@@ -98,7 +106,7 @@ void main(void)
     }
     vec3 tint = encoded.rgb / encoded.a;
     float joint = jointAt(vTextureCoord);
-    vec2 slope = coverageSlope(vTextureCoord, BEVEL_WIDTH, BEVEL_HEIGHT) + jointSlope(vTextureCoord);
+    vec2 slope = coverageSlope(vTextureCoord, bevelWidth(), BEVEL_HEIGHT) + jointSlope(vTextureCoord);
     vec3 normal = normalize(vec3(-slope, 1.0));
 
     vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
@@ -112,7 +120,8 @@ void main(void)
     vec3 light = vec3(uAmbient) + uBaseColor * facing + lightSum(vec3(world, 0.0), normal, 0.0, 1.0);
     vec3 halfway = normalize(uBaseDirection + VIEW_DIRECTION);
     float specular = SPECULAR_STRENGTH * pow(max(0.0, dot(normal, halfway)), SPECULAR_SHININESS) * facing;
-    vec3 color = paint * max(light, vec3(LIGHT_FLOOR)) + uBaseColor * specular;
+    vec3 flatLight = vec3(uAmbient) + uBaseColor * max(0.0, uBaseDirection.z);
+    vec3 color = paint * max(light / flatLight, vec3(LIGHT_FLOOR)) + uBaseColor * specular;
     finalColor = vec4(color * encoded.a, encoded.a);
 }
 `;
