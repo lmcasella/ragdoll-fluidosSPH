@@ -31,6 +31,15 @@ const LAYER_BY_LIMB = {
 };
 
 /**
+ * Si una capa de dibujo es de atrás (brazo o pierna trasera), las piezas que van más oscuras.
+ * @param {number} layer valor de `ROBOT_DRAW_LAYER`
+ * @returns {boolean}
+ */
+export function isRobotBackLayer(layer) {
+    return layer === ROBOT_DRAW_LAYER.backArm || layer === ROBOT_DRAW_LAYER.backLeg;
+}
+
+/**
  * Capa de dibujo de un cuerpo del robot.
  * @param {string} bodyId id del cuerpo en el `.rag.json`
  * @param {number} side lado al que mira el robot, 1 o -1 (`ActiveRagdoll.side`)
