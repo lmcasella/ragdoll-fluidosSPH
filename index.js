@@ -332,7 +332,7 @@ const buoyancy = new Buoyancy(water, MATERIALS, { splash: { store, seed: Number.
 buoyancy.register(players);
 const debug = new Debug();
 const overlayOptions = { parent: scene.overlayLayer, pixelsPerMeter: PIXELS_PER_METER };
-const pickupView = new PickupView({ ...overlayOptions, weapons: WEAPONS });
+const pickupView = new PickupView(overlayOptions);
 const crateView = new CrateView({
     levelParent: scene.levelLayer,
     ...overlayOptions,
@@ -367,9 +367,18 @@ let crates = null;
 /** Crea los puntos de aparición `points` y, si el mapa `mapData` usa cajas, las conecta a golpes, choques y partículas. Quien llama antes libera las anteriores. */
 function buildPickups(points, mapData) {
     pickups = new Pickups(world, damage, points);
-    crates = new Crates({ world, store, pickups, surfaceAt: drownSurface, isLost: crateLost, enabled: mapData.crates === true });
+    crates = new Crates({
+        world,
+        store,
+        pickups,
+        surfaceAt: drownSurface,
+        isLost: crateLost,
+        enabled: mapData.crates === true,
+        seed: Number.isFinite(botSeed) ? botSeed : null,
+    });
     melee.crates = crates;
     platforms.setPieceFilter((bodyPointer) => crates.isPiece(bodyPointer));
+    platforms.setCrateFilter((bodyPointer) => crates.isCrate(bodyPointer));
 }
 
 /** Libera las cajas y los puntos de aparición vivos. */
@@ -713,6 +722,25 @@ let debugSteps = 0;
 let debugSubsteps = 0;
 let debugCfl = 1;
 const FLUID_NAMES = Object.fromEntries(Object.entries(FLUID).map(([name, id]) => [id, name]));
+const pickupViewData = new WeakMap();
+const pickupViewPoints = [];
+
+/**
+ * Datos planos de un punto de aparición para `PickupView`: posición, estado, y la clave (`FLUID_NAMES`) y el color del líquido
+ * de su arma. Hay un objeto por punto, estable entre frames, porque la vista reconoce el punto de cada entrada por identidad.
+ */
+function pickupViewPoint(point) {
+    let flat = pickupViewData.get(point);
+    if (!flat) {
+        const weapon = WEAPONS.find((candidate) => candidate.id === point.weapon);
+        flat = { x: 0, y: 0, kind: point.kind, material: FLUID_NAMES[point.weapon] ?? null, color: weapon?.color ?? null, active: false };
+        pickupViewData.set(point, flat);
+    }
+    flat.x = point.x;
+    flat.y = point.y;
+    flat.active = point.active;
+    return flat;
+}
 
 /** Datos planos de este frame para `debug.frame` (solo con el monitor encendido). */
 function datosDebug(frameDt) {
@@ -1156,7 +1184,9 @@ function loop(nowMs) {
         player.painter.paint(PLAYER_TINTS[k], scale, now);
     });
     waterView.draw(water, climb ? { floor: flood.floor, bottom } : null);
-    pickupView.update(pickups.points, pickups.offsetY, now);
+    pickupViewPoints.length = 0;
+    for (const point of pickups.points) pickupViewPoints.push(pickupViewPoint(point));
+    pickupView.update(pickupViewPoints, pickups.offsetY, now);
     crateView.update({ crates: crates.crates, pieces: crates.pieces, screenOrigin: scene.world.position, screenScale: scale });
     players.forEach((player, k) => {
         aimLaserView.draw(k, laserDe(player), PLAYER_COLORS[k], scale);

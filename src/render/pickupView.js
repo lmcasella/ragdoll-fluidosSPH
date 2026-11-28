@@ -1,6 +1,5 @@
 import { tintOf } from "../core/color.js";
 import { TAU, lerp } from "../core/math/scalar.js";
-import { FLUID } from "../combat/weapons.js";
 import { drawWrench } from "./itemShapes.js";
 
 /** Grosor del borde de la tuerca, en m. */
@@ -20,8 +19,7 @@ export const NUT = { sides: 6, hole: 0.4, fill: [190, 200, 210], edge: [80, 220,
  *   tapa, grosor de la pared de vidrio, color y opacidad del vidrio, color y grosor de su borde, color de la tapa y la parte
  *   del interior que llena el líquido (`fillShare`, de 0 a 1);
  * - `liquid`: la superficie del líquido son `crestCount` crestas (círculos de `crestRadius`) que suben y bajan desfasadas; las
- *   burbujas se aclaran hacia el blanco `bubbleLighten` (de 0 a 1). `materials` da por arma (`FLUID`, el color sale de la
- *   tabla de armas): `waveAmplitude` y `wavePeriod` de la superficie, y opcionalmente `glow` (el líquido oscurece hasta
+ *   burbujas se aclaran hacia el blanco `bubbleLighten` (de 0 a 1). `materials` da por material (la clave `material` del punto: `WATER`, `HONEY`, `LAVA` o `ACID`; el color sale del punto): `waveAmplitude` y `wavePeriod` de la superficie, y opcionalmente `glow` (el líquido oscurece hasta
  *   `depth`, de 0 a 1, y vuelve cada `period`) y `bubbles` (`count` burbujas de `radius` que suben cada `period`);
  * - `repair`: la tuerca de `nutRadius`, la llave de `wrenchLength` y `wrenchColor` que da una vuelta cada `wrenchTurnPeriod`, y
  *   el halo de `haloRadius`, `haloAlpha` y el color `NUT.edge`.
@@ -49,10 +47,10 @@ export const ITEM_ICON = {
         crestRadius: 0.05,
         bubbleLighten: 0.5,
         materials: {
-            [FLUID.WATER]: { wavePeriod: 0.6, waveAmplitude: 0.06 },
-            [FLUID.HONEY]: { wavePeriod: 3, waveAmplitude: 0.025 },
-            [FLUID.LAVA]: { wavePeriod: 1.4, waveAmplitude: 0.03, glow: { period: 1.2, depth: 0.35 }, bubbles: { count: 3, period: 1.6, radius: 0.03 } },
-            [FLUID.ACID]: { wavePeriod: 1, waveAmplitude: 0.04, bubbles: { count: 4, period: 1.1, radius: 0.025 } },
+            WATER: { wavePeriod: 0.6, waveAmplitude: 0.06 },
+            HONEY: { wavePeriod: 3, waveAmplitude: 0.025 },
+            LAVA: { wavePeriod: 1.4, waveAmplitude: 0.03, glow: { period: 1.2, depth: 0.35 }, bubbles: { count: 3, period: 1.6, radius: 0.03 } },
+            ACID: { wavePeriod: 1, waveAmplitude: 0.04, bubbles: { count: 4, period: 1.1, radius: 0.025 } },
         },
     },
     repair: { nutRadius: 0.3, wrenchLength: 0.75, wrenchColor: [60, 80, 110], wrenchTurnPeriod: 3, haloRadius: 0.5, haloAlpha: 0.3 },
@@ -120,23 +118,21 @@ export function drawNut(graphics, radius, pixelsPerMeter) {
 /**
  * Íconos de los puntos de aparición, como nodos de PIXI que se arman una vez por entrada y por frame solo cambian de posición,
  * giro, color y visibilidad (`docs/design/04-fluidos.md` §4.2, `docs/design/07-sph.md` §7.4). Un punto de arma es un frasco
- * de vidrio con el líquido del color del arma que sube y baja; su superficie y sus burbujas se mueven según el material (agua
+ * de vidrio con el líquido del color del punto que sube y baja; su superficie y sus burbujas se mueven según el material (agua
  * que se agita, miel lenta, lava que brilla y burbujea, ácido que burbujea). El ítem de reparación es una tuerca con una llave
  * que gira y un halo verde. Los valores salen de `ITEM_ICON`. Los puntos inactivos (esperando reaparecer o dentro de una caja)
  * se ocultan, y cada nodo sigue la posición actual de su punto, que cambia cuando una caja se rompe en otro lugar. Las
  * entradas se reutilizan entre frames (Object Pool) y solo crecen cuando aparecen más puntos que nunca; cambiar el punto de
- * una entrada solo repinta los colores. El tiempo de animación entra como dato plano en `update`.
+ * una entrada solo repinta los colores. No importa sistemas del juego: la raíz de composición le pasa los datos planos de cada punto, con la clave y el color de su líquido, y el tiempo de animación entra en `update`.
  */
 export class PickupView {
     /**
      * @param {object} options
      * @param {PIXI.Container} options.parent contenedor superpuesto, en px a `pixelsPerMeter` con la cámara aplicada
      * @param {number} options.pixelsPerMeter px por metro de la geometría
-     * @param {object[]} options.weapons tabla de armas (`id`, `name`, `color`)
      */
-    constructor({ parent, pixelsPerMeter, weapons }) {
+    constructor({ parent, pixelsPerMeter }) {
         this.pixelsPerMeter = pixelsPerMeter;
-        this.weapons = weapons;
         this.geometry = bottleGeometry(ITEM_ICON.bottle);
         this.container = new PIXI.Container();
         parent.addChild(this.container);
@@ -145,7 +141,7 @@ export class PickupView {
 
     /**
      * Actualiza los íconos de este frame. Un ícono se vuelve a armar solo si su entrada pasó a otro punto.
-     * @param {object[]} points puntos `{ x, y, weapon, kind, active }` en m
+     * @param {object[]} points puntos `{ x, y, kind, material, color, active }` en m: `material` es la clave del líquido en `ITEM_ICON.liquid.materials` y `color` el `[r, g, b]` del líquido, ambos `null` en la reparación
      * @param {number} offsetY desplazamiento vertical de los puntos (el mapa del ascenso baja), en m
      * @param {number} time reloj de la animación, en s
      */
@@ -195,7 +191,7 @@ export class PickupView {
 
     /**
      * Arma el ícono de `point` en la entrada: la tuerca con su llave y su halo para la reparación, o el frasco con el líquido
-     * del color del arma. Un punto con un arma que no está en la tabla o sin animación de líquido no se dibuja.
+     * del color del punto. Un punto sin color o con un material sin animación de líquido no se dibuja.
      * @param {object} entry entrada del pool
      * @param {object} point punto de aparición
      */
@@ -209,14 +205,13 @@ export class PickupView {
             this.buildRepair(entry);
             return;
         }
-        const weapon = this.weapons.find((candidate) => candidate.id === point.weapon);
-        const material = ITEM_ICON.liquid.materials[point.weapon];
-        if (!weapon || !material) {
+        const material = ITEM_ICON.liquid.materials[point.material];
+        if (!point.color || !material) {
             entry.drawable = false;
             return;
         }
         entry.material = material;
-        this.buildBottle(entry, weapon.color, material);
+        this.buildBottle(entry, point.color, material);
     }
 
     /** Pinta la tuerca, la llave y el halo de la reparación y los muestra. */
@@ -234,7 +229,7 @@ export class PickupView {
     /**
      * Pinta el frasco con el líquido de `color` y muestra solo las burbujas que usa `material`.
      * @param {object} entry entrada del pool
-     * @param {number[]} color color `[r, g, b]` del arma
+     * @param {number[]} color color `[r, g, b]` del líquido
      * @param {object} material fila de `ITEM_ICON.liquid.materials`
      */
     buildBottle(entry, color, material) {
@@ -310,7 +305,7 @@ export class PickupView {
         this.animateBubbles(entry, material, time);
     }
 
-    /** Oscurece y aclara el líquido de la lava con su pulso de brillo; sin `glow` lo deja del color del arma. */
+    /** Oscurece y aclara el líquido de la lava con su pulso de brillo; sin `glow` lo deja del color del punto. */
     animateGlow(entry, material, time) {
         const level = material.glow ? 1 - material.glow.depth * (HALF + HALF * Math.sin((TAU * time) / material.glow.period)) : 1;
         const channel = Math.round(level * COLOR_CHANNEL_MAX);

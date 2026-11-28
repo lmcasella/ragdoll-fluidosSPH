@@ -18,12 +18,16 @@ const FRAME_SECONDS = 1 / 60;
 
 function newView() {
     const pixi = installFakePixi();
-    const view = new PickupView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER, weapons: WEAPONS });
+    const view = new PickupView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
     return { pixi, view };
 }
 
-const liquidPoint = (weapon) => ({ x: 3, y: 4, weapon, kind: undefined, active: true });
-const repairPoint = { x: 5, y: 4, weapon: undefined, kind: "repair", active: true };
+const materialOf = (fluid) => Object.keys(FLUID).find((name) => FLUID[name] === fluid);
+const colorOf = (fluid) => WEAPONS.find((weapon) => weapon.id === fluid).color;
+
+/** Datos planos de un punto de líquido, como los arma la raíz de composición: clave del material y color. */
+const liquidPoint = (fluid) => ({ x: 3, y: 4, kind: undefined, material: materialOf(fluid), color: colorOf(fluid), active: true });
+const repairPoint = { x: 5, y: 4, kind: "repair", material: null, color: null, active: true };
 
 /** Altura (m) de la cresta `index` del ítem de la entrada `entry`, sin el movimiento del frasco. */
 const crestHeight = (entry, index) => entry.crests[index].position.y / PIXELS_PER_METER;
@@ -57,11 +61,11 @@ test("el frasco sube y baja 0,08 m con período de 2 s", () => {
 test("la superficie se mueve con el período y la amplitud de cada material: agua rápida, miel lenta y chica", () => {
     const { view } = newView();
     const { materials } = ITEM_ICON.liquid;
-    assert.equal(materials[FLUID.WATER].wavePeriod, 0.6);
-    assert.equal(materials[FLUID.HONEY].wavePeriod, 3);
-    assert.ok(materials[FLUID.HONEY].waveAmplitude < materials[FLUID.WATER].waveAmplitude, "la miel es más chica");
+    assert.equal(materials.WATER.wavePeriod, 0.6);
+    assert.equal(materials.HONEY.wavePeriod, 3);
+    assert.ok(materials.HONEY.waveAmplitude < materials.WATER.waveAmplitude, "la miel es más chica");
     for (const fluid of [FLUID.WATER, FLUID.HONEY, FLUID.LAVA, FLUID.ACID]) {
-        const material = materials[fluid];
+        const material = materials[materialOf(fluid)];
         const points = [liquidPoint(fluid)];
         view.update(points, 0, 0);
         const level = view.geometry.liquidLevel;
@@ -74,7 +78,7 @@ test("la superficie se mueve con el período y la amplitud de cada material: agu
     }
 });
 
-test("el líquido toma el color de la tabla de armas; la lava pulsa de brillo y burbujea, el ácido burbujea, el agua y la miel no", () => {
+test("el líquido toma el color del punto; la lava pulsa de brillo y burbujea, el ácido burbujea, el agua y la miel no", () => {
     const { view } = newView();
     const points = [liquidPoint(FLUID.WATER), liquidPoint(FLUID.HONEY), liquidPoint(FLUID.LAVA), liquidPoint(FLUID.ACID)];
     const pulses = [];
@@ -88,7 +92,7 @@ test("el líquido toma el color de la tabla de armas; la lava pulsa de brillo y 
     assert.ok(distinct(2) > 1, "la lava pulsa");
     assert.equal(distinct(3), 1, "el ácido no pulsa");
     const visibleBubbles = view.entries.map((entry) => entry.bubbles.filter((bubble) => bubble.visible).length);
-    assert.deepEqual(visibleBubbles, [0, 0, ITEM_ICON.liquid.materials[FLUID.LAVA].bubbles.count, ITEM_ICON.liquid.materials[FLUID.ACID].bubbles.count]);
+    assert.deepEqual(visibleBubbles, [0, 0, ITEM_ICON.liquid.materials.LAVA.bubbles.count, ITEM_ICON.liquid.materials.ACID.bubbles.count]);
     const acidBubble = view.entries[3].bubbles[0];
     const heights = [];
     for (let sample = 0; sample < 10; sample++) {
@@ -97,8 +101,7 @@ test("el líquido toma el color de la tabla de armas; la lava pulsa de brillo y 
     }
     assert.ok(heights.every((height, index) => index === 0 || height > heights[index - 1]), "las burbujas del ácido suben");
     view.entries.forEach((entry, index) => {
-        const weapon = WEAPONS.find((candidate) => candidate.id === points[index].weapon);
-        const [red, green, blue] = weapon.color;
+        const [red, green, blue] = points[index].color;
         assert.equal(entry.liquid.fills[0].color, (red << 16) | (green << 8) | blue);
     });
 });
@@ -132,3 +135,4 @@ test("la animación no crea gráficos ni textos por frame y una entrada que pasa
     assert.equal(view.entries[0].bottle.visible, false);
     assert.equal(view.entries[1].bottle.visible, true);
 });
+
