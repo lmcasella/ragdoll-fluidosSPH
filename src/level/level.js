@@ -58,6 +58,8 @@ export const LEVEL = {
     },
     // En el piso, entre plataformas (el rayo de aparición baja desde el techo hasta la primera superficie)
     spawns: [{ x: 7.5, flipX: false }, { x: 48.5, flipX: true }],
+    /** Verdadero si los ítems del mapa aparecen dentro de cajas físicas rompibles (`src/level/crates.js`). */
+    crates: true,
     /** Puntos de aparición de armas: centro del ícono (0,6 m sobre la cara superior de la plataforma) y `weapon` = id de `FLUID`. */
     pickups: [
         { x: 28, y: 14.2, weapon: FLUID.ACID },

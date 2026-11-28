@@ -18,6 +18,11 @@ export const PICKUP_RADIUS = 0.5;
  * después de `stepWorld`. Mientras espera reaparecer, el cuerpo queda inactivo y al reactivarse Box2D vuelve a
  * generar el contacto con quien siga encima. Quien ya tiene el tanque de ese líquido lleno lo atraviesa sin
  * consumirlo (#181). El punto `kind: "repair"` suma `REPAIR.hp` a la salud y no se recoge con la salud llena.
+ *
+ * Con una caja (`boxer`, ver `src/level/crates.js` y `docs/design/04-fluidos.md` §4.2) el ítem arranca encerrado: el punto
+ * queda inactivo (`hold`) hasta que la caja se rompe y lo libera donde estaba (`release`), y al reaparecer después de
+ * recogerse es la caja la que vuelve (`boxer.box`), no el ítem. `x` e `y` son donde está el ítem ahora y `homeX` y `homeY`
+ * el punto original.
  */
 export class Pickups {
     constructor(world, damage, points, weapons = WEAPONS) {
@@ -27,6 +32,8 @@ export class Pickups {
         this.queue = [];
         /** Recogidas `{ weapon }` o `{ kind: "repair" }` desde la última vez que quien las consume vació la lista. */
         this.events = [];
+        /** Quien encierra los ítems en cajas (`box(point)`, `unbox(point)`, `reset()`), o `null` si salen sueltos. */
+        this.boxer = null;
         this.points = [];
         /** Desplazamiento vertical (m) que se suma a la y de cada punto para ubicar su cuerpo (el mapa del ascenso baja). */
         this.offsetY = 0;
@@ -45,10 +52,32 @@ export class Pickups {
         const body = this.world.CreateBody(this.bodyDef);
         const fixture = body.CreateFixture(this.shape, 0);
         fixture.SetSensor(true);
-        const point = { x, y, weapon, kind, body, fixture, active: true, readyAt: 0 };
+        const point = { x, y, homeX: x, homeY: y, weapon, kind, body, fixture, active: true, readyAt: 0, crate: null };
         this.points.push(point);
         this.damage.sensorHooks.set(Box2D.getPointer(fixture), (bodyPtr) => this.queue.push({ point, bodyPtr }));
+        this.boxer?.box(point);
         return point;
+    }
+
+    /** Deja el punto inactivo en su lugar original, sin fecha de reaparición: lo libera `release`. */
+    hold(point) {
+        point.x = point.homeX;
+        point.y = point.homeY;
+        point.active = false;
+        point.readyAt = Infinity;
+        point.body.SetActive(false);
+    }
+
+    /** Activa el punto con el ítem en `(x, y)` (y local, como `homeY`). No llamar dentro de un callback de Box2D. */
+    release(point, x, y) {
+        point.x = x;
+        point.y = y;
+        this.center.set_x(x);
+        this.center.set_y(y + this.offsetY);
+        point.body.SetTransform(this.center, 0);
+        point.active = true;
+        point.readyAt = 0;
+        point.body.SetActive(true);
     }
 
     /** Pone el desplazamiento offsetY y mueve los cuerpos de los puntos con él. No llamar dentro de un callback de Box2D. */
@@ -66,6 +95,7 @@ export class Pickups {
     remove(point) {
         const index = this.points.indexOf(point);
         if (index < 0) return;
+        this.boxer?.unbox(point);
         this.points.splice(index, 1);
         this.damage.sensorHooks.delete(Box2D.getPointer(point.fixture));
         this.queue = this.queue.filter((event) => event.point !== point);
@@ -101,22 +131,27 @@ export class Pickups {
         }
         this.queue.length = 0;
         for (const point of this.points) {
-            if (!point.active && now >= point.readyAt) {
-                point.active = true;
-                point.body.SetActive(true);
+            if (point.active || now < point.readyAt) continue;
+            if (this.boxer) {
+                this.boxer.box(point);
+                continue;
             }
+            point.active = true;
+            point.body.SetActive(true);
         }
     }
 
-    /** Nueva ronda: todos los puntos vuelven a estar disponibles y se descarta lo encolado. */
+    /**
+     * Nueva ronda: todos los puntos vuelven a su lugar original y a estar disponibles (o, con `boxer`, encerrados en una
+     * caja nueva) y se descarta lo encolado.
+     */
     reset() {
         this.queue.length = 0;
         this.events.length = 0;
         for (const point of this.points) {
-            if (point.active) continue;
-            point.active = true;
-            point.body.SetActive(true);
+            this.release(point, point.homeX, point.homeY);
         }
+        this.boxer?.reset();
     }
 
     dispose() {

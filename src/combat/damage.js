@@ -43,6 +43,8 @@ export class DamageSystem {
         this.sensorHooks = new Map();
         /** `(bodyPointer, index)` para un contacto partícula↔cuerpo que no es de un robot, o `null`; solo debe encolar (ver `src/fluids/corrosion.js`). */
         this.bodyContactHook = null;
+        /** `(bodyPointerA, bodyPointerB, speed)` por cada contacto que empieza entre cuerpos sólidos, con la velocidad de acercamiento en m/s sobre la normal, o `null`; solo debe encolar (ver `src/level/crates.js`). */
+        this.impactHook = null;
         this.lastImpact = new Map();
         this.stats = { impacts: 0, fluidContacts: 0 };
         this.manifold = new Box2D.b2WorldManifold();
@@ -125,7 +127,7 @@ export class DamageSystem {
         const bodyB = fixtureB.GetBody();
         const ownerA = this.owners.get(Box2D.getPointer(bodyA));
         const ownerB = this.owners.get(Box2D.getPointer(bodyB));
-        if (!ownerA && !ownerB) return;
+        if (!ownerA && !ownerB && !this.impactHook) return;
         if (!ownerA !== !ownerB) {
             const owner = ownerA ?? ownerB;
             if (owner.player.rig.feet?.includes(owner.bodyId)) this.footfalls.push(owner);
@@ -140,6 +142,7 @@ export class DamageSystem {
         const ay = vA.get_y();
         const vB = bodyB.GetLinearVelocity();
         const speed = Math.abs((ax - vB.get_x()) * nx + (ay - vB.get_y()) * ny);
+        this.impactHook?.(Box2D.getPointer(bodyA), Box2D.getPointer(bodyB), speed);
         if (speed < IMPACT_SPEED) return;
         if (ownerA) this.impacts.push({ owner: ownerA, speed });
         if (ownerB) this.impacts.push({ owner: ownerB, speed });

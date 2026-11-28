@@ -1,10 +1,22 @@
 // Agua como arma inicial (#18): J1 moja a J2 con el chorro y J2 pierde 3 de vida por segundo
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 import { LEVEL } from "../src/level/level.js";
 
 const RT = 7;
+
+/** Fotogramas (a 60 por segundo) que el chorro necesita para mojar a J2: la ventana de la prueba, 0,55 s. */
+const WET_FRAMES = 33;
+
+/** Fotogramas de la segunda ventana, en que se mide el ritmo de la vida de J2: 0,5 s. */
+const RATE_FRAMES = 30;
+
+/** Partículas por segundo que gasta el tanque de J1 disparando. */
+const TANK_PER_SECOND = 155;
+
+/** Fotogramas por segundo del juego. */
+const FRAMES_PER_SECOND = 60;
 
 // Los dos robots en el suelo de la isla izquierda, a 7,5 m, para que el chorro llegue sin tocar los datos reales
 // del nivel. A menos distancia el salpicado del rival vuelve a J1 pasada la gracia de 0,4 s y también lo moja
@@ -14,6 +26,7 @@ async function start() {
     let game;
     try {
         game = await loadGame();
+        removeCrates(game);
     } finally {
         LEVEL.spawns = real;
     }
@@ -32,16 +45,16 @@ test("el agua de J1 moja a J2, le baja ~3/s y J1 no se moja", async () => {
     assert.equal(p1.tanks.get(4), 600);
     assert.equal(p2.hp, 100);
     game.setPad(0, { buttons: [RT], axes: [0, 0, 1, 0] });
-    game.frames(30);
-    assert.ok(p2.wet, "J2 ya está mojado a los 0,5 s");
+    game.frames(WET_FRAMES);
+    assert.ok(p2.wet, "J2 ya está mojado a los 0,55 s");
     const hpMid = p2.hp;
-    game.frames(30);
+    game.frames(RATE_FRAMES);
     game.setPad(0);
     const rate = (hpMid - p2.hp) / 0.5;
     console.log(`J2 mojado=${p2.wet}, vida ${hpMid.toFixed(2)} -> ${p2.hp.toFixed(2)} en 0,5 s (${rate.toFixed(2)}/s), J1 mojado=${p1.wet}, tanque J1=${p1.tanks.get(4)}, tanque J2=${p2.tanks.get(4)}, roundTime=${match.roundTime.toFixed(1)}`);
     assert.ok(Math.abs(rate - 3) <= 0.4, `ritmo ${rate}/s`);
     assert.ok(!p1.wet, "J1 no se moja");
-    assert.ok(Math.abs(p1.tanks.get(4) - (600 - 155)) <= 4, `tanque ${p1.tanks.get(4)}`);
+    assert.ok(Math.abs(p1.tanks.get(4) - (600 - (TANK_PER_SECOND * (WET_FRAMES + RATE_FRAMES)) / FRAMES_PER_SECOND)) <= 4, `tanque ${p1.tanks.get(4)}`);
     assert.equal(p2.tanks.get(4), 600, "J2 no disparó");
 });
 

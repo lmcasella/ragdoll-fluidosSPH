@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 
 const require = createRequire(import.meta.url);
 globalThis.Box2D ??= require("../vendor/liquidfun.js");
@@ -284,6 +284,7 @@ async function standOnFloor() {
 /** Juego con J1 parado sobre la plataforma atravesable del escalón izquierdo y el tramo que la forma. */
 async function standOnStep() {
     const game = await loadGame();
+    removeCrates(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(SETTLE_FRAMES);

@@ -62,6 +62,8 @@ export class OneWayPlatforms {
         this.box = { minX: 0, maxX: 0, low: 0, high: 0 };
         this.bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
         this.noDrops = new Map();
+        /** Predicado de los pedazos de caja; `null` hasta `setPieceFilter`. */
+        this.isPiece = null;
         this.filter = new Box2D.JSContactFilter();
         this.filter.ShouldCollide = (ptrA, ptrB) => this.shouldCollide(ptrA, ptrB);
         world.SetContactFilter(this.filter);
@@ -263,11 +265,30 @@ export class OneWayPlatforms {
         return box;
     }
 
+    /**
+     * Registra el predicado `isPiece(bodyPointer)` que reconoce los pedazos de caja (`Crates.isPiece`): un pedazo no choca con
+     * un robot (dueño registrado con `addOwner`) ni con otro pedazo, pero sí con el escenario y con las cajas enteras.
+     * @param {(bodyPointer: number) => boolean} isPiece
+     */
+    setPieceFilter(isPiece) {
+        this.isPiece = isPiece;
+    }
+
+    /** Verdadero si uno de los cuerpos es un pedazo de caja y el otro es de un robot o es otro pedazo. */
+    isPieceWithoutContact(bodyA, bodyB) {
+        const pointerA = Box2D.getPointer(bodyA);
+        const pointerB = Box2D.getPointer(bodyB);
+        const pieceA = this.isPiece(pointerA);
+        const pieceB = this.isPiece(pointerB);
+        return (pieceA && (pieceB || this.byBody.has(pointerB))) || (pieceB && this.byBody.has(pointerA));
+    }
+
     /** Callback de Box2D: solo lee estado. */
     shouldCollide(ptrA, ptrB) {
         const fixtureA = Box2D.wrapPointer(ptrA, Box2D.b2Fixture);
         const fixtureB = Box2D.wrapPointer(ptrB, Box2D.b2Fixture);
         if (!defaultCollide(fixtureA, fixtureB)) return false;
+        if (this.isPiece && this.isPieceWithoutContact(fixtureA.GetBody(), fixtureB.GetBody())) return false;
         const platformA = this.platforms.get(ptrA);
         const platformB = this.platforms.get(ptrB);
         if (!platformA === !platformB) return true;

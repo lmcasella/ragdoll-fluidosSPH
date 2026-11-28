@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 import { place } from "./helpers/place.js";
 import { FLUID } from "../src/combat/weapons.js";
 import { CORROSION, MATERIALS, SIGMA_W } from "../src/fluids/materials.js";
@@ -76,6 +76,7 @@ function materialArea(grid) {
 
 async function startJet() {
     const game = await loadGame();
+    removeCrates(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(10);
