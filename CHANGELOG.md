@@ -6,6 +6,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [Unreleased]
 
 ### Added
+- Modo de medición `?bench=1`: corre solo una serie fija de escenas (reposo, 1500 partículas de cada material, corrosión sostenida con ácido y una partida de bots de 3 min, con semilla fija, menos de 6 min en total) y muestra un informe en markdown con mediana, p95, p99, peor frame y cantidad de frames por escena y por minuto de partida, el tiempo de cada subsistema (física, corrosión, luces, dibujo, render y el resto) y el de GPU si el navegador lo da. Un botón **Copiar resultados** lo deja listo para pegar en un comentario de GitHub (#368).
 - El robot se dibuja con arte por pieza de estilo mech industrial: placas de chapa pintada con el color de su jugador, acero sin pintar en articulaciones y pistones, visor celeste y el brazo y la pierna de atrás más oscuros. El destello rojo del daño y el mojado siguen tiñendo la pintura (#351).
 - Las piezas del robot se dibujan de atrás hacia adelante: brazo trasero, pierna trasera, cuerpo, pierna frontal y brazo frontal; al girar, el brazo y la pierna que miraban a la cámara pasan atrás (#379).
 - Sombras de luz 2D: cada robot es una luz del color de su jugador (alcance 5 m) y su luz no atraviesa las plataformas, el terreno ni las cajas; el fondo, las plataformas, los robots y el agua reciben esa luz con sus sombras. Los robots y los líquidos no tapan la luz, y la lava y el ácido iluminan sin sombras. El entorno queda algo más oscuro (aire de 0,12 y luz clave al 80 %) para que las luces se noten (#349).
