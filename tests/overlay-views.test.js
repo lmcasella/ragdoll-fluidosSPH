@@ -135,14 +135,14 @@ test("la rueda marca el arma equipada con borde blanco y agranda el sector apunt
 test("la mira dibuja una línea con alfa 0,6 y un punto solo si hubo impacto; sin mira borra la anterior", () => {
     installFakePixi();
     const view = new AimLaserView({ parent: new PIXI.Container(), pixelsPerMeter: PIXELS_PER_METER, playerCount: 2 });
-    view.draw(0, { x1: 0, y1: 0, x2: 5, y2: 0, hit: false }, "#ff9933", SCREEN_SCALE);
+    view.draw(0, { x1: 0, y1: 0, x2: 5, y2: 0, hit: false }, "#5468ff", SCREEN_SCALE);
     const [first, second] = view.graphics;
     assert.equal(first.strokes.length, 1);
     assert.equal(first.strokes[0].alpha, 0.6);
     assert.equal(first.circles.length, 0);
-    view.draw(0, { x1: 0, y1: 0, x2: 5, y2: 0, hit: true }, "#ff9933", SCREEN_SCALE);
+    view.draw(0, { x1: 0, y1: 0, x2: 5, y2: 0, hit: true }, "#5468ff", SCREEN_SCALE);
     assert.equal(first.circles.length, 1);
-    view.draw(0, null, "#ff9933", SCREEN_SCALE);
+    view.draw(0, null, "#5468ff", SCREEN_SCALE);
     assert.equal(first.strokes.length, 0);
     assert.equal(second.strokes.length, 0, "el otro jugador no se toca");
 });

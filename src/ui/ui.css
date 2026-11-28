@@ -1,10 +1,10 @@
 .ui {
-    --p1: #ff9933;
-    --p1-soft: rgba(255, 153, 51, 0.22);
-    --p1-ink: #1f1103;
-    --p2: #33b5ff;
-    --p2-soft: rgba(51, 181, 255, 0.22);
-    --p2-ink: #03182a;
+    --p1: #5468ff;
+    --p1-soft: rgba(84, 104, 255, 0.22);
+    --p1-ink: #060a26;
+    --p2: #f23a2e;
+    --p2-soft: rgba(242, 58, 46, 0.22);
+    --p2-ink: #1f0404;
     --water: #2350a0;
     --water-surface: #9ad6ff;
     --panel: rgba(11, 12, 19, 0.86);
@@ -18,7 +18,7 @@
     --text-3: #737889;
     --focus: #ffd84a;
     --focus-ink: #1d1600;
-    --danger: #ff4d5e;
+    --danger: #ff3dc8;
     --hazard: #ffcc44;
     --flood: #40dcff;
     --chip: #ffffff;

@@ -102,13 +102,13 @@
     background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2 * var(--u)), rgba(0, 0, 0, 0.7) calc(25% - 2 * var(--u)) 25%);
 }
 .hud .p1c .fillb {
-    background: linear-gradient(180deg, #ffc27f, var(--p1) 55%, #d9741a);
+    background: linear-gradient(180deg, #a3aeff, var(--p1) 55%, #3445d6);
 }
 .hud .p2c .fillb {
-    background: linear-gradient(180deg, #9ddcff, var(--p2) 55%, #1a8fd1);
+    background: linear-gradient(180deg, #ff8c84, var(--p2) 55%, #b81e14);
 }
 .hud .bar.low .fillb {
-    background: linear-gradient(180deg, #ff98a2, var(--danger) 55%, #c7283a);
+    background: linear-gradient(180deg, #ff9fe4, var(--danger) 55%, #c21d93);
     animation: ui-lowpulse 0.8s ease-in-out infinite;
 }
 .hud .num.low {

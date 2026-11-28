@@ -7,7 +7,7 @@
 import { TAU, lerp } from "../core/math/scalar.js";
 
 /** Color del destello de golpe, `[r, g, b]` de 0 a 255. */
-const FLASH_COLOR = [255, 40, 40];
+const FLASH_COLOR = [255, 255, 255];
 
 /** Color del tinte de mojado, `[r, g, b]` de 0 a 255. */
 const WET_COLOR = [40, 220, 255];
