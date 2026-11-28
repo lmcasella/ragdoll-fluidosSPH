@@ -6,6 +6,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [Unreleased]
 
 ### Added
+- Los robots tienen detalle de máquina: un visor emisivo del color del jugador en la cabeza, del lado al que mira, con un halo chico y de donde sale la luz del robot; dos hendiduras de panel y tres tornillos en el torso, una hendidura en la pelvis y un disco oscuro de metal pelado con brillo en hombros, codos, caderas y rodillas (#351).
 - Las piezas del robot se dibujan de atrás hacia adelante: brazo trasero, pierna trasera, cuerpo, pierna frontal y brazo frontal; al girar, el brazo y la pierna que miraban a la cámara pasan atrás (#379).
 - Sombras de luz 2D: cada robot es una luz del color de su jugador (alcance 5 m) y su luz no atraviesa las plataformas, el terreno ni las cajas; el fondo, las plataformas, los robots y el agua reciben esa luz con sus sombras. Los robots y los líquidos no tapan la luz, y la lava y el ácido iluminan sin sombras. El entorno queda algo más oscuro (aire de 0,12 y luz clave al 80 %) para que las luces se noten (#349).
 - Luz clave fuerte, cálida y algo lateral, con relleno frío del lado contrario: más contraste en el relieve, el brillo y el grano. La lava y el ácido alumbran más a los robots, y el fondo suma un degradé de luz y una niebla que separa los planos (#349).
