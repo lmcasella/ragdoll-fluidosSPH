@@ -129,14 +129,14 @@ test("la grilla ajusta el tamaño de celda para que el ancho y el alto sean múl
         assert.ok(grid.columns >= 1 && grid.rows >= 1);
         if (width >= MINIMUM_CELLS_FOR_SIZE_CHECK * DENSITY_CELL_SIZE) assert.ok(Math.abs(grid.cellWidth / DENSITY_CELL_SIZE - 1) <= CELL_SIZE_RELATIVE_TOLERANCE);
         assert.equal(grid.values.length, grid.columns * grid.rows);
-        assert.equal(grid.dirty, false);
+        assert.equal(grid.shapeDirty, false);
     }
 });
 
 test("fillRectangle llena la grilla entera con 1, deja la fracción cubierta en las celdas parciales y marca la grilla sucia", () => {
     const grid = new DensityGrid({ originX: 0, originY: 0, width: 1, height: 1 });
     grid.fillRectangle({ minX: 0, minY: 0, maxX: 1, maxY: 1 });
-    assert.equal(grid.dirty, true);
+    assert.equal(grid.shapeDirty, true);
     assert.ok(grid.values.every((value) => value === 1));
     grid.fillRectangle({ minX: 0, minY: 0, maxX: 0.5, maxY: 1 });
     assert.equal(grid.values[0], 1);
@@ -215,16 +215,55 @@ test("update rehace como mucho maxRebuildsPerFrame tramos sucios por llamada, de
     assert.equal(terrain.update(), 0, "sin tramos sucios no rehace nada");
     assert.equal(terrain.lastRebuildMs, 0);
     const fixtures = terrain.fixtureCount();
-    for (const tile of terrain.tiles) tile.grid.dirty = true;
+    for (const tile of terrain.tiles) tile.grid.shapeDirty = true;
     const rebuilt = [terrain.update(), terrain.update(), terrain.update(), terrain.update()];
     assert.deepEqual(rebuilt, [TERRAIN.maxRebuildsPerFrame, TERRAIN.maxRebuildsPerFrame, CROWD_COUNT - 2 * TERRAIN.maxRebuildsPerFrame, 0]);
     assert.equal(terrain.fixtureCount(), fixtures, "rehacer reemplaza los fixtures, no los suma");
-    assert.ok([...terrain.tiles].every((tile) => !tile.grid.dirty));
-    for (const tile of terrain.tiles) tile.grid.dirty = true;
+    assert.ok([...terrain.tiles].every((tile) => !tile.grid.shapeDirty));
+    for (const tile of terrain.tiles) tile.grid.shapeDirty = true;
     terrain.update();
     assert.equal(terrain.lastRebuilds, TERRAIN.maxRebuildsPerFrame);
     assert.equal(terrain.lastRebuildMs, 5, "el costo sale del reloj inyectado");
     assert.deepEqual(terrain.counts(), { grids: CROWD_COUNT, polygons: CROWD_COUNT, vertices: CORNERS * CROWD_COUNT });
+    terrain.dispose();
+});
+
+/** Cuerpo estático de prueba y su terreno con un piso de 3 m x 1 m centrado en el origen. */
+function newFloorTerrain(options = {}) {
+    const world = newWorld();
+    const definition = new Box2D.b2BodyDef();
+    const body = world.CreateBody(definition);
+    Box2D.destroy(definition);
+    const terrain = new Terrain({ body, friction: SOLID_FRICTION, ...options });
+    terrain.addSolid({ x: 0, y: 0, w: 3, h: 1 });
+    return terrain;
+}
+
+test("una erosión que no cruza el nivel iso no rehace fixtures y publica el desgaste como mucho cada wearRedrawInterval", () => {
+    const terrain = newFloorTerrain();
+    const [tile] = terrain.tiles;
+    const { grid } = tile;
+    const fixtures = [...tile.fixtures];
+    const cellArea = grid.cellWidth * grid.cellHeight;
+    const erodeAtCenter = (cells) => grid.erode({ x: 0, y: 0, reach: grid.cellWidth / 4, area: cells * cellArea });
+
+    erodeAtCenter(0.2);
+    assert.equal(grid.shapeDirty, false, "una celda interior que sigue sobre el iso no mueve el contorno");
+    assert.equal(grid.wearDirty, true);
+    assert.equal(terrain.update(0), 0);
+    assert.deepEqual(tile.fixtures, fixtures, "los fixtures siguen siendo los mismos");
+    const published = terrain.shape.version;
+    erodeAtCenter(0.1);
+    terrain.update(TERRAIN.wearRedrawInterval / 2);
+    assert.equal(terrain.shape.version, published, "el desgaste no se vuelve a publicar antes del intervalo");
+    terrain.update(TERRAIN.wearRedrawInterval);
+    assert.notEqual(terrain.shape.version, published, "pasado el intervalo se publica");
+    assert.equal(grid.wearDirty, false);
+
+    erodeAtCenter(1);
+    assert.equal(grid.shapeDirty, true, "una celda que cruza el iso cambia la forma");
+    assert.equal(terrain.update(TERRAIN.wearRedrawInterval), 1);
+    assert.notDeepEqual(tile.fixtures, fixtures, "los fixtures se rehicieron");
     terrain.dispose();
 });
 
@@ -243,7 +282,7 @@ test("rehacer una atravesable traspasa a las fixtures nuevas el par y la bajada 
     const owner = platforms.owners.get("probe");
     owner.pairs.set(oldPointer, false);
     owner.drops.set(oldPointer, 1.5);
-    tile.grid.dirty = true;
+    tile.grid.shapeDirty = true;
     terrain.update();
     const [newFixture] = tile.fixtures;
     const newPointer = Box2D.getPointer(newFixture);
@@ -311,7 +350,7 @@ function standingTrace({ game, tile }, rebuild) {
     const trace = [];
     let grounded = true;
     for (let frame = 0; frame < FORCED_REBUILDS; frame++) {
-        if (rebuild) tile.grid.dirty = true;
+        if (rebuild) tile.grid.shapeDirty = true;
         game.frame();
         assert.equal(terrain.lastRebuilds, rebuild ? 1 : 0);
         const position = torso.GetPosition();

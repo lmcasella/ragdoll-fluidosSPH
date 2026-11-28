@@ -58,7 +58,7 @@ test("la capa del terreno dibuja densidad, bordes de tramo, polígonos y contorn
     assert.ok(graphics.fills.length > 0, "celdas con densidad");
     assert.ok(graphics.fills.every((fill) => fill.alpha > 0 && fill.alpha <= 0.5), "alfa según densidad");
     const cellFills = graphics.fills.length;
-    terrain.tiles.values().next().value.grid.dirty = true;
+    terrain.tiles.values().next().value.grid.shapeDirty = true;
     terrain.update();
     view.drawLayers(SCREEN_SCALE, { terrain: refsOf(terrain) });
     const flashes = graphics.fills.filter((fill) => fill.alpha === FLASH_ALPHA);
@@ -134,7 +134,7 @@ test("en el juego, la fila Terreno enciende la capa y el panel muestra los conte
     const underRobot = [...terrain.tiles].find(
         ({ grid }) => grid.originX <= torsoX && torsoX < grid.originX + grid.width && Math.abs(grid.originY + grid.height - ISLAND_TOP) < TOP_TOLERANCE,
     );
-    underRobot.grid.dirty = true;
+    underRobot.grid.shapeDirty = true;
     game.frame();
     assert.equal(terrain.lastRebuilds, 1);
     assert.equal(debugView.layerGraphics.terreno.fills.filter((fill) => fill.alpha === FLASH_ALPHA).length, 1, "el tramo rehecho destella");

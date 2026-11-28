@@ -10,10 +10,11 @@ import { SURFACES, surfaceOf } from "./surfaces.js";
 
 /**
  * Valores del terreno de densidad (`docs/design/05-escenario.md` §5.5): `maxTileSize` (m) es el lado máximo de un tramo de
- * una pieza grande; `maxRebuildsPerFrame` es el tope de tramos cuya forma se rehace en un frame; `simplifyCells` es la
+ * una pieza grande; `maxRebuildsPerFrame` es el tope de tramos cuya forma se rehace en un frame; `wearRedrawInterval` (s) es
+ * cada cuánto como mucho se publica el desgaste de un tramo para redibujarlo; `simplifyCells` es la
  * tolerancia de simplificación del contorno, en celdas; `minPieceCells` es el área mínima de un polígono convexo, en celdas².
  */
-export const TERRAIN = { maxTileSize: 4, maxRebuildsPerFrame: 4, simplifyCells: 0.5, minPieceCells: 0.5 };
+export const TERRAIN = { maxTileSize: 4, maxRebuildsPerFrame: 4, wearRedrawInterval: 0.25, simplifyCells: 0.5, minPieceCells: 0.5 };
 
 /** Un anillo con menos vértices que esto no encierra área. */
 const MINIMUM_RING_VERTICES = 3;
@@ -155,7 +156,7 @@ export class Terrain {
                 const grid = new DensityGrid({ originX, originY, width: tileWidth, height: tileHeight });
                 const fill = { minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight };
                 grid.fillRectangle(fill);
-                const tile = { grid, fill, surface, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1 };
+                const tile = { grid, fill, surface, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1, wearPublishedAt: -Infinity };
                 this.tiles.add(tile);
                 handle.tiles.push(tile);
                 this.rebuild(tile);
@@ -203,7 +204,8 @@ export class Terrain {
         if (tile.oneWay && this.platforms) this.platforms.replacePlatforms(previous, created, { moving: this.moving });
         for (const fixture of previous) this.body.DestroyFixture(fixture);
         Object.assign(tile, { fixtures: created, rings: shape.rings, polygons: shape.polygons });
-        tile.grid.dirty = false;
+        tile.grid.shapeDirty = false;
+        tile.grid.wearDirty = false;
         this.shapeVersion++;
     }
 
@@ -285,19 +287,29 @@ export class Terrain {
     }
 
     /**
-     * Rehace los tramos sucios, hasta `config.maxRebuildsPerFrame`; los que sobran quedan para el próximo frame.
+     * Rehace los tramos con la forma sucia, hasta `config.maxRebuildsPerFrame`; los que sobran quedan para el próximo
+     * frame. Los tramos que solo cambiaron de desgaste publican el desgaste como mucho cada `config.wearRedrawInterval`.
+     * @param {number} [time] reloj de juego, en s
      * @returns {number} tramos rehechos: con más de 0 hubo fixtures destruidos y quien llama invalida lo que dependa de ellos
      */
-    update() {
+    update(time = 0) {
         this.frame++;
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
         let startedAt = null;
         for (const tile of this.tiles) {
-            if (!tile.grid.dirty) continue;
+            if (!tile.grid.shapeDirty) {
+                if (tile.grid.wearDirty && time - tile.wearPublishedAt >= this.config.wearRedrawInterval) {
+                    tile.grid.wearDirty = false;
+                    tile.wearPublishedAt = time;
+                    this.shapeVersion++;
+                }
+                continue;
+            }
             if (this.lastRebuilds >= this.config.maxRebuildsPerFrame) break;
             startedAt ??= this.now();
             this.rebuild(tile);
+            tile.wearPublishedAt = time;
             tile.rebuiltFrame = this.frame;
             this.lastRebuilds++;
         }

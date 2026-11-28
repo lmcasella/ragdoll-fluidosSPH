@@ -1099,7 +1099,7 @@ function loop(nowMs) {
         if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
     }
     const terrain = currentTerrain();
-    if (terrain.update() > 0) wallContact.invalidate();
+    if (terrain.update(simTime) > 0) wallContact.invalidate();
     const scale = camera.scale;
     const bottom = camera.y - camera.viewH / (2 * scale);
 
