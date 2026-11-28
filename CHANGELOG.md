@@ -6,7 +6,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ## [Unreleased]
 
 ### Added
-- Sombras proyectadas: las plataformas y las cajas proyectan sombra sobre el fondo, y los robots sobre el fondo y las plataformas de atrás, en dirección contraria a la luz clave; cerca de la lava o el ácido caen alejándose de ellos (#349).
+- Sombras de luz 2D: cada robot es una luz del color de su jugador (alcance 5 m) y su luz no atraviesa las plataformas, el terreno ni las cajas; el fondo, las plataformas, los robots y el agua reciben esa luz con sus sombras. Los robots y los líquidos no tapan la luz, y la lava y el ácido iluminan sin sombras. El entorno queda algo más oscuro (aire de 0,12 y luz clave al 80 %) para que las luces se noten (#349).
 - Luz clave fuerte, cálida y algo lateral, con relleno frío del lado contrario: más contraste en el relieve, el brillo y el grano. La lava y el ácido alumbran más a los robots, y el fondo suma un degradé de luz y una niebla que separa los planos (#349).
 - Las plataformas rompibles son de chapa fina y oxidada, con nervaduras y grietas oscuras que crecen con la cuenta de rotura (#348).
 - Fondo de planta industrial con parallax de cuatro capas (chimeneas y tanques lejos, cañerías y estructuras en el medio, vigas cerca), dibujado por el juego. En el modo Infinito cambia con la altura: piso de planta, pasarelas, y arriba chimeneas con humo y más cielo (#345).

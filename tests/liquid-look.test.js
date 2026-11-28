@@ -86,7 +86,8 @@ test("el fragmento del agua del nivel lee el fondo, la profundidad y las luces c
     assert.match(WATER_FRAGMENT, /surfaceDepth/);
     assert.match(WATER_FRAGMENT, /surface - world\.y/, "profundidad = eta - y desde la textura");
     assert.doesNotMatch(WATER_FRAGMENT, /PROBE_COUNT|REFINE_COUNT|coverageAbove|PROBE_GROWTH/, "sin sondas de profundidad ni bisección");
-    assert.match(WATER_FRAGMENT, /lightSum/);
+    assert.match(WATER_FRAGMENT, /mappedLight\(screen\)/, "el agua refleja el mapa de luz");
+    assert.doesNotMatch(WATER_FRAGMENT, /lightSum/);
     assert.match(WATER_FRAGMENT, /lightSpecular/);
     assert.doesNotMatch(WATER_FRAGMENT, /gaussian|blur/i);
     installFakePixi();

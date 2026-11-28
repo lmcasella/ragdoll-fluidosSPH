@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installFakePixi } from "./helpers/fake-pixi.js";
 
-const { LIGHT_FUNCTIONS, createLightSet } = await import("../src/render/lighting.js");
+const { LIGHT_FUNCTIONS, LIGHT_MAP_FUNCTIONS, createLightSet } = await import("../src/render/lighting.js");
 const { BEVEL_FUNCTIONS } = await import("../src/render/bevelFunctions.js");
 const { ROBOT_FRAGMENT, ROBOT_JOINT_COLOR, createRobotFilter, setRobotFilterLights, updateRobotFilter } = await import("../src/render/robotFilter.js");
 const { RagdollShapes } = await import("../src/ragdoll/RagdollShapes.js");
@@ -20,7 +20,7 @@ const REPEATED_UPDATES = 1000;
 const BOX_HALF_SIZE = 0.5;
 
 test("el fragment tiene bisel, junta, pintura gastada, suma de luces y especular, y no usa funciones de GLSL 3.00", () => {
-    for (const name of ["coverageSlope", "jointSlope", "jointAt", "outerEdgeAmount", "STEEL_BASE", "lightSum(", "specular", "LIGHT_FLOOR"]) {
+    for (const name of ["coverageSlope", "jointSlope", "jointAt", "outerEdgeAmount", "STEEL_BASE", "mappedLight(", "lightRelief(", "specular", "LIGHT_FLOOR"]) {
         assert.ok(ROBOT_FRAGMENT.includes(name), name);
     }
     assert.ok(ROBOT_FRAGMENT.includes(LIGHT_FUNCTIONS));
@@ -30,10 +30,11 @@ test("el fragment tiene bisel, junta, pintura gastada, suma de luces y especular
     assert.ok(ROBOT_FRAGMENT.includes("uInputSize") && ROBOT_FRAGMENT.includes("uOutputFrame"));
 });
 
-test("las luces puntuales de los robots suman sin dividir por la luz de una cara plana", () => {
+test("el mapa de luz de los robots suma sin dividir por la luz de una cara plana", () => {
     assert.ok(ROBOT_FRAGMENT.includes("baseLight(normal) / baseLight(flatNormal)"));
-    assert.ok(ROBOT_FRAGMENT.includes("baseRelief + lightSum("));
-    assert.ok(!/lightSum\([^)]*\)\s*\/\s*flat/.test(ROBOT_FRAGMENT), "la luz puntual no se normaliza");
+    assert.ok(ROBOT_FRAGMENT.includes("baseRelief + mappedLight(screen) * lightRelief("));
+    assert.ok(!/mappedLight\([^)]*\)\s*\/\s*flat/.test(ROBOT_FRAGMENT), "el mapa de luz no se normaliza");
+    assert.ok(ROBOT_FRAGMENT.includes(LIGHT_MAP_FUNCTIONS));
 });
 test("el filtro se crea una vez y la cámara y las luces se actualizan sin reconstruirlo ni crear buffers", () => {
     const pixi = installFakePixi();

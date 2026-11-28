@@ -62,9 +62,12 @@ La escena tiene una luz clave fuerte, cálida y algo lateral que baja desde arri
 - **Ácido:** luz verde tenue con alcance de unos 3 m.
 - **Fondo:** las capas cercanas del fondo reciben la luz de la lava y del ácido, sin relieve; las lejanas casi no. Todas reciben la luz clave como un degradé vertical (más claras arriba) y una niebla que aclara más cuanto más lejos está la capa, para separar los planos sin tocar lo que dibujan.
 - **Robots:** reciben la misma luz que las plataformas (§13.4). La lava y el ácido los alumbran de verdad: cerca de ellos el robot se ve teñido de su color, sin que la luz base borre ese efecto; el color del jugador se sigue leyendo.
-- **Sombras:** el nivel (plataformas y cajas) proyecta sombra sobre el fondo, y los robots sobre el fondo y las plataformas que tienen detrás. La sombra cae en dirección contraria a la luz clave, unos 35 cm, translúcida (45 % de oscuridad) y con el borde suave, sin desenfoque. Cerca de una luz de lava o ácido más intensa que la clave, la sombra cae alejándose de esa luz.
-- **Cantidad:** se juntan los fluidos cercanos en una sola luz por zona, con un tope de luces por pantalla; una gota suelta no ilumina.
-- **Costo:** la luz no baja los fps de forma medible.
+- **Luz de cada robot:** cada robot es una luz puntual del color de su jugador (intensidad 0,9, alcance 5 m) en su cabeza, y es la única luz con sombras, como las luces 2D de Unity.
+- **Sombras:** lo que tapa la luz son las plataformas, el terreno y las cajas; los robots y los líquidos no la tapan. Donde un colisionador se interpone entre un píxel y la luz de un robot, esa luz no llega (penumbra suave); la superficie de la plataforma que da hacia la luz sí la recibe. Un robot recibe la sombra de las plataformas y las cajas respecto de la luz del otro. La lava y el ácido iluminan como siempre, sin sombras. La luz clave y el relleno no proyectan sombra.
+- **Ambiente:** el entorno es algo más oscuro (aire de 0,12 y luz clave al 80 % de antes) para que se noten las luces de los robots, la lava y el ácido.
+- **Uso:** el fondo, las plataformas, las cajas, los robots y el agua leen la misma luz ya con sombras; en plataformas y robots el relieve la modula (55 % más 45 % según cuánto mira la superficie a la luz más fuerte).
+- **Cantidad:** se juntan los fluidos cercanos en una sola luz por zona, con un tope de 8 luces por pantalla, robots incluidos; una gota suelta no ilumina.
+- **Costo:** un dibujo del nivel como silueta y un pase de luz por frame, ambos a media resolución del canvas; solo los dos robots marchan 16 pasos por píxel.
 
 ## 13.4 Robots
 
