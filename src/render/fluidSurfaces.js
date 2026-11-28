@@ -91,8 +91,8 @@ function buildGrid(reach) {
 }
 
 /**
- * Arma la lista de superficies sólidas, en metros del mundo, con las piezas de los robots (las mismas formas que dibuja
- * `RagdollShapes`) y los sólidos del nivel, y la grilla que las indexa. Los polígonos se omiten: los rigs actuales no los usan.
+ * Arma la lista de superficies sólidas, en metros del mundo, con las piezas de los robots (las formas de la colisión del
+ * robot, `renderItems.js`) y los sólidos del nivel, y la grilla que las indexa. Los polígonos se omiten: los rigs actuales no los usan.
  * @param {object[]} players robots con `renderItems`
  * @param {object[]} solids sólidos del nivel
  * @param {number} reach alcance del acercamiento del agua, en m

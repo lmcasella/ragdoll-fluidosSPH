@@ -3,6 +3,8 @@
  * textura, `Graphics` que cuenta cuántas veces se vació y filtros. Partículas y su contenedor, y un renderer que cuenta las texturas generadas. Lo mínimo que usan `src/render/` y RagImporter.
  */
 
+import { ROBOT_ART_LAYERS, ROBOT_ART_PIECES } from "../../src/ragdoll/robotArt.js";
+
 class FakePoint {
     constructor(x = 0, y = 0) {
         this.x = x;
@@ -120,6 +122,7 @@ class FakeSprite extends FakeContainer {
     constructor(texture) {
         super();
         this.texture = texture;
+        this.anchor = new FakePoint();
         this.refreshBounds();
         if (texture.dynamic) texture.on(() => this.refreshBounds());
     }
@@ -389,6 +392,16 @@ class FakeApplication {
     }
 }
 
+/** Texturas falsas del arte del robot, una por capa de cada pieza, con `piece` y `layer` para reconocerlas en las pruebas. */
+export function createFakeRobotTextures() {
+    return Object.fromEntries(
+        ROBOT_ART_PIECES.map((piece) => [
+            piece,
+            Object.fromEntries(ROBOT_ART_LAYERS.map((layer) => [layer, { piece, layer, source: { width: 1, height: 1 } }])),
+        ]),
+    );
+}
+
 /** Instala el `PIXI` falso en `globalThis` y lo devuelve. */
 export function installFakePixi() {
     globalThis.PIXI = {
@@ -407,6 +420,7 @@ export function installFakePixi() {
         Filter: FakeFilter,
         BufferImageSource: FakeBufferImageSource,
         GlProgram: { from: (options) => options },
+        Assets: { load: async (path) => ({ source: {}, path }) },
     };
     return globalThis.PIXI;
 }

@@ -1,7 +1,7 @@
 /**
  * Efectos de color del robot (destello de golpe, tinte de mojado y color del jugador) como `tint` de los hijos de
- * `rag.view`, sin suponer que son `Graphics` (ver `docs/design/03-robots.md`). Las figuras se dibujan en blanco, así que el
- * `tint` es el color final.
+ * `rag.view`, sin suponer que son `Graphics` (ver `docs/design/03-robots.md`). La pintura de cada pieza es blanca y gris,
+ * así que su `tint` es el color final; el detalle de acero no se tiñe.
  */
 
 import { TAU, lerp } from "../core/math/scalar.js";
@@ -63,7 +63,21 @@ export function wetBlend(player, now) {
 }
 
 /**
- * Pone en cada pieza el tinte que le toca por su destello y por el mojado. Solo escribe `tint` si cambió.
+ * Oscurece un color multiplicando cada canal por `factor`, redondeado.
+ * @param {number} packed color `0xRRGGBB`
+ * @param {number} factor de 0 a 1
+ * @returns {number} color `0xRRGGBB`
+ */
+export function scaleTint(packed, factor) {
+    const red = Math.round(((packed >> (BITS_PER_CHANNEL * 2)) & CHANNEL_MASK) * factor);
+    const green = Math.round(((packed >> BITS_PER_CHANNEL) & CHANNEL_MASK) * factor);
+    const blue = Math.round((packed & CHANNEL_MASK) * factor);
+    return (red << (BITS_PER_CHANNEL * 2)) | (green << BITS_PER_CHANNEL) | blue;
+}
+
+/**
+ * Pone en la pintura de cada pieza el tinte que le toca por su destello y por el mojado, oscurecido por el `shade` de la
+ * pieza. Solo escribe `tint` si cambió.
  * @param {import("./ragdollSync.js").RagdollPart[]} parts
  * @param {{ wet: boolean, dead: boolean, flashAmount: (bodyId: string, now: number) => number }} player
  * @param {number[]} baseColor color del jugador, `[r, g, b]` de 0 a 255
@@ -75,6 +89,6 @@ export function tintParts(parts, player, baseColor, now) {
         const tint = mixTint(baseColor, player.flashAmount(part.bodyId, now), wet);
         if (part.tint === tint) continue;
         part.tint = tint;
-        part.fill.tint = tint;
+        part.paint.tint = scaleTint(tint, part.shade);
     }
 }
