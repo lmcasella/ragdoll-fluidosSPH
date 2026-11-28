@@ -32,7 +32,7 @@ const PANEL_NUT_RADIUS_M = 0.24;
 
 /**
  * Tinte que escala el canal verde del color codificado del acero (que se dibuja con desgaste 1) por `wear`, de 0 a 1:
- * el filtro de `surfaceFilter.js` lee ese canal como el desgaste del material, y el rojo y el azul pasan sin cambio.
+ * el filtro de `surfaceFilter.js` lee ese canal como el desgaste del material, y el rojo pasa sin cambio.
  * @param {number} wear 0 es acero limpio y 1 es el más oxidado
  * @returns {number} color `0xRRGGBB`
  */
@@ -52,8 +52,8 @@ function drawSteelSquare(graphics, side, pixelsPerMeter) {
     const half = (side / 2) * pixelsPerMeter;
     graphics
         .rect(-half, -half, 2 * half, 2 * half)
-        .fill({ color: encodeSurface({ surface: CRATE_SURFACE, wear: 1, edge: false }) })
-        .stroke({ width: EDGE_WIDTH_M * pixelsPerMeter, color: encodeSurface({ surface: CRATE_SURFACE, wear: 1, edge: true }) });
+        .fill({ color: encodeSurface({ surface: CRATE_SURFACE, wear: 1 }) })
+        .stroke({ width: EDGE_WIDTH_M * pixelsPerMeter, color: encodeSurface({ surface: CRATE_SURFACE, wear: 1 }) });
 }
 
 /**

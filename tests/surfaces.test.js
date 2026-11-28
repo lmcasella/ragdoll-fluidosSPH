@@ -154,11 +154,12 @@ test("el shader reconoce los tres materiales por id, no usa texturas externas y 
     assert.equal(SURFACE_FRAGMENT.match(/texture\(/g).length, 2, "la lectura del fragmento y la de la cobertura de los vecinos del bisel");
     assert.ok(SURFACE_FRAGMENT.includes("uOutputFrame") && SURFACE_FRAGMENT.includes("uInputSize"));
 
-    const code = encodeSurface({ surface: "concrete", wear: 0.5, edge: true });
+    const code = encodeSurface({ surface: "concrete", wear: 0.5 });
     assert.equal(Math.round(((code >> RED_SHIFT) & CHANNEL_MAX) / CHANNEL_MAX * SURFACE_ID_SCALE), SURFACES.concrete.id);
     assert.equal((code >> GREEN_SHIFT) & CHANNEL_MAX, Math.round(0.5 * CHANNEL_MAX));
-    assert.equal(code & CHANNEL_MAX, CHANNEL_MAX);
-    assert.equal(encodeSurface({ surface: "steel", wear: 0, edge: false }) & CHANNEL_MAX, 0);
+    assert.equal(code & CHANNEL_MAX, 0, "el canal azul ya no se usa");
+    assert.ok(!/code\.b\b/.test(SURFACE_FRAGMENT), "el fragmento no lee el canal azul");
+    assert.ok(!SURFACE_FRAGMENT.includes("_EDGE"), "sin aclarado de borde por material");
 });
 
 test("el filtro se crea una vez y la cámara se actualiza sin reconstruirlo ni crear uniforms nuevos", () => {
@@ -208,9 +209,9 @@ test("LevelView pinta cada tramo con el color de su material y no redibuja si no
     view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     const builds = view.fixedBuilds;
     const colorOf = (tile) => view.tileEntries.get(tile).graphics.fills.map((fill) => fill.color);
-    assert.deepEqual(colorOf(steel), [encodeSurface({ surface: "steel", wear: 0, edge: false })]);
-    assert.deepEqual(colorOf(concrete), [encodeSurface({ surface: "concrete", wear: 0, edge: false })]);
-    assert.equal(view.tileEntries.get(steel).graphics.strokes.length, 1, "un trazo por tramo");
+    assert.deepEqual(colorOf(steel), [encodeSurface({ surface: "steel", wear: 0 })]);
+    assert.deepEqual(colorOf(concrete), [encodeSurface({ surface: "concrete", wear: 0 })]);
+    assert.equal(view.tileEntries.get(steel).graphics.strokes.length, 0, "sin trazo de contorno");
     assert.equal(view.fixedContainer.children.length, 3, "los rectángulos sin terreno y un Graphics por tramo");
     view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     assert.equal(view.fixedBuilds, builds, "misma forma y mismo desgaste: no redibuja");
@@ -224,10 +225,10 @@ test("LevelView pinta cada tramo con el color de su material y no redibuja si no
     const worn = steel.grid.wornCells();
     assert.equal(worn.length, 2);
     assert.equal(view.tileEntries.get(steel).graphics.rectangles, 2, "una forma por celda con desgaste");
-    assert.ok(view.tileEntries.get(steel).graphics.fills.some((fill) => fill.color === encodeSurface({ surface: "steel", wear: Math.round(0.3 * CHANNEL_MAX) / CHANNEL_MAX, edge: false })));
+    assert.ok(view.tileEntries.get(steel).graphics.fills.some((fill) => fill.color === encodeSurface({ surface: "steel", wear: Math.round(0.3 * CHANNEL_MAX) / CHANNEL_MAX })));
 });
 
-test("LevelView solo redibuja el tramo que cambió, más sus vecinos si cambió la forma, y reusa el Graphics de un tramo quitado", () => {
+test("LevelView solo redibuja el tramo que cambió, y reusa el Graphics de un tramo quitado", () => {
     const pixi = installFakePixi();
     const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
     const left = publishedTile("steel", 0);
@@ -244,7 +245,7 @@ test("LevelView solo redibuja el tramo que cambió, más sus vecinos si cambió 
 
     left.shapeVersion++;
     view.update(level, 0, 0, SCREEN_SCALE, publish(tiles, { version: 3, tilesVersion: 1 }));
-    assert.deepEqual(clearsOf(view, tiles), [2, 2, 2], "la forma de un tramo cambia sus costuras con el vecino que lo toca, no con el lejano");
+    assert.deepEqual(clearsOf(view, tiles), [2, 1, 2], "la forma de un tramo solo redibuja ese tramo");
 
     const built = pixi.Graphics.constructed;
     view.update(level, 0, 0, SCREEN_SCALE, publish([left, right], { version: 4, tilesVersion: 2 }));
@@ -252,5 +253,5 @@ test("LevelView solo redibuja el tramo que cambió, más sus vecinos si cambió 
     const replacement = publishedTile("concrete", FAR_SLAB_X);
     view.update(level, 0, 0, SCREEN_SCALE, publish([left, right, replacement], { version: 5, tilesVersion: 3 }));
     assert.equal(pixi.Graphics.constructed, built, "el tramo nuevo reusa el Graphics del pool");
-    assert.deepEqual(clearsOf(view, [left, right]), [2, 2], "los tramos que siguen no se tocan");
+    assert.deepEqual(clearsOf(view, [left, right]), [2, 1], "los tramos que siguen no se tocan");
 });

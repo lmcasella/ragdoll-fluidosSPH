@@ -8,11 +8,12 @@ import { RENDER_QUALITY } from "./renderQuality.js";
 /**
  * Filtro de materiales de las plataformas (`docs/design/13-arte.md` §13.2): `LevelView` pinta los sólidos con un color
  * codificado y este `PIXI.Filter` lo cambia, en una sola pasada para todo el escenario, por el aspecto del material. El
- * código usa el rojo para el material (`id / SURFACE_ID_SCALE`), el verde para el desgaste (0 a 1) y el azul para el borde
- * del contorno (1) o el interior (0). La textura sale de la posición del fragmento en el mundo (con ruido de valor, sin
- * texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
- * posición arma una altura por material (juntas, remaches, grano y el bisel del contorno), saca la normal de su gradiente
- * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3).
+ * código usa el rojo para el material (`id / SURFACE_ID_SCALE`) y el verde para el desgaste (0 a 1; en las rompibles, la
+ * grieta) y la cobertura (alfa) para la forma. La textura sale de la posición del fragmento en el mundo (con ruido de valor,
+ * sin texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
+ * posición arma una altura por material (juntas, remaches, grano y el bisel del borde), saca la normal de su gradiente
+ * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3). El borde no tiene trazo: lo
+ * da el bisel con la luz y una oclusión que oscurece el material junto al borde.
  */
 
 /** Divisor del id del material al guardarlo en el canal rojo: con ids de 1 a 3 deja los valores bien separados. */
@@ -43,15 +44,13 @@ const INITIAL_PIXELS_PER_METER = 1;
  * Color de 24 bits con que `LevelView` pinta un sólido para que el filtro lo reconozca.
  * @param {object} code
  * @param {keyof typeof SURFACES} code.surface material
- * @param {number} code.wear desgaste, de 0 a 1
- * @param {boolean} code.edge verdadero si es el trazo del contorno
+ * @param {number} code.wear desgaste, de 0 a 1 (en las rompibles, la grieta)
  * @returns {number}
  */
-export function encodeSurface({ surface, wear, edge }) {
+export function encodeSurface({ surface, wear }) {
     const red = Math.round((SURFACES[surface].id / SURFACE_ID_SCALE) * CHANNEL_MAX);
     const green = Math.round(wear * CHANNEL_MAX);
-    const blue = edge ? CHANNEL_MAX : 0;
-    return (red << RED_SHIFT) | (green << GREEN_SHIFT) | blue;
+    return (red << RED_SHIFT) | (green << GREEN_SHIFT);
 }
 
 /**
@@ -86,8 +85,7 @@ const vec3 ${prefix}_BASE = ${glslColor(surface.baseColor)};
 const vec3 ${prefix}_WEAR = ${glslColor(surface.wearColor)};
 const vec3 ${prefix}_WEAR_DARK = ${glslColor(surface.wearDarkColor)};
 const float ${prefix}_PATTERN = ${glslFloat(surface.patternSize)};
-const float ${prefix}_ALPHA = ${glslFloat(surface.alpha)};
-const float ${prefix}_EDGE = ${glslFloat(surface.edgeLighten)};`;
+const float ${prefix}_ALPHA = ${glslFloat(surface.alpha)};`;
         })
         .join("\n");
 }
@@ -147,8 +145,13 @@ const float REFLECTION_ALPHA = 0.25;
 const float JOINT_DEPTH = 0.03;
 const float RIVET_HEIGHT = 0.02;
 const float CONCRETE_GRAIN_HEIGHT = 0.02;
-const float BEVEL_WIDTH = 0.06;
-const float BEVEL_HEIGHT = 0.03;
+const float BEVEL_MIN_WIDTH = 0.08;
+const float BEVEL_MIN_SCREEN_PX = 3.0;
+const float BEVEL_SLOPE = 0.5;
+const float OCCLUSION_REACH = 0.06;
+const float OCCLUSION_DARKEN = 0.35;
+const float NEAR_TAP_SHARE = 0.5;
+const float OCCLUSION_TAPS = 2.0;
 const float SPECULAR_SHININESS = 24.0;
 const float SPECULAR_STRENGTH = 0.35;
 const float SPECULAR_WEAR_LIMIT = 0.1;
@@ -227,7 +230,21 @@ float surfaceHeight(int id, vec2 world)
 
 vec2 bevelSlope(vec2 textureCoord)
 {
-    return coverageSlope(textureCoord, BEVEL_WIDTH, BEVEL_HEIGHT);
+    float width = max(BEVEL_MIN_WIDTH, BEVEL_MIN_SCREEN_PX / uPixelsPerMeter);
+    return coverageSlope(textureCoord, width, width * BEVEL_SLOPE);
+}
+
+float occlusionToward(vec2 textureCoord, vec2 direction)
+{
+    vec2 tap = direction * OCCLUSION_REACH * uPixelsPerMeter / uInputSize.xy;
+    float covered = coverageAt(textureCoord + tap * NEAR_TAP_SHARE) + coverageAt(textureCoord + tap);
+    return 1.0 - covered / OCCLUSION_TAPS;
+}
+
+float edgeOcclusion(vec2 textureCoord)
+{
+    float toSides = occlusionToward(textureCoord, vec2(1.0, 0.0)) + occlusionToward(textureCoord, vec2(-1.0, 0.0));
+    return clamp(toSides + occlusionToward(textureCoord, vec2(0.0, 1.0)), 0.0, 1.0);
 }
 
 vec3 surfaceNormal(int id, vec2 world, vec2 bevel)
@@ -259,21 +276,17 @@ void main(void)
     vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
     vec2 world = vec2(screen.x - uOrigin.x, uOrigin.y - screen.y) / uPixelsPerMeter;
     vec4 surface;
-    float edgeLighten;
     if (id == STEEL_ID) {
         surface = vec4(steelColor(world, code.g), STEEL_ALPHA);
-        edgeLighten = STEEL_EDGE;
     } else if (id == CONCRETE_ID) {
         surface = vec4(concreteColor(world, code.g), CONCRETE_ALPHA);
-        edgeLighten = CONCRETE_EDGE;
     } else {
         surface = glassColor(world);
-        edgeLighten = GLASS_EDGE;
     }
     float specularAmount = id == STEEL_ID ? 1.0 - smoothstep(0.0, SPECULAR_WEAR_LIMIT, code.g) : 0.0;
     vec3 normal = surfaceNormal(id, world, bevelSlope(vTextureCoord));
     vec3 lit = litColor(surface.rgb, normal, vec3(world, 0.0), specularAmount);
-    vec3 color = mix(lit, vec3(1.0), code.b * edgeLighten);
+    vec3 color = lit * (1.0 - edgeOcclusion(vTextureCoord) * OCCLUSION_DARKEN);
     float alpha = surface.a * encoded.a;
     finalColor = vec4(color * alpha, alpha);
 }
