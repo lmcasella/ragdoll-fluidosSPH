@@ -301,3 +301,19 @@ test("las rompibles van en el contenedor con el filtro y codifican su grieta en 
     view.update(level, 0, 0, SCREEN_SCALE, null);
     assert.equal((view.breakableGraphics.fills[0].color >> GREEN_SHIFT) & CHANNEL_MAX, 0, "sin grieta, la chapa entera");
 });
+
+test("la luz base y el brillo del acero dan contraste sin luces cercanas sin oscurecer la plataforma en promedio", async () => {
+    const { LIGHTING } = await import("../src/render/lighting.js");
+    const { base } = LIGHTING;
+    assert.equal(base.ambient, 0.22);
+    assert.equal(base.intensity, 0.95);
+    assert.ok(SURFACE_FRAGMENT.includes("const float SPECULAR_STRENGTH = 0.6;"));
+    const [directionX, directionY] = base.direction;
+    const facingFlat = base.front / Math.hypot(directionX, directionY, base.front);
+    const meanLight = (oldAmbient, oldIntensity, ambient, intensity) => base.color.map((channel) => [oldAmbient + channel * oldIntensity * facingFlat, ambient + channel * intensity * facingFlat]);
+    const OLD_AMBIENT = 0.35;
+    const OLD_INTENSITY = 0.55;
+    for (const [before, after] of meanLight(OLD_AMBIENT, OLD_INTENSITY, base.ambient, base.intensity)) {
+        assert.ok(after >= before, `la luz de una cara plana no baja: ${before.toFixed(3)} -> ${after.toFixed(3)}`);
+    }
+});

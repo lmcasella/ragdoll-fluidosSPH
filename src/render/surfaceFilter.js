@@ -174,7 +174,7 @@ const float COVERED = 0.999;
 const float NEAR_TAP_SHARE = 0.5;
 const float OCCLUSION_TAPS = 2.0;
 const float SPECULAR_SHININESS = 24.0;
-const float SPECULAR_STRENGTH = 0.35;
+const float SPECULAR_STRENGTH = 0.6;
 const float SPECULAR_WEAR_LIMIT = 0.1;
 const vec3 VIEW_DIRECTION = vec3(0.0, 0.0, 1.0);
 

@@ -14,7 +14,7 @@
  * recibe cada una de las capas del fondo, de la más cercana a la más lejana de las que se iluminan.
  */
 export const LIGHTING = {
-    base: { direction: [-0.35, 0.94], front: 1, color: [0.55, 0.62, 0.75], intensity: 0.55, ambient: 0.35 },
+    base: { direction: [-0.35, 0.94], front: 1, color: [0.55, 0.62, 0.75], intensity: 0.95, ambient: 0.22 },
     sources: {
         lava: { color: [1, 0.55, 0.2], intensity: 1.6, range: 6 },
         acid: { color: [0.45, 1, 0.35], intensity: 0.5, range: 3 },
