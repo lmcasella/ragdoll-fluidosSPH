@@ -3,6 +3,7 @@ import { MATERIALS, SIGMA_W } from "./materials.js";
 import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
 import { BodySubstepCache, bodyWorldPoint, bodyWorldVector, bodyLocalPoint, bodyLocalVector } from "./bodySubstepCache.js";
+import { BODY_TYPE } from "../core/engine/box2d.js";
 import { exponentialApproachFactor } from "../core/math/scalar.js";
 import { vectorLength, normalize, dot, cross } from "../core/math/vector2.js";
 import { WATER_DENSITY } from "../core/physics/constants.js";
@@ -10,10 +11,6 @@ import { mixtureViscosity as logarithmicMixtureViscosity } from "../core/physics
 
 /** Espesor `b` de la rebanada 2D (m): `σ_w / ρ_w`. Pasa los esfuerzos de película a newtons. */
 const THICKNESS = SIGMA_W / WATER_DENSITY;
-
-/** Tipos de cuerpo de Box2D (2BodyType). */
-const STATIC = 0;
-const DYNAMIC = 2;
 
 /** Coeficiente de la película tangencial: Couette sobre media capa, `k_t = 2 μ_ef b`. */
 const TANGENTIAL = 2;
@@ -158,7 +155,7 @@ export class Adhesion {
         const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
         const heap = Box2D.HEAPF32;
-        this.userDataStart = system.GetUserDataBuffer() >> 2;
+        this.userDataStart = store.userDataStart();
         const tick = ++this.tick;
         this.bodies.beginSubstep();
         const { best, stamp } = this;
@@ -167,7 +164,7 @@ export class Adhesion {
         for (let c = 0; c < count; c++) {
             const i = index[c];
             if (escaped[i] === 1) continue;
-            const slot = this.slotOf(i);
+            const slot = store.slotIn(this.userDataStart, i);
             if (slot < 0 || store.alive[slot] === 0 || this.kinds[store.kind[slot]] === 0) continue;
             if (stamp[i] !== tick) {
                 stamp[i] = tick;
@@ -181,7 +178,7 @@ export class Adhesion {
         for (let c = 0; c < count; c++) {
             const i = index[c];
             if (stamp[i] !== tick || best[i] !== c) continue;
-            const slot = this.slotOf(i);
+            const slot = store.slotIn(this.userDataStart, i);
             const nx = contacts.bodyNx[c];
             const ny = contacts.bodyNy[c];
             const gap = Math.max(0, 1 - weight[c]) * 2 * this.radius;
@@ -206,7 +203,7 @@ export class Adhesion {
             }
         }
         for (let i = 0; i < total; i++) {
-            const slot = this.slotOf(i);
+            const slot = store.slotIn(this.userDataStart, i);
             if (slot < 0 || this.bridgeGen[slot] !== store.generation[slot]) continue;
             const kind = store.kind[slot];
             if (store.alive[slot] === 0 || this.honey[kind] === 0) {
@@ -215,9 +212,11 @@ export class Adhesion {
             }
             if (escaped[i] === 1) continue;
             const body = this.bodies.get(this.bridgeBody[slot]);
-            const qx = bodyWorldPoint(body, this.bridgeX[slot], this.bridgeY[slot], transformed).x;
+            bodyWorldPoint(body, this.bridgeX[slot], this.bridgeY[slot], transformed);
+            const qx = transformed.x;
             const qy = transformed.y;
-            const nx = bodyWorldVector(body, this.bridgeNx[slot], this.bridgeNy[slot], transformed).x;
+            bodyWorldVector(body, this.bridgeNx[slot], this.bridgeNy[slot], transformed);
+            const nx = transformed.x;
             const ny = transformed.y;
             const separation = dot(heap[pos + 2 * i] - qx, heap[pos + 2 * i + 1] - qy, nx, ny);
             if (separation > this.cut) {
@@ -237,20 +236,12 @@ export class Adhesion {
         const heap = Box2D.HEAPF32;
         let vx = heap[vel + 2 * i];
         let vy = heap[vel + 2 * i + 1];
-        if (body.type !== STATIC) {
+        if (body.type !== BODY_TYPE.STATIC) {
             const vb = body.body.GetLinearVelocityFromWorldPoint(this.point);
             vx -= vb.get_x();
             vy -= vb.get_y();
         }
         return vx * nx + vy * ny <= 0;
-    }
-
-    /**
-     * Slot estable de la partícula `i`, o -1 si no tiene. Igual que `ParticleStore.slotAt`, pero con la dirección del buffer
-     * de `userData` leída una sola vez por subpaso: pedirla al binding por partícula cuesta más que el resto del subpaso.
-     */
-    slotOf(i) {
-        return Box2D.HEAP32[this.userDataStart + i] - 1;
     }
 
     /**
@@ -260,7 +251,7 @@ export class Adhesion {
     hasFilmParticles(total) {
         const { store } = this;
         for (let i = 0; i < total; i++) {
-            const slot = this.slotOf(i);
+            const slot = store.slotIn(this.userDataStart, i);
             if (slot >= 0 && store.alive[slot] === 1 && this.kinds[store.kind[slot]] === 1) return true;
         }
         return false;
@@ -280,13 +271,11 @@ export class Adhesion {
         const dir = this.coverDir;
         cnt.fill(0, 0, total);
         const k = contacts.pairs(total);
-        const userData = Box2D.HEAP32;
-        const userDataStart = this.userDataStart;
         for (let c = 0; c < k; c++) {
             const a = contacts.pairA[c];
             const b = contacts.pairB[c];
-            const sa = userData[userDataStart + a] - 1;
-            const sb = userData[userDataStart + b] - 1;
+            const sa = store.slotIn(this.userDataStart, a);
+            const sb = store.slotIn(this.userDataStart, b);
             if (sa < 0 || sb < 0 || this.honey[store.kind[sa]] === 0 || this.honey[store.kind[sb]] === 0) continue;
             const dx = heap[pos + 2 * b] - heap[pos + 2 * a];
             const dy = heap[pos + 2 * b + 1] - heap[pos + 2 * a + 1];
@@ -324,7 +313,7 @@ export class Adhesion {
         const heap = Box2D.HEAPF32;
         const stats = this.stats;
         const type = body.type;
-        const dynamic = type === DYNAMIC;
+        const dynamic = type === BODY_TYPE.DYNAMIC;
         const mass = this.mass[kind];
         this.point.set_x(qx);
         this.point.set_y(qy);
@@ -334,7 +323,7 @@ export class Adhesion {
         let invInertia = 0;
         let rx = 0;
         let ry = 0;
-        if (type !== STATIC) {
+        if (type !== BODY_TYPE.STATIC) {
             const vb = body.body.GetLinearVelocityFromWorldPoint(this.point);
             vbx = vb.get_x();
             vby = vb.get_y();

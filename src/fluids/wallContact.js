@@ -1,6 +1,6 @@
 import { clamp, signOrOne } from "../core/math/scalar.js";
 import { vectorLength, dot } from "../core/math/vector2.js";
-import { fixtureBounds } from "../core/engine/box2d.js";
+import { fixtureBounds, BODY_TYPE } from "../core/engine/box2d.js";
 
 /** Caja de trabajo del fixture que estrecha la gota: se reutiliza para no crear objetos por subpaso. */
 const FIXTURE_BOX = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -27,8 +27,6 @@ const FIXTURE_BOX = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 const BODY_CONTACT_WORDS = 7;
 const SEARCH_WORDS = 200;
 const DEFAULT_OFFSET = 58;
-const STATIC = 0;
-const DYNAMIC = 2;
 
 /** Producto escalar máximo entre las normales exteriores de dos sólidos para que la gota esté aprisionada. */
 const TRAP_DOT = -0.5;
@@ -187,12 +185,12 @@ export class WallContact {
             this.collect(index, w, nx, ny);
             const body = Box2D.wrapPointer(heapI[w + 1], Box2D.b2Body);
             const type = body.GetType();
-            const dynamic = type === DYNAMIC;
+            const dynamic = type === BODY_TYPE.DYNAMIC;
             const px = heapF[pos + 2 * index];
             const py = heapF[pos + 2 * index + 1];
             let bx = 0;
             let by = 0;
-            if (type !== STATIC) {
+            if (type !== BODY_TYPE.STATIC) {
                 this.point.set_x(px);
                 this.point.set_y(py);
                 const vb = body.GetLinearVelocityFromWorldPoint(this.point);
@@ -272,8 +270,8 @@ export class WallContact {
             if (this.otherBody[i] === 0 || this.otherDot[i] > TRAP_DOT) continue;
             const first = Box2D.wrapPointer(this.firstBody[i], Box2D.b2Body);
             const other = Box2D.wrapPointer(this.otherBody[i], Box2D.b2Body);
-            const firstDynamic = first.GetType() === DYNAMIC;
-            const otherDynamic = other.GetType() === DYNAMIC;
+            const firstDynamic = first.GetType() === BODY_TYPE.DYNAMIC;
+            const otherDynamic = other.GetType() === BODY_TYPE.DYNAMIC;
             if (!firstDynamic && !otherDynamic) continue;
             const pickFirst = firstDynamic && (!otherDynamic || first.GetMass() <= other.GetMass());
             const bodyD = pickFirst ? first : other;
@@ -304,8 +302,8 @@ export class WallContact {
             let dvy = vD.get_y();
             let refx = dvx / 2;
             let refy = dvy / 2;
-            const oDynamic = bodyO.GetType() === DYNAMIC;
-            if (bodyO.GetType() !== STATIC) {
+            const oDynamic = bodyO.GetType() === BODY_TYPE.DYNAMIC;
+            if (bodyO.GetType() !== BODY_TYPE.STATIC) {
                 const vO = bodyO.GetLinearVelocityFromWorldPoint(point);
                 dvx -= vO.get_x();
                 dvy -= vO.get_y();
@@ -337,7 +335,7 @@ export class WallContact {
             const along = sign * rel;
             const alongPlus = Math.max(0, along);
             const invD = Math.max(0, 1 / mcD - 1 / mp);
-            const invO = bodyO.GetType() !== DYNAMIC ? 0 : Math.max(0, 1 / mcO - 1 / mp);
+            const invO = bodyO.GetType() !== BODY_TYPE.DYNAMIC ? 0 : Math.max(0, 1 / mcO - 1 / mp);
             const inv = invD + invO;
             if (inv <= 0) continue;
             const mu = 1 / inv;

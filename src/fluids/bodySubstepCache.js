@@ -1,5 +1,4 @@
-const STATIC = 0;
-const DYNAMIC = 2;
+import { BODY_TYPE } from "../core/engine/box2d.js";
 
 const toFloat32 = Math.fround;
 
@@ -9,7 +8,7 @@ const toFloat32 = Math.fround;
  * Box2D en lugar de una vez por partícula.
  */
 function createBodyData() {
-    return { body: null, tick: 0, type: STATIC, x: 0, y: 0, cos: 1, sin: 0, centerX: 0, centerY: 0, inverseMass: 0, inverseInertia: 0 };
+    return { body: null, tick: 0, type: BODY_TYPE.STATIC, x: 0, y: 0, cos: 1, sin: 0, centerX: 0, centerY: 0, inverseMass: 0, inverseInertia: 0 };
 }
 
 /**
@@ -62,7 +61,7 @@ export class BodySubstepCache {
         data.y = position.get_y();
         data.cos = rotation.get_c();
         data.sin = rotation.get_s();
-        if (data.type === DYNAMIC) {
+        if (data.type === BODY_TYPE.DYNAMIC) {
             const center = body.GetWorldCenter();
             data.centerX = center.get_x();
             data.centerY = center.get_y();

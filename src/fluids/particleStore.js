@@ -92,9 +92,22 @@ export class ParticleStore {
         return index;
     }
 
+    /** Índice de `Box2D.HEAP32` donde empieza el buffer de `userData` de las partículas. */
+    userDataStart() {
+        return this.system.GetUserDataBuffer() >> 2;
+    }
+
+    /**
+     * Slot de la partícula `i`, o -1 si no tiene (`userData` 0), con el inicio del buffer ya leído (`userDataStart()`).
+     * Es para recorridos que piden la dirección una sola vez y no una por partícula: el binding cuesta más que el resto.
+     */
+    slotIn(userDataStart, i) {
+        return Box2D.HEAP32[userDataStart + i] - 1;
+    }
+
     /** Slot de la partícula `i`, o -1 si no tiene (`userData` 0). */
     slotAt(i) {
-        return Box2D.HEAP32[(this.system.GetUserDataBuffer() >> 2) + i] - 1;
+        return this.slotIn(this.userDataStart(), i);
     }
 
     /**

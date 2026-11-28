@@ -2,9 +2,7 @@ import { MATERIALS, SIGMA_W } from "./materials.js";
 import { FLUID } from "../combat/weapons.js";
 import { mixtureViscosity } from "./adhesion.js";
 import { clamp, exponentialApproachFactor } from "../core/math/scalar.js";
-
-const STATIC = 0;
-const DYNAMIC = 2;
+import { BODY_TYPE } from "../core/engine/box2d.js";
 
 /** Coeficiente de Trouton del hilo de miel: la viscosidad elongacional de un fluido newtoniano en 2D es `3 μ`. */
 const HONEY_TROUTON = 3;
@@ -173,11 +171,11 @@ export class Viscosity {
             let massBody = Infinity;
             point.set_x(heap[pos + 2 * i]);
             point.set_y(heap[pos + 2 * i + 1]);
-            if (type !== STATIC) {
+            if (type !== BODY_TYPE.STATIC) {
                 const vb = body.GetLinearVelocityFromWorldPoint(point);
                 bx = vb.get_x();
                 by = vb.get_y();
-                if (type === DYNAMIC) massBody = body.GetMass();
+                if (type === BODY_TYPE.DYNAMIC) massBody = body.GetMass();
             }
             const mu = this.mu(thermal.temp[i]);
             const inverse = 1 / m + 1 / massBody;
@@ -187,7 +185,7 @@ export class Viscosity {
             const jy = (factor * (heap[vel + 2 * i + 1] - by)) / inverse;
             heap[vel + 2 * i] -= jx / m;
             heap[vel + 2 * i + 1] -= jy / m;
-            if (type === DYNAMIC) {
+            if (type === BODY_TYPE.DYNAMIC) {
                 impulse.set_x(jx);
                 impulse.set_y(jy);
                 body.ApplyLinearImpulse(impulse, point, true);

@@ -116,6 +116,7 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `forEachWorldBody` | Recorre todos los cuerpos del mundo sin crear memoria nativa. |
 | `boundsOfBody` | Escribe en `out` la caja que une los fixtures de un cuerpo, en m. |
 | `boundsOfBodies` | Escribe en `out` la caja que une los fixtures de varios cuerpos, en m. |
+| `BODY_TYPE` | Tipos de cuerpo de Box2D (`STATIC`, `KINEMATIC`, `DYNAMIC`), los valores de `b2BodyType`. |
 | `MAX_POLYGON_VERTICES` | Máximo de vértices de un polígono de Box2D (8). |
 | `PolygonFixtureBuilder` | Crea fixtures poligonales y cajas sin memoria nativa por llamada (`createPolygon`, `createBox`, `dispose`). |
 

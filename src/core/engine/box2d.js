@@ -1,5 +1,8 @@
 import { mergeBounds } from "../math/geometry.js";
 
+/** Tipos de cuerpo de Box2D: los valores de `b2BodyType`, que devuelve `body.GetType()`. */
+export const BODY_TYPE = Object.freeze({ STATIC: 0, KINEMATIC: 1, DYNAMIC: 2 });
+
 /** Handle nulo de Box2D: el fin de las listas enlazadas de fixtures, cuerpos y contactos. */
 const NULL_POINTER = 0;
 
