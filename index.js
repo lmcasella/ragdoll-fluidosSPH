@@ -361,10 +361,10 @@ function crateLost(x, y) {
 let pickups = null;
 let crates = null;
 
-/** Crea los puntos de aparición `points` con sus cajas y las conecta a golpes, choques y partículas. Quien llama antes libera las anteriores. */
-function buildPickups(points) {
+/** Crea los puntos de aparición `points` y, si el mapa `mapData` usa cajas, las conecta a golpes, choques y partículas. Quien llama antes libera las anteriores. */
+function buildPickups(points, mapData) {
     pickups = new Pickups(world, damage, points);
-    crates = new Crates({ world, store, pickups, surfaceAt: drownSurface, isLost: crateLost });
+    crates = new Crates({ world, store, pickups, surfaceAt: drownSurface, isLost: crateLost, enabled: mapData.crates === true });
     melee.crates = crates;
     platforms.setPieceFilter((bodyPointer) => crates.isPiece(bodyPointer));
 }
@@ -374,7 +374,7 @@ function disposePickups() {
     crates.dispose();
     pickups.dispose();
 }
-buildPickups(LEVEL.pickups);
+buildPickups(LEVEL.pickups, LEVEL);
 
 /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
 const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
@@ -413,7 +413,7 @@ function aplicarMapa(map) {
         world.DestroyBody(classic.ground);
         damage.killSensors.clear();
         disposePickups();
-        buildPickups([]);
+        buildPickups([], CLIMB);
         water.setStart({ surface: CLIMB.flood.surface });
         flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY, lowestAlive);
         climb = new Climb({ world, platforms, pickups, breakable });
@@ -426,7 +426,7 @@ function aplicarMapa(map) {
         classic = buildLevel(world, LEVEL, { platforms });
         classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
         damage.killSensors = classic.killSensors;
-        buildPickups(LEVEL.pickups);
+        buildPickups(LEVEL.pickups, LEVEL);
         water.setStart(null);
         flood = new Flood(store, water, LEVEL, Number.isFinite(botSeed) ? botSeed : null);
         damage.drownSurface = null;

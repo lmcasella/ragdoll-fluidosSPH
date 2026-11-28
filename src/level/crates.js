@@ -65,8 +65,9 @@ export class Crates {
      * @param {(x: number) => number} options.surfaceAt altura (m, mundo) del agua del nivel en la columna `x`, o `-Infinity` si está seco
      * @param {(x: number, y: number) => boolean} options.isLost verdadero si el punto del mundo (m) está fuera del mapa
      * @param {typeof CRATE} [options.config]
+     * @param {boolean} [options.enabled] falso si el mapa no usa cajas: no encierra nada y `Pickups` queda con los ítems sueltos
      */
-    constructor({ world, store, pickups, surfaceAt, isLost, config = CRATE }) {
+    constructor({ world, store, pickups, surfaceAt, isLost, config = CRATE, enabled = true }) {
         this.world = world;
         this.store = store;
         this.pickups = pickups;
@@ -86,6 +87,7 @@ export class Crates {
         /** Punteros de los cuerpos de los pedazos vivos. */
         this.pieceBodies = new Set();
         this.queue = [];
+        if (!enabled) return;
         pickups.boxer = this;
         for (const point of pickups.points) this.box(point);
     }

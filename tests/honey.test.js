@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/fluid-bench.js";
-import { loadGame, giveAllWeapons } from "./helpers/game.js";
+import { loadGame, giveAllWeapons, removeCrates } from "./helpers/game.js";
 
 const { FLUID, weaponById } = await import("../src/combat/weapons.js");
 const { ORIGIN, SINK } = await import("../src/fluids/particleStore.js");
@@ -71,6 +71,7 @@ function tags(game, kind) {
 // J2 a 3 m a la izquierda de J1 (J1 dispara a la izquierda; el chorro empuja a J2 contra la pared, lejos de la pileta); los dos disparan a la vez
 test("J1 dispara miel a J2 a ~3 m: a los 8 s la miel se conserva y nada del ácido", async (t) => {
     const game = await start();
+    removeCrates(game);
     const { players, damage } = game.state;
     shift(game, 0, 14 - torso(game, 0).get_x());
     shift(game, J2, 14 - 3 - torso(game, J2).get_x());
