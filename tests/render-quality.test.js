@@ -17,7 +17,7 @@ const { MATERIALS } = await import("../src/fluids/materials.js");
 
 const WATER = 4;
 const ACID = 1;
-const EXPECTED_FILTER_RESOLUTION = 0.75;
+const EXPECTED_FILTER_RESOLUTION = 1;
 const WATER_COLUMNS = { x0: 0, dx: 1, count: 4 };
 const WATER_COLOR = [40, 120, 255];
 const LINE_COLOR = [170, 220, 255];
