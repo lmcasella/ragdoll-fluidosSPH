@@ -35,24 +35,29 @@ Una planta industrial vista de lejos, dibujada por el juego (sin imágenes): cie
 
 ## 13.2 Materiales de las plataformas
 
-Cada plataforma firme es de un material, y el material decide cómo se ve y cuánto le hace el ácido. Hay tres:
+Cada plataforma firme es de un material, y el material decide cómo se ve y cuánto le hace el ácido. Hay cuatro:
 
 | Material | Dónde | Cómo se ve | Ácido |
 |---|---|---|---|
 | Acero | Plataformas, también las atravesables | Chapa gris azulada con paneles, remaches y rayado fino | Se corroe a la velocidad de la corrosión (§5.5) |
 | Hormigón | Piso y paredes | Gris cálido, granulado, con manchas y bordes gastados | Se corroe igual que el acero |
-| Vidrio | Solo donde el nivel lo pide | Celeste translúcido con un reflejo en diagonal y borde claro | No le hace nada |
+| Vidrio | Solo donde el nivel lo pide | Celeste translúcido con un reflejo en diagonal | No le hace nada |
+| Chapa | Plataformas rompibles | Chapa fina gris acero con un 40 % de óxido repartido a manchas y una nervadura cada 0,25 m, sin juntas de panel | Se corroe igual que el acero |
 
 - **El dibujo sigue al mundo:** la textura queda pegada a la plataforma, no a la pantalla, y no se repite a simple vista.
 - **Desgaste:** donde el ácido mordió, el borde que queda muestra óxido (naranja y marrón sobre el acero, manchas oscuras sobre el hormigón) que se oscurece con el daño acumulado. Una plataforma nueva no tiene óxido.
-- **Legibilidad:** el contorno de cada plataforma se sigue leyendo contra el fondo, y los materiales no compiten con los robots ni con los fluidos.
+- **Sin contorno:** el borde no lleva una línea clara. Se lee por el bisel con la luz (de 8 cm o 3 px de ancho, lo que sea mayor) y por una oclusión suave: el material se oscurece hasta un 35 % en los 6 cm junto al borde de abajo y de los costados.
+- **Sin costuras:** dos tramos vecinos del mismo material se ven como una sola pieza, sin bisel ni oscurecido en la unión. Las juntas de panel del acero siguen al mundo, no a los tramos.
+- **Bordes gastados:** el borde visible no es un rectángulo perfecto: un ruido suave pegado al mundo come hasta 4 cm en los cantos expuestos y hasta 8 cm en las esquinas, como chapa y hormigón gastados. Es solo visual, la física no cambia.
+- **Grietas de la chapa:** las líneas oscuras y finas crecen con la cuenta de rotura de la plataforma, desde una chapa entera hasta una muy agrietada; la vibración antes de romperse sigue igual.
+- **Legibilidad:** el borde de cada plataforma se sigue leyendo contra el fondo por el bisel y la oclusión, y los materiales no compiten con los robots ni con los fluidos.
 - **Costo:** los materiales no bajan los fps de forma medible: se dibujan en una sola pasada para todo el escenario.
 
 ## 13.3 Luz
 
 La escena tiene una luz base tenue y fría que baja desde arriba, coherente con el cielo del fondo, y luces que se mueven: la lava y el ácido iluminan lo que tienen cerca.
 
-- **Relieve:** las plataformas tienen volumen: el borde está biselado, las juntas del acero son canaletas, los remaches sobresalen y el hormigón tiene grano. La luz base marca ese relieve aunque no haya fluidos, y cada luz cercana lo ilumina desde su lado.
+- **Relieve:** las plataformas tienen volumen: el borde está biselado, las juntas del acero son canaletas, los remaches sobresalen y el hormigón tiene grano. La luz base marca ese relieve aunque no haya fluidos, y con ella sola el grano, el rayado y los remaches ya se ven (brillo del acero marcado, poco aire y luz clave fuerte), y cada luz cercana lo ilumina desde su lado.
 - **Lava:** luz naranja intensa con alcance de unos 6 m, que cae con la distancia. Un charco de lava ilumina la parte de abajo de la plataforma de arriba y la pared de al lado.
 - **Ácido:** luz verde tenue con alcance de unos 3 m.
 - **Fondo:** las capas cercanas del fondo reciben la luz de la lava y del ácido, sin relieve; las lejanas casi no.

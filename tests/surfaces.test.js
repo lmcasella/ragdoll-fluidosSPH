@@ -65,7 +65,7 @@ test("surfaceOf: material explícito, y por defecto piso y pared de hormigón, e
     assert.equal(surfaceOf({}), "steel");
     assert.equal(surfaceOf({ kind: "floor", material: "steel" }), "steel");
     assert.equal(surfaceOf({ kind: "platform", oneWay: true, material: "concrete" }), "concrete");
-    assert.deepEqual(Object.values(SURFACES).map((surface) => surface.id), [1, 2, 3]);
+    assert.deepEqual(Object.values(SURFACES).map((surface) => surface.id), [1, 2, 3, 4]);
 });
 
 test("la tabla da el ataque del ácido: acero 1, hormigón 1 y vidrio 0, y el vidrio es translúcido", () => {
@@ -154,11 +154,19 @@ test("el shader reconoce los tres materiales por id, no usa texturas externas y 
     assert.equal(SURFACE_FRAGMENT.match(/texture\(/g).length, 2, "la lectura del fragmento y la de la cobertura de los vecinos del bisel");
     assert.ok(SURFACE_FRAGMENT.includes("uOutputFrame") && SURFACE_FRAGMENT.includes("uInputSize"));
 
-    const code = encodeSurface({ surface: "concrete", wear: 0.5, edge: true });
+    const code = encodeSurface({ surface: "concrete", wear: 0.5 });
     assert.equal(Math.round(((code >> RED_SHIFT) & CHANNEL_MAX) / CHANNEL_MAX * SURFACE_ID_SCALE), SURFACES.concrete.id);
     assert.equal((code >> GREEN_SHIFT) & CHANNEL_MAX, Math.round(0.5 * CHANNEL_MAX));
-    assert.equal(code & CHANNEL_MAX, CHANNEL_MAX);
-    assert.equal(encodeSurface({ surface: "steel", wear: 0, edge: false }) & CHANNEL_MAX, 0);
+    assert.equal(code & CHANNEL_MAX, 0, "el canal azul ya no se usa");
+    assert.ok(!/code\.b\b/.test(SURFACE_FRAGMENT), "el fragmento no lee el canal azul");
+    assert.ok(!SURFACE_FRAGMENT.includes("_EDGE"), "sin aclarado de borde por material");
+});
+
+test("el shader come el borde visible con un ruido de mundo: hasta 4 cm en los cantos y 8 cm en las esquinas, solo en el alfa", () => {
+    assert.ok(SURFACE_FRAGMENT.includes("const float ERODE_REACH = 0.04;"));
+    assert.ok(SURFACE_FRAGMENT.includes("const float ERODE_CORNER_REACH = 0.08;"));
+    assert.ok(SURFACE_FRAGMENT.includes("valueNoise(world * ERODE_FREQUENCY)"), "ruido en coordenadas de mundo");
+    assert.ok(SURFACE_FRAGMENT.includes("surface.a * encoded.a * (1.0 - edgeErosion("), "afecta al alfa y no a la física");
 });
 
 test("el filtro se crea una vez y la cámara se actualiza sin reconstruirlo ni crear uniforms nuevos", () => {
@@ -208,10 +216,13 @@ test("LevelView pinta cada tramo con el color de su material y no redibuja si no
     view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     const builds = view.fixedBuilds;
     const colorOf = (tile) => view.tileEntries.get(tile).graphics.fills.map((fill) => fill.color);
-    assert.deepEqual(colorOf(steel), [encodeSurface({ surface: "steel", wear: 0, edge: false })]);
-    assert.deepEqual(colorOf(concrete), [encodeSurface({ surface: "concrete", wear: 0, edge: false })]);
-    assert.equal(view.tileEntries.get(steel).graphics.strokes.length, 1, "un trazo por tramo");
-    assert.equal(view.fixedContainer.children.length, 3, "los rectángulos sin terreno y un Graphics por tramo");
+    assert.deepEqual(colorOf(steel), [encodeSurface({ surface: "steel", wear: 0 })]);
+    assert.deepEqual(colorOf(concrete), [encodeSurface({ surface: "concrete", wear: 0 })]);
+    const strokes = view.tileEntries.get(steel).graphics.strokes;
+    assert.equal(strokes.length, 1, "un solo trazo por tramo: el solape con los vecinos");
+    assert.equal(strokes[0].color, encodeSurface({ surface: "steel", wear: 0 }), "del color del relleno, no un contorno claro");
+    assert.ok(Math.abs(strokes[0].width * SCREEN_SCALE / PIXELS_PER_METER - 1) < RATIO_TOLERANCE, "mide 1 px de pantalla: medio píxel por lado");
+    assert.equal(view.fixedContainer.children.length, 4, "los rectángulos sin terreno, las rompibles y un Graphics por tramo");
     view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     assert.equal(view.fixedBuilds, builds, "misma forma y mismo desgaste: no redibuja");
 
@@ -224,10 +235,10 @@ test("LevelView pinta cada tramo con el color de su material y no redibuja si no
     const worn = steel.grid.wornCells();
     assert.equal(worn.length, 2);
     assert.equal(view.tileEntries.get(steel).graphics.rectangles, 2, "una forma por celda con desgaste");
-    assert.ok(view.tileEntries.get(steel).graphics.fills.some((fill) => fill.color === encodeSurface({ surface: "steel", wear: Math.round(0.3 * CHANNEL_MAX) / CHANNEL_MAX, edge: false })));
+    assert.ok(view.tileEntries.get(steel).graphics.fills.some((fill) => fill.color === encodeSurface({ surface: "steel", wear: Math.round(0.3 * CHANNEL_MAX) / CHANNEL_MAX })));
 });
 
-test("LevelView solo redibuja el tramo que cambió, más sus vecinos si cambió la forma, y reusa el Graphics de un tramo quitado", () => {
+test("LevelView solo redibuja el tramo que cambió, y reusa el Graphics de un tramo quitado", () => {
     const pixi = installFakePixi();
     const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
     const left = publishedTile("steel", 0);
@@ -244,13 +255,65 @@ test("LevelView solo redibuja el tramo que cambió, más sus vecinos si cambió 
 
     left.shapeVersion++;
     view.update(level, 0, 0, SCREEN_SCALE, publish(tiles, { version: 3, tilesVersion: 1 }));
-    assert.deepEqual(clearsOf(view, tiles), [2, 2, 2], "la forma de un tramo cambia sus costuras con el vecino que lo toca, no con el lejano");
+    assert.deepEqual(clearsOf(view, tiles), [2, 1, 2], "la forma de un tramo solo redibuja ese tramo");
 
     const built = pixi.Graphics.constructed;
     view.update(level, 0, 0, SCREEN_SCALE, publish([left, right], { version: 4, tilesVersion: 2 }));
-    assert.equal(view.fixedContainer.children.length, 3, "el Graphics del tramo quitado sale del contenedor");
+    assert.equal(view.fixedContainer.children.length, 4, "el Graphics del tramo quitado sale del contenedor");
     const replacement = publishedTile("concrete", FAR_SLAB_X);
     view.update(level, 0, 0, SCREEN_SCALE, publish([left, right, replacement], { version: 5, tilesVersion: 3 }));
     assert.equal(pixi.Graphics.constructed, built, "el tramo nuevo reusa el Graphics del pool");
-    assert.deepEqual(clearsOf(view, [left, right]), [2, 2], "los tramos que siguen no se tocan");
+    assert.deepEqual(clearsOf(view, [left, right]), [2, 1], "los tramos que siguen no se tocan");
+});
+
+test("SURFACES.plate es la chapa fina oxidada: ataque del ácido 1, nervadura cada 0,25 m y opaca", () => {
+    assert.equal(SURFACES.plate.id, 4);
+    assert.equal(SURFACES.plate.acidAttack, 1);
+    assert.equal(SURFACES.plate.patternSize, 0.25);
+    assert.equal(SURFACES.plate.alpha, 1);
+    assert.ok(SURFACES.plate.baseColor.every((channel) => channel >= 0 && channel <= 1));
+    assert.ok(SURFACE_FRAGMENT.includes("id == PLATE_ID"), "rama de la chapa");
+    assert.ok(SURFACE_FRAGMENT.includes("plateColor(world, code.g)"), "la grieta sale del canal verde");
+    const plateBody = SURFACE_FRAGMENT.split("vec3 plateColor")[1].split("vec4 glassColor")[0];
+    assert.ok(!plateBody.includes("panelEdgeOffset") && !plateBody.includes("JOINT"), "la chapa no tiene juntas de panel");
+});
+
+test("el fragmento solo usa funciones de GLSL ES 1.00: sin texelFetch, textureSize, resto ni operaciones de bits", () => {
+    for (const forbidden of ["texelFetch", "textureSize", "%", "<<", ">>", "floatBitsToInt", "uint "]) {
+        assert.ok(!SURFACE_FRAGMENT.includes(forbidden), forbidden);
+    }
+});
+
+test("las rompibles van en el contenedor con el filtro y codifican su grieta en el canal verde", () => {
+    const pixi = installFakePixi();
+    const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
+    assert.ok(view.fixedContainer.children.includes(view.breakableGraphics), "mismo contenedor que el filtro");
+    assert.ok(!view.container.children.includes(view.breakableGraphics), "ya no cuelga fuera del filtro");
+    const crack = 0.5;
+    const level = { solids: [{ x: 5, y: 3, w: 2, h: 0.4, kind: "platform", breakable: true, crack }] };
+    view.update(level, 0, 0, SCREEN_SCALE, null);
+    const { fills, strokes } = view.breakableGraphics;
+    assert.deepEqual(fills.map((fill) => fill.color), [encodeSurface({ surface: "plate", wear: crack })]);
+    const code = fills[0].color;
+    assert.equal((code >> GREEN_SHIFT) & CHANNEL_MAX, Math.round(crack * CHANNEL_MAX), "la grieta en G");
+    assert.equal(strokes.length, 0, "sin contorno");
+    level.solids[0].crack = 0;
+    view.update(level, 0, 0, SCREEN_SCALE, null);
+    assert.equal((view.breakableGraphics.fills[0].color >> GREEN_SHIFT) & CHANNEL_MAX, 0, "sin grieta, la chapa entera");
+});
+
+test("la luz base y el brillo del acero dan contraste sin luces cercanas sin oscurecer la plataforma en promedio", async () => {
+    const { LIGHTING } = await import("../src/render/lighting.js");
+    const { base } = LIGHTING;
+    assert.equal(base.ambient, 0.22);
+    assert.equal(base.intensity, 0.95);
+    assert.ok(SURFACE_FRAGMENT.includes("const float SPECULAR_STRENGTH = 0.6;"));
+    const [directionX, directionY] = base.direction;
+    const facingFlat = base.front / Math.hypot(directionX, directionY, base.front);
+    const meanLight = (oldAmbient, oldIntensity, ambient, intensity) => base.color.map((channel) => [oldAmbient + channel * oldIntensity * facingFlat, ambient + channel * intensity * facingFlat]);
+    const OLD_AMBIENT = 0.35;
+    const OLD_INTENSITY = 0.55;
+    for (const [before, after] of meanLight(OLD_AMBIENT, OLD_INTENSITY, base.ambient, base.intensity)) {
+        assert.ok(after >= before, `la luz de una cara plana no baja: ${before.toFixed(3)} -> ${after.toFixed(3)}`);
+    }
 });

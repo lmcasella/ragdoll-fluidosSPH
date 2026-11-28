@@ -18,8 +18,8 @@ const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
 const RESIZED_VIEWS = [{ width: 1000, height: 300 }, { width: 720, height: 1280 }, { width: 2560, height: 720 }];
 const MAX_POSITION_ERROR = 1e-9;
-const OUTLINE_SCREEN_PX = 2;
-const OUTLINE_TOLERANCE = 0.1;
+const OVERLAP_SCREEN_PX = 1;
+const OVERLAP_TOLERANCE = 0.1;
 
 test("durante una ronda hay un solo canvas en el DOM", async () => {
     const game = await loadGame();
@@ -136,7 +136,7 @@ test("tras cambiar el tamaño, el mundo, las capas de fluido y la capa superpues
         }
     }
 });
-test("el trazo de las plataformas mide siempre unos 2 px en pantalla, con cualquier zoom", async () => {
+test("el trazo de solape de las plataformas mide siempre 1 px en pantalla, con cualquier zoom", async () => {
     const game = await loadGame();
     const { scene, levelView } = game.state;
     for (const { width, height } of RESIZED_VIEWS) {
@@ -144,7 +144,7 @@ test("el trazo de las plataformas mide siempre unos 2 px en pantalla, con cualqu
         window.innerHeight = height;
         game.emit("resize");
         game.frames(SETTLE_FRAMES);
-        const screenWidth = levelView.outlineWidth * scene.world.scale.x;
-        assert.ok(Math.abs(screenWidth - OUTLINE_SCREEN_PX) <= OUTLINE_SCREEN_PX * OUTLINE_TOLERANCE, `trazo de ${screenWidth} px a ${width}x${height}`);
+        const screenWidth = levelView.overlapWidth * scene.world.scale.x;
+        assert.ok(Math.abs(screenWidth - OVERLAP_SCREEN_PX) <= OVERLAP_SCREEN_PX * OVERLAP_TOLERANCE, `trazo de ${screenWidth} px a ${width}x${height}`);
     }
 });

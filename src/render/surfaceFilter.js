@@ -8,11 +8,13 @@ import { RENDER_QUALITY } from "./renderQuality.js";
 /**
  * Filtro de materiales de las plataformas (`docs/design/13-arte.md` §13.2): `LevelView` pinta los sólidos con un color
  * codificado y este `PIXI.Filter` lo cambia, en una sola pasada para todo el escenario, por el aspecto del material. El
- * código usa el rojo para el material (`id / SURFACE_ID_SCALE`), el verde para el desgaste (0 a 1) y el azul para el borde
- * del contorno (1) o el interior (0). La textura sale de la posición del fragmento en el mundo (con ruido de valor, sin
- * texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
- * posición arma una altura por material (juntas, remaches, grano y el bisel del contorno), saca la normal de su gradiente
- * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3).
+ * código usa el rojo para el material (`id / SURFACE_ID_SCALE`) y el verde para el desgaste (0 a 1; en las rompibles, la
+ * grieta) y la cobertura (alfa) para la forma. La textura sale de la posición del fragmento en el mundo (con ruido de valor,
+ * sin texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
+ * posición arma una altura por material (juntas, remaches, grano y el bisel del borde), saca la normal de su gradiente
+ * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3). El borde no tiene trazo: lo
+ * da el bisel con la luz y una oclusión que oscurece el material junto al borde. Los cantos expuestos se comen hasta unos
+ * centímetros con un ruido de baja frecuencia (más en las esquinas), solo en lo que se ve.
  */
 
 /** Divisor del id del material al guardarlo en el canal rojo: con ids de 1 a 3 deja los valores bien separados. */
@@ -43,15 +45,13 @@ const INITIAL_PIXELS_PER_METER = 1;
  * Color de 24 bits con que `LevelView` pinta un sólido para que el filtro lo reconozca.
  * @param {object} code
  * @param {keyof typeof SURFACES} code.surface material
- * @param {number} code.wear desgaste, de 0 a 1
- * @param {boolean} code.edge verdadero si es el trazo del contorno
+ * @param {number} code.wear desgaste, de 0 a 1 (en las rompibles, la grieta)
  * @returns {number}
  */
-export function encodeSurface({ surface, wear, edge }) {
+export function encodeSurface({ surface, wear }) {
     const red = Math.round((SURFACES[surface].id / SURFACE_ID_SCALE) * CHANNEL_MAX);
     const green = Math.round(wear * CHANNEL_MAX);
-    const blue = edge ? CHANNEL_MAX : 0;
-    return (red << RED_SHIFT) | (green << GREEN_SHIFT) | blue;
+    return (red << RED_SHIFT) | (green << GREEN_SHIFT);
 }
 
 /**
@@ -86,8 +86,7 @@ const vec3 ${prefix}_BASE = ${glslColor(surface.baseColor)};
 const vec3 ${prefix}_WEAR = ${glslColor(surface.wearColor)};
 const vec3 ${prefix}_WEAR_DARK = ${glslColor(surface.wearDarkColor)};
 const float ${prefix}_PATTERN = ${glslFloat(surface.patternSize)};
-const float ${prefix}_ALPHA = ${glslFloat(surface.alpha)};
-const float ${prefix}_EDGE = ${glslFloat(surface.edgeLighten)};`;
+const float ${prefix}_ALPHA = ${glslFloat(surface.alpha)};`;
         })
         .join("\n");
 }
@@ -147,10 +146,35 @@ const float REFLECTION_ALPHA = 0.25;
 const float JOINT_DEPTH = 0.03;
 const float RIVET_HEIGHT = 0.02;
 const float CONCRETE_GRAIN_HEIGHT = 0.02;
-const float BEVEL_WIDTH = 0.06;
-const float BEVEL_HEIGHT = 0.03;
+const float PLATE_RUST_FREQUENCY = 3.0;
+const float PLATE_RUST_THRESHOLD = 0.5;
+const float PLATE_RUST_SOFTNESS = 0.04;
+const float PLATE_RIB_WIDTH = 0.02;
+const float PLATE_RIB_HEIGHT = 0.015;
+const float PLATE_RIB_CENTER = 0.5;
+const float CRACK_CELL = 0.4;
+const float CRACK_WIDTH = 0.012;
+const float CRACK_MIN_WIDTH_SHARE = 0.4;
+const float CRACK_REVEAL_FREQUENCY = 3.0;
+const float CRACK_REVEAL_SOFTNESS = 0.15;
+const float CRACK_REVEAL_SPREAD = 0.85;
+const float CRACK_DARKEN = 0.9;
+const vec2 CRACK_DECORRELATION = vec2(31.7, 11.3);
+const int CRACK_NEIGHBORS = 1;
+const float CRACK_FAR = 8.0;
+const float BEVEL_MIN_WIDTH = 0.08;
+const float BEVEL_MIN_SCREEN_PX = 3.0;
+const float BEVEL_SLOPE = 0.5;
+const float OCCLUSION_REACH = 0.06;
+const float OCCLUSION_DARKEN = 0.35;
+const float ERODE_FREQUENCY = 8.0;
+const float ERODE_REACH = 0.04;
+const float ERODE_CORNER_REACH = 0.08;
+const float COVERED = 0.999;
+const float NEAR_TAP_SHARE = 0.5;
+const float OCCLUSION_TAPS = 2.0;
 const float SPECULAR_SHININESS = 24.0;
-const float SPECULAR_STRENGTH = 0.35;
+const float SPECULAR_STRENGTH = 0.6;
 const float SPECULAR_WEAR_LIMIT = 0.1;
 const vec3 VIEW_DIRECTION = vec3(0.0, 0.0, 1.0);
 
@@ -201,6 +225,41 @@ vec3 concreteColor(vec2 world, float wear)
     return withWear(color, world, wear, CONCRETE_WEAR, CONCRETE_WEAR_DARK);
 }
 
+float crackLines(vec2 world, float crack)
+{
+    vec2 point = world / CRACK_CELL;
+    vec2 cell = floor(point);
+    vec2 local = fract(point);
+    float nearest = CRACK_FAR;
+    float second = CRACK_FAR;
+    for (int offsetY = -CRACK_NEIGHBORS; offsetY <= CRACK_NEIGHBORS; offsetY++) {
+        for (int offsetX = -CRACK_NEIGHBORS; offsetX <= CRACK_NEIGHBORS; offsetX++) {
+            vec2 neighbor = vec2(float(offsetX), float(offsetY));
+            vec2 feature = neighbor + vec2(hash(cell + neighbor), hash(cell + neighbor + CRACK_DECORRELATION));
+            float toFeature = length(feature - local);
+            if (toFeature < nearest) {
+                second = nearest;
+                nearest = toFeature;
+            } else if (toFeature < second) {
+                second = toFeature;
+            }
+        }
+    }
+    float width = CRACK_WIDTH / CRACK_CELL * (CRACK_MIN_WIDTH_SHARE + crack);
+    float line = 1.0 - smoothstep(0.0, width, second - nearest);
+    float reveal = smoothstep(0.0, CRACK_REVEAL_SOFTNESS, crack - valueNoise(world * CRACK_REVEAL_FREQUENCY) * CRACK_REVEAL_SPREAD);
+    return line * reveal;
+}
+
+vec3 plateColor(vec2 world, float crack)
+{
+    float rustNoise = fractalNoise(world * PLATE_RUST_FREQUENCY);
+    float rust = smoothstep(PLATE_RUST_THRESHOLD - PLATE_RUST_SOFTNESS, PLATE_RUST_THRESHOLD + PLATE_RUST_SOFTNESS, rustNoise);
+    float streak = valueNoise(world * STREAK_FREQUENCY);
+    vec3 metal = PLATE_BASE * (1.0 + (streak - 0.5) * STREAK_STRENGTH);
+    vec3 color = mix(metal, mix(PLATE_WEAR, PLATE_WEAR_DARK, rustNoise), rust);
+    return mix(color, vec3(0.0), crackLines(world, crack) * CRACK_DARKEN);
+}
 vec4 glassColor(vec2 world)
 {
     float phase = fract((world.x + world.y) / GLASS_PATTERN);
@@ -218,18 +277,57 @@ float steelHeight(vec2 world)
     return -JOINT_DEPTH * joint + RIVET_HEIGHT * dome;
 }
 
+float plateHeight(vec2 world)
+{
+    float toRib = abs(fract(world.x / PLATE_PATTERN) - PLATE_RIB_CENTER) * PLATE_PATTERN;
+    return PLATE_RIB_HEIGHT * (1.0 - smoothstep(0.0, PLATE_RIB_WIDTH, toRib));
+}
+
 float surfaceHeight(int id, vec2 world)
 {
     if (id == STEEL_ID) return steelHeight(world);
     if (id == CONCRETE_ID) return CONCRETE_GRAIN_HEIGHT * fractalNoise(world / CONCRETE_PATTERN);
+    if (id == PLATE_ID) return plateHeight(world);
     return 0.0;
 }
 
 vec2 bevelSlope(vec2 textureCoord)
 {
-    return coverageSlope(textureCoord, BEVEL_WIDTH, BEVEL_HEIGHT);
+    float width = max(BEVEL_MIN_WIDTH, BEVEL_MIN_SCREEN_PX / uPixelsPerMeter);
+    return coverageSlope(textureCoord, width, width * BEVEL_SLOPE);
 }
 
+float occlusionToward(vec2 textureCoord, vec2 direction)
+{
+    vec2 tap = direction * OCCLUSION_REACH * uPixelsPerMeter / uInputSize.xy;
+    float covered = coverageAt(textureCoord + tap * NEAR_TAP_SHARE) + coverageAt(textureCoord + tap);
+    return 1.0 - covered / OCCLUSION_TAPS;
+}
+
+float edgeOcclusion(vec2 textureCoord)
+{
+    float toSides = occlusionToward(textureCoord, vec2(1.0, 0.0)) + occlusionToward(textureCoord, vec2(-1.0, 0.0));
+    return clamp(toSides + occlusionToward(textureCoord, vec2(0.0, 1.0)), 0.0, 1.0);
+}
+
+float edgeErosion(vec2 textureCoord, vec2 world)
+{
+    float roughness = valueNoise(world * ERODE_FREQUENCY);
+    vec2 cornerTap = ERODE_CORNER_REACH * roughness * uPixelsPerMeter / uInputSize.xy;
+    float right = coverageAt(textureCoord + vec2(cornerTap.x, 0.0));
+    float left = coverageAt(textureCoord - vec2(cornerTap.x, 0.0));
+    float up = coverageAt(textureCoord - vec2(0.0, cornerTap.y));
+    float down = coverageAt(textureCoord + vec2(0.0, cornerTap.y));
+    if (min(min(right, left), min(up, down)) >= COVERED) return 0.0;
+    float cornerBite = max(1.0 - right, 1.0 - left) * max(1.0 - up, 1.0 - down);
+    vec2 tap = ERODE_REACH * roughness * uPixelsPerMeter / uInputSize.xy;
+    float sideRight = coverageAt(textureCoord + vec2(tap.x, 0.0));
+    float sideLeft = coverageAt(textureCoord - vec2(tap.x, 0.0));
+    float sideUp = coverageAt(textureCoord - vec2(0.0, tap.y));
+    float sideDown = coverageAt(textureCoord + vec2(0.0, tap.y));
+    float sideBite = 1.0 - min(min(sideRight, sideLeft), min(sideUp, sideDown));
+    return max(sideBite, cornerBite);
+}
 vec3 surfaceNormal(int id, vec2 world, vec2 bevel)
 {
     float probe = 1.0 / uPixelsPerMeter;
@@ -259,22 +357,20 @@ void main(void)
     vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
     vec2 world = vec2(screen.x - uOrigin.x, uOrigin.y - screen.y) / uPixelsPerMeter;
     vec4 surface;
-    float edgeLighten;
     if (id == STEEL_ID) {
         surface = vec4(steelColor(world, code.g), STEEL_ALPHA);
-        edgeLighten = STEEL_EDGE;
     } else if (id == CONCRETE_ID) {
         surface = vec4(concreteColor(world, code.g), CONCRETE_ALPHA);
-        edgeLighten = CONCRETE_EDGE;
+    } else if (id == PLATE_ID) {
+        surface = vec4(plateColor(world, code.g), PLATE_ALPHA);
     } else {
         surface = glassColor(world);
-        edgeLighten = GLASS_EDGE;
     }
     float specularAmount = id == STEEL_ID ? 1.0 - smoothstep(0.0, SPECULAR_WEAR_LIMIT, code.g) : 0.0;
     vec3 normal = surfaceNormal(id, world, bevelSlope(vTextureCoord));
     vec3 lit = litColor(surface.rgb, normal, vec3(world, 0.0), specularAmount);
-    vec3 color = mix(lit, vec3(1.0), code.b * edgeLighten);
-    float alpha = surface.a * encoded.a;
+    vec3 color = lit * (1.0 - edgeOcclusion(vTextureCoord) * OCCLUSION_DARKEN);
+    float alpha = surface.a * encoded.a * (1.0 - edgeErosion(vTextureCoord, world));
     finalColor = vec4(color * alpha, alpha);
 }
 `;
