@@ -42,16 +42,17 @@ function wearTint(wear) {
 }
 
 /**
- * Dibuja un cuadrado de acero centrado en el origen del gráfico, con el color codificado del desgaste máximo para que `wearTint`
- * lo gradúe después sin volver a dibujar.
+ * Dibuja un rectángulo de acero centrado en el origen del gráfico, con el color codificado del desgaste máximo para que
+ * `wearTint` lo gradúe después sin volver a dibujar.
  * @param {PIXI.Graphics} graphics gráfico vacío
- * @param {number} side lado, en m
+ * @param {{width: number, height: number}} size ancho y alto, en m
  * @param {number} pixelsPerMeter px por metro de la geometría
  */
-function drawSteelSquare(graphics, side, pixelsPerMeter) {
-    const half = (side / 2) * pixelsPerMeter;
+function drawSteelRectangle(graphics, size, pixelsPerMeter) {
+    const halfWidth = (size.width / 2) * pixelsPerMeter;
+    const halfHeight = (size.height / 2) * pixelsPerMeter;
     graphics
-        .rect(-half, -half, 2 * half, 2 * half)
+        .rect(-halfWidth, -halfHeight, 2 * halfWidth, 2 * halfHeight)
         .fill({ color: encodeSurface({ surface: CRATE_SURFACE, wear: 1 }) })
         .stroke({ width: EDGE_WIDTH_M * pixelsPerMeter, color: encodeSurface({ surface: CRATE_SURFACE, wear: 1 }) });
 }
@@ -72,13 +73,13 @@ export class CrateView {
      * @param {number} options.pixelsPerMeter px por metro de la geometría
      * @param {object[]} options.weapons tabla de armas (`id`, `name`, `color`)
      * @param {number} options.crateSide lado de la caja, en m
-     * @param {number} options.pieceSide lado de cada pedazo, en m
+     * @param {{width: number, height: number}} options.pieceSize ancho y alto de cada pedazo, en m
      */
-    constructor({ levelParent, parent, pixelsPerMeter, weapons, crateSide, pieceSide }) {
+    constructor({ levelParent, parent, pixelsPerMeter, weapons, crateSide, pieceSize }) {
         this.pixelsPerMeter = pixelsPerMeter;
         this.weapons = weapons;
         this.crateSide = crateSide;
-        this.pieceSide = pieceSide;
+        this.pieceSize = pieceSize;
         this.filter = createSurfaceFilter();
         this.bodyContainer = new PIXI.Container();
         this.bodyContainer.filters = [this.filter];
@@ -145,7 +146,7 @@ export class CrateView {
     crateEntryAt(index) {
         if (this.crateEntries[index] === undefined) {
             const body = new PIXI.Graphics();
-            drawSteelSquare(body, this.crateSide, this.pixelsPerMeter);
+            drawSteelRectangle(body, { width: this.crateSide, height: this.crateSide }, this.pixelsPerMeter);
             this.bodyContainer.addChild(body);
             const panel = new PIXI.Container();
             this.panelContainer.addChild(panel);
@@ -161,7 +162,7 @@ export class CrateView {
     pieceAt(index) {
         if (this.pieceEntries[index] === undefined) {
             const graphics = new PIXI.Graphics();
-            drawSteelSquare(graphics, this.pieceSide, this.pixelsPerMeter);
+            drawSteelRectangle(graphics, this.pieceSize, this.pixelsPerMeter);
             this.bodyContainer.addChild(graphics);
             this.pieceEntries[index] = graphics;
         }

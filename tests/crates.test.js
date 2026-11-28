@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { place } from "./helpers/place.js";
 import { BUTTON, AIM_RIGHT } from "./helpers/duel.js";
+import { boundsOfBody } from "../src/core/engine/box2d.js";
 
 const { FLUID, weaponById } = await import("../src/combat/weapons.js");
 const { LEVEL } = await import("../src/level/level.js");
@@ -28,6 +29,8 @@ const RESET_CYCLES = 15;
 const WATCH_FRAMES = 120;
 const SETTLED_FRAMES = 2 * FRAMES_PER_SECOND;
 const PIECE_WATCH_FRAMES = 20;
+const PLANK_COUNT = 4;
+const PLANK_TOLERANCE = 0.02;
 
 /** Juego clásico con las dos entradas conectadas y las cajas ya apoyadas. */
 async function start() {
@@ -126,6 +129,29 @@ test("los golpes de un jugador rompen la caja con el daño de la tabla de melee:
     assert.equal(players[0].tanks.get(FLUID.LAVA), weaponById(FLUID.LAVA).tank);
     assert.equal(lava.active, false);
     assert.equal(players[1].tanks.has(FLUID.LAVA), false, "sin dueño ni crédito para ningún jugador");
+});
+
+test("al romperse la caja deja 4 tablas horizontales del ancho de la caja y un cuarto de su alto, apiladas sobre su lugar", async () => {
+    const game = await start();
+    const { crates } = game.state;
+    const crate = pointOf(game, FLUID.LAVA, 0).crate;
+    const { x, y } = crate;
+    crates.enqueueDamage(crate, CRATE.strength);
+    game.frame();
+    assert.equal(crates.pieces.length, CRATE.pieceLayout.length);
+    const bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    const plankHeights = [];
+    for (const piece of crates.pieces) {
+        boundsOfBody(piece.body, bounds);
+        assert.ok(Math.abs(bounds.maxX - bounds.minX - CRATE.side * CRATE.pieceSize.width) < PLANK_TOLERANCE, "del ancho de la caja");
+        plankHeights.push(bounds.maxY - bounds.minY);
+        assert.equal(piece.offsetX, 0);
+    }
+    for (const height of plankHeights) assert.ok(Math.abs(height - CRATE.side / PLANK_COUNT) < PLANK_TOLERANCE, "un cuarto del alto");
+    const stackedOffsets = crates.pieces.map((piece) => piece.offsetY).sort((a, b) => a - b);
+    const plankHeight = CRATE.side / PLANK_COUNT;
+    stackedOffsets.forEach((offset, index) => assert.ok(Math.abs(offset - (index - (PLANK_COUNT - 1) / 2) * plankHeight) < PLANK_TOLERANCE, "apiladas sin huecos"));
+    assert.ok(crates.pieces.every((piece) => Math.abs(piece.x - x) < CRATE.side && Math.abs(piece.y - y) < CRATE.side));
 });
 
 test("un robot que camina contra la caja la empuja y la caja no se rompe", async () => {

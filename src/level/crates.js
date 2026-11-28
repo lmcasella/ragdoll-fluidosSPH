@@ -1,6 +1,7 @@
 import { FLUID } from "../combat/weapons.js";
 import { MELEE } from "../combat/melee.js";
 import { PolygonFixtureBuilder } from "../core/engine/box2d.js";
+import { normalize, rotateLocalToWorld } from "../core/math/vector2.js";
 
 /** Golpes simples de `MELEE` que rompen una caja. */
 const BREAKING_HITS = 2;
@@ -17,9 +18,9 @@ const TWO_HITS_DAMAGE = MELEE.combo.sequence
  *   fricción de la caja y de sus pedazos, adimensional;
  * - `strength`: resistencia, igual al daño de los dos primeros golpes del combo melee; la gastan el daño de los golpes, los choques por encima de `impactSpeed` (`impactDamage` por
  *   m/s sobre ese umbral) y cada partícula de los líquidos de `damagingFluids` que la toca (`particleDamage`);
- * - `pieceLayout`: un pedazo por cuadrante `{ x, y }` (±1 desde el centro de la caja), cuyo lado es `pieceSize` veces el de
- *   la caja y cuyo centro queda a `pieceOffset` lados de caja del centro en cada eje; sale a `pieceSpeed` hacia afuera
- *   sumada a la velocidad de la caja y dura `pieceLife`;
+ * - `pieceLayout`: un pedazo por entrada `{ x, y }`, la posición de su centro respecto del centro de la caja en lados de
+ *   caja (las cuatro tablas horizontales apiladas); `pieceSize` es su ancho y su alto en lados de caja; sale a
+ *   `pieceSpeed` en la dirección que va del centro de la caja al suyo, sumada a la velocidad de la caja, y dura `pieceLife`;
  * - `itemSurfaceLift`: altura sobre la superficie del agua a la que queda el ítem de una caja que se rompió sumergida;
  * - `lostMargin`: cuánto fuera de los límites del mapa clásico (o bajo el piso de muerte) una caja cuenta como perdida.
  */
@@ -33,13 +34,12 @@ export const CRATE = {
     particleDamage: 0.1,
     damagingFluids: [FLUID.ACID, FLUID.LAVA],
     pieceLayout: [
-        { x: -1, y: -1 },
-        { x: 1, y: -1 },
-        { x: -1, y: 1 },
-        { x: 1, y: 1 },
+        { x: 0, y: -0.375 },
+        { x: 0, y: -0.125 },
+        { x: 0, y: 0.125 },
+        { x: 0, y: 0.375 },
     ],
-    pieceSize: 0.5,
-    pieceOffset: 0.25,
+    pieceSize: { width: 1, height: 0.25 },
     pieceLife: 1.5,
     pieceSpeed: 3,
     itemSurfaceLift: 0.5,
@@ -79,9 +79,11 @@ export class Crates {
         this.bodyDef = new Box2D.b2BodyDef();
         this.bodyDef.set_type(Box2D.b2_dynamicBody);
         this.vector = new Box2D.b2Vec2(0, 0);
+        this.rotatedOffset = { x: 0, y: 0 };
+        this.pieceDirection = { x: 0, y: 0 };
         /** Cajas vivas `{ point, body, damage, x, y, angle, wear }`; `wear` va de 0 (nueva) a 1 (a punto de romperse). */
         this.crates = [];
-        /** Pedazos vivos `{ body, expiresAt, x, y, angle }`. */
+        /** Pedazos vivos `{ body, expiresAt, x, y, angle, offsetX, offsetY }`. */
         this.pieces = [];
         this.byBody = new Map();
         /** Punteros de los cuerpos de los pedazos vivos. */
@@ -133,20 +135,20 @@ export class Crates {
     }
 
     /**
-     * Crea un cuerpo dinámico con una caja de lado `side` en `(x, y)` y lo devuelve. Con `velocity` arranca con esa velocidad.
+     * Crea un cuerpo dinámico con una caja de `width` por `height` en `(x, y)` y lo devuelve. Con `velocity` arranca con esa velocidad.
      * @param {number} x
      * @param {number} y
      * @param {number} angle en rad
-     * @param {number} side lado del cuadrado, en m
+     * @param {{width: number, height: number}} size ancho y alto de la caja, en m
      * @param {{x: number, y: number}} [velocity] en m/s
      */
-    createBody(x, y, angle, side, velocity = null) {
+    createBody(x, y, angle, size, velocity = null) {
         this.vector.set_x(x);
         this.vector.set_y(y);
         this.bodyDef.set_position(this.vector);
         this.bodyDef.set_angle(angle);
         const body = this.world.CreateBody(this.bodyDef);
-        this.builder.createBox(body, { x: 0, y: 0, width: side, height: side }, { density: this.density, friction: this.config.friction });
+        this.builder.createBox(body, { x: 0, y: 0, width: size.width, height: size.height }, { density: this.density, friction: this.config.friction });
         if (velocity) {
             this.vector.set_x(velocity.x);
             this.vector.set_y(velocity.y);
@@ -161,7 +163,7 @@ export class Crates {
         const { side } = this.config;
         const x = point.homeX;
         const y = point.homeY + this.pickups.offsetY;
-        const body = this.createBody(x, y, 0, side);
+        const body = this.createBody(x, y, 0, { width: side, height: side });
         body.SetSleepingAllowed(false);
         const crate = { point, body, damage: 0, x, y, angle: 0, wear: 0 };
         point.crate = crate;
@@ -238,25 +240,28 @@ export class Crates {
         this.pickups.release(point, x, itemY - this.pickups.offsetY);
     }
 
-    /** Crea un pedazo por cuadrante de `pieceLayout` alrededor de `(x, y)`, girados `angle`, saliendo hacia afuera. */
+    /**
+     * Crea un pedazo por entrada de `pieceLayout` alrededor de `(x, y)`, girados `angle`, saliendo hacia afuera. Cada pedazo
+     * guarda `offsetX` y `offsetY`, su posición en el marco de la caja (m), para que la vista dibuje su tramo de la caja.
+     */
     spawnPieces(x, y, angle, velocityX, velocityY, now) {
-        const { side, pieceLayout, pieceSize, pieceOffset, pieceSpeed, pieceLife } = this.config;
+        const { side, pieceLayout, pieceSize, pieceSpeed, pieceLife } = this.config;
+        const size = { width: side * pieceSize.width, height: side * pieceSize.height };
         const cosine = Math.cos(angle);
         const sine = Math.sin(angle);
-        for (const quadrant of pieceLayout) {
-            const rotatedX = quadrant.x * cosine - quadrant.y * sine;
-            const rotatedY = quadrant.x * sine + quadrant.y * cosine;
-            const length = Math.hypot(rotatedX, rotatedY);
-            const directionX = rotatedX / length;
-            const directionY = rotatedY / length;
-            const pieceX = x + rotatedX * side * pieceOffset;
-            const pieceY = y + rotatedY * side * pieceOffset;
-            const body = this.createBody(pieceX, pieceY, angle, side * pieceSize, {
-                x: velocityX + directionX * pieceSpeed,
-                y: velocityY + directionY * pieceSpeed,
+        for (const layout of pieceLayout) {
+            const offsetX = layout.x * side;
+            const offsetY = layout.y * side;
+            const rotated = rotateLocalToWorld(offsetX, offsetY, cosine, sine, 0, 0, this.rotatedOffset);
+            const direction = normalize(rotated.x, rotated.y, this.pieceDirection);
+            const pieceX = x + rotated.x;
+            const pieceY = y + rotated.y;
+            const body = this.createBody(pieceX, pieceY, angle, size, {
+                x: velocityX + direction.x * pieceSpeed,
+                y: velocityY + direction.y * pieceSpeed,
             });
             this.pieceBodies.add(Box2D.getPointer(body));
-            this.pieces.push({ body, expiresAt: now + pieceLife, x: pieceX, y: pieceY, angle });
+            this.pieces.push({ body, expiresAt: now + pieceLife, x: pieceX, y: pieceY, angle, offsetX, offsetY });
         }
     }
 
