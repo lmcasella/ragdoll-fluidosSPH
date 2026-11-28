@@ -52,6 +52,19 @@ La térmica (`tests/thermal.test.js`) simula la conducción real entre dos part�
 
 Abrir el juego con `?bench=1` (por ejemplo `http://localhost:8080/?bench=1`) corre solo, sin tocar nada, una serie fija de escenas con semilla fija y termina en menos de 6 minutos: reposo, partículas de cada material, corrosión con ácido y una partida de bots. Un cartel muestra la escena en curso y, al terminar, el informe con el botón **Copiar resultados**. Las escenas y las duraciones están en `BENCH_SCENES` (`src/bench/benchScript.js`). El informe da la física por paso (mediana, p95, p99) y los pasos por frame (mediana, máximo); la física de la tabla por subsistema suma todos los pasos del frame. Sin `?bench=1` el juego no mide nada.
 
+### Bench automático en la laptop
+
+`tests/tools/bench-run.js` corre la medición en Helium (ventana real a pantalla completa), valida que la cabecera sea la de la laptop de referencia (canvas 1536 x 864, devicePixelRatio 1,25, GeForce MX150) y publica el informe como comentario del issue. Tiene que correr en la sesión de la consola física: por SSH no se abren ventanas y por RDP cambian la resolución y la GPU. Para eso se usa la tarea programada `RagdollBench`, que si la sesión quedó en RDP la pasa a la consola con `tscon`.
+
+```powershell
+pwsh tests/tools/bench-task.ps1 -Register                                # una sola vez, como administrador
+pwsh tests/tools/bench-task.ps1 -Issue 364 -Label "después de #390"     # por SSH: issue y label de la corrida
+schtasks /run /tn RagdollBench                                           # por SSH: dispara la medición
+Get-Content tests/tools/bench-task.log                                   # salida de la corrida
+```
+
+Requisitos: sesión del usuario abierta y desbloqueada (puede estar desconectada de RDP), laptop enchufada (la tarea no arranca con batería), tapa abierta y `gh` autenticado.
+
 ## Deploy
 
 - Cada push a `main` (merge de PR) corre `.github/workflows/pages.yml`: tests → build → deploy a GitHub Pages (https://lmcasella.github.io/ragdoll-fluidosSPH/). Los PRs a `main` corren solo los tests.
