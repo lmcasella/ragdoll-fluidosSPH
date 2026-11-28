@@ -55,13 +55,14 @@ Cada plataforma firme es de un material, y el material decide cómo se ve y cuá
 
 ## 13.3 Luz
 
-La escena tiene una luz base tenue y fría que baja desde arriba, coherente con el cielo del fondo, y luces que se mueven: la lava y el ácido iluminan lo que tienen cerca.
+La escena tiene una luz clave fuerte, cálida y algo lateral que baja desde arriba a la izquierda, un relleno frío suave desde el lado contrario (sin brillo especular) y poco aire, y luces que se mueven: la lava y el ácido iluminan lo que tienen cerca.
 
 - **Relieve:** las plataformas tienen volumen: el borde está biselado, las juntas del acero son canaletas, los remaches sobresalen y el hormigón tiene grano. La luz base marca ese relieve aunque no haya fluidos, y con ella sola el grano, el rayado y los remaches ya se ven (brillo del acero marcado, poco aire y luz clave fuerte), y cada luz cercana lo ilumina desde su lado.
 - **Lava:** luz naranja intensa con alcance de unos 6 m, que cae con la distancia. Un charco de lava ilumina la parte de abajo de la plataforma de arriba y la pared de al lado.
 - **Ácido:** luz verde tenue con alcance de unos 3 m.
-- **Fondo:** las capas cercanas del fondo reciben la luz de la lava y del ácido, sin relieve; las lejanas casi no.
-- **Robots:** reciben la misma luz que las plataformas (§13.4).
+- **Fondo:** las capas cercanas del fondo reciben la luz de la lava y del ácido, sin relieve; las lejanas casi no. Todas reciben la luz clave como un degradé vertical (más claras arriba) y una niebla que aclara más cuanto más lejos está la capa, para separar los planos sin tocar lo que dibujan.
+- **Robots:** reciben la misma luz que las plataformas (§13.4). La lava y el ácido los alumbran de verdad: cerca de ellos el robot se ve teñido de su color, sin que la luz base borre ese efecto; el color del jugador se sigue leyendo.
+- **Sombras:** el nivel (plataformas y cajas) proyecta sombra sobre el fondo, y los robots sobre el fondo y las plataformas que tienen detrás. La sombra cae en dirección contraria a la luz clave, unos 35 cm, translúcida (45 % de oscuridad) y con el borde suave, sin desenfoque. Cerca de una luz de lava o ácido más intensa que la clave, la sombra cae alejándose de esa luz.
 - **Cantidad:** se juntan los fluidos cercanos en una sola luz por zona, con un tope de luces por pantalla; una gota suelta no ilumina.
 - **Costo:** la luz no baja los fps de forma medible.
 

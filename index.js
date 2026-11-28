@@ -307,7 +307,7 @@ const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
 const lightSet = createLightSet();
 const robotFilter = createRobotFilter();
-scene.ragdollLayer.filters = [robotFilter];
+scene.ragdollLayer.filters = [robotFilter, scene.ragdollShadowFilter];
 const lightSourceOfKind = buildKindSources({ lava: FLUID.LAVA, acid: FLUID.ACID });
 const lightView = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1, viewHeight: 1 };
@@ -1123,6 +1123,7 @@ function loop(nowMs) {
     lightScreenOrigin.viewHeight = camera.viewH;
     levelView.setLights(lightSet);
     crateView.setLights(lightSet);
+    scene.setShadowLights(lightScreenOrigin, lightSet);
     updateRobotFilter(robotFilter, lightScreenOrigin);
     setRobotFilterLights(robotFilter, lightSet);
     backgroundView.setLights(lightSet, lightScreenOrigin);
