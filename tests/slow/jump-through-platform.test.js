@@ -79,16 +79,18 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
  */
 async function infiniteJumps(seed) {
     const { CLIMB } = await import("../../src/level/climb.js");
-    const breakable = CLIMB.breakable;
+    const { breakable, crates } = CLIMB;
     CLIMB.breakable = null;
+    CLIMB.crates = false;
     try {
         await infiniteJumpsSolid(seed);
     } finally {
         CLIMB.breakable = breakable;
+        CLIMB.crates = crates;
     }
 }
 
-/** Cuerpo de `infiniteJumps` con las rompibles apagadas: este test prueba el salto a través de plataformas, no las rompibles (#301). */
+/** Cuerpo de `infiniteJumps` con las rompibles y las cajas apagadas: este test prueba el salto a través de plataformas, no las rompibles (#301) ni las cajas de los ítems (#358). */
 async function infiniteJumpsSolid(seed) {
     globalThis.location = { search: `?seed=${seed}` };
     const game = await loadGame({ map: "infinite" });
