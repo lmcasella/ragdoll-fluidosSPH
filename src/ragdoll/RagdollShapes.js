@@ -1,5 +1,6 @@
+import { ROBOT_JOINT_COLOR } from "../render/robotFilter.js";
+
 const SHAPE_COLOR = 0xffffff;
-const OUTLINE_COLOR = 0xffffff;
 
 /** Grosor del contorno de las piezas en pantalla, en px: no cambia con el zoom. */
 const OUTLINE_SCREEN_PX = 1.5;
@@ -24,7 +25,7 @@ function boxCorners(halfWidth, halfHeight) {
 
 /**
  * Figuras del robot como `PIXI.Graphics` (`docs/design/03-robots.md`): un par por fixture dentro de `rag.view`, el
- * relleno (blanco, para que el `tint` de `ragdollTint.js` sea su color) y el contorno (blanco, que nunca se tiñe),
+ * relleno (blanco, para que el `tint` de `ragdollTint.js` sea su color) y el contorno (del color de junta del filtro de los robots, `robotFilter.js`, que nunca se tiñe),
  * en ese orden para que cada pieza tape el contorno de la anterior. La forma se dibuja una sola vez, ya en el marco del
  * cuerpo y en px de `pixelsPerMeter` con la Y hacia abajo; solo el contorno se rehace cuando el zoom cambia su grosor.
  * Cada frame solo se mueven las piezas (`syncParts`). No se crea si el JSON trae sprites (`createRagdollShapes`).
@@ -83,7 +84,7 @@ export class RagdollShapes {
         this.items.forEach((item, index) => {
             const { outline } = this.parts[index];
             outline.clear();
-            this.trace(outline, item).stroke({ width: outlineWidth, color: OUTLINE_COLOR });
+            this.trace(outline, item).stroke({ width: outlineWidth, color: ROBOT_JOINT_COLOR });
         });
         this.outlineBuilds++;
     }
