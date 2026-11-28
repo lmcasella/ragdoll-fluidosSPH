@@ -116,8 +116,19 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `forEachWorldBody` | Recorre todos los cuerpos del mundo sin crear memoria nativa. |
 | `boundsOfBody` | Escribe en `out` la caja que une los fixtures de un cuerpo, en m. |
 | `boundsOfBodies` | Escribe en `out` la caja que une los fixtures de varios cuerpos, en m. |
+| `BODY_TYPE` | Tipos de cuerpo de Box2D (`STATIC`, `KINEMATIC`, `DYNAMIC`), los valores de `b2BodyType`. |
 | `MAX_POLYGON_VERTICES` | Máximo de vértices de un polígono de Box2D (8). |
 | `PolygonFixtureBuilder` | Crea fixtures poligonales y cajas sin memoria nativa por llamada (`createPolygon`, `createBox`, `dispose`). |
+
+### engine/bodySubstepCache.js
+
+| Nombre | Qué hace |
+|---|---|
+| `BodySubstepCache` | Guarda por subpaso la transformada, el tipo, el centro de masa y las inversas de masa e inercia de cada cuerpo, leídos del binding una sola vez. |
+| `bodyWorldPoint` | Punto local del cuerpo a mundo, bit a bit igual que `b2Body::GetWorldPoint`, en m. |
+| `bodyWorldVector` | Vector local del cuerpo a mundo, igual que `b2Body::GetWorldVector`. |
+| `bodyLocalPoint` | Punto de mundo a local del cuerpo, igual que `b2Body::GetLocalPoint`, en m. |
+| `bodyLocalVector` | Vector de mundo a local del cuerpo, igual que `b2Body::GetLocalVector`. |
 
 ### color.js
 
@@ -139,6 +150,13 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 |---|---|
 | `Raycaster` | Raycast sobre el mundo de Box2D que devuelve el impacto más cercano, sin memoria nativa por rayo. |
 | `getRaycaster` | Un `Raycaster` compartido por mundo. |
+
+### fixedStep.js
+
+| Nombre | Qué hace |
+|---|---|
+| `MAX_STEPS_PER_FRAME` | Tope de pasos de física por frame (2). |
+| `consumeFixedSteps` | Pasos a correr en un frame y acumulador que queda; con el tope, descarta el exceso. |
 
 ### debug.js
 

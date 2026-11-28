@@ -50,7 +50,7 @@ La térmica (`tests/thermal.test.js`) simula la conducción real entre dos part�
 
 ## Medir el rendimiento
 
-Abrir el juego con `?bench=1` (por ejemplo `http://localhost:8080/?bench=1`) corre solo, sin tocar nada, una serie fija de escenas con semilla fija y termina en menos de 6 minutos: reposo, partículas de cada material, corrosión con ácido y una partida de bots. Un cartel muestra la escena en curso y, al terminar, el informe con el botón **Copiar resultados**. Las escenas y las duraciones están en `BENCH_SCENES` (`src/bench/benchScript.js`). Sin `?bench=1` el juego no mide nada.
+Abrir el juego con `?bench=1` (por ejemplo `http://localhost:8080/?bench=1`) corre solo, sin tocar nada, una serie fija de escenas con semilla fija y termina en menos de 6 minutos: reposo, partículas de cada material, corrosión con ácido y una partida de bots. Un cartel muestra la escena en curso y, al terminar, el informe con el botón **Copiar resultados**. Las escenas y las duraciones están en `BENCH_SCENES` (`src/bench/benchScript.js`). El informe da la física por paso (mediana, p95, p99) y los pasos por frame (mediana, máximo); la física de la tabla por subsistema suma todos los pasos del frame. Sin `?bench=1` el juego no mide nada.
 
 ## Deploy
 

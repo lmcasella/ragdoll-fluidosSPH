@@ -1,3 +1,5 @@
+import { BENCH } from "./benchScript.js";
+
 const MILLISECONDS_DIGITS = 2;
 
 const formatMs = (value) => (value === null ? "-" : value.toFixed(MILLISECONDS_DIGITS));
@@ -25,7 +27,8 @@ function headerLines(context) {
 
 /**
  * Informe en markdown, corto para un comentario de GitHub (`BENCH.reportMaxLines`): la cabecera de contexto, una tabla de
- * tiempo por frame (una fila por grupo) y otra con la mediana de cada subsistema (una columna por grupo).
+ * tiempo por frame, física por paso y pasos por frame (una fila por grupo) y otra con la mediana de cada subsistema (una
+ * columna por grupo; la física de esa tabla suma todos los pasos del frame y por eso se rotula "(frame)").
  * @param {object} options
  * @param {object} options.context contexto de la máquina (ver `headerLines`)
  * @param {import("./frameRecorder.js").FrameRecorder} options.recorder
@@ -35,15 +38,22 @@ export function buildReport({ context, recorder }) {
     const names = recorder.names;
     const summaries = names.map((name) => recorder.summary(name));
     const lines = ["**Medición ?bench=1**", "", ...headerLines(context), ""];
-    const frameColumns = ["Grupo", "Frames", "Mediana ms", "p95 ms", "p99 ms", "Peor ms", "Partículas máx.", "GPU mediana ms"];
+    const frameColumns = [
+        "Grupo", "Frames", "Mediana ms", "p95 ms", "p99 ms", "Peor ms", "Partículas máx.", "GPU mediana ms",
+        "Física/paso mediana ms", "Física/paso p95 ms", "Física/paso p99 ms", "Pasos/frame mediana", "Pasos/frame máx.",
+    ];
     lines.push(row(frameColumns), separator(frameColumns.length));
     names.forEach((name, index) => {
-        const { frames, median, p95, p99, worst, maxParticles, gpuMedian } = summaries[index];
-        lines.push(row([name, frames, formatMs(median), formatMs(p95), formatMs(p99), formatMs(worst), maxParticles, formatMs(gpuMedian)]));
+        const { frames, median, p95, p99, worst, maxParticles, gpuMedian, step, stepsPerFrame } = summaries[index];
+        lines.push(row([
+            name, frames, formatMs(median), formatMs(p95), formatMs(p99), formatMs(worst), maxParticles, formatMs(gpuMedian),
+            formatMs(step.median), formatMs(step.p95), formatMs(step.p99), stepsPerFrame.median, stepsPerFrame.max,
+        ]));
     });
     lines.push("", "Mediana por subsistema (ms):", "", row(["Subsistema", ...names]), separator(names.length + 1));
     for (const key of recorder.lapNames) {
-        lines.push(row([key, ...summaries.map(({ laps }) => formatMs(laps[key] ?? null))]));
+        const label = key === BENCH.physicsLap ? `${key} (frame)` : key;
+        lines.push(row([label, ...summaries.map(({ laps }) => formatMs(laps[key] ?? null))]));
     }
     return lines.join("\n");
 }

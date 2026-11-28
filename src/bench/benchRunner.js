@@ -15,6 +15,7 @@ export const BENCH_STATE = { WAITING: "waiting", RUNNING: "running", DONE: "done
  * - `spawn({ material, count, region })`: crea partículas;
  * - `keepAlive()`: si la partida terminó, arranca otra sin cortar la medición;
  * - `laps()`: ms por subsistema del frame que terminó;
+ * - `stepMilliseconds()`: ms de cada paso de física del frame que terminó (uno por paso corrido);
  * - `particleCount()`: partículas vivas;
  * - `context()`: datos de la máquina para el informe.
  *
@@ -107,7 +108,7 @@ export class BenchRunner {
         this.sceneFrames++;
         this.updateGroups();
         if (this.sceneFrames > BENCH.warmupFrames) {
-            this.recorder.record(this.groupNames, frameMs, this.game.laps(), this.game.particleCount());
+            this.recorder.record(this.groupNames, frameMs, this.game.laps(), this.game.particleCount(), this.game.stepMilliseconds());
             if (this.gpuTimer) for (const gpuMs of this.gpuTimer.poll()) this.recorder.recordGpu(this.groupNames, gpuMs);
         }
         this.scene.spawns.forEach((spawn, index) => {

@@ -54,6 +54,20 @@ test("buildReport: entra en el tope de líneas y lleva todos los grupos", () => 
     assert.ok(report.includes("5 celdas con óxido"));
 });
 
+test("el informe lleva la física por paso y los pasos por frame", () => {
+    const recorder = new FrameRecorder();
+    const stepMilliseconds = [[1, 2], [3], [4, 5]];
+    for (const steps of stepMilliseconds) recorder.record(["a"], 16, { física: 9 }, 10, steps);
+    const summary = recorder.summary("a");
+    assert.deepEqual(summary.step, { median: 3, p95: 5, p99: 5 });
+    assert.deepEqual(summary.stepsPerFrame, { median: 2, max: 2 });
+    const report = buildReport({ context: SIMPLE_CONTEXT, recorder });
+    assert.ok(report.includes("Física/paso p95 ms"));
+    assert.ok(report.includes("Pasos/frame máx."));
+    assert.ok(report.includes("| a | 3 | 16.00 | 16.00 | 16.00 | 16.00 | 10 | - | 3.00 | 5.00 | 5.00 | 2 | 2 |"));
+    assert.ok(report.includes("física (frame)"));
+});
+
 test("las escenas suman menos de 6 minutos", () => {
     const total = BENCH_SCENES.reduce((sum, scene) => sum + scene.seconds, 0);
     assert.ok(total < MAX_TOTAL_SECONDS);

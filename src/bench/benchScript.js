@@ -7,9 +7,11 @@
  * - `particleSpacingRadii`: separación, en radios de partícula, de la grilla donde se crean las partículas;
  * - `gpuMaxPending`: consultas de tiempo de GPU en vuelo como máximo;
  * - `reportMaxLines`: tope de líneas del informe, para que entre en un comentario de GitHub;
- * - `percentiles`: percentiles (0 a 100) del informe.
+ * - `percentiles`: percentiles (0 a 100) del informe;
+ * - `physicsLap`: marca de `debug` que se mide en cada paso de física (suma el frame en `laps` y una muestra por paso).
  */
 export const BENCH = {
+    physicsLap: "física",
     seed: 1,
     minuteSeconds: 60,
     warmupFrames: 2,

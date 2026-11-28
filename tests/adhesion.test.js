@@ -18,6 +18,12 @@ const MU_EF = MATERIALS.honey.mu * MATERIALS.honey.viscosityScale;
 const THICKNESS = SIGMA_W / 1000;
 const SUBSTEP = DT / 8;
 const BRIDGE_CUT = 3.5 * RADIUS;
+const WATER_BLOCK_WIDTH = 9 * SPACING;
+const WATER_BLOCK_BOTTOM = 0.1;
+const WATER_BLOCK_HEIGHT = 4 * SPACING;
+const HONEY_LAYER_BOTTOM = 0.6;
+const HONEY_LAYER_HEIGHT = SPACING;
+const STEPS_WITHOUT_HONEY = 5;
 
 test("la viscosidad de la mezcla es la efectiva de la miel con X = 1, la del agua con X = 0 y la media geométrica con X = 0,5", () => {
     assert.equal(MATERIALS.honey.viscosityScale, 100);
@@ -338,4 +344,22 @@ test("el pegado viejo se retiró: no queda estado `pegado` en el robot ni consul
     assert.equal(player.sticky, undefined);
     assert.equal(player.stick, undefined);
     assert.equal(game.state.damage.stickHoney, undefined);
+});
+
+test("sin partículas de miel vivas, Adhesion no recorre los contactos partícula-partícula", () => {
+    const scene = newScene({ gravity: G });
+    addBox(scene, "floor", { x: 0, y: -0.5, w: 20, h: 1 });
+    fill(scene, FLUID.WATER, 0, WATER_BLOCK_WIDTH, WATER_BLOCK_BOTTOM, WATER_BLOCK_BOTTOM + WATER_BLOCK_HEIGHT);
+    let pairReads = 0;
+    const readPairs = scene.adhesion.contacts.pairs.bind(scene.adhesion.contacts);
+    scene.adhesion.contacts.pairs = (total) => {
+        pairReads++;
+        return readPairs(total);
+    };
+    for (let step = 0; step < STEPS_WITHOUT_HONEY; step++) scene.step();
+    assert.equal(pairReads, 0);
+
+    fill(scene, FLUID.HONEY, 0, WATER_BLOCK_WIDTH, HONEY_LAYER_BOTTOM, HONEY_LAYER_BOTTOM + HONEY_LAYER_HEIGHT);
+    scene.step();
+    assert.ok(pairReads > 0);
 });

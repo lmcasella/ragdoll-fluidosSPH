@@ -83,6 +83,7 @@ El dibujo todavía no está medido: se mide con el panel de métricas (#29).
 
 - **Memoria:** el heap de LiquidFun es **fijo de 16 MiB**. Se fija un tope por sistema con `maxCount`. Con 20.000 partículas todavía entra (medido).
 - **Tiempo:** un frame a 60 FPS dura 16,6 ms. Meta: física ≤ ~8 ms, el resto para el render.
+- **Carga que no entra en el frame** (#247): cada frame corre **como máximo 2 pasos** de física y descarta el atraso que sobra, y el tiempo de juego del frame se topea a lo que simulan esos pasos. Con carga, la física, la ronda, la inundación y los relojes van más lentos que el tiempo real, todos parejos, en vez de saltar o entrar en espiral (frame lento, más pasos, frame más lento). El recorte de partículas y los fps del panel siguen usando el tiempo real. El `?bench=1` informa la física por paso y los pasos por frame para ver cuándo se llega al tope.
 
 **Benchmark de partículas** (18/11, Node, mismo build; agua en reposo en una caja de 60 m):
 
