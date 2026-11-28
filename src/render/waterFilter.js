@@ -2,6 +2,7 @@ import { NOISE_FUNCTIONS, RIPPLE_FUNCTIONS } from "./glslNoise.js";
 import { LIQUID_UNIFORM_GROUP } from "./liquidFilter.js";
 import { LIGHT_FUNCTIONS, LIGHT_SPECULAR_FUNCTIONS, applyLights, createPointLightUniforms } from "./lighting.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
+import { RENDER_QUALITY } from "./renderQuality.js";
 
 /**
  * Filtro del agua del nivel (`docs/design/07-sph.md` §7.4, "Aspecto por material"): `WaterView` pinta los tramos mojados con
@@ -239,6 +240,7 @@ export function createWaterFilter({ look, color, acidColor, lineColor, lineWidth
     return new PIXI.Filter({
         glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: WATER_FRAGMENT, name: "water-filter" }),
         blendRequired: true,
+        resolution: RENDER_QUALITY.filterResolution,
         resources: {
             uHeights: heights,
             [LIQUID_UNIFORM_GROUP]: {

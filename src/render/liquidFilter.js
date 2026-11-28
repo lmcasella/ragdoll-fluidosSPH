@@ -1,5 +1,6 @@
 import { NOISE_FUNCTIONS, RIPPLE_FUNCTIONS } from "./glslNoise.js";
 import { FILTER_VERTEX, THRESHOLD_GAIN, THRESHOLD_OFFSET } from "./thresholdFilter.js";
+import { RENDER_QUALITY } from "./renderQuality.js";
 
 /**
  * Filtro de las capas de líquido (`docs/design/07-sph.md` §7.4, "Aspecto por material"): reemplaza al umbral solo. Corta el
@@ -157,6 +158,7 @@ export function createLiquidFilter(look) {
             name: refractive ? "liquid-filter-refractive" : "liquid-filter",
         }),
         blendRequired: refractive,
+        resolution: RENDER_QUALITY.filterResolution,
         resources: {
             [LIQUID_UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },

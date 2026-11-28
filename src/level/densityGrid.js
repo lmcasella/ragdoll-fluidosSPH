@@ -34,7 +34,9 @@ function cellsAlong(length) {
  * (lleno) en celdas de cerca de 5 cm, guardados por filas con la fila 0 en la `y` menor. Es la fuente de verdad del
  * tramo: la forma física y el contorno se derivan de ella. Es JS puro y no toca el heap del motor. El tamaño de celda se
  * ajusta en x y en y para que el ancho y el alto entren en un número entero de celdas, así el contorno de un tramo
- * entero coincide con su rectángulo. `dirty` marca que los valores cambiaron desde la última vez que se rehízo la forma.
+ * entero coincide con su rectángulo. `shapeDirty` marca que el contorno pudo cambiar desde la última vez que se rehízo la
+ * forma (una celda cruzó `DENSITY_ISO_LEVEL` o cambió una celda de borde) y `wearDirty` que cambió el desgaste desde la
+ * última vez que se dibujó: perder materia sin cambiar el contorno solo marca el desgaste.
  * `wear` guarda el desgaste de cada celda, de 0 a 1, para dibujar el óxido (`docs/design/13-arte.md` §13.2): lo escribe solo
  * `erode`, y `fillRectangle` lo pone en cero.
  */
@@ -56,7 +58,8 @@ export class DensityGrid {
         this.values = new Float32Array(this.columns * this.rows);
         this.wear = new Float32Array(this.columns * this.rows);
         this.hasWear = false;
-        this.dirty = false;
+        this.shapeDirty = false;
+        this.wearDirty = false;
     }
 
     /** Ancho de la grilla, en m. */
@@ -84,8 +87,8 @@ export class DensityGrid {
     }
 
     /**
-     * Pone en cada celda la fracción de su área que cubre el rectángulo dado (1 si la cubre entera) y marca la grilla como
-     * sucia. Reemplaza la densidad que hubiera.
+     * Pone en cada celda la fracción de su área que cubre el rectángulo dado (1 si la cubre entera) y marca como sucios la
+     * forma y el desgaste. Reemplaza la densidad que hubiera.
      * @param {{minX: number, minY: number, maxX: number, maxY: number}} rectangle en m, en el marco local del cuerpo
      */
     fillRectangle({ minX, minY, maxX, maxY }) {
@@ -101,31 +104,54 @@ export class DensityGrid {
         }
         this.wear.fill(0);
         this.hasWear = false;
-        this.dirty = true;
+        this.shapeDirty = true;
+        this.wearDirty = true;
     }
 
     /**
-     * Celdas vivas que están dentro del contorno (densidad desde `DENSITY_ISO_LEVEL`) y tienen desgaste, con su rectángulo.
-     * @returns {{x: number, y: number, width: number, height: number, wear: number}[]} `x` e `y` son el borde inferior
-     * izquierdo, en m, en el marco local del cuerpo
+     * Recorre las celdas vivas que están dentro del contorno (densidad desde `DENSITY_ISO_LEVEL`) y tienen desgaste, sin
+     * crear un objeto por celda.
+     * @param {(x: number, y: number, width: number, height: number, wear: number) => void} visit recibe el borde inferior
+     * izquierdo, el tamaño y el desgaste de la celda; `x` e `y` en m, en el marco local del cuerpo
      */
-    wornCells() {
-        const cells = [];
-        if (!this.hasWear) return cells;
+    forEachWornCell(visit) {
+        if (!this.hasWear) return;
         for (let row = 0; row < this.rows; row++) {
             for (let column = 0; column < this.columns; column++) {
                 const index = row * this.columns + column;
                 if (this.wear[index] <= 0 || this.values[index] < DENSITY_ISO_LEVEL) continue;
-                cells.push({
-                    x: this.originX + column * this.cellWidth,
-                    y: this.originY + row * this.cellHeight,
-                    width: this.cellWidth,
-                    height: this.cellHeight,
-                    wear: this.wear[index],
-                });
+                visit(this.originX + column * this.cellWidth, this.originY + row * this.cellHeight, this.cellWidth, this.cellHeight, this.wear[index]);
             }
         }
+    }
+
+    /**
+     * Celdas con desgaste, con su rectángulo (ver `forEachWornCell`). Crea un objeto por celda: para dibujar se usa `forEachWornCell`.
+     * @returns {{x: number, y: number, width: number, height: number, wear: number}[]}
+     */
+    wornCells() {
+        const cells = [];
+        this.forEachWornCell((x, y, width, height, wear) => cells.push({ x, y, width, height, wear }));
         return cells;
+    }
+
+    /**
+     * Verdadero si el valor de la celda puede mover el contorno: la celda o alguna de sus 8 vecinas está del otro lado de
+     * `DENSITY_ISO_LEVEL` (el cruce se ubica por interpolación entre las dos muestras). El borde de la grilla es duro, así
+     * que lo de afuera no cuenta.
+     * @param {number} row
+     * @param {number} column
+     * @returns {boolean}
+     */
+    touchesContour(row, column) {
+        const isInside = this.values[row * this.columns + column] >= DENSITY_ISO_LEVEL;
+        for (const [rowOffset, columnOffset] of NEIGHBOR_OFFSETS) {
+            const neighborRow = row + rowOffset;
+            const neighborColumn = column + columnOffset;
+            if (neighborRow < 0 || neighborRow >= this.rows || neighborColumn < 0 || neighborColumn >= this.columns) continue;
+            if ((this.values[neighborRow * this.columns + neighborColumn] >= DENSITY_ISO_LEVEL) !== isInside) return true;
+        }
+        return false;
     }
 
     /**
@@ -173,7 +199,8 @@ export class DensityGrid {
     }
 
     /**
-     * Quita `area` de materia de las celdas más cercanas al punto y marca la grilla como sucia si quitó algo. Busca en un
+     * Quita `area` de materia de las celdas más cercanas al punto. Si quitó algo marca el desgaste como sucio, y la forma solo
+     * si una celda cruzó `DENSITY_ISO_LEVEL` o si alguna celda cambiada toca el contorno (`touchesContour`). Busca en un
      * radio de `reach` y, si ahí no hay materia suficiente, lo agranda de a `reach` hasta juntarla o abarcar la grilla
      * (así la masa quitada sigue la estequiometría y el cráter se ensancha). Corrosión del terreno
      * (`docs/design/05-escenario.md` §5.5).
@@ -195,18 +222,24 @@ export class DensityGrid {
         }
         found.candidates.sort((first, second) => first.distance - second.distance);
         let remaining = area;
+        let crossedIsoLevel = false;
+        const changedIndices = [];
         for (const { index } of found.candidates) {
             if (remaining <= 0) break;
-            const taken = Math.min(this.values[index], remaining / cellArea);
+            const before = this.values[index];
+            const taken = Math.min(before, remaining / cellArea);
             this.values[index] -= taken;
             this.wear[index] = Math.min(1, this.wear[index] + taken);
             remaining -= taken * cellArea;
+            crossedIsoLevel ||= before >= DENSITY_ISO_LEVEL && this.values[index] < DENSITY_ISO_LEVEL;
+            changedIndices.push(index);
             if (this.values[index] <= 0) this.wearNeighbors(Math.floor(index / this.columns), index % this.columns);
         }
         const removed = area - remaining;
         if (removed > 0) {
-            this.dirty = true;
+            this.wearDirty = true;
             this.hasWear = true;
+            this.shapeDirty ||= crossedIsoLevel || changedIndices.some((index) => this.touchesContour(Math.floor(index / this.columns), index % this.columns));
         }
         return removed;
     }

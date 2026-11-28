@@ -129,14 +129,14 @@ test("la grilla ajusta el tamaño de celda para que el ancho y el alto sean múl
         assert.ok(grid.columns >= 1 && grid.rows >= 1);
         if (width >= MINIMUM_CELLS_FOR_SIZE_CHECK * DENSITY_CELL_SIZE) assert.ok(Math.abs(grid.cellWidth / DENSITY_CELL_SIZE - 1) <= CELL_SIZE_RELATIVE_TOLERANCE);
         assert.equal(grid.values.length, grid.columns * grid.rows);
-        assert.equal(grid.dirty, false);
+        assert.equal(grid.shapeDirty, false);
     }
 });
 
 test("fillRectangle llena la grilla entera con 1, deja la fracción cubierta en las celdas parciales y marca la grilla sucia", () => {
     const grid = new DensityGrid({ originX: 0, originY: 0, width: 1, height: 1 });
     grid.fillRectangle({ minX: 0, minY: 0, maxX: 1, maxY: 1 });
-    assert.equal(grid.dirty, true);
+    assert.equal(grid.shapeDirty, true);
     assert.ok(grid.values.every((value) => value === 1));
     grid.fillRectangle({ minX: 0, minY: 0, maxX: 0.5, maxY: 1 });
     assert.equal(grid.values[0], 1);
@@ -204,27 +204,110 @@ test("Infinito: 200 plataformas enteras y las paredes tienen 4 vértices por tra
     assert.equal(world.GetBodyCount(), 0);
 });
 
-test("update rehace como mucho maxRebuildsPerFrame tramos sucios por llamada, deja los demás para la siguiente y mide el costo", () => {
+/** Terreno de prueba con `CROWD_COUNT` pisos separados y un reloj inyectado que avanza `clockStepMs` por lectura. */
+function newCrowdTerrain(clockStepMs) {
     const world = newWorld();
     const definition = new Box2D.b2BodyDef();
     const body = world.CreateBody(definition);
     Box2D.destroy(definition);
     let clock = 0;
-    const terrain = new Terrain({ body, friction: SOLID_FRICTION, now: () => (clock += 5) });
+    const terrain = new Terrain({ body, friction: SOLID_FRICTION, now: () => (clock += clockStepMs) });
     for (let index = 0; index < CROWD_COUNT; index++) terrain.addSolid({ x: index * CROWD_SPACING, y: 0, w: 3, h: 1 });
-    assert.equal(terrain.update(), 0, "sin tramos sucios no rehace nada");
+    return terrain;
+}
+
+test("update reparte los tramos sucios entre frames según el presupuesto en ms, siempre rehace uno y mide el costo", () => {
+    const clockStepMs = 2 * TERRAIN.rebuildBudgetMs;
+    const terrain = newCrowdTerrain(clockStepMs);
+    assert.equal(terrain.update(0), 0, "sin tramos sucios no rehace nada");
     assert.equal(terrain.lastRebuildMs, 0);
     const fixtures = terrain.fixtureCount();
-    for (const tile of terrain.tiles) tile.grid.dirty = true;
-    const rebuilt = [terrain.update(), terrain.update(), terrain.update(), terrain.update()];
-    assert.deepEqual(rebuilt, [TERRAIN.maxRebuildsPerFrame, TERRAIN.maxRebuildsPerFrame, CROWD_COUNT - 2 * TERRAIN.maxRebuildsPerFrame, 0]);
+    for (const tile of terrain.tiles) tile.grid.shapeDirty = true;
+    const rebuilt = [];
+    for (let frame = 0; frame < CROWD_COUNT + 1; frame++) rebuilt.push(terrain.update(frame));
+    assert.deepEqual(rebuilt, [...Array(CROWD_COUNT).fill(1), 0], "un tramo por frame cuando cada uno gasta más que el presupuesto");
+    assert.equal(terrain.lastRebuildMs, 0);
     assert.equal(terrain.fixtureCount(), fixtures, "rehacer reemplaza los fixtures, no los suma");
-    assert.ok([...terrain.tiles].every((tile) => !tile.grid.dirty));
-    for (const tile of terrain.tiles) tile.grid.dirty = true;
-    terrain.update();
-    assert.equal(terrain.lastRebuilds, TERRAIN.maxRebuildsPerFrame);
-    assert.equal(terrain.lastRebuildMs, 5, "el costo sale del reloj inyectado");
+    assert.ok([...terrain.tiles].every((tile) => !tile.grid.shapeDirty));
+    for (const tile of terrain.tiles) tile.grid.shapeDirty = true;
+    terrain.update(CROWD_COUNT);
+    const clockReadsPerUpdate = 2;
+    assert.equal(terrain.lastRebuildMs, clockReadsPerUpdate * clockStepMs, "el costo sale del reloj inyectado: la lectura que corta el reparto y la del final");
     assert.deepEqual(terrain.counts(), { grids: CROWD_COUNT, polygons: CROWD_COUNT, vertices: CORNERS * CROWD_COUNT });
+    terrain.dispose();
+
+    const instant = newCrowdTerrain(0);
+    for (const tile of instant.tiles) tile.grid.shapeDirty = true;
+    assert.equal(instant.update(0), CROWD_COUNT, "con el presupuesto sin gastar se rehacen todos en el frame");
+    instant.dispose();
+});
+
+test("un tramo no se rehace dos veces en menos de minRebuildInterval y espera con la forma sucia", () => {
+    const terrain = newCrowdTerrain(0);
+    const [tile] = terrain.tiles;
+    tile.grid.shapeDirty = true;
+    assert.equal(terrain.update(0), 1);
+    tile.grid.shapeDirty = true;
+    assert.equal(terrain.update(TERRAIN.minRebuildInterval / 2), 0, "pasó menos del intervalo");
+    assert.equal(tile.grid.shapeDirty, true, "sigue sucio, espera");
+    assert.equal(terrain.update(TERRAIN.minRebuildInterval), 1, "cumplido el intervalo se rehace");
+    assert.equal(tile.grid.shapeDirty, false);
+    terrain.dispose();
+});
+
+test("la cola es justa: se rehace primero el tramo que lleva más tiempo sucio", () => {
+    const terrain = newCrowdTerrain(0);
+    terrain.config = { ...TERRAIN, rebuildBudgetMs: 0 };
+    const [first, second, third] = terrain.tiles;
+    const rebuiltTile = () => [first, second, third].find((tile) => tile.rebuiltFrame === terrain.frame);
+    for (const tile of [first, second, third]) tile.grid.shapeDirty = true;
+    terrain.update(1);
+    assert.equal(rebuiltTile(), first, "con igual tiempo sucio sale el primero");
+    first.grid.shapeDirty = true;
+    terrain.update(2);
+    assert.equal(rebuiltTile(), second, "el primero volvió a ensuciarse después que los otros dos");
+    terrain.update(3);
+    assert.equal(rebuiltTile(), third);
+    terrain.update(4);
+    assert.equal(rebuiltTile(), first);
+    terrain.dispose();
+});
+/** Cuerpo estático de prueba y su terreno con un piso de 3 m x 1 m centrado en el origen. */
+function newFloorTerrain(options = {}) {
+    const world = newWorld();
+    const definition = new Box2D.b2BodyDef();
+    const body = world.CreateBody(definition);
+    Box2D.destroy(definition);
+    const terrain = new Terrain({ body, friction: SOLID_FRICTION, ...options });
+    terrain.addSolid({ x: 0, y: 0, w: 3, h: 1 });
+    return terrain;
+}
+
+test("una erosión que no cruza el nivel iso no rehace fixtures y publica el desgaste como mucho cada wearRedrawInterval", () => {
+    const terrain = newFloorTerrain();
+    const [tile] = terrain.tiles;
+    const { grid } = tile;
+    const fixtures = [...tile.fixtures];
+    const cellArea = grid.cellWidth * grid.cellHeight;
+    const erodeAtCenter = (cells) => grid.erode({ x: 0, y: 0, reach: grid.cellWidth / 4, area: cells * cellArea });
+
+    erodeAtCenter(0.2);
+    assert.equal(grid.shapeDirty, false, "una celda interior que sigue sobre el iso no mueve el contorno");
+    assert.equal(grid.wearDirty, true);
+    assert.equal(terrain.update(0), 0);
+    assert.deepEqual(tile.fixtures, fixtures, "los fixtures siguen siendo los mismos");
+    const published = terrain.shape.version;
+    erodeAtCenter(0.1);
+    terrain.update(TERRAIN.wearRedrawInterval / 2);
+    assert.equal(terrain.shape.version, published, "el desgaste no se vuelve a publicar antes del intervalo");
+    terrain.update(TERRAIN.wearRedrawInterval);
+    assert.notEqual(terrain.shape.version, published, "pasado el intervalo se publica");
+    assert.equal(grid.wearDirty, false);
+
+    erodeAtCenter(1);
+    assert.equal(grid.shapeDirty, true, "una celda que cruza el iso cambia la forma");
+    assert.equal(terrain.update(TERRAIN.wearRedrawInterval), 1);
+    assert.notDeepEqual(tile.fixtures, fixtures, "los fixtures se rehicieron");
     terrain.dispose();
 });
 
@@ -243,7 +326,7 @@ test("rehacer una atravesable traspasa a las fixtures nuevas el par y la bajada 
     const owner = platforms.owners.get("probe");
     owner.pairs.set(oldPointer, false);
     owner.drops.set(oldPointer, 1.5);
-    tile.grid.dirty = true;
+    tile.grid.shapeDirty = true;
     terrain.update();
     const [newFixture] = tile.fixtures;
     const newPointer = Box2D.getPointer(newFixture);
@@ -303,20 +386,26 @@ async function standOnStep() {
 
 /**
  * Deja correr `FORCED_REBUILDS` frames con J1 parado y devuelve el recorrido del torso. Con `rebuild`, el tramo `tile` se
- * marca sucio antes de cada frame y se rehace en el loop.
+ * marca sucio antes de cada frame y se rehace en el loop (sin el intervalo mínimo entre rehaceres, para forzar uno por frame).
  */
 function standingTrace({ game, tile }, rebuild) {
     const { terrain, players } = game.state;
     const torso = players[0].torso;
     const trace = [];
     let grounded = true;
-    for (let frame = 0; frame < FORCED_REBUILDS; frame++) {
-        if (rebuild) tile.grid.dirty = true;
-        game.frame();
-        assert.equal(terrain.lastRebuilds, rebuild ? 1 : 0);
-        const position = torso.GetPosition();
-        trace.push({ x: position.get_x(), y: position.get_y() });
-        grounded &&= players[0].grounded;
+    const defaultInterval = TERRAIN.minRebuildInterval;
+    TERRAIN.minRebuildInterval = 0;
+    try {
+        for (let frame = 0; frame < FORCED_REBUILDS; frame++) {
+            if (rebuild) tile.grid.shapeDirty = true;
+            game.frame();
+            assert.equal(terrain.lastRebuilds, rebuild ? 1 : 0);
+            const position = torso.GetPosition();
+            trace.push({ x: position.get_x(), y: position.get_y() });
+            grounded &&= players[0].grounded;
+        }
+    } finally {
+        TERRAIN.minRebuildInterval = defaultInterval;
     }
     return { trace, grounded };
 }

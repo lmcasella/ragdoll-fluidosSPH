@@ -3,6 +3,7 @@ import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLight
 import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
 import { NOISE_FUNCTIONS } from "./glslNoise.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
+import { RENDER_QUALITY } from "./renderQuality.js";
 
 /**
  * Filtro de materiales de las plataformas (`docs/design/13-arte.md` §13.2): `LevelView` pinta los sólidos con un color
@@ -286,6 +287,7 @@ void main(void)
 export function createSurfaceFilter() {
     return new PIXI.Filter({
         glProgram: PIXI.GlProgram.from({ vertex: FILTER_VERTEX, fragment: SURFACE_FRAGMENT, name: SHADER_NAME }),
+        resolution: RENDER_QUALITY.filterResolution,
         resources: {
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
