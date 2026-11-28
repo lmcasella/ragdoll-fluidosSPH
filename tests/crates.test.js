@@ -31,6 +31,7 @@ const SETTLED_FRAMES = 2 * FRAMES_PER_SECOND;
 const PIECE_WATCH_FRAMES = 20;
 const PLANK_COUNT = 4;
 const PLANK_TOLERANCE = 0.02;
+const SPEED_TOLERANCE = 0.1;
 
 /** Juego clásico con las dos entradas conectadas y las cajas ya apoyadas. */
 async function start() {
@@ -152,6 +153,28 @@ test("al romperse la caja deja 4 tablas horizontales del ancho de la caja y un c
     const plankHeight = CRATE.side / PLANK_COUNT;
     stackedOffsets.forEach((offset, index) => assert.ok(Math.abs(offset - (index - (PLANK_COUNT - 1) / 2) * plankHeight) < PLANK_TOLERANCE, "apiladas sin huecos"));
     assert.ok(crates.pieces.every((piece) => Math.abs(piece.x - x) < CRATE.side && Math.abs(piece.y - y) < CRATE.side));
+});
+
+test("las tablas salen hacia afuera con un desvío lateral de hasta el 60 % de la velocidad de salida y un giro de hasta 6 rad/s, con signo al azar", async () => {
+    const game = await start();
+    const { crates } = game.state;
+    for (const crate of crates.crates) crates.enqueueDamage(crate, CRATE.strength);
+    game.frame();
+    assert.ok(crates.pieces.length >= 2 * CRATE.pieceLayout.length, "se rompen varias cajas");
+    const lateralSpeeds = [];
+    const spins = [];
+    for (const piece of crates.pieces) {
+        const velocity = piece.body.GetLinearVelocity();
+        const outward = Math.sign(piece.offsetY);
+        assert.ok(velocity.get_y() * outward > 0, "sigue saliendo hacia afuera");
+        lateralSpeeds.push(velocity.get_x());
+        spins.push(piece.body.GetAngularVelocity());
+    }
+    const sideLimit = CRATE.pieceSideSpread * CRATE.pieceSpeed + SPEED_TOLERANCE;
+    assert.ok(lateralSpeeds.every((speed) => Math.abs(speed) <= sideLimit), `desvío lateral dentro de ±${sideLimit.toFixed(2)} m/s`);
+    assert.ok(spins.every((spin) => Math.abs(spin) <= CRATE.pieceSpin + SPEED_TOLERANCE), "giro dentro de ±6 rad/s");
+    assert.ok(lateralSpeeds.some((speed) => speed > SPEED_TOLERANCE) && lateralSpeeds.some((speed) => speed < -SPEED_TOLERANCE), "el desvío sale para los dos lados");
+    assert.ok(spins.some((spin) => spin > SPEED_TOLERANCE) && spins.some((spin) => spin < -SPEED_TOLERANCE), "el giro sale para los dos lados");
 });
 
 test("un robot que camina contra la caja la empuja y la caja no se rompe", async () => {

@@ -1,7 +1,12 @@
 import { FLUID } from "../combat/weapons.js";
 import { MELEE } from "../combat/melee.js";
 import { PolygonFixtureBuilder } from "../core/engine/box2d.js";
+import { lerp } from "../core/math/scalar.js";
+import { createSeededRandom } from "../core/math/random.js";
 import { normalize, rotateLocalToWorld } from "../core/math/vector2.js";
+
+/** Cantidad de enteros de 32 bits sin signo: lleva un azar en [0, 1) a una semilla. */
+const UINT32_RANGE = 2 ** 32;
 
 /** Golpes simples de `MELEE` que rompen una caja. */
 const BREAKING_HITS = 2;
@@ -21,6 +26,8 @@ const TWO_HITS_DAMAGE = MELEE.combo.sequence
  * - `pieceLayout`: un pedazo por entrada `{ x, y }`, la posición de su centro respecto del centro de la caja en lados de
  *   caja (las cuatro tablas horizontales apiladas); `pieceSize` es su ancho y su alto en lados de caja; sale a
  *   `pieceSpeed` en la dirección que va del centro de la caja al suyo, sumada a la velocidad de la caja, y dura `pieceLife`;
+ * - `pieceSideSpread`: desvío lateral máximo de la salida de cada pedazo, en fracción de `pieceSpeed` (con signo al azar,
+ *   perpendicular a la dirección de salida); `pieceSpin`: velocidad angular máxima de cada pedazo, en rad/s (con signo al azar);
  * - `itemSurfaceLift`: altura sobre la superficie del agua a la que queda el ítem de una caja que se rompió sumergida;
  * - `lostMargin`: cuánto fuera de los límites del mapa clásico (o bajo el piso de muerte) una caja cuenta como perdida.
  */
@@ -42,6 +49,8 @@ export const CRATE = {
     pieceSize: { width: 1, height: 0.25 },
     pieceLife: 1.5,
     pieceSpeed: 3,
+    pieceSideSpread: 0.6,
+    pieceSpin: 6,
     itemSurfaceLift: 0.5,
     lostMargin: 5,
 };
@@ -66,8 +75,9 @@ export class Crates {
      * @param {(x: number, y: number) => boolean} options.isLost verdadero si el punto del mundo (m) está fuera del mapa
      * @param {typeof CRATE} [options.config]
      * @param {boolean} [options.enabled] falso si el mapa no usa cajas: no encierra nada y `Pickups` queda con los ítems sueltos
+     * @param {number} [options.seed] semilla del azar de la salida de los pedazos; sin ella es nueva en cada partida
      */
-    constructor({ world, store, pickups, surfaceAt, isLost, config = CRATE, enabled = true }) {
+    constructor({ world, store, pickups, surfaceAt, isLost, config = CRATE, enabled = true, seed = null }) {
         this.world = world;
         this.store = store;
         this.pickups = pickups;
@@ -75,6 +85,7 @@ export class Crates {
         this.isLost = isLost;
         this.config = config;
         this.density = config.mass / (config.side * config.side);
+        this.random = createSeededRandom(seed ?? (Math.random() * UINT32_RANGE) >>> 0);
         this.builder = new PolygonFixtureBuilder();
         this.bodyDef = new Box2D.b2BodyDef();
         this.bodyDef.set_type(Box2D.b2_dynamicBody);
@@ -97,6 +108,11 @@ export class Crates {
     /** Caja del cuerpo de puntero `bodyPointer`, o `undefined` si ese cuerpo no es una caja. */
     crateOf(bodyPointer) {
         return this.byBody.get(bodyPointer);
+    }
+
+    /** Verdadero si el cuerpo de puntero `bodyPointer` es una caja entera (lo usa el filtro de contactos). */
+    isCrate(bodyPointer) {
+        return this.byBody.has(bodyPointer);
     }
 
     /** Verdadero si el cuerpo de puntero `bodyPointer` es un pedazo de caja vivo (lo usa el filtro de contactos). */
@@ -135,14 +151,15 @@ export class Crates {
     }
 
     /**
-     * Crea un cuerpo dinámico con una caja de `width` por `height` en `(x, y)` y lo devuelve. Con `velocity` arranca con esa velocidad.
+     * Crea un cuerpo dinámico con una caja de `width` por `height` en `(x, y)` y lo devuelve. Con `velocity` y `angularVelocity` arranca con ellas.
      * @param {number} x
      * @param {number} y
      * @param {number} angle en rad
      * @param {{width: number, height: number}} size ancho y alto de la caja, en m
      * @param {{x: number, y: number}} [velocity] en m/s
+     * @param {number} [angularVelocity] en rad/s
      */
-    createBody(x, y, angle, size, velocity = null) {
+    createBody(x, y, angle, size, velocity = null, angularVelocity = 0) {
         this.vector.set_x(x);
         this.vector.set_y(y);
         this.bodyDef.set_position(this.vector);
@@ -154,6 +171,7 @@ export class Crates {
             this.vector.set_y(velocity.y);
             body.SetLinearVelocity(this.vector);
         }
+        body.SetAngularVelocity(angularVelocity);
         return body;
     }
 
@@ -241,11 +259,12 @@ export class Crates {
     }
 
     /**
-     * Crea un pedazo por entrada de `pieceLayout` alrededor de `(x, y)`, girados `angle`, saliendo hacia afuera. Cada pedazo
+     * Crea un pedazo por entrada de `pieceLayout` alrededor de `(x, y)`, girados `angle`, saliendo hacia afuera con un desvío
+     * lateral y un giro al azar (`pieceSideSpread`, `pieceSpin`; azar de `createSeededRandom`). Cada pedazo
      * guarda `offsetX` y `offsetY`, su posición en el marco de la caja (m), para que la vista dibuje su tramo de la caja.
      */
     spawnPieces(x, y, angle, velocityX, velocityY, now) {
-        const { side, pieceLayout, pieceSize, pieceSpeed, pieceLife } = this.config;
+        const { side, pieceLayout, pieceSize, pieceSpeed, pieceSideSpread, pieceSpin, pieceLife } = this.config;
         const size = { width: side * pieceSize.width, height: side * pieceSize.height };
         const cosine = Math.cos(angle);
         const sine = Math.sin(angle);
@@ -256,10 +275,19 @@ export class Crates {
             const direction = normalize(rotated.x, rotated.y, this.pieceDirection);
             const pieceX = x + rotated.x;
             const pieceY = y + rotated.y;
-            const body = this.createBody(pieceX, pieceY, angle, size, {
-                x: velocityX + direction.x * pieceSpeed,
-                y: velocityY + direction.y * pieceSpeed,
-            });
+            const sideSpeed = lerp(-pieceSideSpread, pieceSideSpread, this.random()) * pieceSpeed;
+            const spin = lerp(-pieceSpin, pieceSpin, this.random());
+            const body = this.createBody(
+                pieceX,
+                pieceY,
+                angle,
+                size,
+                {
+                    x: velocityX + direction.x * pieceSpeed - direction.y * sideSpeed,
+                    y: velocityY + direction.y * pieceSpeed + direction.x * sideSpeed,
+                },
+                spin,
+            );
             this.pieceBodies.add(Box2D.getPointer(body));
             this.pieces.push({ body, expiresAt: now + pieceLife, x: pieceX, y: pieceY, angle, offsetX, offsetY });
         }
