@@ -672,17 +672,11 @@ export class Bot {
         this.steerInside(me);
     }
 
-    /**
-     * Apoyado sin plataforma (torso fuera, o parado sobre una caja): camina hacia el centro de la plataforma más cercana a los
-     * pies y, si esos pies no están a su altura (`SAME_LEVEL`), salta hacia ella.
-     */
+    /** Apoyado sin plataforma (torso fuera): camina hacia el centro de la plataforma más cercana a los pies. */
     steerInside(me) {
         const px = me.torso.GetPosition().get_x();
-        const low = me.lowestPoint() - this.offsetY;
-        const node = this.nearestNode(px, low);
-        if (node === null) return;
-        this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
-        if (me.grounded && Math.abs(low - node.top) > SAME_LEVEL) this.pulse(PAD.jump);
+        const node = this.nearestNode(px, me.lowestPoint() - this.offsetY);
+        if (node !== null) this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
     }
 
     /** Modo `air`: corrige el vuelo hacia el destino y golpea al rival de abajo solo si el aterrizaje es seguro. */
