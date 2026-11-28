@@ -11,3 +11,21 @@
     font: 12px/15px monospace;
     white-space: pre;
 }
+
+.bench-panel .bench-report {
+    top: calc(max(8px, 13cqh) + 32px);
+    width: min(1100px, calc(100% - 16px));
+    max-height: calc(100% - max(8px, 13cqh) - 96px);
+    overflow: auto;
+    pointer-events: auto;
+    user-select: text;
+}
+.bench-panel .bench-copy {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 8px 16px;
+    font: 14px/16px monospace;
+    cursor: pointer;
+    pointer-events: auto;
+}
