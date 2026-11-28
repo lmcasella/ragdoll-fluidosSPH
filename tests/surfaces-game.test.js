@@ -68,7 +68,9 @@ test("el ácido sobre una plataforma de acero quita tanta materia como el ácido
     const result = await shoot({ shooterX: STEEL_PLATFORM.shooterX, top: STEEL_PLATFORM.y + STEEL_PLATFORM.height / 2, aim: STEEL_PLATFORM.aim });
     t.diagnostic(`acero: equivalente ${result.equivalent.toFixed(4)} m2, perdido ${result.steelLost.toFixed(4)} m2, hormigón ${result.concreteLost.toFixed(4)} m2`);
     assert.ok(result.equivalent > MIN_DISSOLVED_AREA, "se disolvió algo");
-    assert.ok(Math.abs(result.steelLost / result.equivalent - 1) < PROPORTION_TOLERANCE, "el acero pierde lo disuelto");
+    const corrodedLost = result.steelLost + result.concreteLost / CONCRETE_ATTACK;
+    assert.ok(Math.abs(corrodedLost / result.equivalent - 1) < PROPORTION_TOLERANCE, "el acero, más lo que salpicó al hormigón, pierde lo disuelto");
+    assert.ok(result.steelLost > result.concreteLost, "la mayor parte cae sobre el acero");
     assert.equal(result.glassLost, 0, "el vidrio no pierde nada");
 });
 
