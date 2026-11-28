@@ -10,11 +10,12 @@ import { SURFACES, surfaceOf } from "./surfaces.js";
 
 /**
  * Valores del terreno de densidad (`docs/design/05-escenario.md` §5.5): `maxTileSize` (m) es el lado máximo de un tramo de
- * una pieza grande; `maxRebuildsPerFrame` es el tope de tramos cuya forma se rehace en un frame; `wearRedrawInterval` (s) es
- * cada cuánto como mucho se publica el desgaste de un tramo para redibujarlo; `simplifyCells` es la
+ * una pieza grande; `minRebuildInterval` (s de juego) es cada cuánto como mucho se rehace la forma de un tramo;
+ * `rebuildBudgetMs` (ms) es lo que puede gastar un frame en rehacer tramos; `wearRedrawInterval` (s de juego) es cada
+ * cuánto como mucho se publica el desgaste de un tramo para redibujarlo; `simplifyCells` es la
  * tolerancia de simplificación del contorno, en celdas; `minPieceCells` es el área mínima de un polígono convexo, en celdas².
  */
-export const TERRAIN = { maxTileSize: 4, maxRebuildsPerFrame: 4, wearRedrawInterval: 0.25, simplifyCells: 0.5, minPieceCells: 0.5 };
+export const TERRAIN = { maxTileSize: 4, minRebuildInterval: 0.1, rebuildBudgetMs: 2, wearRedrawInterval: 0.25, simplifyCells: 0.5, minPieceCells: 0.5 };
 
 /** Un anillo con menos vértices que esto no encierra área. */
 const MINIMUM_RING_VERTICES = 3;
@@ -88,7 +89,7 @@ function gridNear(grid, x, y, reach) {
  * tramos y de los fixtures que salen de ellas. Cada sólido (piso, pared o plataforma atravesable) se rasteriza como un
  * rectángulo lleno; las piezas grandes y no atravesables se parten en tramos iguales de hasta `config.maxTileSize` por
  * lado, y cada tramo tiene su grilla. La grilla es la verdad: los fixtures se rehacen de ella y nadie los edita a mano.
- * `update` rehace los tramos sucios, hasta `config.maxRebuildsPerFrame` por llamada, y solo se llama desde el loop, después
+ * `update` rehace los tramos con la forma sucia, al ritmo y con el presupuesto de `config`, y solo se llama desde el loop, después
  * de los pasos de física y de aplicar lo que encolaron los contactos, nunca dentro de un callback. Los tramos
  * atravesables se registran en `OneWayPlatforms` y, al rehacerse, conservan el estado de los robots apoyados. Los fixtures
  * se quitan con `body.DestroyFixture`, nunca con `Box2D.destroy`. Patrón: Object Pool (un solo `PolygonFixtureBuilder`).
@@ -112,7 +113,7 @@ export class Terrain {
         this.config = config;
         this.now = now;
         this.builder = new PolygonFixtureBuilder();
-        /** Tramos vivos: `{ grid, surface, oneWay, fixtures, rings, polygons, rebuiltFrame }`. */
+        /** Tramos vivos: `{ grid, surface, oneWay, fixtures, rings, polygons, rebuiltFrame, rebuiltAt, dirtySince, wearPublishedAt }`. */
         this.tiles = new Set();
         /** Contador de llamadas a `update`: marca el frame en que se rehízo cada tramo. */
         this.frame = 0;
@@ -122,6 +123,7 @@ export class Terrain {
         /** Tramos rehechos y costo (ms) de la última llamada a `update`. */
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
+        this.waiting = [];
     }
 
     /** Desplazamiento horizontal del cuerpo en el mundo, en m. */
@@ -156,7 +158,7 @@ export class Terrain {
                 const grid = new DensityGrid({ originX, originY, width: tileWidth, height: tileHeight });
                 const fill = { minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight };
                 grid.fillRectangle(fill);
-                const tile = { grid, fill, surface, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1, wearPublishedAt: -Infinity };
+                const tile = { grid, fill, surface, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1, rebuiltAt: -Infinity, dirtySince: null, wearPublishedAt: -Infinity };
                 this.tiles.add(tile);
                 handle.tiles.push(tile);
                 this.rebuild(tile);
@@ -182,6 +184,7 @@ export class Terrain {
         for (const tile of this.tiles) {
             tile.grid.fillRectangle(tile.fill);
             this.rebuild(tile);
+            tile.rebuiltAt = -Infinity;
         }
     }
 
@@ -206,6 +209,7 @@ export class Terrain {
         Object.assign(tile, { fixtures: created, rings: shape.rings, polygons: shape.polygons });
         tile.grid.shapeDirty = false;
         tile.grid.wearDirty = false;
+        tile.dirtySince = null;
         this.shapeVersion++;
     }
 
@@ -287,8 +291,11 @@ export class Terrain {
     }
 
     /**
-     * Rehace los tramos con la forma sucia, hasta `config.maxRebuildsPerFrame`; los que sobran quedan para el próximo
-     * frame. Los tramos que solo cambiaron de desgaste publican el desgaste como mucho cada `config.wearRedrawInterval`.
+     * Rehace los tramos con la forma sucia y publica el desgaste de los que solo cambiaron de desgaste. Un tramo se rehace
+     * como mucho cada `config.minRebuildInterval` y su desgaste se publica como mucho cada `config.wearRedrawInterval`. Los
+     * tramos que esperan se rehacen del que lleva más tiempo sucio al que menos, hasta gastar `config.rebuildBudgetMs` en
+     * el frame (siempre se rehace al menos uno si hay alguno para rehacer, así ninguno se queda sin turno); los que sobran
+     * quedan para el próximo frame.
      * @param {number} [time] reloj de juego, en s
      * @returns {number} tramos rehechos: con más de 0 hubo fixtures destruidos y quien llama invalida lo que dependa de ellos
      */
@@ -296,24 +303,29 @@ export class Terrain {
         this.frame++;
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
-        let startedAt = null;
+        this.waiting.length = 0;
         for (const tile of this.tiles) {
-            if (!tile.grid.shapeDirty) {
-                if (tile.grid.wearDirty && time - tile.wearPublishedAt >= this.config.wearRedrawInterval) {
-                    tile.grid.wearDirty = false;
-                    tile.wearPublishedAt = time;
-                    this.shapeVersion++;
-                }
-                continue;
+            if (tile.grid.shapeDirty) {
+                tile.dirtySince ??= time;
+                if (time - tile.rebuiltAt >= this.config.minRebuildInterval) this.waiting.push(tile);
+            } else if (tile.grid.wearDirty && time - tile.wearPublishedAt >= this.config.wearRedrawInterval) {
+                tile.grid.wearDirty = false;
+                tile.wearPublishedAt = time;
+                this.shapeVersion++;
             }
-            if (this.lastRebuilds >= this.config.maxRebuildsPerFrame) break;
-            startedAt ??= this.now();
+        }
+        if (this.waiting.length === 0) return 0;
+        this.waiting.sort((first, second) => first.dirtySince - second.dirtySince);
+        const startedAt = this.now();
+        for (const tile of this.waiting) {
+            if (this.lastRebuilds > 0 && this.now() - startedAt >= this.config.rebuildBudgetMs) break;
             this.rebuild(tile);
+            tile.rebuiltAt = time;
             tile.wearPublishedAt = time;
             tile.rebuiltFrame = this.frame;
             this.lastRebuilds++;
         }
-        if (startedAt !== null) this.lastRebuildMs = this.now() - startedAt;
+        this.lastRebuildMs = this.now() - startedAt;
         return this.lastRebuilds;
     }
 
