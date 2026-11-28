@@ -17,10 +17,16 @@ import { RENDER_QUALITY } from "./renderQuality.js";
  * relieve. El borde no tiene trazo: lo
  * da el bisel con la luz y una oclusión que oscurece el material junto al borde. Los cantos expuestos se comen hasta unos
  * centímetros con un ruido de baja frecuencia (más en las esquinas), solo en lo que se ve.
+ *
+ * La madera de las cajas (`docs/design/13-arte.md` §13.2) es la excepción al "pegado al mundo": su dibujo sale del marco
+ * local de la caja. Cada caja y cada pedazo lleva su propio filtro (patrón Object Pool en `crateView.js`) con el centro, el
+ * giro y el desplazamiento del cuerpo como uniforms (`updateSurfaceFilterFrame`); el shader pasa la posición del mundo a ese
+ * marco y solo la madera la usa. La luz se sigue leyendo en coordenadas del mundo. Un filtro sin marco (el de las plataformas)
+ * deja los uniforms en la identidad.
  */
 
-/** Divisor del id del material al guardarlo en el canal rojo: con ids de 1 a 3 deja los valores bien separados. */
-export const SURFACE_ID_SCALE = 4;
+/** Divisor del id del material al guardarlo en el canal rojo: con ids de 1 a 5 deja los valores bien separados y dentro del canal. */
+export const SURFACE_ID_SCALE = 8;
 
 /** Valor máximo de un canal de color de 8 bits. */
 const CHANNEL_MAX = 255;
@@ -37,8 +43,11 @@ const SHADER_NAME = "surface-filter";
 /** Nombre del grupo de uniforms del filtro. */
 const UNIFORM_GROUP = "surfaceUniforms";
 
-/** Componentes del origen de pantalla (x, y). */
+/** Componentes de un vector 2D de uniforms (origen de pantalla, centro, giro y desplazamiento del marco). */
 const ORIGIN_COMPONENTS = 2;
+
+/** Giro (coseno, seno) del marco sin girar. */
+const IDENTITY_ROTATION = [1, 0];
 
 /** Escala inicial del filtro, en px por metro, hasta el primer `updateSurfaceFilter`. */
 const INITIAL_PIXELS_PER_METER = 1;
@@ -107,6 +116,9 @@ uniform highp vec4 uOutputFrame;
 uniform highp vec2 uOrigin;
 uniform highp float uPixelsPerMeter;
 uniform highp float uLightShiftY;
+uniform highp vec2 uFrameCenter;
+uniform highp vec2 uFrameRotation;
+uniform highp vec2 uFrameOffset;
 ${BASE_LIGHT_FUNCTIONS}
 ${LIGHT_FUNCTIONS}
 ${LIGHT_MAP_FUNCTIONS}
@@ -174,6 +186,21 @@ const float ERODE_CORNER_REACH = 0.08;
 const float COVERED = 0.999;
 const float NEAR_TAP_SHARE = 0.5;
 const float OCCLUSION_TAPS = 2.0;
+const float HALF = 0.5;
+const float INVERSE_SQRT_2 = 0.7071;
+const float WOOD_BOARDS = 4.0;
+const float WOOD_SEAM_WIDTH = 0.01;
+const float WOOD_SEAM_DARKEN = 0.55;
+const vec2 WOOD_GRAIN_FREQUENCY = vec2(3.0, 55.0);
+const float WOOD_GRAIN_STRENGTH = 0.4;
+const float WOOD_BOARD_SHIFT = 7.3;
+const float WOOD_BOARD_TINT_RANGE = 0.14;
+const float WOOD_FRAME_WIDTH = 0.07;
+const float WOOD_DIAGONAL_HALF_WIDTH = 0.04;
+const float WOOD_BATTEN_SOFTNESS = 0.008;
+const float WOOD_BATTEN_DARKEN = 0.62;
+const float WOOD_BATTEN_NOISE_FREQUENCY = 20.0;
+const float WOOD_BATTEN_NOISE_STRENGTH = 0.25;
 const float SPECULAR_SHININESS = 24.0;
 const float SPECULAR_STRENGTH = 0.6;
 const float SPECULAR_WEAR_LIMIT = 0.1;
@@ -215,6 +242,37 @@ vec3 steelColor(vec2 world, float wear)
     color *= 1.0 - joint * JOINT_DARKEN;
     color = mix(color, STEEL_BASE * RIVET_LIGHTEN, rivet);
     return withWear(color, world, wear, STEEL_WEAR, STEEL_WEAR_DARK);
+}
+
+vec2 frameOf(vec2 world)
+{
+    vec2 relative = world - uFrameCenter;
+    return vec2(
+        relative.x * uFrameRotation.x + relative.y * uFrameRotation.y,
+        relative.y * uFrameRotation.x - relative.x * uFrameRotation.y
+    ) + uFrameOffset;
+}
+
+vec3 woodColor(vec2 local, float wear)
+{
+    float halfSide = WOOD_PATTERN * HALF;
+    float boardHeight = WOOD_PATTERN / WOOD_BOARDS;
+    float boardPosition = (local.y + halfSide) / boardHeight;
+    float board = floor(boardPosition);
+    float toSeam = min(fract(boardPosition), 1.0 - fract(boardPosition)) * boardHeight;
+    float seam = 1.0 - smoothstep(0.0, WOOD_SEAM_WIDTH, toSeam);
+    float grain = valueNoise((local + vec2(board * WOOD_BOARD_SHIFT, 0.0)) * WOOD_GRAIN_FREQUENCY);
+    float boardTint = hash(vec2(board, 0.0)) - HALF;
+    vec3 color = WOOD_BASE * (1.0 + boardTint * WOOD_BOARD_TINT_RANGE + (grain - HALF) * WOOD_GRAIN_STRENGTH);
+    color *= 1.0 - seam * WOOD_SEAM_DARKEN;
+    float toBorder = halfSide - max(abs(local.x), abs(local.y));
+    float frame = 1.0 - smoothstep(WOOD_FRAME_WIDTH - WOOD_BATTEN_SOFTNESS, WOOD_FRAME_WIDTH, toBorder);
+    float toDiagonal = abs(local.x - local.y) * INVERSE_SQRT_2;
+    float diagonal = 1.0 - smoothstep(WOOD_DIAGONAL_HALF_WIDTH - WOOD_BATTEN_SOFTNESS, WOOD_DIAGONAL_HALF_WIDTH, toDiagonal);
+    float battenNoise = valueNoise(local * WOOD_BATTEN_NOISE_FREQUENCY);
+    vec3 batten = WOOD_BASE * WOOD_BATTEN_DARKEN * (1.0 + (battenNoise - HALF) * WOOD_BATTEN_NOISE_STRENGTH);
+    color = mix(color, batten, max(frame, diagonal));
+    return withWear(color, local, wear, WOOD_WEAR, WOOD_WEAR_DARK);
 }
 
 vec3 concreteColor(vec2 world, float wear)
@@ -364,6 +422,8 @@ void main(void)
         surface = vec4(concreteColor(world, code.g), CONCRETE_ALPHA);
     } else if (id == PLATE_ID) {
         surface = vec4(plateColor(world, code.g), PLATE_ALPHA);
+    } else if (id == WOOD_ID) {
+        surface = vec4(woodColor(frameOf(world), code.g), WOOD_ALPHA);
     } else {
         surface = glassColor(world);
     }
@@ -392,6 +452,9 @@ export function createSurfaceFilter() {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
                 uPixelsPerMeter: { value: INITIAL_PIXELS_PER_METER, type: "f32" },
                 uLightShiftY: { value: 0, type: "f32" },
+                uFrameCenter: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
+                uFrameRotation: { value: new Float32Array(IDENTITY_ROTATION), type: "vec2<f32>" },
+                uFrameOffset: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
                 ...createBaseLightUniforms(),
                 ...createPointLightUniforms(),
                 ...createLightMapUniforms(),
@@ -415,6 +478,27 @@ export function updateSurfaceFilter(filter, { originX, originY, pixelsPerMeter, 
     uniforms.uOrigin[1] = originY;
     uniforms.uPixelsPerMeter = pixelsPerMeter;
     uniforms.uLightShiftY = lightShiftY;
+}
+
+/**
+ * Pone el marco local de un cuerpo en el filtro, sin crear objetos: el shader dibuja la madera en ese marco, así el dibujo
+ * se mueve y gira con el cuerpo. El punto del mundo `p` pasa al marco como `R(-angle) · (p - centro) + desplazamiento`.
+ * @param {PIXI.Filter} filter el de `createSurfaceFilter`
+ * @param {object} frame
+ * @param {number} frame.centerX posición del cuerpo en el mundo, en m
+ * @param {number} frame.centerY posición del cuerpo en el mundo, en m
+ * @param {number} frame.angle giro del cuerpo, en rad
+ * @param {number} [frame.offsetX] posición del cuerpo dentro de la caja entera, en m (un pedazo muestra su tramo de la caja)
+ * @param {number} [frame.offsetY] ídem, en y
+ */
+export function updateSurfaceFilterFrame(filter, { centerX, centerY, angle, offsetX = 0, offsetY = 0 }) {
+    const { uniforms } = filter.resources[UNIFORM_GROUP];
+    uniforms.uFrameCenter[0] = centerX;
+    uniforms.uFrameCenter[1] = centerY;
+    uniforms.uFrameRotation[0] = Math.cos(angle);
+    uniforms.uFrameRotation[1] = Math.sin(angle);
+    uniforms.uFrameOffset[0] = offsetX;
+    uniforms.uFrameOffset[1] = offsetY;
 }
 
 /**

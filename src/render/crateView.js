@@ -1,12 +1,12 @@
 import { tintOf } from "../core/color.js";
-import { createSurfaceFilter, encodeSurface, setSurfaceFilterLights, updateSurfaceFilter } from "./surfaceFilter.js";
+import { createSurfaceFilter, encodeSurface, setSurfaceFilterLights, updateSurfaceFilter, updateSurfaceFilterFrame } from "./surfaceFilter.js";
 import { createLabel } from "./labelText.js";
 import { drawNut } from "./pickupView.js";
 
-/** Material con que se pintan las cajas y sus pedazos: el acero de las plataformas (`docs/design/13-arte.md` §13.2). */
-const CRATE_SURFACE = "steel";
+/** Material con que se pintan las cajas y sus pedazos: la madera, dibujada en el marco de cada caja (`docs/design/13-arte.md` §13.2). */
+const CRATE_SURFACE = "wood";
 
-/** Grosor del borde de la caja, en m: el canal azul lo marca para que el filtro lo aclare como el contorno de las plataformas. */
+/** Grosor del borde de la caja, en m: tapa las uniones entre el relleno y el borde que come el filtro. */
 const EDGE_WIDTH_M = 0.04;
 
 /** Valor máximo de un canal de color de 8 bits. */
@@ -31,9 +31,9 @@ const PANEL_OUTLINE_COLOR = "#ffffff";
 const PANEL_NUT_RADIUS_M = 0.24;
 
 /**
- * Tinte que escala el canal verde del color codificado del acero (que se dibuja con desgaste 1) por `wear`, de 0 a 1:
+ * Tinte que escala el canal verde del color codificado de la madera (que se dibuja con desgaste 1) por `wear`, de 0 a 1:
  * el filtro de `surfaceFilter.js` lee ese canal como el desgaste del material, y el rojo pasa sin cambio.
- * @param {number} wear 0 es acero limpio y 1 es el más oxidado
+ * @param {number} wear 0 es madera limpia y 1 es la más quemada
  * @returns {number} color `0xRRGGBB`
  */
 function wearTint(wear) {
@@ -42,13 +42,13 @@ function wearTint(wear) {
 }
 
 /**
- * Dibuja un rectángulo de acero centrado en el origen del gráfico, con el color codificado del desgaste máximo para que
+ * Dibuja un rectángulo de madera centrado en el origen del gráfico, con el color codificado del desgaste máximo para que
  * `wearTint` lo gradúe después sin volver a dibujar.
  * @param {PIXI.Graphics} graphics gráfico vacío
  * @param {{width: number, height: number}} size ancho y alto, en m
  * @param {number} pixelsPerMeter px por metro de la geometría
  */
-function drawSteelRectangle(graphics, size, pixelsPerMeter) {
+function drawWoodRectangle(graphics, size, pixelsPerMeter) {
     const halfWidth = (size.width / 2) * pixelsPerMeter;
     const halfHeight = (size.height / 2) * pixelsPerMeter;
     graphics
@@ -60,10 +60,12 @@ function drawSteelRectangle(graphics, size, pixelsPerMeter) {
 /**
  * Vista de las cajas (`docs/design/04-fluidos.md` §4.2, `docs/design/13-arte.md` §13.2) en modo retenido: cada caja y cada
  * pedazo es un `PIXI.Graphics` que se arma una vez y por frame solo cambia de posición, giro, tinte y visibilidad (Object Pool,
- * las entradas solo crecen cuando aparecen más cajas o pedazos que nunca). Cuerpo y pedazos cuelgan de la capa del nivel,
- * con su propio filtro de materiales (`createSurfaceFilter`), así se ven del acero de las plataformas con su luz; el desgaste
- * va en el tinte, de 0 (nueva) a 1 (a punto de romperse). Encima, en la capa superpuesta, el panel del color del arma con su
- * inicial, o la tuerca de la reparación, gira con la caja. No lee Box2D: recibe los datos planos de `Crates`.
+ * las entradas solo crecen cuando aparecen más cajas o pedazos que nunca). Cuerpo y pedazos cuelgan de la capa del nivel y
+ * cada uno lleva su propio filtro de materiales (`createSurfaceFilter`), creado con la entrada: la madera se dibuja en el marco
+ * local del cuerpo (`updateSurfaceFilterFrame`), así la veta y los listones se mueven y giran con él, con la luz del escenario.
+ * Un pedazo muestra su tramo de la caja entera (su desplazamiento dentro de ella). El desgaste va en el tinte, de 0 (nueva)
+ * a 1 (a punto de romperse). Encima, en la capa superpuesta, el panel del color del arma con su inicial, o la tuerca de la
+ * reparación, gira con la caja. No lee Box2D: recibe los datos planos de `Crates`.
  */
 export class CrateView {
     /**
@@ -74,15 +76,18 @@ export class CrateView {
      * @param {object[]} options.weapons tabla de armas (`id`, `name`, `color`)
      * @param {number} options.crateSide lado de la caja, en m
      * @param {{width: number, height: number}} options.pieceSize ancho y alto de cada pedazo, en m
+     * @param {(filter: PIXI.Filter) => void} options.registerOccluder recibe cada filtro de material al crearse, para que el mapa de luz lo apague al dibujar la oclusión
      */
-    constructor({ levelParent, parent, pixelsPerMeter, weapons, crateSide, pieceSize }) {
+    constructor({ levelParent, parent, pixelsPerMeter, weapons, crateSide, pieceSize, registerOccluder }) {
         this.pixelsPerMeter = pixelsPerMeter;
         this.weapons = weapons;
         this.crateSide = crateSide;
         this.pieceSize = pieceSize;
-        this.filter = createSurfaceFilter();
+        this.registerOccluder = registerOccluder;
+        this.lightSet = null;
+        this.camera = { originX: 0, originY: 0, pixelsPerMeter: 1 };
+        this.frame = { centerX: 0, centerY: 0, angle: 0, offsetX: 0, offsetY: 0 };
         this.bodyContainer = new PIXI.Container();
-        this.bodyContainer.filters = [this.filter];
         levelParent.addChild(this.bodyContainer);
         this.panelContainer = new PIXI.Container();
         parent.addChild(this.panelContainer);
@@ -91,29 +96,32 @@ export class CrateView {
     }
 
     /**
-     * Pasa las luces del frame al filtro de materiales, sin redibujar nada.
+     * Guarda las luces del frame: `update` se las pasa a cada filtro en uso, sin redibujar nada.
      * @param {{data: Float32Array, count: number}} lightSet luces de `createLightSet`
      */
     setLights(lightSet) {
-        setSurfaceFilterLights(this.filter, lightSet);
+        this.lightSet = lightSet;
     }
 
     /**
      * Actualiza las cajas y los pedazos de este frame.
      * @param {object} frame
      * @param {{point: object, x: number, y: number, angle: number, wear: number}[]} frame.crates cajas, en m y rad
-     * @param {{x: number, y: number, angle: number}[]} frame.pieces pedazos, en m y rad
+     * @param {{x: number, y: number, angle: number, offsetX: number, offsetY: number}[]} frame.pieces pedazos, en m y rad; el desplazamiento es su posición dentro de la caja entera
      * @param {{x: number, y: number}} frame.screenOrigin px de pantalla del origen del mundo
      * @param {number} frame.screenScale px de pantalla por metro
      */
     update({ crates, pieces, screenOrigin, screenScale }) {
-        updateSurfaceFilter(this.filter, { originX: screenOrigin.x, originY: screenOrigin.y, pixelsPerMeter: screenScale });
+        this.camera.originX = screenOrigin.x;
+        this.camera.originY = screenOrigin.y;
+        this.camera.pixelsPerMeter = screenScale;
         const scale = this.pixelsPerMeter;
         for (let index = 0; index < crates.length; index++) {
             const crate = crates[index];
             const entry = this.crateEntryAt(index);
             if (entry.point !== crate.point) this.buildPanel(entry, crate.point);
             this.place(entry.body, crate, scale);
+            this.shade(entry.filter, crate);
             entry.body.tint = wearTint(crate.wear);
             this.place(entry.panel, crate, scale);
             entry.body.visible = true;
@@ -124,11 +132,12 @@ export class CrateView {
             this.crateEntries[index].panel.visible = false;
         }
         for (let index = 0; index < pieces.length; index++) {
-            const graphics = this.pieceAt(index);
-            this.place(graphics, pieces[index], scale);
-            graphics.visible = true;
+            const entry = this.pieceEntryAt(index);
+            this.place(entry.graphics, pieces[index], scale);
+            this.shade(entry.filter, pieces[index]);
+            entry.graphics.visible = true;
         }
-        for (let index = pieces.length; index < this.pieceEntries.length; index++) this.pieceEntries[index].visible = false;
+        for (let index = pieces.length; index < this.pieceEntries.length; index++) this.pieceEntries[index].graphics.visible = false;
     }
 
     /**
@@ -142,29 +151,56 @@ export class CrateView {
         node.rotation = item.angle;
     }
 
-    /** Entrada del pool de cajas en `index`: la crea con su cuerpo de acero, su panel y su letra la primera vez. */
+    /**
+     * Pasa al filtro la cámara, la luz y el marco local de `item`.
+     * @param {PIXI.Filter} filter filtro de la entrada
+     * @param {{x: number, y: number, angle: number, offsetX?: number, offsetY?: number}} item en m y rad
+     */
+    shade(filter, item) {
+        updateSurfaceFilter(filter, this.camera);
+        if (this.lightSet) setSurfaceFilterLights(filter, this.lightSet);
+        this.frame.centerX = item.x;
+        this.frame.centerY = item.y;
+        this.frame.angle = item.angle;
+        this.frame.offsetX = item.offsetX ?? 0;
+        this.frame.offsetY = item.offsetY ?? 0;
+        updateSurfaceFilterFrame(filter, this.frame);
+    }
+
+    /**
+     * Gráfico de madera de `size` con su propio filtro, ya agregado a la capa del nivel.
+     * @param {{width: number, height: number}} size ancho y alto, en m
+     * @returns {{graphics: PIXI.Graphics, filter: PIXI.Filter}}
+     */
+    createWoodNode(size) {
+        const graphics = new PIXI.Graphics();
+        drawWoodRectangle(graphics, size, this.pixelsPerMeter);
+        const filter = createSurfaceFilter();
+        graphics.filters = [filter];
+        this.registerOccluder(filter);
+        this.bodyContainer.addChild(graphics);
+        return { graphics, filter };
+    }
+
+    /** Entrada del pool de cajas en `index`: la crea con su cuerpo de madera, su filtro, su panel y su letra la primera vez. */
     crateEntryAt(index) {
         if (this.crateEntries[index] === undefined) {
-            const body = new PIXI.Graphics();
-            drawSteelRectangle(body, { width: this.crateSide, height: this.crateSide }, this.pixelsPerMeter);
-            this.bodyContainer.addChild(body);
+            const { graphics: body, filter } = this.createWoodNode({ width: this.crateSide, height: this.crateSide });
             const panel = new PIXI.Container();
             this.panelContainer.addChild(panel);
             const panelGraphics = new PIXI.Graphics();
             panel.addChild(panelGraphics);
             const label = createLabel(panel, this.pixelsPerMeter);
-            this.crateEntries[index] = { body, panel, panelGraphics, label, point: null, drawable: false };
+            this.crateEntries[index] = { body, filter, panel, panelGraphics, label, point: null, drawable: false };
         }
         return this.crateEntries[index];
     }
 
-    /** Pedazo del pool en `index`: lo crea con su cuadrado de acero, desgastado al máximo, la primera vez. */
-    pieceAt(index) {
+    /** Pedazo del pool en `index`: lo crea con su tabla de madera, desgastada al máximo, y su filtro la primera vez. */
+    pieceEntryAt(index) {
         if (this.pieceEntries[index] === undefined) {
-            const graphics = new PIXI.Graphics();
-            drawSteelRectangle(graphics, this.pieceSize, this.pixelsPerMeter);
-            this.bodyContainer.addChild(graphics);
-            this.pieceEntries[index] = graphics;
+            const { graphics, filter } = this.createWoodNode(this.pieceSize);
+            this.pieceEntries[index] = { graphics, filter };
         }
         return this.pieceEntries[index];
     }

@@ -339,8 +339,9 @@ const crateView = new CrateView({
     weapons: WEAPONS,
     crateSide: CRATE.side,
     pieceSize: { width: CRATE.side * CRATE.pieceSize.width, height: CRATE.side * CRATE.pieceSize.height },
+    registerOccluder: (filter) => scene.addOccluderFilters(filter),
 });
-scene.addOccluderFilters(levelView.surfaceFilter, crateView.filter);
+scene.addOccluderFilters(levelView.surfaceFilter);
 const aimLaserView = new AimLaserView({ ...overlayOptions, playerCount: players.length });
 const hitEffectsView = new HitEffectsView(overlayOptions);
 const debugView = new DebugView({ ...overlayOptions, debug });
