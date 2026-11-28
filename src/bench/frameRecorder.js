@@ -30,7 +30,7 @@ export class FrameRecorder {
     groupOf(name) {
         let group = this.groups.get(name);
         if (!group) {
-            group = { frameMs: [], gpuMs: [], laps: new Map(), maxParticles: 0 };
+            group = { frameMs: [], gpuMs: [], stepMs: [], stepsPerFrame: [], laps: new Map(), maxParticles: 0 };
             this.groups.set(name, group);
         }
         return group;
@@ -42,11 +42,14 @@ export class FrameRecorder {
      * @param {number} frameMs tiempo entre este frame y el anterior, en ms
      * @param {Object<string, number>} laps ms de cada subsistema en el frame
      * @param {number} particles partículas vivas
+     * @param {number[]} stepMs ms de cada paso de física corrido en el frame
      */
-    record(names, frameMs, laps, particles) {
+    record(names, frameMs, laps, particles, stepMs = []) {
         for (const name of names) {
             const group = this.groupOf(name);
             group.frameMs.push(frameMs);
+            group.stepMs.push(...stepMs);
+            group.stepsPerFrame.push(stepMs.length);
             group.maxParticles = Math.max(group.maxParticles, particles);
             for (const key in laps) {
                 let samples = group.laps.get(key);
@@ -67,16 +70,26 @@ export class FrameRecorder {
 
     /**
      * Resumen de un grupo: `frames`, `median`, `p95`, `p99` y `worst` (ms por frame), `maxParticles`, `gpuMedian` (ms, o
-     * `null` sin GPU) y `laps` (mediana en ms de cada subsistema).
+     * `null` sin GPU), `laps` (mediana en ms de cada subsistema), `step` (`median`, `p95` y `p99` en ms de un solo paso de
+     * física) y `stepsPerFrame` (`median` y `max`).
      */
     summary(name) {
         const group = this.groupOf(name);
         const frames = sortedCopy(group.frameMs);
-        if (frames.length === 0) return { frames: 0, median: 0, p95: 0, p99: 0, worst: 0, maxParticles: 0, gpuMedian: null, laps: {} };
+        const emptyStep = { median: 0, p95: 0, p99: 0 };
+        if (frames.length === 0) {
+            const stepsPerFrame = { median: 0, max: 0 };
+            return { frames: 0, median: 0, p95: 0, p99: 0, worst: 0, maxParticles: 0, gpuMedian: null, laps: {}, step: emptyStep, stepsPerFrame };
+        }
         const { median, p95, p99 } = BENCH.percentiles;
         const laps = {};
         for (const [key, samples] of group.laps) laps[key] = percentile(sortedCopy(samples), median);
+        const stepMs = sortedCopy(group.stepMs);
+        const stepCounts = sortedCopy(group.stepsPerFrame);
+        const step = stepMs.length === 0 ? emptyStep : { median: percentile(stepMs, median), p95: percentile(stepMs, p95), p99: percentile(stepMs, p99) };
         return {
+            step,
+            stepsPerFrame: { median: percentile(stepCounts, median), max: stepCounts[stepCounts.length - 1] },
             frames: frames.length,
             median: percentile(frames, median),
             p95: percentile(frames, p95),
