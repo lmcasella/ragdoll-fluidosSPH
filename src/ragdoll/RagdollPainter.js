@@ -14,12 +14,11 @@ export class RagdollPainter {
      * @param {object} options.player `ActiveRagdoll` ya con `renderItems`; su `rag.view` ya cuelga de la escena
      * @param {object} options.json `.rag.json` del robot
      * @param {PIXI.Container} options.effectsParent contenedor del mundo para chispas y burbujas
-     * @param {number} options.slot índice del jugador, que da el color del visor
      */
-    constructor({ player, json, effectsParent, slot }) {
+    constructor({ player, json, effectsParent }) {
         this.player = player;
         this.pixelsPerMeter = json.units.pixelsPerMeter;
-        this.shapes = createRagdollShapes({ view: player.rag.view, items: player.renderItems, json, side: player.side, slot });
+        this.shapes = createRagdollShapes({ view: player.rag.view, items: player.renderItems, json, side: player.side });
         this.parts = this.shapes?.parts ?? [];
         this.effects = new RagdollEffects({ parent: effectsParent, pixelsPerMeter: this.pixelsPerMeter });
     }

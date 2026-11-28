@@ -62,7 +62,7 @@ La escena tiene una luz clave fuerte, cálida y algo lateral que baja desde arri
 - **Ácido:** luz verde tenue con alcance de unos 3 m.
 - **Fondo:** las capas cercanas del fondo reciben la luz de la lava y del ácido, sin relieve; las lejanas casi no. Todas reciben la luz clave como un degradé vertical (más claras arriba) y una niebla que aclara más cuanto más lejos está la capa, para separar los planos sin tocar lo que dibujan.
 - **Robots:** reciben la misma luz que las plataformas (§13.4). La lava y el ácido los alumbran de verdad: cerca de ellos el robot se ve teñido de su color, sin que la luz base borre ese efecto; el color del jugador se sigue leyendo.
-- **Luz de cada robot:** cada robot es una luz puntual del color de su jugador (intensidad 0,9, alcance 5 m) en su visor (§13.4), y es la única luz con sombras, como las luces 2D de Unity.
+- **Luz de cada robot:** cada robot es una luz puntual del color de su jugador (intensidad 0,9, alcance 5 m) en su cabeza, y es la única luz con sombras, como las luces 2D de Unity.
 - **Sombras:** lo que tapa la luz son las plataformas, el terreno y las cajas; los robots y los líquidos no la tapan. Donde un colisionador se interpone entre un píxel y la luz de un robot, esa luz no llega (penumbra suave); la superficie de la plataforma que da hacia la luz sí la recibe. Un robot recibe la sombra de las plataformas y las cajas respecto de la luz del otro. La lava y el ácido iluminan como siempre, sin sombras. La luz clave y el relleno no proyectan sombra.
 - **Ambiente:** el entorno es algo más oscuro (aire de 0,12 y luz clave al 80 % de antes) para que se noten las luces de los robots, la lava y el ácido.
 - **Uso:** el fondo, las plataformas, las cajas, los robots y el agua leen la misma luz ya con sombras; en plataformas y robots el relieve la modula (55 % más 45 % según cuánto mira la superficie a la luz más fuerte).
@@ -76,8 +76,5 @@ Los robots son de metal pintado con el color de su jugador, sin sprites: las mis
 - **Pintura:** cada pieza es del color del jugador, un poco más oscura y satinada; en los bordes la pintura está gastada y asoma el acero gris de las plataformas.
 - **Relieve:** cada pieza tiene el borde biselado, y la unión entre dos piezas se ve como una junta oscura, no como un trazo blanco.
 - **Luz:** la luz base marca el relieve y un brillo metálico chico; la lava y el ácido cercanos los iluminan de su color (§13.3).
-- **Orden de las piezas:** de atrás hacia adelante, brazo trasero, pierna trasera, cabeza, torso y pelvis, pierna frontal y brazo frontal. Al girar, el brazo y la pierna que quedaban del lado de la cámara pasan atrás.
-- **Visor:** una franja horizontal del color del jugador en la cabeza, del lado al que mira. Brilla con luz propia (la luz del entorno no la oscurece) y con un halo chico; de ahí sale la luz del robot (§13.3).
-- **Detalle de máquina:** el torso lleva dos hendiduras de panel y tres tornillos, y la pelvis una hendidura. Los hombros, los codos, las caderas y las rodillas llevan un disco oscuro de metal pelado con brillo, dibujado sobre las piezas de su miembro. Sin sprites en el JSON no se dibujan.
 - **Legibilidad:** el color del jugador sigue siendo lo que más se ve del robot. El destello rojo del golpe y el tinte celeste del mojado se ven igual que hoy.
 - **Costo:** no baja los fps de forma medible: una sola pasada para todos los robots.

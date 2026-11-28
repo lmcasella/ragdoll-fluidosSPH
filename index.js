@@ -55,7 +55,6 @@ import {
     wheelWeapon,
 } from "./src/combat/weapons.js";
 import { buildRenderItems } from "./src/ragdoll/renderItems.js";
-import { visorWorldPoint } from "./src/ragdoll/robotDetail.js";
 import { drawParticles, lookOf, SHOT_DRAW } from "./src/render/fluidDraw.js";
 import { collectSurfaces } from "./src/render/fluidSurfaces.js";
 import { FluidLayers } from "./src/render/fluidLayers.js";
@@ -211,7 +210,7 @@ function spawnOnGround(def, x, top) {
     return lift;
 }
 
-function spawnRobotRaw(x, y, flipX, slot) {
+function spawnRobotRaw(x, y, flipX) {
     const robot = new ActiveRagdoll(
         robotRag.def,
         world,
@@ -226,7 +225,7 @@ function spawnRobotRaw(x, y, flipX, slot) {
         robotRag.json,
         flipX,
     );
-    robot.painter = new RagdollPainter({ player: robot, json: robotRag.json, effectsParent: scene.effectsLayer, slot });
+    robot.painter = new RagdollPainter({ player: robot, json: robotRag.json, effectsParent: scene.effectsLayer });
     return robot;
 }
 
@@ -236,19 +235,18 @@ function destroyRobot(robot) {
     robot.destroy();
 }
 
-function spawnRobot(spawn, slot) {
+function spawnRobot(spawn) {
     const robot = spawnRobotRaw(
         spawn.x,
         spawnOnGround(robotRag.def, spawn.x, spawn.y),
         spawn.flipX,
-        slot,
     );
     robot.knocksOut = climb !== null;
     equipLoadout(robot, climb ? CLIMB.loadout : LOADOUT);
     return robot;
 }
 
-const players = LEVEL.spawns.map((spawn, slot) => spawnRobot(spawn, slot));
+const players = LEVEL.spawns.map(spawnRobot);
 const instances = players.map((p) => p.rag);
 players.forEach((p, k) => platforms.addOwner(k, p.rag.bodies.values()));
 const input = new Input(players.length);
@@ -309,11 +307,10 @@ const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 
 const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
 const lightSet = createLightSet();
-const robotFilter = createRobotFilter(PLAYER_LIGHT_COLORS);
+const robotFilter = createRobotFilter();
 scene.ragdollLayer.filters = [robotFilter];
 const lightSourceOfKind = buildKindSources({ lava: FLUID.LAVA, acid: FLUID.ACID });
 const lightView = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-const visorLightPoint = { x: 0, y: 0 };
 const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1, viewHeight: 1 };
 const liquidFrame = { time: 0, originX: 0, originY: 0, pixelsPerMeter: 1 };
 const lightMaterialAt = (index) => store.kind[store.slotAt(index)];
@@ -555,7 +552,7 @@ function reiniciarRonda() {
     corrosion.reset();
     players.forEach((player, k) => {
         destroyRobot(player);
-        players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k], k);
+        players[k] = spawnRobot(climb ? climb.spawns[k] : LEVEL.spawns[k]);
         instances[k] = players[k].rag;
         platforms.removeOwner(k);
         platforms.addOwner(k, players[k].rag.bodies.values());
@@ -650,7 +647,7 @@ function girar(k, wantsFlipX) {
     const baseY = torsoPos.get_y() - rootBodyJson.position[1];
 
     destroyRobot(player);
-    const nuevo = spawnRobotRaw(baseX, baseY, wantsFlipX, k);
+    const nuevo = spawnRobotRaw(baseX, baseY, wantsFlipX);
 
     const tempVec = new Box2D.b2Vec2(0, 0);
     for (const [id, body] of nuevo.rag.bodies.entries()) {
@@ -1124,8 +1121,8 @@ function loop(nowMs) {
     });
     players.forEach((player, k) => {
         if (player.dead) return;
-        visorWorldPoint(player.rag.bodies.get(HEAD_BODY), player.side, visorLightPoint);
-        addRobotLight(lightSet, visorLightPoint.x, visorLightPoint.y, PLAYER_LIGHT_COLORS[k]);
+        const head = player.rag.bodies.get(HEAD_BODY).GetPosition();
+        addRobotLight(lightSet, head.get_x(), head.get_y(), PLAYER_LIGHT_COLORS[k]);
     });
     lightScreenOrigin.originX = scene.world.position.x;
     lightScreenOrigin.originY = scene.world.position.y;
