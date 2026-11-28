@@ -1,2 +1,4 @@
 
 .claude/worktrees/
+tests/tools/bench-task.json
+tests/tools/bench-task.log
