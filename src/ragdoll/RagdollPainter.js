@@ -18,7 +18,7 @@ export class RagdollPainter {
     constructor({ player, json, effectsParent }) {
         this.player = player;
         this.pixelsPerMeter = json.units.pixelsPerMeter;
-        this.shapes = createRagdollShapes({ view: player.rag.view, items: player.renderItems, json });
+        this.shapes = createRagdollShapes({ view: player.rag.view, items: player.renderItems, json, side: player.side });
         this.parts = this.shapes?.parts ?? [];
         this.effects = new RagdollEffects({ parent: effectsParent, pixelsPerMeter: this.pixelsPerMeter });
     }

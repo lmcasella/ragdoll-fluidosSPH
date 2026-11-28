@@ -1,4 +1,5 @@
 import { ROBOT_JOINT_COLOR } from "../render/robotFilter.js";
+import { robotLayerOf } from "./robotLayers.js";
 
 const SHAPE_COLOR = 0xffffff;
 
@@ -26,7 +27,8 @@ function boxCorners(halfWidth, halfHeight) {
 /**
  * Figuras del robot como `PIXI.Graphics` (`docs/design/03-robots.md`): un par por fixture dentro de `rag.view`, el
  * relleno (blanco, para que el `tint` de `ragdollTint.js` sea su color) y el contorno (del color de junta del filtro de los robots, `robotFilter.js`, que nunca se tiñe),
- * en ese orden para que cada pieza tape el contorno de la anterior. La forma se dibuja una sola vez, ya en el marco del
+ * en ese orden para que cada pieza tape el contorno de la anterior. Cada pieza lleva la capa (`zIndex`) de `robotLayers.js`
+ * según el lado al que mira el robot; `rag.view` ordena por capa y el robot se recrea al girar. La forma se dibuja una sola vez, ya en el marco del
  * cuerpo y en px de `pixelsPerMeter` con la Y hacia abajo; solo el contorno se rehace cuando el zoom cambia su grosor.
  * Cada frame solo se mueven las piezas (`syncParts`). No se crea si el JSON trae sprites (`createRagdollShapes`).
  */
@@ -36,16 +38,19 @@ export class RagdollShapes {
      * @param {PIXI.Container} options.view `rag.view` de la instancia
      * @param {object[]} options.items piezas de `buildRenderItems`, en metros
      * @param {number} options.pixelsPerMeter px por metro del JSON del robot
+     * @param {number} [options.side] lado al que mira el robot, 1 o -1: decide qué brazo y qué pierna quedan adelante (`robotLayers.js`)
      */
-    constructor({ view, items, pixelsPerMeter }) {
+    constructor({ view, items, pixelsPerMeter, side = 1 }) {
         this.pixelsPerMeter = pixelsPerMeter;
         this.outlineWidth = 0;
         this.outlineBuilds = 0;
         this.items = items;
+        view.sortableChildren = true;
         /** @type {import("./ragdollSync.js").RagdollPart[]} */
         this.parts = items.map((item) => {
             const fill = new PIXI.Graphics();
             const outline = new PIXI.Graphics();
+            fill.zIndex = outline.zIndex = robotLayerOf(item.bodyId, side);
             view.addChild(fill, outline);
             this.trace(fill, item).fill(SHAPE_COLOR);
             return { body: item.body, bodyId: item.bodyId, fill, outline };
@@ -96,9 +101,10 @@ export class RagdollShapes {
  * @param {PIXI.Container} options.view `rag.view` de la instancia
  * @param {object[]} options.items piezas de `buildRenderItems`
  * @param {object} options.json `.rag.json` del robot
+ * @param {number} options.side lado al que mira el robot, 1 o -1
  * @returns {RagdollShapes|null}
  */
-export function createRagdollShapes({ view, items, json }) {
+export function createRagdollShapes({ view, items, json, side }) {
     if (json.sprites.length > 0) return null;
-    return new RagdollShapes({ view, items, pixelsPerMeter: json.units.pixelsPerMeter });
+    return new RagdollShapes({ view, items, pixelsPerMeter: json.units.pixelsPerMeter, side });
 }
