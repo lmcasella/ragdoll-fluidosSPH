@@ -27,6 +27,7 @@ const PROBE_BYTES = 1 << 20;
 const RESET_CYCLES = 15;
 const WATCH_FRAMES = 120;
 const SETTLED_FRAMES = 2 * FRAMES_PER_SECOND;
+const PIECE_WATCH_FRAMES = 20;
 
 /** Juego clásico con las dos entradas conectadas y las cajas ya apoyadas. */
 async function start() {
@@ -278,4 +279,65 @@ test("la vista no crea objetos nuevos por frame y reiniciar o romper cajas no ha
     }
     assert.equal(heapTop(), before, "el heap nativo no crece");
     assert.equal(Box2D.HEAP8.length, size);
+});
+
+/** Cantidad de contactos tocándose entre los cuerpos de los pedazos y los del robot `player`. */
+function pieceRobotContacts(crates, player) {
+    const robotBodies = new Set([...player.rag.bodies.values()].map((body) => Box2D.getPointer(body)));
+    let count = 0;
+    for (const piece of crates.pieces) {
+        for (let edge = piece.body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+            const contact = edge.get_contact();
+            if (!contact.IsTouching()) continue;
+            const other = Box2D.getPointer(contact.GetFixtureA().GetBody()) === Box2D.getPointer(piece.body) ? contact.GetFixtureB() : contact.GetFixtureA();
+            if (robotBodies.has(Box2D.getPointer(other.GetBody()))) count++;
+        }
+    }
+    return count;
+}
+
+/** Cantidad de contactos (aunque ya se hayan separado) entre un pedazo y otro: el filtro los impide desde que se crean. */
+function pieceToPieceContacts(crates) {
+    const piecePointers = new Set(crates.pieces.map((piece) => Box2D.getPointer(piece.body)));
+    let count = 0;
+    for (const piece of crates.pieces) {
+        for (let edge = piece.body.GetContactList(); Box2D.getPointer(edge) !== 0; edge = edge.get_next()) {
+            const contact = edge.get_contact();
+            const other = Box2D.getPointer(contact.GetFixtureA().GetBody()) === Box2D.getPointer(piece.body) ? contact.GetFixtureB() : contact.GetFixtureA();
+            if (piecePointers.has(Box2D.getPointer(other.GetBody()))) count++;
+        }
+    }
+    return count;
+}
+
+/** Rompe la caja de lava, deja al robot 0 encima de sus pedazos y devuelve cuántos contactos pedazo-robot y pedazo-pedazo hubo en `PIECE_WATCH_FRAMES` frames. */
+function breakAndOverlap(game) {
+    const { crates, players } = game.state;
+    const crate = pointOf(game, FLUID.LAVA, 0).crate;
+    const { x, y } = crate;
+    crates.enqueueDamage(crate, CRATE.strength);
+    game.frame();
+    place(game, 0, x, y);
+    const contacts = { robot: 0, piece: 0 };
+    for (let frame = 0; frame < PIECE_WATCH_FRAMES; frame++) {
+        game.frame();
+        contacts.robot += pieceRobotContacts(crates, players[0]);
+        contacts.piece += pieceToPieceContacts(crates);
+    }
+    return contacts;
+}
+
+test("los pedazos de una caja no chocan con los robots ni entre sí, aunque se rompa pegada a uno", async () => {
+    const game = await start();
+    const contacts = breakAndOverlap(game);
+    assert.equal(contacts.robot, 0, "con el robot");
+    assert.equal(contacts.piece, 0, "entre pedazos");
+});
+
+test("sin la regla de pedazos, los pedazos sí chocan con el robot y entre sí (control del test anterior)", async () => {
+    const game = await start();
+    game.state.platforms.setPieceFilter(() => false);
+    const contacts = breakAndOverlap(game);
+    assert.ok(contacts.robot > 0, "con el robot");
+    assert.ok(contacts.piece > 0, "entre pedazos");
 });

@@ -39,6 +39,7 @@ import { fallTime } from "../core/physics/formulas.js";
  *   `replan`: cada cuánto reelige destino;
  * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
  * - `crateRange`: distancia horizontal (m) al centro de la caja de un ítem a la que deja de acercarse y la golpea;
+ * - `crateFloodMargin`: en Infinito, distancia vertical mínima (m) entre el bot y el agua para ir a romper una caja;
  * - `repairHp`: con menos salud que esto busca también el ítem de reparación (con `pickupReach` aristas o menos);
  * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
  * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
@@ -73,6 +74,7 @@ export const BOT = {
     replan: 0.5,
     pickupReach: 3,
     crateRange: 0.9,
+    crateFloodMargin: 6,
     repairHp: 40,
     burst: 0.5,
     burstCooldown: 0.7,
@@ -672,11 +674,17 @@ export class Bot {
         this.steerInside(me);
     }
 
-    /** Apoyado sin plataforma (torso fuera): camina hacia el centro de la plataforma más cercana a los pies. */
+    /**
+     * Apoyado sin plataforma (torso fuera, o parado sobre una caja): camina hacia el centro de la plataforma más cercana a los
+     * pies y, si esos pies no están a su altura (`SAME_LEVEL`), salta hacia ella.
+     */
     steerInside(me) {
         const px = me.torso.GetPosition().get_x();
-        const node = this.nearestNode(px, me.lowestPoint() - this.offsetY);
-        if (node !== null) this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
+        const low = me.lowestPoint() - this.offsetY;
+        const node = this.nearestNode(px, low);
+        if (node === null) return;
+        this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
+        if (me.grounded && Math.abs(low - node.top) > SAME_LEVEL) this.pulse(PAD.jump);
     }
 
     /** Modo `air`: corrige el vuelo hacia el destino y golpea al rival de abajo solo si el aterrizaje es seguro. */
@@ -746,7 +754,7 @@ export class Bot {
      */
     move(game, me, foe, cur, foeNode, foeTop, adx, dx, dy, dir, now) {
         if (this.evade(me, cur, dir, now)) return;
-        if (this.seekPickup(me, cur, game.pickups ?? [])) return;
+        if (this.seekPickup(me, cur, game.pickups ?? [], game.climbing)) return;
         if (foeTop < this.minTop) {
             this.navigate(me, cur, this.highest(cur));
             return;
@@ -991,17 +999,20 @@ export class Bot {
      * Sin arma o con los tanques vacíos (puntos de arma), o con salud menor que `repairHp` (puntos de reparación), va al
      * punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach` aristas o menos.
      * Un punto con caja (`point.crate`) cuenta por la posición actual de la caja y se descarta si queda fuera de ese alcance
-     * (o no está sobre una plataforma). Devuelve verdadero si usó el frame.
+     * (o no está sobre una plataforma). En Infinito (`climbing`) descarta las cajas si el agua está a `crateFloodMargin` m o
+     * menos bajo él: no se frena a romperlas. Devuelve verdadero si usó el frame.
      */
-    seekPickup(me, cur, points) {
+    seekPickup(me, cur, points, climbing = false) {
         const wantsWeapon = !this.armed(me);
         const wantsRepair = me.hp < this.config.repairHp;
         if (cur === null || !(wantsWeapon || wantsRepair)) return false;
+        const skipsCrates = climbing && this.clearance <= this.config.crateFloodMargin;
         const { dist, parent } = this.search(cur);
         let best = null;
         let lower = null;
         for (const point of points) {
             const crate = point.crate ?? null;
+            if (crate && skipsCrates) continue;
             if (!(point.active || crate) || !(point.kind === "repair" ? wantsRepair : wantsWeapon)) continue;
             const node = crate ? this.pickupNode(crate.x, crate.y - this.offsetY) : this.pickupNode(point.x, point.y);
             if (node === null || dist[node] === Infinity) continue;

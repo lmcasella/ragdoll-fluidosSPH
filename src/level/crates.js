@@ -1,12 +1,21 @@
 import { FLUID } from "../combat/weapons.js";
+import { MELEE } from "../combat/melee.js";
 import { PolygonFixtureBuilder } from "../core/engine/box2d.js";
+
+/** Golpes simples de `MELEE` que rompen una caja. */
+const BREAKING_HITS = 2;
+
+/** Daño de los primeros `BREAKING_HITS` golpes del combo de `MELEE`. */
+const TWO_HITS_DAMAGE = MELEE.combo.sequence
+    .slice(0, BREAKING_HITS)
+    .reduce((total, attackName) => total + MELEE.attacks[attackName].damage, 0);
 
 /**
  * Cajas de acero que encierran los ítems del mapa (`docs/design/04-fluidos.md` §4.2). Distancias en m, masas en kg, tiempos
  * en s, velocidades en m/s.
  * - `side` y `mass`: lado de la caja y masa de la rebanada 2D (la densidad sale de `mass / side²`, en kg/m²); `friction`:
  *   fricción de la caja y de sus pedazos, adimensional;
- * - `strength`: resistencia; la gastan el daño de los golpes, los choques por encima de `impactSpeed` (`impactDamage` por
+ * - `strength`: resistencia, igual al daño de los dos primeros golpes del combo melee; la gastan el daño de los golpes, los choques por encima de `impactSpeed` (`impactDamage` por
  *   m/s sobre ese umbral) y cada partícula de los líquidos de `damagingFluids` que la toca (`particleDamage`);
  * - `pieceLayout`: un pedazo por cuadrante `{ x, y }` (±1 desde el centro de la caja), cuyo lado es `pieceSize` veces el de
  *   la caja y cuyo centro queda a `pieceOffset` lados de caja del centro en cada eje; sale a `pieceSpeed` hacia afuera
@@ -18,7 +27,7 @@ export const CRATE = {
     side: 0.7,
     mass: 20,
     friction: 0.6,
-    strength: 30,
+    strength: TWO_HITS_DAMAGE,
     impactSpeed: 8,
     impactDamage: 2,
     particleDamage: 0.1,
@@ -74,6 +83,8 @@ export class Crates {
         /** Pedazos vivos `{ body, expiresAt, x, y, angle }`. */
         this.pieces = [];
         this.byBody = new Map();
+        /** Punteros de los cuerpos de los pedazos vivos. */
+        this.pieceBodies = new Set();
         this.queue = [];
         pickups.boxer = this;
         for (const point of pickups.points) this.box(point);
@@ -82,6 +93,11 @@ export class Crates {
     /** Caja del cuerpo de puntero `bodyPointer`, o `undefined` si ese cuerpo no es una caja. */
     crateOf(bodyPointer) {
         return this.byBody.get(bodyPointer);
+    }
+
+    /** Verdadero si el cuerpo de puntero `bodyPointer` es un pedazo de caja vivo (lo usa el filtro de contactos). */
+    isPiece(bodyPointer) {
+        return this.pieceBodies.has(bodyPointer);
     }
 
     /** Encola `amount` de daño para `crate`: lo aplica `process`. */
@@ -168,7 +184,7 @@ export class Crates {
     reset() {
         this.queue.length = 0;
         while (this.crates.length > 0) this.removeCrate(this.crates[this.crates.length - 1]);
-        for (const piece of this.pieces) this.world.DestroyBody(piece.body);
+        for (const piece of this.pieces) this.destroyPiece(piece);
         this.pieces.length = 0;
         for (const point of this.pickups.points) this.box(point);
     }
@@ -190,10 +206,16 @@ export class Crates {
         }
         for (let index = this.pieces.length - 1; index >= 0; index--) {
             if (now < this.pieces[index].expiresAt) continue;
-            this.world.DestroyBody(this.pieces[index].body);
+            this.destroyPiece(this.pieces[index]);
             this.pieces.splice(index, 1);
         }
         this.refresh();
+    }
+
+    /** Destruye el cuerpo del pedazo y lo saca del registro de pedazos. */
+    destroyPiece(piece) {
+        this.pieceBodies.delete(Box2D.getPointer(piece.body));
+        this.world.DestroyBody(piece.body);
     }
 
     /**
@@ -231,6 +253,7 @@ export class Crates {
                 x: velocityX + directionX * pieceSpeed,
                 y: velocityY + directionY * pieceSpeed,
             });
+            this.pieceBodies.add(Box2D.getPointer(body));
             this.pieces.push({ body, expiresAt: now + pieceLife, x: pieceX, y: pieceY, angle });
         }
     }
@@ -258,7 +281,7 @@ export class Crates {
             this.world.DestroyBody(crate.body);
             crate.point.crate = null;
         }
-        for (const piece of this.pieces) this.world.DestroyBody(piece.body);
+        for (const piece of this.pieces) this.destroyPiece(piece);
         this.crates.length = 0;
         this.pieces.length = 0;
         this.byBody.clear();

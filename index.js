@@ -366,6 +366,7 @@ function buildPickups(points) {
     pickups = new Pickups(world, damage, points);
     crates = new Crates({ world, store, pickups, surfaceAt: drownSurface, isLost: crateLost });
     melee.crates = crates;
+    platforms.setPieceFilter((bodyPointer) => crates.isPiece(bodyPointer));
 }
 
 /** Libera las cajas y los puntos de aparición vivos. */
