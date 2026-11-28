@@ -162,6 +162,13 @@ test("el shader reconoce los tres materiales por id, no usa texturas externas y 
     assert.ok(!SURFACE_FRAGMENT.includes("_EDGE"), "sin aclarado de borde por material");
 });
 
+test("el shader come el borde visible con un ruido de mundo: hasta 4 cm en los cantos y 8 cm en las esquinas, solo en el alfa", () => {
+    assert.ok(SURFACE_FRAGMENT.includes("const float ERODE_REACH = 0.04;"));
+    assert.ok(SURFACE_FRAGMENT.includes("const float ERODE_CORNER_REACH = 0.08;"));
+    assert.ok(SURFACE_FRAGMENT.includes("valueNoise(world * ERODE_FREQUENCY)"), "ruido en coordenadas de mundo");
+    assert.ok(SURFACE_FRAGMENT.includes("surface.a * encoded.a * (1.0 - edgeErosion("), "afecta al alfa y no a la física");
+});
+
 test("el filtro se crea una vez y la cámara se actualiza sin reconstruirlo ni crear uniforms nuevos", () => {
     const pixi = installFakePixi();
     const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });

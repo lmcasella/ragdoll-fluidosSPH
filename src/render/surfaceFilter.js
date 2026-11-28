@@ -13,7 +13,8 @@ import { RENDER_QUALITY } from "./renderQuality.js";
  * sin texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
  * posición arma una altura por material (juntas, remaches, grano y el bisel del borde), saca la normal de su gradiente
  * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3). El borde no tiene trazo: lo
- * da el bisel con la luz y una oclusión que oscurece el material junto al borde.
+ * da el bisel con la luz y una oclusión que oscurece el material junto al borde. Los cantos expuestos se comen hasta unos
+ * centímetros con un ruido de baja frecuencia (más en las esquinas), solo en lo que se ve.
  */
 
 /** Divisor del id del material al guardarlo en el canal rojo: con ids de 1 a 3 deja los valores bien separados. */
@@ -150,6 +151,10 @@ const float BEVEL_MIN_SCREEN_PX = 3.0;
 const float BEVEL_SLOPE = 0.5;
 const float OCCLUSION_REACH = 0.06;
 const float OCCLUSION_DARKEN = 0.35;
+const float ERODE_FREQUENCY = 8.0;
+const float ERODE_REACH = 0.04;
+const float ERODE_CORNER_REACH = 0.08;
+const float COVERED = 0.999;
 const float NEAR_TAP_SHARE = 0.5;
 const float OCCLUSION_TAPS = 2.0;
 const float SPECULAR_SHININESS = 24.0;
@@ -247,6 +252,24 @@ float edgeOcclusion(vec2 textureCoord)
     return clamp(toSides + occlusionToward(textureCoord, vec2(0.0, 1.0)), 0.0, 1.0);
 }
 
+float edgeErosion(vec2 textureCoord, vec2 world)
+{
+    float roughness = valueNoise(world * ERODE_FREQUENCY);
+    vec2 cornerTap = ERODE_CORNER_REACH * roughness * uPixelsPerMeter / uInputSize.xy;
+    float right = coverageAt(textureCoord + vec2(cornerTap.x, 0.0));
+    float left = coverageAt(textureCoord - vec2(cornerTap.x, 0.0));
+    float up = coverageAt(textureCoord - vec2(0.0, cornerTap.y));
+    float down = coverageAt(textureCoord + vec2(0.0, cornerTap.y));
+    if (min(min(right, left), min(up, down)) >= COVERED) return 0.0;
+    float cornerBite = max(1.0 - right, 1.0 - left) * max(1.0 - up, 1.0 - down);
+    vec2 tap = ERODE_REACH * roughness * uPixelsPerMeter / uInputSize.xy;
+    float sideRight = coverageAt(textureCoord + vec2(tap.x, 0.0));
+    float sideLeft = coverageAt(textureCoord - vec2(tap.x, 0.0));
+    float sideUp = coverageAt(textureCoord - vec2(0.0, tap.y));
+    float sideDown = coverageAt(textureCoord + vec2(0.0, tap.y));
+    float sideBite = 1.0 - min(min(sideRight, sideLeft), min(sideUp, sideDown));
+    return max(sideBite, cornerBite);
+}
 vec3 surfaceNormal(int id, vec2 world, vec2 bevel)
 {
     float probe = 1.0 / uPixelsPerMeter;
@@ -287,7 +310,7 @@ void main(void)
     vec3 normal = surfaceNormal(id, world, bevelSlope(vTextureCoord));
     vec3 lit = litColor(surface.rgb, normal, vec3(world, 0.0), specularAmount);
     vec3 color = lit * (1.0 - edgeOcclusion(vTextureCoord) * OCCLUSION_DARKEN);
-    float alpha = surface.a * encoded.a;
+    float alpha = surface.a * encoded.a * (1.0 - edgeErosion(vTextureCoord, world));
     finalColor = vec4(color * alpha, alpha);
 }
 `;
