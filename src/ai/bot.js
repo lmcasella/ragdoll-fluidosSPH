@@ -39,6 +39,7 @@ import { fallTime } from "../core/physics/formulas.js";
  *   `replan`: cada cuánto reelige destino;
  * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
  * - `crateRange`: distancia horizontal (m) al centro de la caja de un ítem a la que deja de acercarse y la golpea;
+ * - `crateStandHeight`: altura (m) sobre el centro de una caja hasta la que los pies cuentan como parado encima de ella (y a `crateRange` en horizontal): el bot se baja por el costado en vez de quedarse sobre la caja;
  * - `repairHp`: con menos salud que esto busca también el ítem de reparación (con `pickupReach` aristas o menos);
  * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
  * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
@@ -73,6 +74,7 @@ export const BOT = {
     replan: 0.5,
     pickupReach: 3,
     crateRange: 0.9,
+    crateStandHeight: 0.5,
     repairHp: 40,
     burst: 0.5,
     burstCooldown: 0.7,
@@ -280,6 +282,7 @@ export class Bot {
         this.nav = buildNav(level, config);
         /** Desplazamiento vertical (m) del mapa (Infinito): el grafo es local, la altura en el mundo es `top + offsetY`. */
         this.offsetY = 0;
+        this.pickupPoints = [];
         this.pad = {
             connected: true,
             axes: [0, 0, 0, 0],
@@ -409,6 +412,7 @@ export class Bot {
         this.frame++;
         this.trackScroll(game.offsetY ?? 0, now);
         this.offsetY = game.offsetY ?? 0;
+        this.pickupPoints = game.pickups ?? [];
         this.pad.axes.fill(0);
         for (const b of this.pad.buttons) b.pressed = false;
         if (this.config.idle) return this.pad;
@@ -672,9 +676,33 @@ export class Bot {
         this.steerInside(me);
     }
 
-    /** Apoyado sin plataforma (torso fuera): camina hacia el centro de la plataforma más cercana a los pies. */
+    /**
+     * Caja de un ítem sobre la que están parados los pies del robot (a menos de `crateRange` en horizontal de su centro y a
+     * menos de `crateStandHeight` sobre él), o `null`.
+     */
+    crateUnderFoot(me) {
+        const px = me.torso.GetPosition().get_x();
+        const feet = me.lowestPoint();
+        for (const point of this.pickupPoints) {
+            const { crate } = point;
+            if (!crate) continue;
+            const above = feet - crate.y;
+            if (Math.abs(px - crate.x) < this.config.crateRange && above > 0 && above < this.config.crateStandHeight) return crate;
+        }
+        return null;
+    }
+
+    /**
+     * Apoyado sin plataforma (torso fuera): si está parado sobre una caja de ítem, camina hacia el costado para bajarse (si
+     * se quedara sobre la caja no podría golpearla); si no, hacia el centro de la plataforma más cercana a los pies.
+     */
     steerInside(me) {
         const px = me.torso.GetPosition().get_x();
+        const crate = this.crateUnderFoot(me);
+        if (crate) {
+            this.walk(signOrOne(px - crate.x));
+            return;
+        }
         const node = this.nearestNode(px, me.lowestPoint() - this.offsetY);
         if (node !== null) this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
     }
