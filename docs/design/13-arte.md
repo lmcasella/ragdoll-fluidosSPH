@@ -52,6 +52,7 @@ Cada plataforma firme es de un material, y el material decide cómo se ve y cuá
 - **Grietas de la chapa:** las líneas oscuras y finas crecen con la cuenta de rotura de la plataforma, desde una chapa entera hasta una muy agrietada; la vibración antes de romperse sigue igual.
 - **Legibilidad:** el borde de cada plataforma se sigue leyendo contra el fondo por el bisel y la oclusión, y los materiales no compiten con los robots ni con los fluidos.
 - **Costo:** los materiales no bajan los fps de forma medible: se dibujan en una sola pasada para todo el escenario.
+- **Madera (cajas de ítems, §4.2):** marrón cálido con vetas a lo largo de cada tabla, listones más oscuros en el marco y una diagonal. A diferencia de las plataformas, el dibujo sigue a la caja, no al mundo; la luz sí es la del escenario. El ácido y la lava la oscurecen como madera quemada.
 
 ## 13.3 Luz
 

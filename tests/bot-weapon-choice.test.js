@@ -20,13 +20,14 @@ test("un bot con agua que recoge ácido lo equipa en menos de 0,5 s", async () =
     game.frames(10);
     assert.equal(me.weapon, FLUID.WATER);
     me.tanks.set(FLUID.ACID, tankOf(FLUID.ACID));
+    const current = () => game.state.players[0];
     let frames = 0;
-    while (me.weapon !== FLUID.ACID && frames < 60) {
+    while (current().weapon !== FLUID.ACID && frames < 60) {
         game.frame();
         frames++;
     }
     globalThis.location = { search: "" };
-    assert.equal(me.weapon, FLUID.ACID);
+    assert.equal(current().weapon, FLUID.ACID, "lee el robot vigente: girar lo vuelve a crear");
     assert.ok(frames / 60 < 0.5, `tardó ${frames / 60} s`);
 });
 

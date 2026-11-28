@@ -65,7 +65,7 @@ test("surfaceOf: material explícito, y por defecto piso y pared de hormigón, e
     assert.equal(surfaceOf({}), "steel");
     assert.equal(surfaceOf({ kind: "floor", material: "steel" }), "steel");
     assert.equal(surfaceOf({ kind: "platform", oneWay: true, material: "concrete" }), "concrete");
-    assert.deepEqual(Object.values(SURFACES).map((surface) => surface.id), [1, 2, 3, 4]);
+    assert.deepEqual(Object.values(SURFACES).map((surface) => surface.id), [1, 2, 3, 4, 5]);
 });
 
 test("la tabla da el ataque del ácido: acero 1, hormigón 1 y vidrio 0, y el vidrio es translúcido", () => {

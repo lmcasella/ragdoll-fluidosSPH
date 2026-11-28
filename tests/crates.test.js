@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { loadGame } from "./helpers/game.js";
 import { place } from "./helpers/place.js";
 import { BUTTON, AIM_RIGHT } from "./helpers/duel.js";
+import { boundsOfBody } from "../src/core/engine/box2d.js";
 
 const { FLUID, weaponById } = await import("../src/combat/weapons.js");
 const { LEVEL } = await import("../src/level/level.js");
@@ -28,6 +29,9 @@ const RESET_CYCLES = 15;
 const WATCH_FRAMES = 120;
 const SETTLED_FRAMES = 2 * FRAMES_PER_SECOND;
 const PIECE_WATCH_FRAMES = 20;
+const PLANK_COUNT = 4;
+const PLANK_TOLERANCE = 0.02;
+const SPEED_TOLERANCE = 0.1;
 
 /** Juego clásico con las dos entradas conectadas y las cajas ya apoyadas. */
 async function start() {
@@ -128,6 +132,51 @@ test("los golpes de un jugador rompen la caja con el daño de la tabla de melee:
     assert.equal(players[1].tanks.has(FLUID.LAVA), false, "sin dueño ni crédito para ningún jugador");
 });
 
+test("al romperse la caja deja 4 tablas horizontales del ancho de la caja y un cuarto de su alto, apiladas sobre su lugar", async () => {
+    const game = await start();
+    const { crates } = game.state;
+    const crate = pointOf(game, FLUID.LAVA, 0).crate;
+    const { x, y } = crate;
+    crates.enqueueDamage(crate, CRATE.strength);
+    game.frame();
+    assert.equal(crates.pieces.length, CRATE.pieceLayout.length);
+    const bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    const plankHeights = [];
+    for (const piece of crates.pieces) {
+        boundsOfBody(piece.body, bounds);
+        assert.ok(Math.abs(bounds.maxX - bounds.minX - CRATE.side * CRATE.pieceSize.width) < PLANK_TOLERANCE, "del ancho de la caja");
+        plankHeights.push(bounds.maxY - bounds.minY);
+        assert.equal(piece.offsetX, 0);
+    }
+    for (const height of plankHeights) assert.ok(Math.abs(height - CRATE.side / PLANK_COUNT) < PLANK_TOLERANCE, "un cuarto del alto");
+    const stackedOffsets = crates.pieces.map((piece) => piece.offsetY).sort((a, b) => a - b);
+    const plankHeight = CRATE.side / PLANK_COUNT;
+    stackedOffsets.forEach((offset, index) => assert.ok(Math.abs(offset - (index - (PLANK_COUNT - 1) / 2) * plankHeight) < PLANK_TOLERANCE, "apiladas sin huecos"));
+    assert.ok(crates.pieces.every((piece) => Math.abs(piece.x - x) < CRATE.side && Math.abs(piece.y - y) < CRATE.side));
+});
+
+test("las tablas salen hacia afuera con un desvío lateral de hasta el 60 % de la velocidad de salida y un giro de hasta 6 rad/s, con signo al azar", async () => {
+    const game = await start();
+    const { crates } = game.state;
+    for (const crate of crates.crates) crates.enqueueDamage(crate, CRATE.strength);
+    game.frame();
+    assert.ok(crates.pieces.length >= 2 * CRATE.pieceLayout.length, "se rompen varias cajas");
+    const lateralSpeeds = [];
+    const spins = [];
+    for (const piece of crates.pieces) {
+        const velocity = piece.body.GetLinearVelocity();
+        const outward = Math.sign(piece.offsetY);
+        assert.ok(velocity.get_y() * outward > 0, "sigue saliendo hacia afuera");
+        lateralSpeeds.push(velocity.get_x());
+        spins.push(piece.body.GetAngularVelocity());
+    }
+    const sideLimit = CRATE.pieceSideSpread * CRATE.pieceSpeed + SPEED_TOLERANCE;
+    assert.ok(lateralSpeeds.every((speed) => Math.abs(speed) <= sideLimit), `desvío lateral dentro de ±${sideLimit.toFixed(2)} m/s`);
+    assert.ok(spins.every((spin) => Math.abs(spin) <= CRATE.pieceSpin + SPEED_TOLERANCE), "giro dentro de ±6 rad/s");
+    assert.ok(lateralSpeeds.some((speed) => speed > SPEED_TOLERANCE) && lateralSpeeds.some((speed) => speed < -SPEED_TOLERANCE), "el desvío sale para los dos lados");
+    assert.ok(spins.some((spin) => spin > SPEED_TOLERANCE) && spins.some((spin) => spin < -SPEED_TOLERANCE), "el giro sale para los dos lados");
+});
+
 test("un robot que camina contra la caja la empuja y la caja no se rompe", async () => {
     const game = await start();
     const lava = pointOf(game, FLUID.LAVA, 0);
@@ -184,13 +233,26 @@ test("una caja que cae de muy alto se daña por el choque, y de más alto todav�
     assert.equal(crates.pieces.length > 0, true);
 });
 
+test("el ítem de una caja rota no se recoge hasta 1 s después, aunque el robot esté encima", async () => {
+    const game = await start();
+    const { crates } = game.state;
+    const lava = pointOf(game, FLUID.LAVA, 0);
+    crates.enqueueDamage(lava.crate, Infinity);
+    game.frames(2);
+    place(game, 0, lava.x, lava.y + 0.3);
+    game.frames(Math.round((CRATE.itemPickupDelay / 2) * FRAMES_PER_SECOND));
+    assert.equal(lava.active, true, "a los 0,5 s sigue ahí");
+    game.frames(Math.round(CRATE.itemPickupDelay * FRAMES_PER_SECOND));
+    assert.equal(lava.active, false, "pasado 1 s lo recoge quien sigue encima");
+});
+
 test("a los 15 s de recogido el ítem cae una caja nueva en el punto original, y a los 20 s la de la reparación", async () => {
     const game = await start();
     const { crates } = game.state;
     const lava = pointOf(game, FLUID.LAVA, 0);
     const repair = game.state.pickups.points.find((point) => point.kind === "repair");
     for (const point of [lava, repair]) crates.enqueueDamage(point.crate, Infinity);
-    game.frames(2);
+    game.frames(2 + Math.round(CRATE.itemPickupDelay * FRAMES_PER_SECOND));
     place(game, 0, 8, 8);
     game.state.players[0].hp = 10;
     place(game, 0, repair.x, repair.y + 0.3);

@@ -5,7 +5,9 @@
  * material limpio y `wearColor` y `wearDarkColor` los del óxido o la mancha del desgaste (en la chapa de las rompibles,
  * el óxido que ya trae), todos RGB de 0 a 1; `patternSize` (m) es el lado del panel del acero, la separación entre
  * nervaduras de la chapa, el grano del hormigón y el período del reflejo del vidrio; `alpha` es la opacidad con que se
- * dibuja. La chapa (`plate`) es el material de las plataformas rompibles, que no pasan por el terreno.
+ * dibuja. La chapa (`plate`) es el material de las plataformas rompibles, que no pasan por el terreno. La madera (`wood`) es
+ * el de las cajas de los ítems (`docs/design/04-fluidos.md` §4.2): su `patternSize` es el lado de la caja, su `wearColor` y
+ * `wearDarkColor` son la madera quemada, y el shader la dibuja en el marco local de cada caja, no en el del mundo.
  */
 export const SURFACES = {
     steel: {
@@ -42,6 +44,15 @@ export const SURFACES = {
         wearColor: [0.62, 0.3, 0.12],
         wearDarkColor: [0.3, 0.15, 0.08],
         patternSize: 0.25,
+        alpha: 1,
+    },
+    wood: {
+        id: 5,
+        acidAttack: 1,
+        baseColor: [0.55, 0.36, 0.2],
+        wearColor: [0.2, 0.12, 0.07],
+        wearDarkColor: [0.05, 0.035, 0.03],
+        patternSize: 0.7,
         alpha: 1,
     },
 };

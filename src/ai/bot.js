@@ -1,4 +1,5 @@
 import { LEVEL } from "../level/level.js";
+import { CRATE } from "../level/crates.js";
 import { PAD } from "../input/Input.js";
 import { getRaycaster } from "../core/raycast.js";
 import { WEAPONS, weaponById } from "../combat/weapons.js";
@@ -37,8 +38,10 @@ import { fallTime } from "../core/physics/formulas.js";
  *   `foeClear` (el rival a menos de `dx` m en horizontal y hasta `dy` m por encima tapa el salto en vertical: despega del extremo del solape más lejano a él);
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
  *   `replan`: cada cuánto reelige destino;
- * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
+ * - `pickupReach`: por un arma que no tiene o con el tanque vacío, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
  * - `crateRange`: distancia horizontal (m) al centro de la caja de un ítem a la que deja de acercarse y la golpea;
+ * - `crateStandHeight`: altura (m) sobre el centro de una caja hasta la que los pies cuentan como parado encima de ella (y a `crateRange` en horizontal): el bot se baja por el costado en vez de quedarse sobre la caja;
+ * - `crateClearance`: distancia horizontal (m) al centro de una caja apoyada en la plataforma a la que elige el punto de despegue o de aterrizaje de un salto;
  * - `repairHp`: con menos salud que esto busca también el ítem de reparación (con `pickupReach` aristas o menos);
  * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
  * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
@@ -73,6 +76,8 @@ export const BOT = {
     replan: 0.5,
     pickupReach: 3,
     crateRange: 0.9,
+    crateStandHeight: 0.5,
+    crateClearance: 0.9,
     repairHp: 40,
     burst: 0.5,
     burstCooldown: 0.7,
@@ -280,6 +285,7 @@ export class Bot {
         this.nav = buildNav(level, config);
         /** Desplazamiento vertical (m) del mapa (Infinito): el grafo es local, la altura en el mundo es `top + offsetY`. */
         this.offsetY = 0;
+        this.pickupPoints = [];
         this.pad = {
             connected: true,
             axes: [0, 0, 0, 0],
@@ -409,6 +415,7 @@ export class Bot {
         this.frame++;
         this.trackScroll(game.offsetY ?? 0, now);
         this.offsetY = game.offsetY ?? 0;
+        this.pickupPoints = game.pickups ?? [];
         this.pad.axes.fill(0);
         for (const b of this.pad.buttons) b.pressed = false;
         if (this.config.idle) return this.pad;
@@ -672,9 +679,33 @@ export class Bot {
         this.steerInside(me);
     }
 
-    /** Apoyado sin plataforma (torso fuera): camina hacia el centro de la plataforma más cercana a los pies. */
+    /**
+     * Caja de un ítem sobre la que están parados los pies del robot (a menos de `crateRange` en horizontal de su centro y a
+     * menos de `crateStandHeight` sobre él), o `null`.
+     */
+    crateUnderFoot(me) {
+        const px = me.torso.GetPosition().get_x();
+        const feet = me.lowestPoint();
+        for (const point of this.pickupPoints) {
+            const { crate } = point;
+            if (!crate) continue;
+            const above = feet - crate.y;
+            if (Math.abs(px - crate.x) < this.config.crateRange && above > 0 && above < this.config.crateStandHeight) return crate;
+        }
+        return null;
+    }
+
+    /**
+     * Apoyado sin plataforma (torso fuera): si está parado sobre una caja de ítem, camina hacia el costado para bajarse (si
+     * se quedara sobre la caja no podría golpearla); si no, hacia el centro de la plataforma más cercana a los pies.
+     */
     steerInside(me) {
         const px = me.torso.GetPosition().get_x();
+        const crate = this.crateUnderFoot(me);
+        if (crate) {
+            this.walk(signOrOne(px - crate.x));
+            return;
+        }
         const node = this.nearestNode(px, me.lowestPoint() - this.offsetY);
         if (node !== null) this.walk(signOrOne((node.minX + node.maxX) / 2 - px));
     }
@@ -988,21 +1019,23 @@ export class Bot {
     }
 
     /**
-     * Sin arma o con los tanques vacíos (puntos de arma), o con salud menor que `repairHp` (puntos de reparación), va al
-     * punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach` aristas o menos.
-     * Un punto con caja (`point.crate`) cuenta por la posición actual de la caja y se descarta si queda fuera de ese alcance
-     * (o no está sobre una plataforma). Devuelve verdadero si usó el frame.
+     * Busca un arma que no tiene o cuyo tanque está vacío (puntos de arma), o con salud menor que `repairHp` (puntos de
+     * reparación): va al punto de aparición más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach`
+     * aristas o menos. Un punto con caja (`point.crate`) cuenta por la posición actual de la caja, la rompe para sacar el
+     * ítem y se descarta si queda fuera de ese alcance (o no está sobre una plataforma). Devuelve verdadero si usó el frame.
      */
     seekPickup(me, cur, points) {
-        const wantsWeapon = !this.armed(me);
         const wantsRepair = me.hp < this.config.repairHp;
-        if (cur === null || !(wantsWeapon || wantsRepair)) return false;
-        const { dist, parent } = this.search(cur);
+        const wantsWeapon = (weapon) => !((me.tanks.get(weapon) ?? 0) > 0);
+        if (cur === null) return false;
+        let search = null;
         let best = null;
         let lower = null;
         for (const point of points) {
             const crate = point.crate ?? null;
-            if (!(point.active || crate) || !(point.kind === "repair" ? wantsRepair : wantsWeapon)) continue;
+            if (!(point.active || crate) || !(point.kind === "repair" ? wantsRepair : wantsWeapon(point.weapon))) continue;
+            search ??= this.search(cur);
+            const { dist, parent } = search;
             const node = crate ? this.pickupNode(crate.x, crate.y - this.offsetY) : this.pickupNode(point.x, point.y);
             if (node === null || dist[node] === Infinity) continue;
             let hops = 0;
@@ -1025,13 +1058,17 @@ export class Bot {
     }
 
     /**
-     * Rompe a golpes la caja de un ítem sobre la plataforma `cur`: camina hacia ella hasta quedar a `crateRange` m en horizontal,
-     * apunta a su centro y golpea (un golpe por pulsación) mientras mire hacia ella.
+     * Rompe a golpes la caja de un ítem sobre la plataforma `cur`: si está parado encima de ella se baja por el costado; si no,
+     * camina hacia ella hasta quedar a `crateRange` m en horizontal, apunta a su centro y golpea (un golpe por pulsación) mientras mire hacia ella.
      */
     breakCrate(me, cur, crate) {
         const position = me.torso.GetPosition();
         const dx = crate.x - position.get_x();
         const dy = crate.y - position.get_y();
+        if (this.crateUnderFoot(me) === crate) {
+            this.walk(signOrOne(-dx));
+            return;
+        }
         if (Math.abs(dx) > this.config.crateRange) {
             this.walkWithin(cur, position.get_x(), crate.x);
             return;
@@ -1214,11 +1251,13 @@ export class Bot {
 
     /**
      * Plataforma sobre la que está parado el robot (pies a la altura de su tope), o `null` si está en el aire. Apoyado cuenta
-     * hasta `survival.edge.guard` m de torso fuera del borde (con los pies en la orilla); en el aire, hasta 0,3 m.
+     * hasta `survival.edge.guard` m de torso fuera del borde (con los pies en la orilla); en el aire, hasta 0,3 m. Una caja de
+     * ítem es parte de la plataforma en que se apoya: parado encima de ella (`crateUnderFoot`), cuenta como parado en esa plataforma.
      */
     supportOf(player) {
         const x = player.torso.GetPosition().get_x();
-        const low = player.lowestPoint() - this.offsetY;
+        const crateLift = this.crateUnderFoot(player) ? CRATE.side : 0;
+        const low = player.lowestPoint() - this.offsetY - crateLift;
         const slack = player.grounded ? this.config.survival.edge.guard : 0.3;
         let best = null;
         this.nav.nodes.forEach((n, i) => {
@@ -1256,6 +1295,33 @@ export class Bot {
         this.stepToward(me, this.nav.nodes[cur], this.nav.nodes[next], false, this.base === "panic");
     }
 
+    /** Cajas de ítem apoyadas en alguna de las plataformas `nodes`: dentro de su ancho y con el centro entre el tope y un lado de caja sobre él. */
+    cratesOn(nodes) {
+        const crates = [];
+        for (const { crate } of this.pickupPoints) {
+            if (!crate) continue;
+            const above = crate.y - this.offsetY;
+            if (nodes.some((node) => crate.x >= node.minX && crate.x <= node.maxX && above > node.top && above < node.top + CRATE.side)) crates.push(crate);
+        }
+        return crates;
+    }
+
+    /**
+     * Punto de `[left, right]` más cercano a `preferred` que queda a `crateClearance` m o más de las cajas apoyadas en las
+     * plataformas `nodes` (despegar o aterrizar sobre una caja la empuja o la deja debajo); `preferred` si no hay cajas, y si
+     * ningún punto queda libre, el que queda más lejos de la caja más cercana.
+     */
+    clearOfCrates(preferred, left, right, nodes) {
+        const crates = this.cratesOn(nodes);
+        if (crates.length === 0) return preferred;
+        const clearance = this.config.crateClearance;
+        const distanceToCrates = (x) => Math.min(...crates.map((crate) => Math.abs(x - crate.x)));
+        const candidates = [preferred, left, right, ...crates.flatMap((crate) => [crate.x - clearance, crate.x + clearance])].map((x) => clamp(x, left, right));
+        const free = candidates.filter((x) => distanceToCrates(x) >= clearance - GEOMETRY_TOLERANCE);
+        if (free.length === 0) return candidates.reduce((best, x) => (distanceToCrates(x) > distanceToCrates(best) ? x : best));
+        return free.reduce((best, x) => (Math.abs(x - preferred) < Math.abs(best - preferred) ? x : best));
+    }
+
     /** Un paso de la ruta de la plataforma `a` a la `b`: alinearse y saltar en vertical, o caminar al borde y saltar o dejarse caer. Con `force`, salta aunque no esté en el punto de despegue; con `rush` (pánico), salta en vertical sin esperar a que baje la velocidad horizontal. */
     stepToward(me, a, b, force, rush = false) {
         const px = me.torso.GetPosition().get_x();
@@ -1269,7 +1335,8 @@ export class Bot {
         const covered = foe !== null && Math.abs(foe.x - px) < jump.foeClear.dx && foe.y - py > 0.5 && foe.y - py < jump.foeClear.dy;
         const left = lo + jump.inset;
         const right = hi - jump.inset;
-        const center = covered ? (Math.abs(left - foe.x) > Math.abs(right - foe.x) ? left : right) : (lo + hi) / 2;
+        const preferred = covered ? (Math.abs(left - foe.x) > Math.abs(right - foe.x) ? left : right) : (lo + hi) / 2;
+        const center = overlap ? this.clearOfCrates(preferred, lo, hi, [dy >= 0 ? b : a]) : preferred;
         if (overlap) {
             if (Math.abs(px - center) > jump.align) {
                 this.walkTo(px, center);
