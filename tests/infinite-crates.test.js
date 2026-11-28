@@ -153,12 +153,12 @@ test("Infinito: un bot que cae parado encima de una caja se baja por el costado 
     const { crate } = pickups.points.find((candidate) => candidate.kind !== "repair");
     const torso = players[1].torso.GetPosition();
     const lift = new Box2D.b2Vec2(0, 0);
-    const dx = crate.x - torso.get_x();
-    const dy = crate.y + CRATE.side / 2 + TORSO_ABOVE_FEET - torso.get_y();
+    const shiftX = crate.x - torso.get_x();
+    const shiftY = crate.y + CRATE.side / 2 + TORSO_ABOVE_FEET - torso.get_y();
     for (const body of players[1].rag.bodies.values()) {
         const position = body.GetPosition();
-        lift.set_x(position.get_x() + dx);
-        lift.set_y(position.get_y() + dy);
+        lift.set_x(position.get_x() + shiftX);
+        lift.set_y(position.get_y() + shiftY);
         body.SetTransform(lift, body.GetAngle());
         body.SetAwake(true);
     }
