@@ -1156,7 +1156,7 @@ function loop(nowMs) {
         player.painter.paint(PLAYER_TINTS[k], scale, now);
     });
     waterView.draw(water, climb ? { floor: flood.floor, bottom } : null);
-    pickupView.update(pickups.points, pickups.offsetY);
+    pickupView.update(pickups.points, pickups.offsetY, now);
     crateView.update({ crates: crates.crates, pieces: crates.pieces, screenOrigin: scene.world.position, screenScale: scale });
     players.forEach((player, k) => {
         aimLaserView.draw(k, laserDe(player), PLAYER_COLORS[k], scale);

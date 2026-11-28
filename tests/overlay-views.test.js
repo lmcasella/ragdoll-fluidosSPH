@@ -8,6 +8,7 @@ import { loadGame, giveAllWeapons, removeCrates } from "./helpers/game.js";
 import { installFakePixi } from "./helpers/fake-pixi.js";
 
 const { WEAPONS } = await import("../src/combat/weapons.js");
+const { tintOf } = await import("../src/core/color.js");
 const { AimLaserView } = await import("../src/render/aimLaserView.js");
 const { HitEffectsView, HIT_FX } = await import("../src/render/hitEffectsView.js");
 const { WeaponWheelView, WHEEL_RADII } = await import("../src/render/weaponWheelView.js");
@@ -53,7 +54,7 @@ test("las capas de debug apagadas quedan vacías: no dibujan ni se redibujan en 
     for (const graphics of layers) assert.equal(graphics.strokes.length + graphics.fills.length, 0);
 });
 
-test("un recogible por punto de aparición: círculo con la inicial del arma, tuerca con agujero para la reparación; los inactivos se ocultan", async () => {
+test("un recogible por punto de aparición: frasco con el líquido del arma, tuerca con llave y halo para la reparación; los inactivos se ocultan", async () => {
     const game = await loadGame();
     removeCrates(game);
     const { pickupView } = game.state;
@@ -65,17 +66,20 @@ test("un recogible por punto de aparición: círculo con la inicial del arma, tu
         const entry = pickupView.entries[index];
         assert.equal(entry.node.visible, true);
         if (point.kind === "repair") {
-            assert.equal(entry.graphics.polygons.length, 2, "hexágono de relleno y hexágono de borde");
-            assert.equal(entry.graphics.fills.length, 1);
-            assert.equal(entry.graphics.strokes.length, 1);
-            assert.equal(entry.graphics.cuts, 1, "con el agujero recortado del relleno");
-            assert.equal(entry.label.visible, false);
+            assert.equal(entry.repair.visible, true);
+            assert.equal(entry.bottle.visible, false);
+            assert.equal(entry.nut.polygons.length, 2, "hexágono de relleno y hexágono de borde");
+            assert.equal(entry.nut.fills.length, 1);
+            assert.equal(entry.nut.strokes.length, 1);
+            assert.equal(entry.nut.cuts, 1, "con el agujero recortado del relleno");
+            assert.equal(entry.wrench.polygons.length, 1, "la llave");
+            assert.equal(entry.halo.circles.length, 1, "el halo");
         } else {
             const weapon = WEAPONS.find((candidate) => candidate.id === point.weapon);
-            assert.equal(entry.graphics.circles.length, 1);
-            assert.equal(entry.label.text, weapon.name[0]);
-            assert.equal(entry.label.visible, true);
-            assert.equal(entry.label.scale.y, -1, "la letra corrige la Y invertida de la cámara");
+            assert.equal(entry.bottle.visible, true);
+            assert.equal(entry.repair.visible, false);
+            assert.equal(entry.glass.polygons.length, 1, "el vidrio");
+            assert.deepEqual(entry.liquid.fills, [{ color: tintOf(...weapon.color) }], "el líquido del color del arma");
         }
     });
     game.state.pickups.consume(points[0], Infinity);
@@ -83,7 +87,6 @@ test("un recogible por punto de aparición: círculo con la inicial del arma, tu
     assert.equal(pickupView.entries[0].node.visible, false, "esperando reaparecer, no se dibuja");
     assert.equal(pickupView.entries[1].node.visible, true);
 });
-
 test("con el desplazamiento del mapa de ascenso, los recogibles suben con el contenedor sin rearmarse", async () => {
     const game = await loadGame({ map: "infinite" });
     const { pickupView, pickups } = game.state;
