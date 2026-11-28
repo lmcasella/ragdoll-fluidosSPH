@@ -339,3 +339,21 @@ test("el pegado viejo se retiró: no queda estado `pegado` en el robot ni consul
     assert.equal(player.stick, undefined);
     assert.equal(game.state.damage.stickHoney, undefined);
 });
+
+test("sin partículas de miel vivas, Adhesion no recorre los contactos partícula-partícula", () => {
+    const scene = newScene({ gravity: G });
+    addBox(scene, "floor", { x: 0, y: -0.5, w: 20, h: 1 });
+    fill(scene, FLUID.WATER, 0, 9 * SPACING, 0.1, 0.1 + 4 * SPACING);
+    let pairReads = 0;
+    const readPairs = scene.adhesion.contacts.pairs.bind(scene.adhesion.contacts);
+    scene.adhesion.contacts.pairs = (total) => {
+        pairReads++;
+        return readPairs(total);
+    };
+    for (let step = 0; step < 5; step++) scene.step();
+    assert.equal(pairReads, 0);
+
+    fill(scene, FLUID.HONEY, 0, 9 * SPACING, 0.6, 0.6 + SPACING);
+    scene.step();
+    assert.ok(pairReads > 0);
+});

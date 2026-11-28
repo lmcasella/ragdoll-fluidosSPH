@@ -2,6 +2,7 @@ import { FLUID } from "../combat/weapons.js";
 import { MATERIALS, SIGMA_W } from "./materials.js";
 import { KIND_MATERIAL } from "../water/immersion.js";
 import { Contacts } from "./contacts.js";
+import { BodySubstepCache, bodyWorldPoint, bodyWorldVector, bodyLocalPoint, bodyLocalVector } from "./bodySubstepCache.js";
 import { exponentialApproachFactor } from "../core/math/scalar.js";
 import { vectorLength, normalize, dot, cross } from "../core/math/vector2.js";
 import { WATER_DENSITY } from "../core/physics/constants.js";
@@ -112,6 +113,7 @@ export class Adhesion {
         this.best = new Int32Array(capacity);
         this.stamp = new Uint32Array(capacity);
         this.tick = 0;
+        this.userDataStart = 0;
         const slots = store.capacity;
         this.bridgeGen = new Uint32Array(slots);
         this.bridgeBody = new Int32Array(slots);
@@ -120,6 +122,8 @@ export class Adhesion {
         this.bridgeY = new Float32Array(slots);
         this.bridgeNx = new Float32Array(slots);
         this.bridgeNy = new Float32Array(slots);
+        this.bodies = new BodySubstepCache();
+        this.transformed = { x: 0, y: 0 };
         this.impulse = new Box2D.b2Vec2(0, 0);
         this.point = new Box2D.b2Vec2(0, 0);
         this.resetStats();
@@ -143,6 +147,7 @@ export class Adhesion {
     update(substep) {
         if (this.wallContact.skipped) {
             this.bridgeGen.fill(0);
+            this.bodies.clear();
             return;
         }
         const { system, store, contacts } = this;
@@ -153,14 +158,16 @@ export class Adhesion {
         const vel = Box2D.getPointer(system.GetVelocityBuffer()) >> 2;
         const pos = Box2D.getPointer(system.GetPositionBuffer()) >> 2;
         const heap = Box2D.HEAPF32;
+        this.userDataStart = system.GetUserDataBuffer() >> 2;
         const tick = ++this.tick;
+        this.bodies.beginSubstep();
         const { best, stamp } = this;
         const index = contacts.bodyIndex;
         const weight = contacts.bodyW;
         for (let c = 0; c < count; c++) {
             const i = index[c];
             if (escaped[i] === 1) continue;
-            const slot = store.slotAt(i);
+            const slot = this.slotOf(i);
             if (slot < 0 || store.alive[slot] === 0 || this.kinds[store.kind[slot]] === 0) continue;
             if (stamp[i] !== tick) {
                 stamp[i] = tick;
@@ -169,39 +176,37 @@ export class Adhesion {
                 best[i] = c;
             }
         }
-        this.coverPairs(total, pos);
-        const point = this.point;
+        if (this.hasFilmParticles(total)) this.coverPairs(total, pos);
+        const transformed = this.transformed;
         for (let c = 0; c < count; c++) {
             const i = index[c];
             if (stamp[i] !== tick || best[i] !== c) continue;
-            const slot = store.slotAt(i);
+            const slot = this.slotOf(i);
             const nx = contacts.bodyNx[c];
             const ny = contacts.bodyNy[c];
             const gap = Math.max(0, 1 - weight[c]) * 2 * this.radius;
             const qx = heap[pos + 2 * i] - gap * nx;
             const qy = heap[pos + 2 * i + 1] - gap * ny;
-            const body = Box2D.wrapPointer(contacts.bodyPtr[c], Box2D.b2Body);
+            const body = this.bodies.get(contacts.bodyPtr[c]);
             const held = this.bridgeGen[slot] === store.generation[slot];
             const same = held && this.bridgeBody[slot] === contacts.bodyPtr[c];
             if (same || !held || weight[c] > this.bridgeWeight[slot]) {
-                point.set_x(qx);
-                point.set_y(qy);
+                this.point.set_x(qx);
+                this.point.set_y(qy);
                 if (!same && !this.arriving(i, body, vel, nx, ny)) continue;
-                const local = body.GetLocalPoint(point);
-                this.bridgeX[slot] = local.get_x();
-                this.bridgeY[slot] = local.get_y();
-                point.set_x(nx);
-                point.set_y(ny);
-                const normal = body.GetLocalVector(point);
-                this.bridgeNx[slot] = normal.get_x();
-                this.bridgeNy[slot] = normal.get_y();
+                bodyLocalPoint(body, this.point.get_x(), this.point.get_y(), transformed);
+                this.bridgeX[slot] = transformed.x;
+                this.bridgeY[slot] = transformed.y;
+                bodyLocalVector(body, nx, ny, transformed);
+                this.bridgeNx[slot] = transformed.x;
+                this.bridgeNy[slot] = transformed.y;
                 this.bridgeBody[slot] = contacts.bodyPtr[c];
                 this.bridgeWeight[slot] = weight[c];
                 this.bridgeGen[slot] = store.generation[slot];
             }
         }
         for (let i = 0; i < total; i++) {
-            const slot = store.slotAt(i);
+            const slot = this.slotOf(i);
             if (slot < 0 || this.bridgeGen[slot] !== store.generation[slot]) continue;
             const kind = store.kind[slot];
             if (store.alive[slot] === 0 || this.honey[kind] === 0) {
@@ -209,17 +214,11 @@ export class Adhesion {
                 continue;
             }
             if (escaped[i] === 1) continue;
-            const body = Box2D.wrapPointer(this.bridgeBody[slot], Box2D.b2Body);
-            point.set_x(this.bridgeX[slot]);
-            point.set_y(this.bridgeY[slot]);
-            const q = body.GetWorldPoint(point);
-            const qx = q.get_x();
-            const qy = q.get_y();
-            point.set_x(this.bridgeNx[slot]);
-            point.set_y(this.bridgeNy[slot]);
-            const n = body.GetWorldVector(point);
-            const nx = n.get_x();
-            const ny = n.get_y();
+            const body = this.bodies.get(this.bridgeBody[slot]);
+            const qx = bodyWorldPoint(body, this.bridgeX[slot], this.bridgeY[slot], transformed).x;
+            const qy = transformed.y;
+            const nx = bodyWorldVector(body, this.bridgeNx[slot], this.bridgeNy[slot], transformed).x;
+            const ny = transformed.y;
             const separation = dot(heap[pos + 2 * i] - qx, heap[pos + 2 * i + 1] - qy, nx, ny);
             if (separation > this.cut) {
                 this.bridgeGen[slot] = 0;
@@ -238,12 +237,33 @@ export class Adhesion {
         const heap = Box2D.HEAPF32;
         let vx = heap[vel + 2 * i];
         let vy = heap[vel + 2 * i + 1];
-        if (body.GetType() !== STATIC) {
-            const vb = body.GetLinearVelocityFromWorldPoint(this.point);
+        if (body.type !== STATIC) {
+            const vb = body.body.GetLinearVelocityFromWorldPoint(this.point);
             vx -= vb.get_x();
             vy -= vb.get_y();
         }
         return vx * nx + vy * ny <= 0;
+    }
+
+    /**
+     * Slot estable de la partícula `i`, o -1 si no tiene. Igual que `ParticleStore.slotAt`, pero con la dirección del buffer
+     * de `userData` leída una sola vez por subpaso: pedirla al binding por partícula cuesta más que el resto del subpaso.
+     */
+    slotOf(i) {
+        return Box2D.HEAP32[this.userDataStart + i] - 1;
+    }
+
+    /**
+     * Verdadero si hay al menos una partícula viva de un material con película (miel). Sin ellas `coverPairs` no tiene qué
+     * guardar y no se recorren los contactos partícula-partícula.
+     */
+    hasFilmParticles(total) {
+        const { store } = this;
+        for (let i = 0; i < total; i++) {
+            const slot = this.slotOf(i);
+            if (slot >= 0 && store.alive[slot] === 1 && this.kinds[store.kind[slot]] === 1) return true;
+        }
+        return false;
     }
 
     /** Guarda, por partícula, la dirección a sus vecinas de miel (contactos partícula-partícula de este paso). */
@@ -260,11 +280,13 @@ export class Adhesion {
         const dir = this.coverDir;
         cnt.fill(0, 0, total);
         const k = contacts.pairs(total);
+        const userData = Box2D.HEAP32;
+        const userDataStart = this.userDataStart;
         for (let c = 0; c < k; c++) {
             const a = contacts.pairA[c];
             const b = contacts.pairB[c];
-            const sa = store.slotAt(a);
-            const sb = store.slotAt(b);
+            const sa = userData[userDataStart + a] - 1;
+            const sb = userData[userDataStart + b] - 1;
             if (sa < 0 || sb < 0 || this.honey[store.kind[sa]] === 0 || this.honey[store.kind[sb]] === 0) continue;
             const dx = heap[pos + 2 * b] - heap[pos + 2 * a];
             const dy = heap[pos + 2 * b + 1] - heap[pos + 2 * a + 1];
@@ -301,7 +323,7 @@ export class Adhesion {
     film(i, kind, body, qx, qy, nx, ny, vel, dt) {
         const heap = Box2D.HEAPF32;
         const stats = this.stats;
-        const type = body.GetType();
+        const type = body.type;
         const dynamic = type === DYNAMIC;
         const mass = this.mass[kind];
         this.point.set_x(qx);
@@ -313,18 +335,15 @@ export class Adhesion {
         let rx = 0;
         let ry = 0;
         if (type !== STATIC) {
-            const vb = body.GetLinearVelocityFromWorldPoint(this.point);
+            const vb = body.body.GetLinearVelocityFromWorldPoint(this.point);
             vbx = vb.get_x();
             vby = vb.get_y();
         }
         if (dynamic) {
-            const center = body.GetWorldCenter();
-            rx = qx - center.get_x();
-            ry = qy - center.get_y();
-            invBody = 1 / body.GetMass();
-            const local = body.GetLocalCenter();
-            const inertia = body.GetInertia() - body.GetMass() * (local.get_x() * local.get_x() + local.get_y() * local.get_y());
-            invInertia = inertia > 0 ? 1 / inertia : 0;
+            rx = qx - body.centerX;
+            ry = qy - body.centerY;
+            invBody = body.inverseMass;
+            invInertia = body.inverseInertia;
         }
         const vrx = heap[vel + 2 * i] - vbx;
         const vry = heap[vel + 2 * i + 1] - vby;
@@ -361,7 +380,7 @@ export class Adhesion {
             stats.bodyY += jy;
             this.impulse.set_x(jx);
             this.impulse.set_y(jy);
-            body.ApplyLinearImpulse(this.impulse, this.point, true);
+            body.body.ApplyLinearImpulse(this.impulse, this.point, true);
         } else {
             stats.staticX += jx;
             stats.staticY += jy;
