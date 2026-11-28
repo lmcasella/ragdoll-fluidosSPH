@@ -83,6 +83,8 @@ ${NOISE_FUNCTIONS}
 const float DRY_DEPTH_M = -1.0;
 const float COLUMN_CENTER = 0.5;
 const float TEXEL_CENTER = 0.5;
+const float SHEEN_SPREAD = 4.0;
+const float SHEEN_STRENGTH = 0.35;
 const float WET_COLUMN = 0.5;
 const float BYTE_MAX = 255.0;
 const float BYTE_VALUES = 256.0;
@@ -160,9 +162,8 @@ void main(void)
     color += (lightSum(point, normal, 0.0, 1.0) * LIGHT_REFLECTION + lightSpecular(point, normal, SPECULAR_SHININESS) * SPECULAR_STRENGTH) * reflectionShare;
 
     float lineWidthMeters = uLineWidth / uPixelsPerMeter;
-    float line = 1.0 - smoothstep(0.5 * lineWidthMeters, lineWidthMeters, depth);
-    color = mix(color, uLineColor, line);
-    alpha = mix(alpha, 1.0, line);
+    float sheen = (1.0 - smoothstep(0.0, lineWidthMeters * SHEEN_SPREAD, depth)) * SHEEN_STRENGTH;
+    color = mix(color, uLineColor, sheen);
     finalColor = vec4(color, alpha) * coverage;
 }
 `;
@@ -230,8 +231,8 @@ export function createWaterHeights(columnCount) {
  * @param {object} options.look fila de `FLUID_LOOK` del agua (`refraction` y `fresnel`)
  * @param {number[]} options.color RGB del agua, de 0 a 255 (`WATER_FIELD.draw.color`)
  * @param {number[]} options.acidColor RGB del agua con el tinte de ácido completo, de 0 a 255
- * @param {number[]} options.lineColor RGB de la línea de superficie, de 0 a 255
- * @param {number} options.lineWidth grosor de la línea de superficie, en px de pantalla
+ * @param {number[]} options.lineColor RGB del brillo de la superficie y del fresnel, de 0 a 255
+ * @param {number} options.lineWidth medida del brillo de la superficie, en px de pantalla (se difumina en SHEEN_SPREAD veces esa medida, sin contorno)
  * @param {PIXI.BufferImageSource} options.heights textura de `createWaterHeights`
  * @param {{x0: number, dx: number, count: number}} options.columns borde izquierdo (m), ancho (m) y cantidad de columnas del campo
  * @returns {PIXI.Filter}
