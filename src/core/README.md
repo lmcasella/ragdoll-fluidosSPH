@@ -140,6 +140,13 @@ Antes de escribir una cuenta, buscala acá. El detalle está en el docstring de 
 | `Raycaster` | Raycast sobre el mundo de Box2D que devuelve el impacto más cercano, sin memoria nativa por rayo. |
 | `getRaycaster` | Un `Raycaster` compartido por mundo. |
 
+### fixedStep.js
+
+| Nombre | Qué hace |
+|---|---|
+| `MAX_STEPS_PER_FRAME` | Tope de pasos de física por frame (2). |
+| `consumeFixedSteps` | Pasos a correr en un frame y acumulador que queda; con el tope, descarta el exceso. |
+
 ### debug.js
 
 | Nombre | Qué hace |

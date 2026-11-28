@@ -65,6 +65,7 @@ export class Debug {
         this.fluidMode = FLUID_MODES[0];
         this.layers = { velocidades: false, fuerzas: false, columnas: false, bots: false, terreno: false };
         this.laps = {};
+        this.stepLaps = {};
         this.last = 0;
         this.avg = { fps: 0, contacts: 0, cflSubsteps: 0, drift: 0, ms: {}, particles: {}, terrain: {} };
         this.volume0 = null;
@@ -118,19 +119,29 @@ export class Debug {
         else this.layers[id] = !this.layers[id];
     }
 
-    /** Empieza a medir un frame: `laps` queda en cero. */
+    /** Empieza a medir un frame: `laps` queda en cero y `stepLaps` vacío. */
     begin() {
         if (!this.stats) return;
         for (const key in this.laps) this.laps[key] = 0;
+        for (const key in this.stepLaps) this.stepLaps[key].length = 0;
         this.last = this.now();
     }
 
-    /** Suma a `laps[name]` (ms) el tiempo desde la marca anterior. */
+    /** Suma a `laps[name]` (ms) el tiempo desde la marca anterior y lo devuelve. */
     mark(name) {
-        if (!this.stats) return;
+        if (!this.stats) return 0;
         const t = this.now();
-        this.laps[name] = (this.laps[name] ?? 0) + (t - this.last);
+        const elapsed = t - this.last;
+        this.laps[name] = (this.laps[name] ?? 0) + elapsed;
         this.last = t;
+        return elapsed;
+    }
+
+    /** Como `mark`, y además guarda ese tiempo como una muestra más de `stepLaps[name]`: una por cada vez que se marca en el frame. */
+    markEach(name) {
+        if (!this.stats) return;
+        const elapsed = this.mark(name);
+        (this.stepLaps[name] ??= []).push(elapsed);
     }
 
     /** Vuelve a tomar el volumen de referencia de la deriva en la próxima muestra (ronda nueva, mapa nuevo). */

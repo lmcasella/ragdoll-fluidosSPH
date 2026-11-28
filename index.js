@@ -26,6 +26,7 @@ import { Viscosity } from "./src/fluids/viscosity.js";
 import { Adhesion } from "./src/fluids/adhesion.js";
 import { Buoyancy } from "./src/water/buoyancy.js";
 import { Debug } from "./src/core/debug.js";
+import { consumeFixedSteps, MAX_STEPS_PER_FRAME } from "./src/core/fixedStep.js";
 import { MATERIALS } from "./src/fluids/materials.js";
 import { Match, GO_TIME } from "./src/match/round.js";
 import { Hud } from "./src/ui/hud.js";
@@ -1014,9 +1015,10 @@ function simular(frameDt, enTitulo) {
     });
 
     debug.mark("control");
-    stepsLastFrame = 0;
-    while (accumulator >= STEP_SETTINGS.dt) {
-        stepsLastFrame++;
+    const pendingSteps = consumeFixedSteps(accumulator, STEP_SETTINGS.dt, MAX_STEPS_PER_FRAME);
+    stepsLastFrame = pendingSteps.steps;
+    accumulator = pendingSteps.accumulator;
+    for (let stepIndex = 0; stepIndex < pendingSteps.steps; stepIndex++) {
         players.forEach((player, k) => {
             controls[k].jump = jumpPending[k] === "jump";
             controls[k].roll = jumpPending[k] === "roll";
@@ -1033,7 +1035,7 @@ function simular(frameDt, enTitulo) {
         if (match.state === "playing") breakable.update(players, STEP_SETTINGS.dt, now);
         store.afterStep();
         buoyancy.releaseSplashes();
-        debug.mark("física");
+        debug.markEach(BENCH.physicsLap);
         immersion.step(STEP_SETTINGS.dt);
         debug.mark("inmersión");
         evaporation.step(STEP_SETTINGS.dt);
@@ -1056,7 +1058,6 @@ function simular(frameDt, enTitulo) {
         crates.process(now);
         pickups.process(now);
         debug.mark("daño");
-        accumulator -= STEP_SETTINGS.dt;
     }
     sonarEventos(now);
     if (climb && match.state === "playing") {
@@ -1145,6 +1146,7 @@ function createBench() {
             if (match.state === "matchOver") this.startScene(sceneSetup);
         },
         laps: () => debug.laps,
+        stepMilliseconds: () => debug.stepLaps[BENCH.physicsLap] ?? [],
         particleCount: () => particleSystem.GetParticleCount(),
         context() {
             const terrain = currentTerrain();
