@@ -1,7 +1,7 @@
 import { tintOf } from "../core/color.js";
 import { createSurfaceFilter, encodeSurface, setSurfaceFilterLights, updateSurfaceFilter, updateSurfaceFilterFrame } from "./surfaceFilter.js";
-import { createLabel } from "./labelText.js";
-import { drawNut } from "./pickupView.js";
+import { NUT } from "./pickupView.js";
+import { drawDrop, drawWrench } from "./itemShapes.js";
 
 /** Material con que se pintan las cajas y sus pedazos: la madera, dibujada en el marco de cada caja (`docs/design/13-arte.md` §13.2). */
 const CRATE_SURFACE = "wood";
@@ -18,17 +18,12 @@ const GREEN_SHIFT = 8;
 /** Bits que se desplaza el canal rojo dentro de un color de 24 bits. */
 const RED_SHIFT = 16;
 
-/** Lado del panel del color del arma, en m (la caja mide 0,7 m). */
-const PANEL_SIDE_M = 0.42;
-
-/** Grosor del borde del panel, en m. */
-const PANEL_OUTLINE_M = 0.04;
-
-/** Color del borde del panel. */
-const PANEL_OUTLINE_COLOR = "#ffffff";
-
-/** Radio de la tuerca de la reparación sobre la caja, en m. */
-const PANEL_NUT_RADIUS_M = 0.24;
+/**
+ * Marca de embalaje pintada en el frente de la caja (`docs/design/04-fluidos.md` §4.2): `size` es el alto de la gota o el
+ * largo de la llave, en m (la caja mide 0,7 m); `alpha`, la opacidad de la pintura; `wrenchTilt`, el giro de la llave sobre
+ * la caja, en rad. La llave toma el verde del ítem de reparación (`NUT.edge`).
+ */
+export const CRATE_STAMP = { size: 0.42, alpha: 0.75, wrenchTilt: 0.785 };
 
 /**
  * Tinte que escala el canal verde del color codificado de la madera (que se dibuja con desgaste 1) por `wear`, de 0 a 1:
@@ -64,8 +59,9 @@ function drawWoodRectangle(graphics, size, pixelsPerMeter) {
  * cada uno lleva su propio filtro de materiales (`createSurfaceFilter`), creado con la entrada: la madera se dibuja en el marco
  * local del cuerpo (`updateSurfaceFilterFrame`), así la veta y los listones se mueven y giran con él, con la luz del escenario.
  * Un pedazo muestra su tramo de la caja entera (su desplazamiento dentro de ella). El desgaste va en el tinte, de 0 (nueva)
- * a 1 (a punto de romperse). Encima, en la capa superpuesta, el panel del color del arma con su inicial, o la tuerca de la
- * reparación, gira con la caja. No lee Box2D: recibe los datos planos de `Crates`.
+ * a 1 (a punto de romperse). Encima, en la capa superpuesta, la marca de embalaje (`CRATE_STAMP`: una gota del color del
+ * arma o una llave inglesa para la reparación) se pinta una vez, queda quieta sobre la caja y gira con ella. No lee Box2D:
+ * recibe los datos planos de `Crates`.
  */
 export class CrateView {
     /**
@@ -119,17 +115,17 @@ export class CrateView {
         for (let index = 0; index < crates.length; index++) {
             const crate = crates[index];
             const entry = this.crateEntryAt(index);
-            if (entry.point !== crate.point) this.buildPanel(entry, crate.point);
+            if (entry.point !== crate.point) this.buildStamp(entry, crate.point);
             this.place(entry.body, crate, scale);
             this.shade(entry.filter, crate);
             entry.body.tint = wearTint(crate.wear);
-            this.place(entry.panel, crate, scale);
+            this.place(entry.stamp, crate, scale);
             entry.body.visible = true;
-            entry.panel.visible = entry.drawable;
+            entry.stamp.visible = entry.drawable;
         }
         for (let index = crates.length; index < this.crateEntries.length; index++) {
             this.crateEntries[index].body.visible = false;
-            this.crateEntries[index].panel.visible = false;
+            this.crateEntries[index].stamp.visible = false;
         }
         for (let index = 0; index < pieces.length; index++) {
             const entry = this.pieceEntryAt(index);
@@ -182,16 +178,13 @@ export class CrateView {
         return { graphics, filter };
     }
 
-    /** Entrada del pool de cajas en `index`: la crea con su cuerpo de madera, su filtro, su panel y su letra la primera vez. */
+    /** Entrada del pool de cajas en `index`: la crea con su cuerpo de madera, su filtro y su marca de embalaje la primera vez. */
     crateEntryAt(index) {
         if (this.crateEntries[index] === undefined) {
             const { graphics: body, filter } = this.createWoodNode({ width: this.crateSide, height: this.crateSide });
-            const panel = new PIXI.Container();
-            this.panelContainer.addChild(panel);
-            const panelGraphics = new PIXI.Graphics();
-            panel.addChild(panelGraphics);
-            const label = createLabel(panel, this.pixelsPerMeter);
-            this.crateEntries[index] = { body, filter, panel, panelGraphics, label, point: null, drawable: false };
+            const stamp = new PIXI.Graphics();
+            this.panelContainer.addChild(stamp);
+            this.crateEntries[index] = { body, filter, stamp, point: null, drawable: false };
         }
         return this.crateEntries[index];
     }
@@ -206,20 +199,20 @@ export class CrateView {
     }
 
     /**
-     * Arma el panel de la entrada para el ítem de `point`: la tuerca de la reparación, o el cuadrado del color del arma con su
-     * inicial. Un arma que no está en la tabla no dibuja panel.
+     * Pinta la marca de embalaje de la entrada para el ítem de `point`: la llave inglesa de la reparación, o la gota del color
+     * del arma. Un arma que no está en la tabla no lleva marca.
      * @param {object} entry entrada del pool
      * @param {object} point punto de aparición de `Pickups`
      */
-    buildPanel(entry, point) {
-        const { panelGraphics, label } = entry;
-        const scale = this.pixelsPerMeter;
+    buildStamp(entry, point) {
+        const { stamp } = entry;
+        const { size, alpha, wrenchTilt } = CRATE_STAMP;
+        const pixelsPerMeter = this.pixelsPerMeter;
         entry.point = point;
-        panelGraphics.clear();
-        label.visible = false;
+        stamp.clear();
         entry.drawable = true;
         if (point.kind === "repair") {
-            drawNut(panelGraphics, PANEL_NUT_RADIUS_M, scale);
+            drawWrench(stamp, { length: size, color: tintOf(...NUT.edge), alpha, pixelsPerMeter, tilt: wrenchTilt });
             return;
         }
         const weapon = this.weapons.find((candidate) => candidate.id === point.weapon);
@@ -227,13 +220,6 @@ export class CrateView {
             entry.drawable = false;
             return;
         }
-        const [red, green, blue] = weapon.color;
-        const half = (PANEL_SIDE_M / 2) * scale;
-        panelGraphics
-            .rect(-half, -half, 2 * half, 2 * half)
-            .fill({ color: tintOf(red, green, blue) })
-            .stroke({ width: PANEL_OUTLINE_M * scale, color: PANEL_OUTLINE_COLOR });
-        label.text = weapon.name[0];
-        label.visible = true;
+        drawDrop(stamp, { height: size, color: tintOf(...weapon.color), alpha, pixelsPerMeter });
     }
 }

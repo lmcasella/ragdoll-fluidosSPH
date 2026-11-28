@@ -12,7 +12,10 @@ const { CRATE } = await import("../src/level/crates.js");
 const { WEAPONS, FLUID } = await import("../src/combat/weapons.js");
 const { SURFACE_FRAGMENT, SURFACE_ID_SCALE, encodeSurface } = await import("../src/render/surfaceFilter.js");
 const { createLightSet } = await import("../src/render/lighting.js");
-const { CrateView } = await import("../src/render/crateView.js");
+const { CrateView, CRATE_STAMP } = await import("../src/render/crateView.js");
+const { ITEM_SHAPES } = await import("../src/render/itemShapes.js");
+const { NUT } = await import("../src/render/pickupView.js");
+const { tintOf } = await import("../src/core/color.js");
 
 const PIXELS_PER_METER = 32;
 const SCREEN_SCALE = 40;
@@ -115,4 +118,31 @@ test("un pedazo muestra su tramo de la caja: su centro cae en su desplazamiento 
     update(view, [], [piece]);
     const center = toFrame({ x: piece.x, y: piece.y }, view.pieceEntries[0].filter);
     assert.ok(Math.abs(center.x - piece.offsetX) < COORDINATE_TOLERANCE && Math.abs(center.y - piece.offsetY) < COORDINATE_TOLERANCE);
+});
+
+test("la marca de embalaje es una gota del color del arma o una llave para la reparación, un poco translúcida, y se pinta una sola vez", () => {
+    const { view } = newView();
+    const lava = WEAPONS.find((weapon) => weapon.id === FLUID.LAVA);
+    const repair = { point: { kind: "repair" }, ...POSE_B, wear: 0 };
+    const crates = [crateAt(POSE_A, FLUID.LAVA), repair];
+    update(view, crates);
+    const [drop, wrench] = view.crateEntries.map((entry) => entry.stamp);
+    assert.equal(drop.polygons.length, 1);
+    assert.deepEqual(drop.fills, [{ color: tintOf(...lava.color), alpha: CRATE_STAMP.alpha }]);
+    assert.ok(CRATE_STAMP.alpha > 0 && CRATE_STAMP.alpha < 1, "translúcida");
+    assert.equal(wrench.polygons[0].length, ITEM_SHAPES.wrench.outline.length * 2);
+    assert.deepEqual(wrench.fills, [{ color: tintOf(...NUT.edge), alpha: CRATE_STAMP.alpha }]);
+    const clears = [drop.clears, wrench.clears];
+    for (let frame = 0; frame < WATCH_FRAMES; frame++) update(view, crates);
+    assert.deepEqual([drop.clears, wrench.clears], clears, "no se vuelve a pintar");
+});
+
+test("la marca queda quieta sobre la caja: sigue su posición y su giro", () => {
+    const { view } = newView();
+    for (const pose of [POSE_A, POSE_B]) {
+        update(view, [crateAt(pose, FLUID.ACID)]);
+        const { stamp, body } = view.crateEntries[0];
+        assert.deepEqual([stamp.position.x, stamp.position.y, stamp.rotation], [pose.x * PIXELS_PER_METER, pose.y * PIXELS_PER_METER, pose.angle]);
+        assert.deepEqual([stamp.position.x, stamp.position.y, stamp.rotation], [body.position.x, body.position.y, body.rotation]);
+    }
 });
