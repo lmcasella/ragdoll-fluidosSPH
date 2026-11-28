@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 import { WEAPONS, FLUID } from "../src/combat/weapons.js";
 import { HUD } from "../src/ui/hud.js";
 import { CLIMB, StagePrizes } from "../src/level/climb.js";
@@ -70,6 +70,7 @@ test("Infinito: J1 arranca sin arma ni tanques, el gatillo no crea partículas y
 
 test("Infinito: tocar un punto de aparición da esa arma (agua, en la etapa 1) equipada con el tanque lleno y vuelve la mira", async () => {
     const game = await infinite();
+    removeCrates(game);
     const point = game.state.pickups.points.find((p) => p.weapon === FLUID.WATER);
     assert.ok(point, "hay un punto de agua en la etapa 1");
     place(game, 0, point.x, point.y + game.state.pickups.offsetY);

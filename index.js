@@ -41,6 +41,7 @@ import { createParticleSystem } from "./src/fluids/particles.js";
 import { ParticleStore, SINK } from "./src/fluids/particleStore.js";
 import { WallContact } from "./src/fluids/wallContact.js";
 import { Pickups } from "./src/level/pickups.js";
+import { CRATE, Crates } from "./src/level/crates.js";
 import { GameAudio } from "./src/audio/audio.js";
 import {
     FLUID,
@@ -61,6 +62,7 @@ import { buildKindSources, createLightSet, gatherLights } from "./src/render/lig
 import { createRobotFilter, setRobotFilterLights, updateRobotFilter } from "./src/render/robotFilter.js";
 import { WaterView } from "./src/render/waterView.js";
 import { PickupView } from "./src/render/pickupView.js";
+import { CrateView } from "./src/render/crateView.js";
 import { AimLaserView } from "./src/render/aimLaserView.js";
 import { HitEffectsView } from "./src/render/hitEffectsView.js";
 import { WeaponWheelView, WHEEL_RADII } from "./src/render/weaponWheelView.js";
@@ -330,17 +332,48 @@ buoyancy.register(players);
 const debug = new Debug();
 const overlayOptions = { parent: scene.overlayLayer, pixelsPerMeter: PIXELS_PER_METER };
 const pickupView = new PickupView({ ...overlayOptions, weapons: WEAPONS });
+const crateView = new CrateView({
+    levelParent: scene.levelLayer,
+    ...overlayOptions,
+    weapons: WEAPONS,
+    crateSide: CRATE.side,
+    pieceSide: CRATE.side * CRATE.pieceSize,
+});
 const aimLaserView = new AimLaserView({ ...overlayOptions, playerCount: players.length });
 const hitEffectsView = new HitEffectsView(overlayOptions);
 const debugView = new DebugView({ ...overlayOptions, debug });
 const weaponWheelView = new WeaponWheelView({ ...overlayOptions, playerCount: players.length });
 const adhesion = new Adhesion(particleSystem, store, wallContact);
 instances.push(adhesion);
-let pickups = new Pickups(world, damage, LEVEL.pickups);
 const stagePrizes = new StagePrizes();
 
 /** Superficie del agua bajo la cual se ahoga un robot en Infinito: la del campo donde hay agua, ninguna donde no. */
 const drownSurface = (x) => (water.depthAt(x) > water.config.hDry ? water.surfaceAt(x) : -Infinity);
+
+/** Verdadero si el punto del mundo (m) está donde una caja ya no vuelve al juego: bajo el agua que se hunde del Infinito, o fuera de los límites del mapa clásico. */
+function crateLost(x, y) {
+    if (climb) return y < flood.level - CLIMB.flood.sinkBelow;
+    const { bounds } = LEVEL;
+    const margin = CRATE.lostMargin;
+    return x < bounds.minX - margin || x > bounds.maxX + margin || y < bounds.minY - margin;
+}
+
+let pickups = null;
+let crates = null;
+
+/** Crea los puntos de aparición `points` con sus cajas y las conecta a golpes, choques y partículas. Quien llama antes libera las anteriores. */
+function buildPickups(points) {
+    pickups = new Pickups(world, damage, points);
+    crates = new Crates({ world, store, pickups, surfaceAt: drownSurface, isLost: crateLost });
+    melee.crates = crates;
+}
+
+/** Libera las cajas y los puntos de aparición vivos. */
+function disposePickups() {
+    crates.dispose();
+    pickups.dispose();
+}
+buildPickups(LEVEL.pickups);
 
 /** Semilla del mapa infinito: `?seed=N` la fija para todas las rondas; si no, es nueva en cada ronda. */
 const mapSeed = () => (Number.isFinite(botSeed) ? botSeed : (Math.random() * 2 ** 32) >>> 0);
@@ -363,7 +396,11 @@ function lowestAlive() {
 const currentTerrain = () => (climb ? climb.terrain : classic.terrain);
 
 const corrosion = new Corrosion({ system: particleSystem, store, terrain: currentTerrain });
-damage.bodyContactHook = (bodyPointer, index) => corrosion.enqueue(bodyPointer, index);
+damage.bodyContactHook = (bodyPointer, index) => {
+    corrosion.enqueue(bodyPointer, index);
+    crates.enqueueParticle(bodyPointer, index);
+};
+damage.impactHook = (bodyPointerA, bodyPointerB, speed) => crates.enqueueImpact(bodyPointerA, bodyPointerB, speed);
 
 /** Pasa el mundo al mapa `map` ("classic" o "infinite") si no es el actual; llamar fuera de `stepWorld`. */
 function aplicarMapa(map) {
@@ -374,8 +411,8 @@ function aplicarMapa(map) {
         breakable.clear();
         world.DestroyBody(classic.ground);
         damage.killSensors.clear();
-        pickups.dispose();
-        pickups = new Pickups(world, damage, []);
+        disposePickups();
+        buildPickups([]);
         water.setStart({ surface: CLIMB.flood.surface });
         flood = new RisingFlood(water, LEVEL, CLIMB, () => climb.offsetY, lowestAlive);
         climb = new Climb({ world, platforms, pickups, breakable });
@@ -384,11 +421,11 @@ function aplicarMapa(map) {
         climb.dispose();
         climb = null;
         breakable.clear();
-        pickups.dispose();
+        disposePickups();
         classic = buildLevel(world, LEVEL, { platforms });
         classic.breakableFixtures.forEach(({ fixture, solid }) => breakable.add(fixture, solid));
         damage.killSensors = classic.killSensors;
-        pickups = new Pickups(world, damage, LEVEL.pickups);
+        buildPickups(LEVEL.pickups);
         water.setStart(null);
         flood = new Flood(store, water, LEVEL, Number.isFinite(botSeed) ? botSeed : null);
         damage.drownSurface = null;
@@ -752,6 +789,8 @@ if (globalThis.__TEST_HOOKS__) {
         asignacion, ayuda, pausa, screens, hud, world, platforms, breakable, players, particleSystem, water, store, stagePrizes, wallContact, damage, corrosion, emitter, match, immersion, evaporation, thermal, viscosity, buoyancy, adhesion, melee, audio, bots, input, menu, debug, debugView, debugPanel, pickupView, aimLaserView, hitEffectsView, weaponWheelView, fluidLayers, scene, levelView, waterView, camera, arrancarPartida,
         get flood() { return flood; },
         get pickups() { return pickups; },
+        get crates() { return crates; },
+        crateView,
         get climb() { return climb; },
         get map() { return currentMap; },
         get terrain() { return currentTerrain(); },
@@ -949,6 +988,7 @@ function simular(frameDt, enTitulo) {
         );
         corrosion.process(STEP_SETTINGS.dt);
         melee.resolve(players, now);
+        crates.process(now);
         pickups.process(now);
         debug.mark("daño");
         accumulator -= STEP_SETTINGS.dt;
@@ -1080,6 +1120,7 @@ function loop(nowMs) {
     lightScreenOrigin.originY = scene.world.position.y;
     lightScreenOrigin.pixelsPerMeter = scale;
     levelView.setLights(lightSet);
+    crateView.setLights(lightSet);
     updateRobotFilter(robotFilter, lightScreenOrigin);
     setRobotFilterLights(robotFilter, lightSet);
     backgroundView.setLights(lightSet, lightScreenOrigin);
@@ -1106,6 +1147,7 @@ function loop(nowMs) {
     });
     waterView.draw(water, climb ? { floor: flood.floor, bottom } : null);
     pickupView.update(pickups.points, pickups.offsetY);
+    crateView.update({ crates: crates.crates, pieces: crates.pieces, screenOrigin: scene.world.position, screenScale: scale });
     players.forEach((player, k) => {
         aimLaserView.draw(k, laserDe(player), PLAYER_COLORS[k], scale);
     });

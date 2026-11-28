@@ -38,6 +38,7 @@ import { fallTime } from "../core/physics/formulas.js";
  * - `highBonus`: puntaje extra por una plataforma más alta que el rival; `hopCost`: costo por salto de ruta;
  *   `replan`: cada cuánto reelige destino;
  * - `pickupReach`: sin arma o con los tanques vacíos, aristas máximas de la ruta hasta un punto de aparición para ir a buscarlo;
+ * - `crateRange`: distancia horizontal (m) al centro de la caja de un ítem a la que deja de acercarse y la golpea;
  * - `repairHp`: con menos salud que esto busca también el ítem de reparación (con `pickupReach` aristas o menos);
  * - `burst` y `burstCooldown`: el bot dispara en ráfagas de `burst` s separadas por `burstCooldown` s, sin dejar de moverse;
  * - `reserve`: fracción del tanque que no gasta con el rival a `reserveRange` m o más;
@@ -71,6 +72,7 @@ export const BOT = {
     hopCost: 0.3,
     replan: 0.5,
     pickupReach: 3,
+    crateRange: 0.9,
     repairHp: 40,
     burst: 0.5,
     burstCooldown: 0.7,
@@ -975,11 +977,11 @@ export class Bot {
         return false;
     }
 
-    /** Nodo de la plataforma que sostiene el punto de aparición `point` (la más alta bajo él, a menos de 1,2 m), o `null`. */
-    pickupNode(point) {
+    /** Nodo de la plataforma que sostiene el punto `(x, y)` local (la más alta bajo él, a menos de 1,2 m), o `null`. */
+    pickupNode(x, y) {
         let best = null;
         this.nav.nodes.forEach((n, i) => {
-            if (point.x < n.minX || point.x > n.maxX || n.top > point.y || point.y - n.top > PICKUP_ABOVE) return;
+            if (x < n.minX || x > n.maxX || n.top > y || y - n.top > PICKUP_ABOVE) return;
             if (best === null || n.top > this.nav.nodes[best].top) best = i;
         });
         return best;
@@ -987,7 +989,9 @@ export class Bot {
 
     /**
      * Sin arma o con los tanques vacíos (puntos de arma), o con salud menor que `repairHp` (puntos de reparación), va al
-     * punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach` aristas o menos. Devuelve verdadero si usó el frame.
+     * punto de aparición listo más barato de la ruta cuyo nodo esté sobre la línea segura y a `pickupReach` aristas o menos.
+     * Un punto con caja (`point.crate`) cuenta por la posición actual de la caja y se descarta si queda fuera de ese alcance
+     * (o no está sobre una plataforma). Devuelve verdadero si usó el frame.
      */
     seekPickup(me, cur, points) {
         const wantsWeapon = !this.armed(me);
@@ -997,8 +1001,9 @@ export class Bot {
         let best = null;
         let lower = null;
         for (const point of points) {
-            if (!point.active || !(point.kind === "repair" ? wantsRepair : wantsWeapon)) continue;
-            const node = this.pickupNode(point);
+            const crate = point.crate ?? null;
+            if (!(point.active || crate) || !(point.kind === "repair" ? wantsRepair : wantsWeapon)) continue;
+            const node = crate ? this.pickupNode(crate.x, crate.y - this.offsetY) : this.pickupNode(point.x, point.y);
             if (node === null || dist[node] === Infinity) continue;
             let hops = 0;
             for (let n = node; parent[n] !== -1; n = parent[n]) hops++;
@@ -1013,9 +1018,26 @@ export class Bot {
         }
         best ??= lower;
         if (best === null) return false;
-        if (best.node === cur) this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
-        else this.navigate(me, cur, best.node);
+        if (best.node !== cur) this.navigate(me, cur, best.node);
+        else if (best.point.crate) this.breakCrate(me, cur, best.point.crate);
+        else this.walkWithin(cur, me.torso.GetPosition().get_x(), best.point.x);
         return true;
+    }
+
+    /**
+     * Rompe a golpes la caja de un ítem sobre la plataforma `cur`: camina hacia ella hasta quedar a `crateRange` m en horizontal,
+     * apunta a su centro y golpea (un golpe por pulsación) mientras mire hacia ella.
+     */
+    breakCrate(me, cur, crate) {
+        const position = me.torso.GetPosition();
+        const dx = crate.x - position.get_x();
+        const dy = crate.y - position.get_y();
+        if (Math.abs(dx) > this.config.crateRange) {
+            this.walkWithin(cur, position.get_x(), crate.x);
+            return;
+        }
+        this.aim(dx, dy);
+        if (me.grounded && Math.sign(dx) === me.side) this.pulse(PAD.punch);
     }
 
     /**

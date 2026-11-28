@@ -104,6 +104,8 @@ export class Melee {
         this.raycaster = raycaster;
         this.damage = damage;
         this.config = config;
+        /** Sistema de cajas (`Crates`) cuyos cuerpos también recibe el golpe, o `null` si no hay. */
+        this.crates = null;
         this.impulse = new Box2D.b2Vec2(0, 0);
         this.point = new Box2D.b2Vec2(0, 0);
         this.hits = [];
@@ -138,10 +140,30 @@ export class Melee {
             const hit = this.raycaster.cast(ax, ay, ax + dx * row.reach, ay + dy * row.reach, player.ownBodies);
             if (!hit) continue;
             const owner = this.damage.ownerOf(hit.bodyPtr);
+            const crate = owner ? undefined : this.crates?.crateOf(hit.bodyPtr);
+            if (crate) {
+                this.connectCrate(player, crate, row, dx, dy, hit, now);
+                return;
+            }
             if (!owner || owner.index === k) continue;
             this.connect(player, owner, row, dx, dy, hit, now);
             return;
         }
+    }
+
+    /**
+     * Golpe contra una caja (`src/level/crates.js`): le encola el daño del golpe y le aplica el mismo impulso. La caja no
+     * tiene dueño ni crédito para ningún jugador, y no suma eventos de feedback de víctima.
+     */
+    connectCrate(attacker, crate, row, dx, dy, hit, now) {
+        this.point.set_x(hit.x);
+        this.point.set_y(hit.y);
+        this.impulse.set_x(dx * this.config.impulse);
+        this.impulse.set_y(dy * this.config.impulse);
+        crate.body.ApplyLinearImpulse(this.impulse, this.point, true);
+        this.crates.enqueueDamage(crate, row.damage);
+        attacker.markConnected();
+        this.hits.push({ x: hit.x, y: hit.y, time: now, kind: "hit" });
     }
 
     connect(attacker, owner, row, dx, dy, hit, now) {

@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame, giveAllWeapons } from "./helpers/game.js";
+import { loadGame, giveAllWeapons, removeCrates } from "./helpers/game.js";
 import { installFakePixi } from "./helpers/fake-pixi.js";
 
 const { WEAPONS } = await import("../src/combat/weapons.js");
@@ -55,6 +55,7 @@ test("las capas de debug apagadas quedan vacías: no dibujan ni se redibujan en 
 
 test("un recogible por punto de aparición: círculo con la inicial del arma, tuerca con agujero para la reparación; los inactivos se ocultan", async () => {
     const game = await loadGame();
+    removeCrates(game);
     const { pickupView } = game.state;
     game.frames(SETTLE_FRAMES);
     const { points } = game.state.pickups;

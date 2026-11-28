@@ -24,6 +24,15 @@ export function giveAllWeapons(game) {
 }
 
 /**
+ * Quita las cajas del juego (sin pedazos) y deja los ítems sueltos y activos en su lugar original, para las pruebas que no son
+ * de las cajas y necesitan el escenario despejado o el ítem a mano. El sistema queda sin cajas aunque empiece otra ronda.
+ */
+export function removeCrates(game) {
+    game.state.crates.dispose();
+    game.state.pickups.reset();
+}
+
+/**
  * Carga el juego en Node. `options.assets` mapea una URL del juego (por ejemplo "./assets/robot.rag.json") a una
  * función que recibe el JSON leído y devuelve el JSON a usar: sirve para probar cambios al rig solo en memoria.
  * `options.audioContext` es el constructor de un `AudioContext` falso (ver `tests/helpers/fake-audio.js`); sin él el

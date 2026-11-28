@@ -1,7 +1,7 @@
 // Armas recogibles (#14, docs/design/04-fluidos.md §4.2): el script de index.js con LiquidFun real.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 
 const { FLUID, weaponById } = await import("../src/combat/weapons.js");
 const { LEVEL } = await import("../src/level/level.js");
@@ -9,6 +9,7 @@ const { PICKUP_RESPAWN } = await import("../src/level/pickups.js");
 
 async function start() {
     const game = await loadGame();
+    removeCrates(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(30);

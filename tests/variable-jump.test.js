@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 
 const BUTTON_A = 0;
 const STEP = { x: 4.5, bottom: 6.6, top: 7.0 };
@@ -16,6 +16,7 @@ const DOWN = { axes: [0, 1, 0, 0] };
 
 async function start() {
     const game = await loadGame();
+    removeCrates(game);
     game.setPad(0);
     game.setPad(1);
     game.frames(40);

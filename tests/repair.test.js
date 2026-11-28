@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadGame } from "./helpers/game.js";
+import { loadGame, removeCrates } from "./helpers/game.js";
 
 const { FLUID } = await import("../src/combat/weapons.js");
 const { LEVEL } = await import("../src/level/level.js");
@@ -16,6 +16,7 @@ const { ClimbGenerator, CLIMB } = await import("../src/level/climb.js");
 async function start({ pad1 = true } = {}) {
     globalThis.location = { search: "" };
     const game = await loadGame();
+    removeCrates(game);
     game.setPad(0);
     if (pad1) game.setPad(1);
     game.frames(30);
