@@ -58,6 +58,8 @@ export class DensityGrid {
         this.values = new Float32Array(this.columns * this.rows);
         this.wear = new Float32Array(this.columns * this.rows);
         this.hasWear = false;
+        /** Objeto de trabajo de `searchWindow`. */
+        this.window = { firstColumn: 0, lastColumn: 0, firstRow: 0, lastRow: 0 };
         this.shapeDirty = false;
         this.wearDirty = false;
     }
@@ -170,6 +172,46 @@ export class DensityGrid {
     }
 
     /**
+     * Ventana de celdas que cubre el círculo de búsqueda, recortada a la grilla. Devuelve siempre el mismo objeto de
+     * trabajo (se pisa en cada llamada) para no crear uno por consulta.
+     * @param {number} x en m, en el marco local del cuerpo
+     * @param {number} y en m, en el marco local del cuerpo
+     * @param {number} radius en m
+     * @returns {{firstColumn: number, lastColumn: number, firstRow: number, lastRow: number}}
+     */
+    searchWindow(x, y, radius) {
+        const window = this.window;
+        window.firstColumn = clamp(Math.floor((x - radius - this.originX) / this.cellWidth), 0, this.columns - 1);
+        window.lastColumn = clamp(Math.ceil((x + radius - this.originX) / this.cellWidth), 0, this.columns - 1);
+        window.firstRow = clamp(Math.floor((y - radius - this.originY) / this.cellHeight), 0, this.rows - 1);
+        window.lastRow = clamp(Math.ceil((y + radius - this.originY) / this.cellHeight), 0, this.rows - 1);
+        return window;
+    }
+
+    /**
+     * Verdadero si alguna celda con densidad tiene su centro a `radius` o menos del punto. Mismas celdas que `cellsWithin`,
+     * pero corta en la primera y no arma arreglos.
+     * @param {number} x en m, en el marco local del cuerpo
+     * @param {number} y en m, en el marco local del cuerpo
+     * @param {number} radius en m
+     * @returns {boolean}
+     */
+    hasMatterWithin(x, y, radius) {
+        const { firstColumn, lastColumn, firstRow, lastRow } = this.searchWindow(x, y, radius);
+        for (let row = firstRow; row <= lastRow; row++) {
+            for (let column = firstColumn; column <= lastColumn; column++) {
+                if (this.values[row * this.columns + column] <= 0) continue;
+                const distance = Math.hypot(
+                    this.originX + (column + CELL_CENTER) * this.cellWidth - x,
+                    this.originY + (row + CELL_CENTER) * this.cellHeight - y,
+                );
+                if (distance <= radius) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Celdas con densidad cuyo centro está a `radius` o menos del punto, con su distancia.
      * @param {number} x en m, en el marco local del cuerpo
      * @param {number} y en m, en el marco local del cuerpo
@@ -178,10 +220,7 @@ export class DensityGrid {
      * ventana de búsqueda ya abarca la grilla entera
      */
     cellsWithin(x, y, radius) {
-        const firstColumn = clamp(Math.floor((x - radius - this.originX) / this.cellWidth), 0, this.columns - 1);
-        const lastColumn = clamp(Math.ceil((x + radius - this.originX) / this.cellWidth), 0, this.columns - 1);
-        const firstRow = clamp(Math.floor((y - radius - this.originY) / this.cellHeight), 0, this.rows - 1);
-        const lastRow = clamp(Math.ceil((y + radius - this.originY) / this.cellHeight), 0, this.rows - 1);
+        const { firstColumn, lastColumn, firstRow, lastRow } = this.searchWindow(x, y, radius);
         const candidates = [];
         for (let row = firstRow; row <= lastRow; row++) {
             for (let column = firstColumn; column <= lastColumn; column++) {
