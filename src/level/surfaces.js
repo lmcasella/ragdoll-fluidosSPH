@@ -2,9 +2,10 @@
  * Materiales de las plataformas firmes (`docs/design/13-arte.md` §13.2). Una fila por material: `id` es el número con que
  * el shader de `src/render/surfaceFilter.js` reconoce el material; `acidAttack` es la fracción de la materia del acero que
  * el ácido le saca al material por la misma cantidad de ácido gastado (0: no le hace nada); `baseColor` es el color del
- * material limpio y `wearColor` y `wearDarkColor` los del óxido o la mancha del desgaste, todos RGB de 0 a 1;
- * `patternSize` (m) es el lado del panel del acero, el grano del hormigón y el período del reflejo del vidrio; `alpha` es
- * la opacidad con que se dibuja.
+ * material limpio y `wearColor` y `wearDarkColor` los del óxido o la mancha del desgaste (en la chapa de las rompibles,
+ * el óxido que ya trae), todos RGB de 0 a 1; `patternSize` (m) es el lado del panel del acero, la separación entre
+ * nervaduras de la chapa, el grano del hormigón y el período del reflejo del vidrio; `alpha` es la opacidad con que se
+ * dibuja. La chapa (`plate`) es el material de las plataformas rompibles, que no pasan por el terreno.
  */
 export const SURFACES = {
     steel: {
@@ -33,6 +34,15 @@ export const SURFACES = {
         wearDarkColor: [0.55, 0.82, 0.92],
         patternSize: 2,
         alpha: 0.45,
+    },
+    plate: {
+        id: 4,
+        acidAttack: 1,
+        baseColor: [0.42, 0.45, 0.48],
+        wearColor: [0.62, 0.3, 0.12],
+        wearDarkColor: [0.3, 0.15, 0.08],
+        patternSize: 0.25,
+        alpha: 1,
     },
 };
 

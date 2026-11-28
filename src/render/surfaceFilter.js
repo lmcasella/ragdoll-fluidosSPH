@@ -146,6 +146,22 @@ const float REFLECTION_ALPHA = 0.25;
 const float JOINT_DEPTH = 0.03;
 const float RIVET_HEIGHT = 0.02;
 const float CONCRETE_GRAIN_HEIGHT = 0.02;
+const float PLATE_RUST_FREQUENCY = 3.0;
+const float PLATE_RUST_THRESHOLD = 0.5;
+const float PLATE_RUST_SOFTNESS = 0.04;
+const float PLATE_RIB_WIDTH = 0.02;
+const float PLATE_RIB_HEIGHT = 0.015;
+const float PLATE_RIB_CENTER = 0.5;
+const float CRACK_CELL = 0.4;
+const float CRACK_WIDTH = 0.012;
+const float CRACK_MIN_WIDTH_SHARE = 0.4;
+const float CRACK_REVEAL_FREQUENCY = 3.0;
+const float CRACK_REVEAL_SOFTNESS = 0.15;
+const float CRACK_REVEAL_SPREAD = 0.85;
+const float CRACK_DARKEN = 0.9;
+const vec2 CRACK_DECORRELATION = vec2(31.7, 11.3);
+const int CRACK_NEIGHBORS = 1;
+const float CRACK_FAR = 8.0;
 const float BEVEL_MIN_WIDTH = 0.08;
 const float BEVEL_MIN_SCREEN_PX = 3.0;
 const float BEVEL_SLOPE = 0.5;
@@ -209,6 +225,41 @@ vec3 concreteColor(vec2 world, float wear)
     return withWear(color, world, wear, CONCRETE_WEAR, CONCRETE_WEAR_DARK);
 }
 
+float crackLines(vec2 world, float crack)
+{
+    vec2 point = world / CRACK_CELL;
+    vec2 cell = floor(point);
+    vec2 local = fract(point);
+    float nearest = CRACK_FAR;
+    float second = CRACK_FAR;
+    for (int offsetY = -CRACK_NEIGHBORS; offsetY <= CRACK_NEIGHBORS; offsetY++) {
+        for (int offsetX = -CRACK_NEIGHBORS; offsetX <= CRACK_NEIGHBORS; offsetX++) {
+            vec2 neighbor = vec2(float(offsetX), float(offsetY));
+            vec2 feature = neighbor + vec2(hash(cell + neighbor), hash(cell + neighbor + CRACK_DECORRELATION));
+            float toFeature = length(feature - local);
+            if (toFeature < nearest) {
+                second = nearest;
+                nearest = toFeature;
+            } else if (toFeature < second) {
+                second = toFeature;
+            }
+        }
+    }
+    float width = CRACK_WIDTH / CRACK_CELL * (CRACK_MIN_WIDTH_SHARE + crack);
+    float line = 1.0 - smoothstep(0.0, width, second - nearest);
+    float reveal = smoothstep(0.0, CRACK_REVEAL_SOFTNESS, crack - valueNoise(world * CRACK_REVEAL_FREQUENCY) * CRACK_REVEAL_SPREAD);
+    return line * reveal;
+}
+
+vec3 plateColor(vec2 world, float crack)
+{
+    float rustNoise = fractalNoise(world * PLATE_RUST_FREQUENCY);
+    float rust = smoothstep(PLATE_RUST_THRESHOLD - PLATE_RUST_SOFTNESS, PLATE_RUST_THRESHOLD + PLATE_RUST_SOFTNESS, rustNoise);
+    float streak = valueNoise(world * STREAK_FREQUENCY);
+    vec3 metal = PLATE_BASE * (1.0 + (streak - 0.5) * STREAK_STRENGTH);
+    vec3 color = mix(metal, mix(PLATE_WEAR, PLATE_WEAR_DARK, rustNoise), rust);
+    return mix(color, vec3(0.0), crackLines(world, crack) * CRACK_DARKEN);
+}
 vec4 glassColor(vec2 world)
 {
     float phase = fract((world.x + world.y) / GLASS_PATTERN);
@@ -226,10 +277,17 @@ float steelHeight(vec2 world)
     return -JOINT_DEPTH * joint + RIVET_HEIGHT * dome;
 }
 
+float plateHeight(vec2 world)
+{
+    float toRib = abs(fract(world.x / PLATE_PATTERN) - PLATE_RIB_CENTER) * PLATE_PATTERN;
+    return PLATE_RIB_HEIGHT * (1.0 - smoothstep(0.0, PLATE_RIB_WIDTH, toRib));
+}
+
 float surfaceHeight(int id, vec2 world)
 {
     if (id == STEEL_ID) return steelHeight(world);
     if (id == CONCRETE_ID) return CONCRETE_GRAIN_HEIGHT * fractalNoise(world / CONCRETE_PATTERN);
+    if (id == PLATE_ID) return plateHeight(world);
     return 0.0;
 }
 
@@ -303,6 +361,8 @@ void main(void)
         surface = vec4(steelColor(world, code.g), STEEL_ALPHA);
     } else if (id == CONCRETE_ID) {
         surface = vec4(concreteColor(world, code.g), CONCRETE_ALPHA);
+    } else if (id == PLATE_ID) {
+        surface = vec4(plateColor(world, code.g), PLATE_ALPHA);
     } else {
         surface = glassColor(world);
     }

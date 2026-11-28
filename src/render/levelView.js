@@ -1,4 +1,3 @@
-import { lerp } from "../core/math/scalar.js";
 import { SURFACES, surfaceOf } from "../level/surfaces.js";
 import { createSurfaceFilter, encodeSurface, setSurfaceFilterLights, updateSurfaceFilter } from "./surfaceFilter.js";
 
@@ -6,11 +5,12 @@ import { createSurfaceFilter, encodeSurface, setSurfaceFilterLights, updateSurfa
  * Nivel estático como geometría de `PIXI.Graphics`, que PIXI conserva entre frames (ver `docs/design/07-sph.md` §7.4).
  * Unidades de la geometría: px a `pixelsPerMeter`; la escala y la posición del mundo las pone la cámara en `world`.
  * Los sólidos fijos se pintan con el color codificado de `surfaceFilter.js` y el filtro los reemplaza por su material
- * (`docs/design/13-arte.md` §13.2); las rompibles quedan fuera del filtro.
+ * (`docs/design/13-arte.md` §13.2); las rompibles van en el mismo contenedor, con el material `plate` y su grieta en el
+ * canal verde.
  */
-const BREAKABLE_FILL = [120, 82, 54];
-const BREAKABLE_WARN = [220, 75, 45];
-const BREAKABLE_STROKE = "#e0a96d";
+
+/** Material con que se dibujan las plataformas rompibles. */
+const BREAKABLE_SURFACE = "plate";
 
 /** Amplitud máxima de la vibración de una plataforma rompible a punto de romperse, en m. */
 const BREAKABLE_SHAKE = 0.06;
@@ -40,17 +40,6 @@ const VALUES_PER_RECTANGLE = 4;
 const WEAR_LEVELS = 255;
 
 /**
- * Mezcla lineal de dos colores `[r, g, b]` (0-255) como texto CSS.
- * @param {number[]} from color con `amount` 0
- * @param {number[]} to color con `amount` 1
- * @param {number} amount de 0 a 1
- */
-function mixColor(from, to, amount) {
-    const channels = from.map((channel, index) => Math.round(lerp(channel, to[index], amount)));
-    return `rgb(${channels.join(", ")})`;
-}
-
-/**
  * Un anillo es externo si su área con signo es positiva y agujero si es negativa (fórmula del cordón).
  * @param {number[]} ring vértices intercalados (x, y)
  * @returns {boolean}
@@ -65,7 +54,7 @@ function ringIsOuter(ring) {
 }
 
 /**
- * Vista del nivel: sólidos fijos con el filtro de materiales y plataformas rompibles aparte. Con terreno de densidad
+ * Vista del nivel: sólidos fijos y plataformas rompibles, todos con el filtro de materiales. Con terreno de densidad
  * dibuja un `Graphics` por tramo y solo redibuja el tramo cuya forma o desgaste cambió; sin terreno, los rectángulos de los sólidos en un solo `Graphics`. Patrón: vista de PIXI en
  * modo retenido (crea sus `Graphics` y su filtro una sola vez; los de los tramos quitados vuelven a un pool).
  */
@@ -84,7 +73,8 @@ export class LevelView {
         this.fixedGraphics = new PIXI.Graphics();
         this.fixedContainer.addChild(this.fixedGraphics);
         this.breakableGraphics = new PIXI.Graphics();
-        this.container.addChild(this.fixedContainer, this.breakableGraphics);
+        this.fixedContainer.addChild(this.breakableGraphics);
+        this.container.addChild(this.fixedContainer);
         parent.addChild(this.container);
         this.solids = null;
         this.solidCount = -1;
@@ -285,7 +275,7 @@ export class LevelView {
         const scale = this.pixelsPerMeter;
         for (const ring of rings) graphics.poly(ring.map((coordinate) => coordinate * scale), true);
     }
-    /** Dibuja las plataformas rompibles que no están rotas: el color pasa al de advertencia y vibran con `crack`. */
+    /** Dibuja las plataformas rompibles que no están rotas: la grieta (`crack`) va en el canal verde del color y vibran con ella. */
     buildBreakable(solids, now) {
         const graphics = this.breakableGraphics;
         graphics.clear();
@@ -294,8 +284,7 @@ export class LevelView {
             const crack = solid.crack ?? 0;
             const shake = crack > 0 ? Math.sin(now * BREAKABLE_SHAKE_RATE) * BREAKABLE_SHAKE * crack : 0;
             this.addRectangle(graphics, solid, shake);
-            graphics.fill(mixColor(BREAKABLE_FILL, BREAKABLE_WARN, crack));
-            graphics.stroke({ width: this.overlapWidth, color: BREAKABLE_STROKE });
+            graphics.fill({ color: encodeSurface({ surface: BREAKABLE_SURFACE, wear: crack }) });
         }
         this.breakableBuilds++;
     }
