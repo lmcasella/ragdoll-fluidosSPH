@@ -130,22 +130,22 @@ test("desgaste: cero en una grilla nueva, crece con la corrosión, los vecinos d
     assert.ok(grid.wear.every((wear) => wear === 0), "restaurar borra el desgaste");
 });
 
-test("el terreno entrega el material de cada contorno y las celdas con desgaste en su forma", () => {
+test("el terreno entrega cada tramo con su material, sus contornos y la grilla de la que sale el desgaste", () => {
     const terrain = newTerrain();
     terrain.addSolid({ ...SLAB, material: "steel" });
     terrain.addSolid({ ...SLAB, x: FAR_SLAB_X, kind: "floor" });
     const clean = terrain.shape;
-    assert.equal(clean.rings.length, clean.ringSurfaces.length);
-    assert.deepEqual([...new Set(clean.ringSurfaces)].sort(), ["concrete", "steel"]);
-    assert.equal(clean.wornCells.length, 0);
+    assert.deepEqual([...new Set(clean.tiles.map((tile) => tile.surface))].sort(), ["concrete", "steel"]);
+    assert.ok(clean.tiles.every((tile) => tile.rings.length > 0 && tile.grid.wornCells().length === 0));
+    const version = clean.version;
     erodeOver(terrain, SLAB.x);
     terrain.update();
     const worn = terrain.shape;
-    assert.notEqual(worn.version, clean.version);
-    assert.ok(worn.wornCells.length > 0 && worn.wornCells.every((cell) => cell.surface === "steel"));
+    assert.notEqual(worn.version, version);
+    const wornTiles = worn.tiles.filter((tile) => tile.grid.wornCells().length > 0);
+    assert.ok(wornTiles.length > 0 && wornTiles.every((tile) => tile.surface === "steel"));
     terrain.dispose();
 });
-
 test("el shader reconoce los tres materiales por id, no usa texturas externas y el código del color es reversible", () => {
     for (const name of ["STEEL", "CONCRETE"]) assert.ok(SURFACE_FRAGMENT.includes(`id == ${name}_ID`), `rama de ${name}`);
     assert.ok(SURFACE_FRAGMENT.includes("glassColor(world)"), "rama del vidrio");
@@ -165,7 +165,7 @@ test("el filtro se crea una vez y la cámara se actualiza sin reconstruirlo ni c
     const pixi = installFakePixi();
     const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
     const created = pixi.Filter.constructed;
-    assert.deepEqual(view.fixedGraphics.filters, [view.surfaceFilter]);
+    assert.deepEqual(view.fixedContainer.filters, [view.surfaceFilter]);
     const { uniforms } = view.surfaceFilter.resources.surfaceUniforms;
     const originBuffer = uniforms.uOrigin;
     const level = { solids: [{ x: 5, y: 1, w: 4, h: 1, kind: "floor" }] };
@@ -181,23 +181,76 @@ test("el filtro se crea una vez y la cámara se actualiza sin reconstruirlo ni c
     assert.deepEqual([...standalone.resources.surfaceUniforms.uniforms.uOrigin], [1, 2]);
 });
 
-test("LevelView pinta cada material con su color y no redibuja si no cambian la forma ni el desgaste", () => {
+/** Tramo publicado de 1 m x 1 m con su borde izquierdo en `minX`, como lo entrega `Terrain.shape`. */
+function publishedTile(surface, minX) {
+    const grid = new DensityGrid({ originX: minX, originY: 0, width: 1, height: 1 });
+    grid.fillRectangle({ minX, minY: 0, maxX: minX + 1, maxY: 1 });
+    const ring = [minX, 0, minX + 1, 0, minX + 1, 1, minX, 1];
+    return { surface, grid, bounds: { minX, minY: 0, maxX: minX + 1, maxY: 1 }, rings: [ring], shapeVersion: 1, wearVersion: 1 };
+}
+
+/** Lo que publica `Terrain.shape` para esos tramos. */
+function publish(tiles, { version, tilesVersion }) {
+    return { version, tilesVersion, tiles };
+}
+
+/** Cantidad de veces que se vació el `Graphics` de cada tramo. */
+function clearsOf(view, tiles) {
+    return tiles.map((tile) => view.tileEntries.get(tile).graphics.clears);
+}
+
+test("LevelView pinta cada tramo con el color de su material y no redibuja si no cambian la forma ni el desgaste", () => {
     const pixi = installFakePixi();
     const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
-    const square = [0, 0, 1, 0, 1, 1, 0, 1];
-    const shape = (version, wornCells) => ({ version, rings: [square, square.map((v) => v + 5)], ringSurfaces: ["steel", "concrete"], wornCells });
+    const steel = publishedTile("steel", 0);
+    const concrete = publishedTile("concrete", FAR_SLAB_X);
     const level = { solids: [] };
-    view.update(level, 0, 0, SCREEN_SCALE, shape(1, []));
+    view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     const builds = view.fixedBuilds;
-    const colors = view.fixedGraphics.fills.map((fill) => fill.color);
-    assert.deepEqual(colors, [encodeSurface({ surface: "steel", wear: 0, edge: false }), encodeSurface({ surface: "concrete", wear: 0, edge: false })]);
-    assert.equal(view.fixedGraphics.strokes.length, 2, "un trazo por material");
-    view.update(level, 0, 0, SCREEN_SCALE, shape(1, []));
+    const colorOf = (tile) => view.tileEntries.get(tile).graphics.fills.map((fill) => fill.color);
+    assert.deepEqual(colorOf(steel), [encodeSurface({ surface: "steel", wear: 0, edge: false })]);
+    assert.deepEqual(colorOf(concrete), [encodeSurface({ surface: "concrete", wear: 0, edge: false })]);
+    assert.equal(view.tileEntries.get(steel).graphics.strokes.length, 1, "un trazo por tramo");
+    assert.equal(view.fixedContainer.children.length, 3, "los rectángulos sin terreno y un Graphics por tramo");
+    view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 1, tilesVersion: 1 }));
     assert.equal(view.fixedBuilds, builds, "misma forma y mismo desgaste: no redibuja");
 
-    const worn = [{ surface: "steel", x: 0, y: 0, width: 0.05, height: 0.05, wear: 0.8 }, { surface: "steel", x: 0.05, y: 0, width: 0.05, height: 0.05, wear: 0.8 }];
-    view.update(level, 0, 0, SCREEN_SCALE, shape(2, worn));
+    const cellArea = steel.grid.cellWidth * steel.grid.cellHeight;
+    steel.grid.erode({ x: 0.25, y: 0.25, reach: steel.grid.cellWidth / 4, area: 0.3 * cellArea });
+    steel.grid.erode({ x: 0.75, y: 0.75, reach: steel.grid.cellWidth / 4, area: 0.3 * cellArea });
+    steel.wearVersion++;
+    view.update(level, 0, 0, SCREEN_SCALE, publish([steel, concrete], { version: 2, tilesVersion: 1 }));
     assert.equal(view.fixedBuilds, builds + 1, "cambió el desgaste: redibuja");
-    assert.equal(view.fixedGraphics.rectangles, 2, "una forma por celda con desgaste");
-    assert.ok(view.fixedGraphics.fills.some((fill) => fill.color === encodeSurface({ surface: "steel", wear: Math.round(0.8 * CHANNEL_MAX) / CHANNEL_MAX, edge: false })));
+    const worn = steel.grid.wornCells();
+    assert.equal(worn.length, 2);
+    assert.equal(view.tileEntries.get(steel).graphics.rectangles, 2, "una forma por celda con desgaste");
+    assert.ok(view.tileEntries.get(steel).graphics.fills.some((fill) => fill.color === encodeSurface({ surface: "steel", wear: Math.round(0.3 * CHANNEL_MAX) / CHANNEL_MAX, edge: false })));
+});
+
+test("LevelView solo redibuja el tramo que cambió, más sus vecinos si cambió la forma, y reusa el Graphics de un tramo quitado", () => {
+    const pixi = installFakePixi();
+    const view = new LevelView({ parent: new pixi.Container(), pixelsPerMeter: PIXELS_PER_METER });
+    const left = publishedTile("steel", 0);
+    const right = publishedTile("steel", 1);
+    const far = publishedTile("steel", FAR_SLAB_X);
+    const tiles = [left, right, far];
+    const level = { solids: [] };
+    view.update(level, 0, 0, SCREEN_SCALE, publish(tiles, { version: 1, tilesVersion: 1 }));
+    assert.deepEqual(clearsOf(view, tiles), [1, 1, 1], "el primer dibujo vacía cada Graphics una vez");
+
+    far.wearVersion++;
+    view.update(level, 0, 0, SCREEN_SCALE, publish(tiles, { version: 2, tilesVersion: 1 }));
+    assert.deepEqual(clearsOf(view, tiles), [1, 1, 2], "solo el desgaste de un tramo: se redibuja ese tramo");
+
+    left.shapeVersion++;
+    view.update(level, 0, 0, SCREEN_SCALE, publish(tiles, { version: 3, tilesVersion: 1 }));
+    assert.deepEqual(clearsOf(view, tiles), [2, 2, 2], "la forma de un tramo cambia sus costuras con el vecino que lo toca, no con el lejano");
+
+    const built = pixi.Graphics.constructed;
+    view.update(level, 0, 0, SCREEN_SCALE, publish([left, right], { version: 4, tilesVersion: 2 }));
+    assert.equal(view.fixedContainer.children.length, 3, "el Graphics del tramo quitado sale del contenedor");
+    const replacement = publishedTile("concrete", FAR_SLAB_X);
+    view.update(level, 0, 0, SCREEN_SCALE, publish([left, right, replacement], { version: 5, tilesVersion: 3 }));
+    assert.equal(pixi.Graphics.constructed, built, "el tramo nuevo reusa el Graphics del pool");
+    assert.deepEqual(clearsOf(view, [left, right]), [2, 2], "los tramos que siguen no se tocan");
 });

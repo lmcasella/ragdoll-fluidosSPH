@@ -34,6 +34,12 @@ const BROKEN_STATE = -1;
 /** Distancia del punto de prueba al medio de un lado, hacia afuera del anillo, en m: menos que una celda de la grilla. */
 const SEAM_PROBE = 0.001;
 
+/** Holgura con que dos tramos cuentan como vecinos al buscar costuras, en m: cubre el punto de prueba de ambos lados. */
+const SEAM_TOUCH_SLACK = 2 * SEAM_PROBE;
+
+/** Valores por rectángulo en el arreglo plano de celdas con desgaste: x, y, ancho y alto. */
+const VALUES_PER_RECTANGLE = 4;
+
 /** Niveles de desgaste que distingue el canal verde del color codificado: las celdas del mismo nivel se dibujan juntas. */
 const WEAR_LEVELS = 255;
 
@@ -54,25 +60,26 @@ function ringBounds(ring) {
 }
 
 /**
- * Lados de los anillos del terreno que dan afuera, como `[x1, y1, x2, y2]` en m. Un lado es costura entre dos tramos si
+ * Lados de los anillos de un tramo que dan afuera, como `[x1, y1, x2, y2]` en m. Un lado es costura entre dos tramos si
  * el punto apenas afuera de su medio (a la derecha del lado: afuera de un externo y adentro de un agujero) cae dentro
- * de materia de otro anillo, por la regla par-impar sobre los demás anillos; esos lados no se trazan.
- * @param {number[][]} rings externos y agujeros, vértices intercalados en m
- * @returns {number[][]} `[x1, y1, x2, y2, ringIndex]`, con el índice del anillo al que pertenece el lado
+ * de materia de otro anillo, por la regla par-impar sobre los demás anillos del contexto; esos lados no se trazan.
+ * @param {number[][]} rings externos y agujeros del tramo, vértices intercalados en m
+ * @param {number[][]} contextRings anillos que pueden tapar un lado: los de los tramos que lo tocan, incluido el propio
+ * @returns {number[][]}
  */
-function exposedEdges(rings) {
-    const bounds = rings.map(ringBounds);
+function exposedEdges(rings, contextRings) {
+    const bounds = contextRings.map(ringBounds);
     const insideOtherMaterial = (x, y, self) => {
         let inside = false;
-        rings.forEach((ring, index) => {
+        contextRings.forEach((ring, index) => {
             const box = bounds[index];
-            if (index === self || x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) return;
+            if (ring === self || x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) return;
             if (pointInPolygon(x, y, ring)) inside = !inside;
         });
         return inside;
     };
     const edges = [];
-    rings.forEach((ring, self) => {
+    for (const ring of rings) {
         for (let index = 0; index < ring.length; index += VALUES_PER_VERTEX) {
             const next = (index + VALUES_PER_VERTEX) % ring.length;
             const [x1, y1, x2, y2] = [ring[index], ring[index + 1], ring[next], ring[next + 1]];
@@ -80,10 +87,25 @@ function exposedEdges(rings) {
             if (length === 0) continue;
             const probeX = (x1 + x2) / 2 + ((y2 - y1) / length) * SEAM_PROBE;
             const probeY = (y1 + y2) / 2 - ((x2 - x1) / length) * SEAM_PROBE;
-            if (!insideOtherMaterial(probeX, probeY, self)) edges.push([x1, y1, x2, y2, self]);
+            if (!insideOtherMaterial(probeX, probeY, ring)) edges.push([x1, y1, x2, y2]);
         }
-    });
+    }
     return edges;
+}
+
+/**
+ * Verdadero si dos cajas se tocan o se superponen, con una holgura de `SEAM_TOUCH_SLACK` por lado.
+ * @param {{minX: number, minY: number, maxX: number, maxY: number}} first en m
+ * @param {{minX: number, minY: number, maxX: number, maxY: number}} second en m
+ * @returns {boolean}
+ */
+function boxesTouch(first, second) {
+    return (
+        first.minX - SEAM_TOUCH_SLACK <= second.maxX &&
+        second.minX - SEAM_TOUCH_SLACK <= first.maxX &&
+        first.minY - SEAM_TOUCH_SLACK <= second.maxY &&
+        second.minY - SEAM_TOUCH_SLACK <= first.maxY
+    );
 }
 
 /**
@@ -112,8 +134,10 @@ function ringIsOuter(ring) {
 }
 
 /**
- * Vista del nivel: sólidos fijos con el filtro de materiales y plataformas rompibles aparte. Patrón: vista de PIXI en
- * modo retenido (crea sus `Graphics` y su filtro una sola vez).
+ * Vista del nivel: sólidos fijos con el filtro de materiales y plataformas rompibles aparte. Con terreno de densidad
+ * dibuja un `Graphics` por tramo y solo redibuja el tramo cuya forma o desgaste cambió (y los vecinos de uno cuya forma
+ * cambió, por las costuras); sin terreno, los rectángulos de los sólidos en un solo `Graphics`. Patrón: vista de PIXI en
+ * modo retenido (crea sus `Graphics` y su filtro una sola vez; los de los tramos quitados vuelven a un pool).
  */
 export class LevelView {
     /**
@@ -124,34 +148,47 @@ export class LevelView {
     constructor({ parent, pixelsPerMeter }) {
         this.pixelsPerMeter = pixelsPerMeter;
         this.container = new PIXI.Container();
-        this.fixedGraphics = new PIXI.Graphics();
+        this.fixedContainer = new PIXI.Container();
         this.surfaceFilter = createSurfaceFilter();
-        this.fixedGraphics.filters = [this.surfaceFilter];
+        this.fixedContainer.filters = [this.surfaceFilter];
+        this.fixedGraphics = new PIXI.Graphics();
+        this.fixedContainer.addChild(this.fixedGraphics);
         this.breakableGraphics = new PIXI.Graphics();
-        this.container.addChild(this.fixedGraphics, this.breakableGraphics);
+        this.container.addChild(this.fixedContainer, this.breakableGraphics);
         parent.addChild(this.container);
         this.solids = null;
         this.solidCount = -1;
         this.shapeVersion = -1;
+        this.tilesVersion = -1;
+        this.redrawAll = false;
         this.outlineWidth = 0;
         this.breakableStates = [];
         this.breakableCount = -1;
         this.fixedBuilds = 0;
         this.breakableBuilds = 0;
+        /** Tramo publicado por `Terrain.shape` → `{ graphics, shapeVersion, wearVersion }` de lo último que se dibujó. */
+        this.tileEntries = new Map();
+        this.freeGraphics = [];
+        this.tilesToDraw = new Set();
+        this.wearBuckets = Array.from({ length: WEAR_LEVELS + 1 }, () => []);
+        this.collectWornCell = (x, y, width, height, wear) => {
+            const level = Math.round(wear * WEAR_LEVELS);
+            if (level > 0) this.wearBuckets[level].push(x, y, width, height);
+        };
     }
 
     /**
-     * Reconstruye la geometría solo si cambió: los sólidos fijos cuando cambia el conjunto de sólidos y los rompibles
-     * cuando cambia su grieta o su rotura, y las dos cuando el zoom cambia el grosor del trazo más que `OUTLINE_REBUILD_TOLERANCE`.
-     * El desplazamiento vertical se aplica como posición, sin reconstruir.
+     * Reconstruye la geometría solo si cambió: los sólidos fijos cuando cambia el conjunto de sólidos o el terreno (y de
+     * este, solo los tramos que cambiaron) y los rompibles cuando cambia su grieta o su rotura, y las dos cuando el zoom
+     * cambia el grosor del trazo más que `OUTLINE_REBUILD_TOLERANCE`. El desplazamiento vertical se aplica como posición,
+     * sin reconstruir.
      * @param {{ solids: object[] }} level sólidos en metros (`x`, `y`, `w`, `h` del centro)
      * @param {number} offsetY desplazamiento vertical del nivel, en m
      * @param {number} now reloj de juego, en s (fase de la vibración)
      * @param {number} screenScale escala de la cámara, en px de pantalla por metro
-     * @param {{version: number, rings: number[][], ringSurfaces: string[], wornCells: object[]}|null} [terrainShape]
-     * contornos del terreno de densidad en m (externos de área positiva, agujeros de área negativa) con su material y su
-     * versión, y celdas con desgaste; con ellos los sólidos fijos se dibujan con su forma real, y sin ellos como
-     * rectángulos (`docs/design/05-escenario.md` §5.5). El desgaste solo cambia junto con la versión.
+     * @param {{version: number, tilesVersion: number, tiles: object[]}|null} [terrainShape] tramos del terreno de densidad
+     * que publica `Terrain.shape` (contornos en m con su material, caja, grilla para el desgaste y versiones); con ellos
+     * los sólidos fijos se dibujan con su forma real, y sin ellos como rectángulos (`docs/design/05-escenario.md` §5.5)
      * @param {{x: number, y: number}} [screenOrigin] px de pantalla del origen del mundo, para fijar la textura al mundo
      */
     update(level, offsetY, now, screenScale, terrainShape = null, screenOrigin = { x: 0, y: 0 }) {
@@ -160,6 +197,7 @@ export class LevelView {
         if (Math.abs(outlineWidth - this.outlineWidth) > this.outlineWidth * OUTLINE_REBUILD_TOLERANCE) {
             this.outlineWidth = outlineWidth;
             this.solidCount = -1;
+            this.redrawAll = true;
         }
         const shapeVersion = terrainShape ? terrainShape.version : -1;
         if (solids !== this.solids || solids.length !== this.solidCount || shapeVersion !== this.shapeVersion) {
@@ -210,62 +248,114 @@ export class LevelView {
     }
 
     /**
-     * Dibuja los sólidos fijos con el color codificado de cada material: por material, un relleno y un trazo. Con terreno,
-     * los contornos con sus agujeros recortados, las celdas con desgaste (una forma por celda, agrupadas por nivel de
-     * desgaste) y el trazo de los lados expuestos, sin las costuras entre tramos; sin terreno, los rectángulos.
+     * Dibuja los sólidos fijos con el color codificado de cada material. Con terreno, los tramos que cambiaron
+     * (`drawTerrainTiles`); sin terreno, los rectángulos de los sólidos por material, con relleno y trazo.
      */
     buildFixed(solids, terrainShape) {
-        const graphics = this.fixedGraphics;
-        graphics.clear();
-        const edges = terrainShape ? exposedEdges(terrainShape.rings) : [];
-        for (const surface of Object.keys(SURFACES)) {
-            if (terrainShape) this.drawTerrainSurface(graphics, surface, terrainShape, edges);
-            else this.drawRectangleSurface(graphics, surface, solids);
-        }
+        if (terrainShape) this.drawTerrainTiles(terrainShape);
+        else this.drawRectangles(solids);
+        this.redrawAll = false;
         this.fixedBuilds++;
     }
 
-    /** Dibuja los sólidos sin grilla de un material: sus rectángulos con relleno y trazo. */
-    drawRectangleSurface(graphics, surface, solids) {
-        const ofSurface = solids.filter((solid) => !solid.breakable && surfaceOf(solid) === surface);
-        if (ofSurface.length === 0) return;
-        for (const solid of ofSurface) this.addRectangle(graphics, solid, 0);
-        graphics.fill({ color: encodeSurface({ surface, wear: 0, edge: false }) });
-        graphics.stroke({ width: this.outlineWidth, color: encodeSurface({ surface, wear: 0, edge: true }) });
+    /** Dibuja los sólidos sin grilla: por material, sus rectángulos con relleno y trazo. */
+    drawRectangles(solids) {
+        const graphics = this.fixedGraphics;
+        graphics.clear();
+        for (const surface of Object.keys(SURFACES)) {
+            const ofSurface = solids.filter((solid) => !solid.breakable && surfaceOf(solid) === surface);
+            if (ofSurface.length === 0) continue;
+            for (const solid of ofSurface) this.addRectangle(graphics, solid, 0);
+            graphics.fill({ color: encodeSurface({ surface, wear: 0, edge: false }) });
+            graphics.stroke({ width: this.outlineWidth, color: encodeSurface({ surface, wear: 0, edge: true }) });
+        }
     }
 
-    /** Dibuja los contornos, el desgaste y el trazo de los lados expuestos (`edges`) de los tramos de terreno de un material. */
-    drawTerrainSurface(graphics, surface, terrainShape, edges) {
-        const { rings, ringSurfaces, wornCells } = terrainShape;
-        const ofSurface = rings.filter((ring, index) => ringSurfaces[index] === surface);
-        const outers = ofSurface.filter((ring) => ringIsOuter(ring));
+    /**
+     * Redibuja los tramos del terreno cuya forma o desgaste cambió desde que se dibujaron, y los vecinos de los que
+     * cambiaron de forma (una costura entre dos tramos aparece o desaparece con el contorno del vecino).
+     * @param {{tilesVersion: number, tiles: object[]}} terrainShape
+     */
+    drawTerrainTiles(terrainShape) {
+        const { tiles } = terrainShape;
+        if (terrainShape.tilesVersion !== this.tilesVersion) {
+            this.syncTileGraphics(tiles);
+            this.tilesVersion = terrainShape.tilesVersion;
+        }
+        const toDraw = this.tilesToDraw;
+        toDraw.clear();
+        for (const tile of tiles) {
+            const entry = this.tileEntries.get(tile);
+            const shapeChanged = entry.shapeVersion !== tile.shapeVersion;
+            if (this.redrawAll || shapeChanged || entry.wearVersion !== tile.wearVersion) toDraw.add(tile);
+            if (shapeChanged && !this.redrawAll) {
+                for (const neighbor of tiles) if (boxesTouch(tile.bounds, neighbor.bounds)) toDraw.add(neighbor);
+            }
+        }
+        for (const tile of toDraw) this.drawTile(tile, tiles);
+    }
+
+    /**
+     * Da un `Graphics` a cada tramo nuevo (del pool si hay uno libre) y devuelve al pool el de cada tramo que ya no está.
+     * @param {object[]} tiles tramos publicados
+     */
+    syncTileGraphics(tiles) {
+        const present = new Set(tiles);
+        for (const [tile, entry] of this.tileEntries) {
+            if (present.has(tile)) continue;
+            entry.graphics.clear();
+            this.fixedContainer.removeChild(entry.graphics);
+            this.freeGraphics.push(entry.graphics);
+            this.tileEntries.delete(tile);
+        }
+        for (const tile of tiles) {
+            if (this.tileEntries.has(tile)) continue;
+            const graphics = this.freeGraphics.pop() ?? new PIXI.Graphics();
+            this.fixedContainer.addChild(graphics);
+            this.tileEntries.set(tile, { graphics, shapeVersion: -1, wearVersion: -1 });
+        }
+    }
+
+    /**
+     * Dibuja un tramo: sus contornos con los agujeros recortados, las celdas con desgaste (una forma por celda, agrupadas
+     * por nivel de desgaste) y el trazo de sus lados expuestos, sin las costuras con los tramos vecinos.
+     * @param {object} tile tramo publicado
+     * @param {object[]} tiles todos los tramos publicados
+     */
+    drawTile(tile, tiles) {
+        const entry = this.tileEntries.get(tile);
+        const { graphics } = entry;
+        const { surface, rings } = tile;
+        graphics.clear();
+        entry.shapeVersion = tile.shapeVersion;
+        entry.wearVersion = tile.wearVersion;
+        const outers = rings.filter((ring) => ringIsOuter(ring));
         if (outers.length === 0) return;
         this.addRings(graphics, outers);
         graphics.fill({ color: encodeSurface({ surface, wear: 0, edge: false }) });
-        this.addRings(graphics, ofSurface.filter((ring) => !ringIsOuter(ring)));
+        this.addRings(graphics, rings.filter((ring) => !ringIsOuter(ring)));
         graphics.cut();
-        this.drawWear(graphics, surface, wornCells);
+        this.drawWear(graphics, tile);
+        const contextRings = tiles.filter((neighbor) => boxesTouch(tile.bounds, neighbor.bounds)).flatMap((neighbor) => neighbor.rings);
         const scale = this.pixelsPerMeter;
-        for (const [x1, y1, x2, y2, ringIndex] of edges) {
-            if (ringSurfaces[ringIndex] === surface) graphics.moveTo(x1 * scale, y1 * scale).lineTo(x2 * scale, y2 * scale);
+        for (const [x1, y1, x2, y2] of exposedEdges(rings, contextRings)) {
+            graphics.moveTo(x1 * scale, y1 * scale).lineTo(x2 * scale, y2 * scale);
         }
         graphics.stroke({ width: this.outlineWidth, color: encodeSurface({ surface, wear: 0, edge: true }) });
     }
 
-    /** Pinta las celdas con desgaste de un material con su desgaste en el canal verde, un relleno por nivel de desgaste. */
-    drawWear(graphics, surface, wornCells) {
+    /** Pinta las celdas con desgaste de un tramo con su desgaste en el canal verde, un relleno por nivel de desgaste. */
+    drawWear(graphics, tile) {
         const scale = this.pixelsPerMeter;
-        const cellsByLevel = new Map();
-        for (const cell of wornCells) {
-            if (cell.surface !== surface) continue;
-            const level = Math.round(cell.wear * WEAR_LEVELS);
-            if (level === 0) continue;
-            if (!cellsByLevel.has(level)) cellsByLevel.set(level, []);
-            cellsByLevel.get(level).push(cell);
-        }
-        for (const [level, cells] of cellsByLevel) {
-            for (const { x, y, width, height } of cells) graphics.rect(x * scale, y * scale, width * scale, height * scale);
-            graphics.fill({ color: encodeSurface({ surface, wear: level / WEAR_LEVELS, edge: false }) });
+        tile.grid.forEachWornCell(this.collectWornCell);
+        for (let level = 1; level <= WEAR_LEVELS; level++) {
+            const bucket = this.wearBuckets[level];
+            if (bucket.length === 0) continue;
+            for (let index = 0; index < bucket.length; index += VALUES_PER_RECTANGLE) {
+                graphics.rect(bucket[index] * scale, bucket[index + 1] * scale, bucket[index + 2] * scale, bucket[index + 3] * scale);
+            }
+            graphics.fill({ color: encodeSurface({ surface: tile.surface, wear: level / WEAR_LEVELS, edge: false }) });
+            bucket.length = 0;
         }
     }
 
@@ -274,7 +364,6 @@ export class LevelView {
         const scale = this.pixelsPerMeter;
         for (const ring of rings) graphics.poly(ring.map((coordinate) => coordinate * scale), true);
     }
-
     /** Dibuja las plataformas rompibles que no están rotas: el color pasa al de advertencia y vibran con `crack`. */
     buildBreakable(solids, now) {
         const graphics = this.breakableGraphics;

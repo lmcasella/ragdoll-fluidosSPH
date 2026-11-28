@@ -113,13 +113,15 @@ export class Terrain {
         this.config = config;
         this.now = now;
         this.builder = new PolygonFixtureBuilder();
-        /** Tramos vivos: `{ grid, surface, oneWay, fixtures, rings, polygons, rebuiltFrame, rebuiltAt, dirtySince, wearPublishedAt }`. */
+        /** Tramos vivos: `{ grid, surface, oneWay, view, fixtures, rings, polygons, rebuiltFrame, rebuiltAt, dirtySince, wearPublishedAt }`; `view` es lo que `shape` publica para dibujar. */
         this.tiles = new Set();
         /** Contador de llamadas a `update`: marca el frame en que se rehízo cada tramo. */
         this.frame = 0;
-        /** Sube con cada forma rehecha; `shape` lo usa para saber cuándo rearmar sus contornos y su desgaste. */
-        this.shapeVersion = 0;
-        this.cachedShape = { version: -1, rings: [], ringSurfaces: [], wornCells: [] };
+        /** Sube con cada forma rehecha, desgaste publicado o tramo agregado o quitado: lo que dibuja `LevelView` mira si cambió. */
+        this.changeVersion = 0;
+        /** Sube cuando se agrega o se quita un tramo. */
+        this.tilesVersion = 0;
+        this.published = { version: -1, tilesVersion: -1, tiles: [] };
         /** Tramos rehechos y costo (ms) de la última llamada a `update`. */
         this.lastRebuilds = 0;
         this.lastRebuildMs = 0;
@@ -158,8 +160,11 @@ export class Terrain {
                 const grid = new DensityGrid({ originX, originY, width: tileWidth, height: tileHeight });
                 const fill = { minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight };
                 grid.fillRectangle(fill);
-                const tile = { grid, fill, surface, oneWay, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1, rebuiltAt: -Infinity, dirtySince: null, wearPublishedAt: -Infinity };
+                const bounds = { minX: originX, minY: originY, maxX: originX + tileWidth, maxY: originY + tileHeight };
+                const view = { surface, grid, bounds, rings: [], shapeVersion: 0, wearVersion: 0 };
+                const tile = { grid, fill, surface, oneWay, view, fixtures: [], rings: [], polygons: [], rebuiltFrame: -1, rebuiltAt: -Infinity, dirtySince: null, wearPublishedAt: -Infinity };
                 this.tiles.add(tile);
+                this.tilesVersion++;
                 handle.tiles.push(tile);
                 this.rebuild(tile);
             }
@@ -210,27 +215,37 @@ export class Terrain {
         tile.grid.shapeDirty = false;
         tile.grid.wearDirty = false;
         tile.dirtySince = null;
-        this.shapeVersion++;
+        tile.view.rings = shape.rings;
+        tile.view.shapeVersion++;
+        this.changeVersion++;
     }
 
     /**
-     * Contornos de todos los tramos para dibujar: vértices intercalados en m, en el marco local del cuerpo, con los
-     * externos de área positiva y los agujeros de área negativa, con el material de cada uno (`ringSurfaces`, paralelo a
-     * `rings`) y las celdas con desgaste de todos los tramos (`wornCells`, con su `surface`, para dibujar el óxido). Todo
-     * se rearma solo si cambió alguna forma: el desgaste solo cambia junto con la forma.
-     * @returns {{version: number, rings: number[][], ringSurfaces: string[], wornCells: object[]}}
+     * Publica el desgaste de un tramo para que `LevelView` lo redibuje.
+     * @param {object} tile
+     * @param {number} time reloj de juego, en s
+     */
+    publishWear(tile, time) {
+        tile.grid.wearDirty = false;
+        tile.wearPublishedAt = time;
+        tile.view.wearVersion++;
+        this.changeVersion++;
+    }
+
+    /**
+     * Los tramos para dibujar, cada uno con su material, su grilla (de la que sale el desgaste), su caja, sus contornos en
+     * m en el marco local del cuerpo (externos de área positiva y agujeros de área negativa) y sus versiones: `shapeVersion`
+     * sube cuando se rehace la forma y `wearVersion` cuando se publica solo el desgaste. `version` sube con cualquier
+     * cambio y `tilesVersion` cuando se agrega o se quita un tramo; el objeto es el mismo entre llamadas y no se debe modificar.
+     * @returns {{version: number, tilesVersion: number, tiles: {surface: string, grid: DensityGrid, bounds: object, rings: number[][], shapeVersion: number, wearVersion: number}[]}}
      */
     get shape() {
-        if (this.cachedShape.version !== this.shapeVersion) {
-            const tiles = [...this.tiles];
-            this.cachedShape = {
-                version: this.shapeVersion,
-                rings: tiles.flatMap((tile) => tile.rings),
-                ringSurfaces: tiles.flatMap((tile) => tile.rings.map(() => tile.surface)),
-                wornCells: tiles.flatMap((tile) => tile.grid.wornCells().map((cell) => ({ ...cell, surface: tile.surface }))),
-            };
+        if (this.published.tilesVersion !== this.tilesVersion) {
+            this.published.tiles = [...this.tiles].map((tile) => tile.view);
+            this.published.tilesVersion = this.tilesVersion;
         }
-        return this.cachedShape;
+        this.published.version = this.changeVersion;
+        return this.published;
     }
 
     /**
@@ -287,7 +302,8 @@ export class Terrain {
         }
         tile.fixtures = [];
         this.tiles.delete(tile);
-        this.shapeVersion++;
+        this.tilesVersion++;
+        this.changeVersion++;
     }
 
     /**
@@ -309,9 +325,7 @@ export class Terrain {
                 tile.dirtySince ??= time;
                 if (time - tile.rebuiltAt >= this.config.minRebuildInterval) this.waiting.push(tile);
             } else if (tile.grid.wearDirty && time - tile.wearPublishedAt >= this.config.wearRedrawInterval) {
-                tile.grid.wearDirty = false;
-                tile.wearPublishedAt = time;
-                this.shapeVersion++;
+                this.publishWear(tile, time);
             }
         }
         if (this.waiting.length === 0) return 0;
