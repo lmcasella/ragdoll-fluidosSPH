@@ -1,5 +1,6 @@
 import { SURFACES } from "../level/surfaces.js";
 import { LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
 import { NOISE_FUNCTIONS } from "./glslNoise.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
 
@@ -57,7 +58,7 @@ export function encodeSurface({ surface, wear, edge }) {
  * @param {number} value
  * @returns {string}
  */
-function glslFloat(value) {
+export function glslFloat(value) {
     return value.toFixed(GLSL_DECIMALS);
 }
 
@@ -66,7 +67,7 @@ function glslFloat(value) {
  * @param {number[]} color
  * @returns {string}
  */
-function glslColor(color) {
+export function glslColor(color) {
     return `vec3(${color.map(glslFloat).join(", ")})`;
 }
 
@@ -108,6 +109,7 @@ uniform highp vec3 uBaseDirection;
 uniform highp vec3 uBaseColor;
 uniform highp float uAmbient;
 ${LIGHT_FUNCTIONS}
+${BEVEL_FUNCTIONS}
 
 const float ID_SCALE = ${glslFloat(SURFACE_ID_SCALE)};
 ${surfaceConstants()}
@@ -222,19 +224,9 @@ float surfaceHeight(int id, vec2 world)
     return 0.0;
 }
 
-float coverageAt(vec2 textureCoord)
-{
-    return texture(uTexture, textureCoord).a;
-}
-
 vec2 bevelSlope(vec2 textureCoord)
 {
-    vec2 tap = vec2(BEVEL_WIDTH * uPixelsPerMeter) / uInputSize.xy;
-    float right = coverageAt(textureCoord + vec2(tap.x, 0.0));
-    float left = coverageAt(textureCoord - vec2(tap.x, 0.0));
-    float up = coverageAt(textureCoord - vec2(0.0, tap.y));
-    float down = coverageAt(textureCoord + vec2(0.0, tap.y));
-    return BEVEL_HEIGHT / (2.0 * BEVEL_WIDTH) * vec2(right - left, up - down);
+    return coverageSlope(textureCoord, BEVEL_WIDTH, BEVEL_HEIGHT);
 }
 
 vec3 surfaceNormal(int id, vec2 world, vec2 bevel)

@@ -59,3 +59,13 @@ La escena tiene una luz base tenue y fría que baja desde arriba, coherente con 
 - **Robots:** reciben la misma luz que las plataformas (§13.4).
 - **Cantidad:** se juntan los fluidos cercanos en una sola luz por zona, con un tope de luces por pantalla; una gota suelta no ilumina.
 - **Costo:** la luz no baja los fps de forma medible.
+
+## 13.4 Robots
+
+Los robots son de metal pintado con el color de su jugador, sin sprites: las mismas piezas de hoy con volumen y luz.
+
+- **Pintura:** cada pieza es del color del jugador, un poco más oscura y satinada; en los bordes la pintura está gastada y asoma el acero gris de las plataformas.
+- **Relieve:** cada pieza tiene el borde biselado, y la unión entre dos piezas se ve como una junta oscura, no como un trazo blanco.
+- **Luz:** la luz base marca el relieve y un brillo metálico chico; la lava y el ácido cercanos los iluminan de su color (§13.3).
+- **Legibilidad:** el color del jugador sigue siendo lo que más se ve del robot. El destello rojo del golpe y el tinte celeste del mojado se ven igual que hoy.
+- **Costo:** no baja los fps de forma medible: una sola pasada para todos los robots.
