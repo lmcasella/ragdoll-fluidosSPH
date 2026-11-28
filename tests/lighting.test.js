@@ -9,8 +9,10 @@ import { installFakePixi } from "./helpers/fake-pixi.js";
 const {
     LIGHTING,
     LIGHT_FUNCTIONS,
+    LIGHT_MAP_FUNCTIONS,
     LIGHT_STRIDE,
     MAX_LIGHTS,
+    addRobotLight,
     applyLights,
     buildKindSources,
     createLightSet,
@@ -97,6 +99,35 @@ test("gatherLights: lo que está a más de un alcance de la vista se descarta", 
     assert.equal(gather(cluster(LIGHTING.fullIntensityParticles, justOutside, 1, KINDS.lava)).count, 1);
 });
 
+test("buildKindSources no toma la fila de los robots, que no es un material", () => {
+    assert.equal(SOURCES[KINDS.lava], LIGHTING.sources.lava);
+    assert.equal(Object.keys(SOURCES).length, Object.keys(KINDS).length);
+});
+
+test("addRobotLight: color del jugador, intensidad, alcance y radio de la tabla; solo la luz de robot lleva radio de fuente", () => {
+    const output = gather(cluster(LIGHTING.fullIntensityParticles, 1, 1, KINDS.lava));
+    const playerColor = [0.2, 0.4, 0.6];
+    addRobotLight(output, 3, 4, playerColor);
+    assert.equal(output.count, 2);
+    const SOURCE_RADIUS_OFFSET = 7;
+    const robotSlot = 1 * LIGHT_STRIDE;
+    const robot = Array.from(output.data.slice(robotSlot, robotSlot + LIGHT_STRIDE));
+    const { range, intensity, sourceRadius } = LIGHTING.sources.robot;
+    assert.deepEqual(robot.slice(0, 4).map((value) => Math.round(value * 100)), [3, 4, range, intensity].map((value) => Math.round(value * 100)));
+    assert.deepEqual(robot.slice(4, 7).map((value) => Math.round(value * 100)), playerColor.map((value) => Math.round(value * 100)));
+    assert.ok(Math.abs(robot[SOURCE_RADIUS_OFFSET] - sourceRadius) < TOLERANCE);
+    assert.ok(sourceRadius > 0 && LIGHTING.sources.lava.sourceRadius === undefined && LIGHTING.sources.acid.sourceRadius === undefined);
+    assert.equal(output.data[SOURCE_RADIUS_OFFSET], 0, "la lava no proyecta sombras");
+});
+
+test("addRobotLight entra en el orden por intensidad, respeta el tope y no crea buffers", () => {
+    const output = createLightSet();
+    const { data } = output;
+    for (let call = 0; call < MAX_LIGHTS + 3; call++) addRobotLight(output, call, 0, [1, 1, 1]);
+    assert.equal(output.count, MAX_LIGHTS);
+    assert.equal(output.data, data);
+});
+
 test("gatherLights: devuelve el mismo buffer tras 1000 llamadas", () => {
     const output = createLightSet();
     const { data } = output;
@@ -107,14 +138,17 @@ test("gatherLights: devuelve el mismo buffer tras 1000 llamadas", () => {
 });
 
 test("el fragment de materiales tiene altura, normal, bisel y suma de luces, todo con precisión alta", () => {
-    for (const name of ["surfaceHeight", "surfaceNormal", "bevelSlope", "lightSum(", "uBaseDirection", "specular"]) {
+    for (const name of ["surfaceHeight", "surfaceNormal", "bevelSlope", "mappedLight(screen)", "lightRelief(", "uBaseDirection", "specular"]) {
         assert.ok(SURFACE_FRAGMENT.includes(name), name);
     }
     assert.ok(SURFACE_FRAGMENT.includes(LIGHT_FUNCTIONS));
+    assert.ok(SURFACE_FRAGMENT.includes(LIGHT_MAP_FUNCTIONS));
+    assert.ok(!SURFACE_FRAGMENT.includes("lightSum"), "ya no suma las luces una por una");
     for (const fragment of [SURFACE_FRAGMENT, LIGHT_FILTER_FRAGMENT]) {
         for (const declaration of fragment.match(/^uniform (?!sampler2D).*$/gm)) assert.match(declaration, /^uniform highp /, declaration);
     }
     assert.ok(LIGHT_FILTER_FRAGMENT.includes(LIGHT_FUNCTIONS));
+    assert.ok(LIGHT_FILTER_FRAGMENT.includes(LIGHT_MAP_FUNCTIONS) && LIGHT_FILTER_FRAGMENT.includes("mappedLight(screen)"));
     assert.ok(!/surfaceNormal/.test(LIGHT_FILTER_FRAGMENT), "el fondo no usa normales");
 });
 
@@ -135,8 +169,8 @@ test("los uniforms de luz son un arreglo de vec4 y los filtros no se reconstruye
 
     const standalone = createLightFilter({ scale: 1 });
     applyLights(standalone.resources.lightUniforms.uniforms, lights);
-    updateLightFilter(standalone, { originX: 1, originY: 2, pixelsPerMeter: 3 });
-    assert.deepEqual([...standalone.resources.lightUniforms.uniforms.uOrigin], [1, 2]);
+    updateLightFilter(standalone, { viewHeight: 2 });
+    assert.equal(standalone.resources.lightUniforms.uniforms.uViewHeight, 2);
 });
 
 test("LevelView y BackgroundView reciben las luces sin redibujar sus Graphics", () => {

@@ -1,16 +1,16 @@
-import { createShadowFilter, setShadowFilterLights, updateShadowFilter } from "./shadowFilter.js";
+import { LightMapPass } from "./lightMapPass.js";
 
 /**
  * Escena única del juego: una `PIXI.Application` con su canvas, el contenedor `world` (que la cámara mueve y escala, en
  * px a `pixelsPerMeter` con la Y hacia arriba). Ver `docs/design/07-sph.md` §7.4
  * y `docs/design/12-decisiones.md`. Debajo de `world` va `backgroundLayer`, el fondo con parallax (`docs/design/13-arte.md`
  * §13.1): queda fuera de `world` porque cada una de sus capas tiene su propia posición y zoom. Orden de abajo a arriba,
- * todo dentro de `world` (una sola cámara): nivel (con cajas), ambos con un filtro de sombras proyectadas sobre lo de atrás
- * (`shadowFilter.js`; el de los robots va después del filtro de material, que `index.js` pone en `ragdollLayer`), robots
- * (`ragdollLayer`, con la Y invertida porque RagImporter espera la Y hacia abajo), chispas y burbujas, capas de
+ * todo dentro de `world` (una sola cámara): nivel (con cajas), robots (`ragdollLayer`, con la Y invertida porque
+ * RagImporter espera la Y hacia abajo), chispas y burbujas, capas de
  * fluido por material, agua (debajo de ella quedan las partículas, que el agua refracta) y capa superpuesta (recogibles, mira, golpes, rueda y capas de debug del mundo), que se dibujan
- * encima del agua y de los robots. El HUD, los menús y el panel de debug son HTML (`docs/design/18-interfaz.md`): el
- * juego tiene un solo canvas.
+ * encima del agua y de los robots. Solo el nivel (plataformas, terreno y cajas) tapa la luz: `renderLightMap` dibuja con
+ * él el mapa de oclusión y el de luz antes de cada frame (`lightMapPass.js`); los robots y los líquidos no la tapan. El HUD, los menús y el panel de debug son HTML
+ * (`docs/design/18-interfaz.md`): el juego tiene un solo canvas.
  */
 export class Scene {
     /**
@@ -22,28 +22,32 @@ export class Scene {
         this.world = new PIXI.Container();
         application.stage.addChild(this.backgroundLayer, this.world);
         this.levelLayer = new PIXI.Container();
-        this.levelShadowFilter = createShadowFilter();
-        this.levelLayer.filters = [this.levelShadowFilter];
         this.ragdollLayer = new PIXI.Container();
         this.ragdollLayer.scale.y = -1;
-        this.ragdollShadowFilter = createShadowFilter();
         this.effectsLayer = new PIXI.Container();
         this.waterLayer = new PIXI.Container();
         this.fluidParent = new PIXI.Container();
         this.overlayLayer = new PIXI.Container();
         this.world.addChild(this.levelLayer, this.ragdollLayer, this.effectsLayer, this.fluidParent, this.waterLayer, this.overlayLayer);
+        this.lightMapPass = new LightMapPass({ world: this.world, casters: [this.levelLayer] });
     }
 
     /**
-     * Pone la cámara y las luces del frame en los filtros de sombra de las capas del nivel y de los robots, sin crear objetos.
+     * Registra los filtros de material de las capas que tapan la luz (el nivel y las cajas), que se apagan al dibujar el mapa de oclusión.
+     * @param {...PIXI.Filter} filters
+     */
+    addOccluderFilters(...filters) {
+        this.lightMapPass.addOccluderFilters(...filters);
+    }
+
+    /**
+     * Dibuja el mapa de oclusión y el de luz del frame; se llama una vez por frame, después de poner la cámara y antes de `render`.
      * @param {{originX: number, originY: number, pixelsPerMeter: number}} camera origen del mundo en px de pantalla y px por metro
      * @param {{data: Float32Array, count: number}} lightSet luces de `createLightSet`
      */
-    setShadowLights(camera, lightSet) {
-        for (const filter of [this.levelShadowFilter, this.ragdollShadowFilter]) {
-            updateShadowFilter(filter, camera);
-            setShadowFilterLights(filter, lightSet);
-        }
+    renderLightMap(camera, lightSet) {
+        const { renderer } = this.application;
+        this.lightMapPass.render(renderer, { width: renderer.screen.width, height: renderer.screen.height, camera, lightSet });
     }
 
     /**

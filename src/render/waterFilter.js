@@ -1,6 +1,7 @@
 import { NOISE_FUNCTIONS, RIPPLE_FUNCTIONS } from "./glslNoise.js";
 import { LIQUID_UNIFORM_GROUP } from "./liquidFilter.js";
-import { LIGHT_FUNCTIONS, LIGHT_SPECULAR_FUNCTIONS, applyLights, createPointLightUniforms } from "./lighting.js";
+import { LIGHT_FUNCTIONS, LIGHT_MAP_FUNCTIONS, LIGHT_SPECULAR_FUNCTIONS, applyLights, createPointLightUniforms } from "./lighting.js";
+import { createLightMapUniforms, lightMapSource } from "./lightMap.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
 import { RENDER_QUALITY } from "./renderQuality.js";
 
@@ -12,7 +13,7 @@ import { RENDER_QUALITY } from "./renderQuality.js";
  * vuelve más opaca con la profundidad, aclara la franja de la superficie (fresnel) y marca la línea de la superficie. Deja
  * ver el fondo (`uBackTexture`: con `blendRequired` PIXI copia el contenido ya dibujado en el destino raíz, sin importar de
  * qué contenedor cuelga el filtro, si el renderer arranca con `useBackBuffer`) desplazado por ondas que se mueven con
- * `uTime`, y refleja las luces de `lighting.js` con la normal de esas ondas. Comparte el grupo de uniforms y
+ * `uTime`, y refleja el mapa de luz (`lightMapPass.js`) y el brillo especular de las luces con la normal de esas ondas. Comparte el grupo de uniforms y
  * `updateLiquidFilter` con `liquidFilter.js`.
  */
 /** Valor máximo de un canal de color de 8 bits. */
@@ -77,6 +78,7 @@ uniform highp vec3 uAcidColor;
 uniform highp vec3 uLineColor;
 uniform highp float uLineWidth;
 ${LIGHT_FUNCTIONS}
+${LIGHT_MAP_FUNCTIONS}
 ${LIGHT_SPECULAR_FUNCTIONS}
 ${NOISE_FUNCTIONS}
 
@@ -159,7 +161,7 @@ void main(void)
     vec3 normal = normalize(vec3(-vec2(rise, run) / (2.0 * SLOPE_PROBE_M) * SLOPE_GAIN, 1.0));
     vec3 point = vec3(world, 0.0);
     float reflectionShare = mix(SURFACE_REFLECTION_SHARE, 1.0, closeness);
-    color += (lightSum(point, normal, 0.0, 1.0) * LIGHT_REFLECTION + lightSpecular(point, normal, SPECULAR_SHININESS) * SPECULAR_STRENGTH) * reflectionShare;
+    color += (mappedLight(screen) * LIGHT_REFLECTION + lightSpecular(point, normal, SPECULAR_SHININESS) * SPECULAR_STRENGTH) * reflectionShare;
 
     float lineWidthMeters = uLineWidth / uPixelsPerMeter;
     float sheen = (1.0 - smoothstep(0.0, lineWidthMeters * SHEEN_SPREAD, depth)) * SHEEN_STRENGTH;
@@ -245,6 +247,7 @@ export function createWaterFilter({ look, color, acidColor, lineColor, lineWidth
         antialias: RENDER_QUALITY.filterAntialias,
         resources: {
             uHeights: heights,
+            uLightMap: lightMapSource(),
             [LIQUID_UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
                 uPixelsPerMeter: { value: INITIAL_PIXELS_PER_METER, type: "f32" },
@@ -259,6 +262,7 @@ export function createWaterFilter({ look, color, acidColor, lineColor, lineWidth
                 uLineColor: { value: unitColor(lineColor), type: "vec3<f32>" },
                 uLineWidth: { value: lineWidth, type: "f32" },
                 ...createPointLightUniforms(),
+                ...createLightMapUniforms(),
             },
         },
     });

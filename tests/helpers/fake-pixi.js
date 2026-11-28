@@ -15,6 +15,24 @@ class FakePoint {
     }
 }
 
+/** `Matrix` falso: solo guarda que se copió y se multiplicó. */
+class FakeMatrix {
+    constructor() {
+        this.copies = 0;
+        this.appends = 0;
+    }
+
+    copyFrom() {
+        this.copies++;
+        return this;
+    }
+
+    append() {
+        this.appends++;
+        return this;
+    }
+}
+
 export class FakeContainer {
     constructor() {
         this.children = [];
@@ -28,6 +46,12 @@ export class FakeContainer {
         this.filters = null;
         this.sortableChildren = false;
         this.destroyed = false;
+        this.localTransform = new FakeMatrix();
+        this.localTransformUpdates = 0;
+    }
+
+    updateLocalTransform() {
+        this.localTransformUpdates++;
     }
 
     addChild(...children) {
@@ -277,6 +301,7 @@ class FakeFilter {
     constructor(options) {
         FakeFilter.constructed++;
         this.options = options;
+        this.enabled = true;
         this.resources = {};
         for (const [group, definitions] of Object.entries(options.resources ?? {})) {
             const uniforms = {};
@@ -304,6 +329,34 @@ class FakeBufferImageSource {
     destroy() {}
 }
 
+/**
+ * Textura de render falsa: cuenta cuántas se construyeron (`constructed`), cuántas veces se redimensionó (`resizes`) y
+ * expone una `source` propia, como la de PIXI.
+ */
+class FakeRenderTexture {
+    static constructed = 0;
+
+    static create(options) {
+        return new FakeRenderTexture(options);
+    }
+
+    constructor({ width, height, resolution }) {
+        FakeRenderTexture.constructed++;
+        this.width = width;
+        this.height = height;
+        this.resolution = resolution;
+        this.resizes = 0;
+        this.source = { width, height, resolution };
+    }
+
+    resize(width, height, resolution) {
+        this.resizes++;
+        this.width = width;
+        this.height = height;
+        this.resolution = resolution;
+    }
+}
+
 class FakeApplication {
     async init(options) {
         this.options = options;
@@ -321,6 +374,12 @@ class FakeApplication {
             resize: (width, height) => {
                 this.canvas.width = width;
                 this.canvas.height = height;
+                this.renderer.screen = { width, height };
+            },
+            screen: { width: options.width, height: options.height },
+            renders: [],
+            render: (renderOptions) => {
+                this.renderer.renders.push(renderOptions);
             },
         };
     }
@@ -336,7 +395,9 @@ export function installFakePixi() {
         Application: FakeApplication,
         Container: FakeContainer,
         Sprite: FakeSprite,
-        Texture: FakeTexture,
+        Texture: Object.assign(FakeTexture, { WHITE: { source: { width: 1, height: 1 }, dynamic: false } }),
+        RenderTexture: FakeRenderTexture,
+        Matrix: FakeMatrix,
         Graphics: FakeGraphics,
         Text: FakeText,
         Particle: FakeParticle,

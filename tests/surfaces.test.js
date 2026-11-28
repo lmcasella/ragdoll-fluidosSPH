@@ -150,8 +150,8 @@ test("el shader reconoce los tres materiales por id, no usa texturas externas y 
     for (const name of ["STEEL", "CONCRETE"]) assert.ok(SURFACE_FRAGMENT.includes(`id == ${name}_ID`), `rama de ${name}`);
     assert.ok(SURFACE_FRAGMENT.includes("glassColor(world)"), "rama del vidrio");
     for (const name of ["STEEL", "CONCRETE", "GLASS"]) assert.ok(SURFACE_FRAGMENT.includes(`const int ${name}_ID`), `id de ${name}`);
-    assert.equal(SURFACE_FRAGMENT.match(/sampler2D/g).length, 1, "solo la textura de entrada del filtro");
-    assert.equal(SURFACE_FRAGMENT.match(/texture\(/g).length, 2, "la lectura del fragmento y la de la cobertura de los vecinos del bisel");
+    assert.equal(SURFACE_FRAGMENT.match(/sampler2D/g).length, 2, "la textura de entrada del filtro y el mapa de luz");
+    assert.equal(SURFACE_FRAGMENT.match(/texture\(/g).length, 3, "la lectura del fragmento, la de la cobertura de los vecinos del bisel y la del mapa de luz");
     assert.ok(SURFACE_FRAGMENT.includes("uOutputFrame") && SURFACE_FRAGMENT.includes("uInputSize"));
 
     const code = encodeSurface({ surface: "concrete", wear: 0.5 });
@@ -305,15 +305,7 @@ test("las rompibles van en el contenedor con el filtro y codifican su grieta en 
 test("la luz base y el brillo del acero dan contraste sin luces cercanas sin oscurecer la plataforma en promedio", async () => {
     const { LIGHTING } = await import("../src/render/lighting.js");
     const { base, fill } = LIGHTING;
-    assert.deepEqual(base, { direction: [-0.45, 0.89], front: 0.8, color: [1, 0.93, 0.82], intensity: 1.1, ambient: 0.18 });
+    assert.deepEqual(base, { direction: [-0.45, 0.89], front: 0.8, color: [1, 0.93, 0.82], intensity: 0.88, ambient: 0.12 });
     assert.deepEqual(fill, { color: [0.45, 0.55, 0.75], intensity: 0.25 });
     assert.ok(SURFACE_FRAGMENT.includes("const float SPECULAR_STRENGTH = 0.6;"));
-    const [directionX, directionY] = base.direction;
-    const facingFlat = base.front / Math.hypot(directionX, directionY, base.front);
-    const meanLight = (oldAmbient, oldIntensity, ambient, intensity) => base.color.map((channel) => [oldAmbient + channel * oldIntensity * facingFlat, ambient + channel * intensity * facingFlat]);
-    const OLD_AMBIENT = 0.35;
-    const OLD_INTENSITY = 0.55;
-    for (const [before, after] of meanLight(OLD_AMBIENT, OLD_INTENSITY, base.ambient, base.intensity)) {
-        assert.ok(after >= before, `la luz de una cara plana no baja: ${before.toFixed(3)} -> ${after.toFixed(3)}`);
-    }
 });

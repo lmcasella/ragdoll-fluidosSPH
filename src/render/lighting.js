@@ -9,7 +9,9 @@
  * y `front`, la parte de la dirección que apunta hacia el jugador, para que una cara plana también reciba luz; `color` e
  * `intensity` de la clave y `ambient` del aire. `fill`: relleno frío desde el lado contrario de la clave (misma altura y
  * `front`, con la X invertida), sin especular: `color` e `intensity`. `sources`: luz de cada material de fluido por nombre
- * (`color` RGB de 0 a 1, `intensity`, `range` en m hasta donde llega). `height`: altura de la fuente sobre el plano de las
+ * (`color` RGB de 0 a 1, `intensity`, `range` en m hasta donde llega y `sourceRadius` en m, opcional: con valor, la luz
+ * proyecta sombras y la marcha ignora la oclusión dentro de ese radio alrededor de ella). `robot` es la luz de cada
+ * robot, con el color del jugador (el `color` de la tabla es solo un valor por defecto). `height`: altura de la fuente sobre el plano de las
  * plataformas, en m. `zoneSize`: lado de las zonas en que se juntan las partículas, en m; `minParticles`: partículas mínimas
  * para que una zona sea luz; `fullIntensityParticles`: partículas con las que la zona da la intensidad completa.
  * `backgroundLayers`: de la capa más cercana a la más lejana, cuánta luz puntual recibe (`pointLight`), cuánto la aclara
@@ -17,11 +19,12 @@
  * `backgroundFogColor` (RGB de 0 a 1), que separa los planos.
  */
 export const LIGHTING = {
-    base: { direction: [-0.45, 0.89], front: 0.8, color: [1, 0.93, 0.82], intensity: 1.1, ambient: 0.18 },
+    base: { direction: [-0.45, 0.89], front: 0.8, color: [1, 0.93, 0.82], intensity: 0.88, ambient: 0.12 },
     fill: { color: [0.45, 0.55, 0.75], intensity: 0.25 },
     sources: {
         lava: { color: [1, 0.55, 0.2], intensity: 1.6, range: 6 },
         acid: { color: [0.45, 1, 0.35], intensity: 0.5, range: 3 },
+        robot: { color: [1, 1, 1], intensity: 0.9, range: 5, sourceRadius: 0.15 },
     },
     height: 0.6,
     zoneSize: 2,
@@ -42,7 +45,7 @@ export const MAX_LIGHTS = 8;
 /** `vec4` de GLSL que ocupa cada luz en el arreglo de uniforms: posición con alcance e intensidad, y color. */
 export const VEC4_PER_LIGHT = 2;
 
-/** Números por luz en el buffer plano: x, y, alcance, intensidad (primer `vec4`) y r, g, b, relleno (segundo). */
+/** Números por luz en el buffer plano: x, y, alcance, intensidad (primer `vec4`) y r, g, b, radio de la fuente en m (segundo). */
 export const LIGHT_STRIDE = VEC4_PER_LIGHT * 4;
 
 const X_SLOT = 0;
@@ -50,7 +53,9 @@ const Y_SLOT = 1;
 const RANGE_SLOT = 2;
 const INTENSITY_SLOT = 3;
 const COLOR_SLOT = 4;
+const SOURCE_RADIUS_SLOT = 7;
 const RGB_COMPONENTS = 3;
+const CHANNEL_MAX = 255;
 const POSITION_COMPONENTS = 2;
 
 /** Zonas distintas que se llevan a la vez; las partículas de una zona más allá de este tope no suman. */
@@ -78,8 +83,19 @@ export function createLightSet() {
  */
 export function buildKindSources(kindByName) {
     const sourceOfKind = [];
-    for (const [name, source] of Object.entries(LIGHTING.sources)) sourceOfKind[kindByName[name]] = source;
+    for (const [name, source] of Object.entries(LIGHTING.sources)) {
+        if (kindByName[name] !== undefined) sourceOfKind[kindByName[name]] = source;
+    }
     return sourceOfKind;
+}
+
+/**
+ * Color RGB de 0 a 1 a partir de uno de 0 a 255, para la luz de un jugador.
+ * @param {number[]} bytes RGB de 0 a 255
+ * @returns {number[]}
+ */
+export function unitRgbOfBytes(bytes) {
+    return bytes.map((channel) => channel / CHANNEL_MAX);
 }
 
 /**
@@ -121,9 +137,32 @@ function insertLight(output, { x, y, source, intensity }) {
     data[base + RANGE_SLOT] = source.range;
     data[base + INTENSITY_SLOT] = intensity;
     for (let channel = 0; channel < RGB_COMPONENTS; channel++) data[base + COLOR_SLOT + channel] = source.color[channel];
+    data[base + SOURCE_RADIUS_SLOT] = source.sourceRadius ?? 0;
 }
 
 const candidate = { x: 0, y: 0, source: null, intensity: 0 };
+
+const robotSource = { color: [0, 0, 0], range: 0, sourceRadius: 0 };
+
+/**
+ * Suma la luz de un robot (`LIGHTING.sources.robot`, la única con sombras) a `output`, que ya tiene las de lava y ácido.
+ * Entra en el orden por intensidad y, con el tope lleno, desplaza a la más débil. No crea objetos.
+ * @param {{data: Float32Array, count: number}} output luces de `createLightSet`
+ * @param {number} x posición de la luz, en m (la cabeza del robot)
+ * @param {number} y posición de la luz, en m
+ * @param {number[]} color RGB de 0 a 1 del jugador
+ */
+export function addRobotLight(output, x, y, color) {
+    const { robot } = LIGHTING.sources;
+    for (let channel = 0; channel < RGB_COMPONENTS; channel++) robotSource.color[channel] = color[channel];
+    robotSource.range = robot.range;
+    robotSource.sourceRadius = robot.sourceRadius;
+    candidate.x = x;
+    candidate.y = y;
+    candidate.source = robotSource;
+    candidate.intensity = robot.intensity;
+    insertLight(output, candidate);
+}
 
 /**
  * Junta las partículas que iluminan en luces por zona (`LIGHTING.zoneSize`): por zona y material, la cantidad y el
@@ -241,8 +280,7 @@ export function applyLights(uniforms, lightSet) {
 /**
  * Funciones de GLSL de las luces puntuales, para incluir en el fragment de cada filtro de luz. Declara `uLights` y
  * `uLightCount` (con precisión alta, como pide WebGL cuando el vertex también las ve) y define `lightFalloff` (caída
- * `intensidad · (1 − d / alcance)²`) y `lightSum`, la suma de las luces en un punto: con `shaded` en 1 pesa cada luz por
- * el coseno con la normal (Lambert) y con 0 no usa normales. `shiftY` pasa las luces al marco del punto, en m.
+ * `intensidad · (1 − d / alcance)²`). La suma de las luces en cada píxel la hace el mapa de luz (`LIGHT_MAP_FUNCTIONS`).
  */
 export const LIGHT_FUNCTIONS = `
 const int MAX_LIGHTS = ${MAX_LIGHTS};
@@ -256,19 +294,36 @@ float lightFalloff(float reach, float range, float intensity)
     return intensity * remaining * remaining;
 }
 
-vec3 lightSum(vec3 point, vec3 normal, float shiftY, float shaded)
+`;
+
+/** Rango de la luz que guarda el mapa de luz, en intensidad: el mapa es de 8 bits, así que guarda `luz / rango` y se lee `· rango`. */
+export const LIGHT_MAP_RANGE = 3;
+
+/**
+ * Funciones de GLSL para leer el mapa de luz (`lightMap.js`), que reemplaza la suma de luces puntuales en los filtros del
+ * fondo, las plataformas, los robots y el agua: declara `uLightMap` y `uScreenSize` (px de pantalla del mapa), y define
+ * `mappedLight`, el color de la luz en un punto de pantalla, y `lightRelief`, cuánto el relieve (la normal) recibe de la luz
+ * más fuerte, de `RELIEF_FLOOR` (de espaldas) a 1 (de frente). `shiftY` pasa la luz al marco del punto, en m. Va después de
+ * `LIGHT_FUNCTIONS`.
+ */
+export const LIGHT_MAP_FUNCTIONS = `
+uniform sampler2D uLightMap;
+uniform highp vec2 uScreenSize;
+
+const float LIGHT_MAP_RANGE = ${LIGHT_MAP_RANGE.toFixed(1)};
+const float RELIEF_FLOOR = 0.55;
+const float RELIEF_GAIN = 0.45;
+
+vec3 mappedLight(vec2 screen)
 {
-    vec3 total = vec3(0.0);
-    for (int index = 0; index < MAX_LIGHTS; index++) {
-        if (float(index) >= uLightCount) break;
-        vec4 placement = uLights[index * ${VEC4_PER_LIGHT}];
-        vec4 tint = uLights[index * ${VEC4_PER_LIGHT} + 1];
-        vec3 toLight = vec3(placement.xy - vec2(0.0, shiftY), LIGHT_HEIGHT) - point;
-        float lightDistance = length(toLight);
-        float facing = mix(1.0, max(0.0, dot(normal, toLight / lightDistance)), shaded);
-        total += tint.rgb * lightFalloff(lightDistance, placement.z, placement.w) * facing;
-    }
-    return total;
+    return texture(uLightMap, screen / uScreenSize).rgb * LIGHT_MAP_RANGE;
+}
+
+float lightRelief(vec3 point, vec3 normal, float shiftY)
+{
+    if (uLightCount < 0.5) return 1.0;
+    vec3 toStrongest = vec3(uLights[0].xy - vec2(0.0, shiftY), LIGHT_HEIGHT) - point;
+    return RELIEF_FLOOR + RELIEF_GAIN * max(0.0, dot(normal, normalize(toStrongest)));
 }
 `;
 

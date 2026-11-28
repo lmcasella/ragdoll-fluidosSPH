@@ -1,5 +1,6 @@
 import { SURFACES } from "../level/surfaces.js";
-import { BASE_LIGHT_FUNCTIONS, LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { BASE_LIGHT_FUNCTIONS, LIGHT_FUNCTIONS, LIGHT_MAP_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { createLightMapUniforms, lightMapSource } from "./lightMap.js";
 import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
 import { NOISE_FUNCTIONS } from "./glslNoise.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
@@ -12,7 +13,8 @@ import { RENDER_QUALITY } from "./renderQuality.js";
  * grieta) y la cobertura (alfa) para la forma. La textura sale de la posición del fragmento en el mundo (con ruido de valor,
  * sin texturas externas), así queda pegada a la plataforma. Los colores y las escalas salen de `SURFACES`. Con la misma
  * posición arma una altura por material (juntas, remaches, grano y el bisel del borde), saca la normal de su gradiente
- * y la ilumina con la luz base y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3). El borde no tiene trazo: lo
+ * y la ilumina con la luz base y el mapa de luz (`lightMapPass.js`, `docs/design/13-arte.md` §13.3), este modulado por el
+ * relieve. El borde no tiene trazo: lo
  * da el bisel con la luz y una oclusión que oscurece el material junto al borde. Los cantos expuestos se comen hasta unos
  * centímetros con un ruido de baja frecuencia (más en las esquinas), solo en lo que se ve.
  */
@@ -107,6 +109,7 @@ uniform highp float uPixelsPerMeter;
 uniform highp float uLightShiftY;
 ${BASE_LIGHT_FUNCTIONS}
 ${LIGHT_FUNCTIONS}
+${LIGHT_MAP_FUNCTIONS}
 ${BEVEL_FUNCTIONS}
 
 const float ID_SCALE = ${glslFloat(SURFACE_ID_SCALE)};
@@ -334,10 +337,10 @@ vec3 surfaceNormal(int id, vec2 world, vec2 bevel)
     return normalize(vec3(-(slopeX + bevel.x), -(slopeY + bevel.y), 1.0));
 }
 
-vec3 litColor(vec3 albedo, vec3 normal, vec3 point, float specularAmount)
+vec3 litColor(vec3 albedo, vec3 normal, vec3 point, vec2 screen, float specularAmount)
 {
     float facing = max(0.0, dot(normal, uBaseDirection));
-    vec3 light = baseLight(normal) + lightSum(point, normal, uLightShiftY, 1.0);
+    vec3 light = baseLight(normal) + mappedLight(screen) * lightRelief(point, normal, uLightShiftY);
     vec3 halfway = normalize(uBaseDirection + VIEW_DIRECTION);
     float specular = specularAmount * SPECULAR_STRENGTH * pow(max(0.0, dot(normal, halfway)), SPECULAR_SHININESS) * facing;
     return albedo * light + uBaseColor * specular;
@@ -366,7 +369,7 @@ void main(void)
     }
     float specularAmount = id == STEEL_ID ? 1.0 - smoothstep(0.0, SPECULAR_WEAR_LIMIT, code.g) : 0.0;
     vec3 normal = surfaceNormal(id, world, bevelSlope(vTextureCoord));
-    vec3 lit = litColor(surface.rgb, normal, vec3(world, 0.0), specularAmount);
+    vec3 lit = litColor(surface.rgb, normal, vec3(world, 0.0), screen, specularAmount);
     vec3 color = lit * (1.0 - edgeOcclusion(vTextureCoord) * OCCLUSION_DARKEN);
     float alpha = surface.a * encoded.a * (1.0 - edgeErosion(vTextureCoord, world));
     finalColor = vec4(color * alpha, alpha);
@@ -384,12 +387,14 @@ export function createSurfaceFilter() {
         resolution: RENDER_QUALITY.filterResolution,
         antialias: RENDER_QUALITY.filterAntialias,
         resources: {
+            uLightMap: lightMapSource(),
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
                 uPixelsPerMeter: { value: INITIAL_PIXELS_PER_METER, type: "f32" },
                 uLightShiftY: { value: 0, type: "f32" },
                 ...createBaseLightUniforms(),
                 ...createPointLightUniforms(),
+                ...createLightMapUniforms(),
             },
         },
     });

@@ -1,6 +1,7 @@
 import { SURFACES } from "../level/surfaces.js";
 import { BEVEL_FUNCTIONS } from "./bevelFunctions.js";
-import { BASE_LIGHT_FUNCTIONS, LIGHT_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { BASE_LIGHT_FUNCTIONS, LIGHT_FUNCTIONS, LIGHT_MAP_FUNCTIONS, applyLights, createBaseLightUniforms, createPointLightUniforms } from "./lighting.js";
+import { createLightMapUniforms, lightMapSource } from "./lightMap.js";
 import { glslColor, glslFloat } from "./surfaceFilter.js";
 import { FILTER_VERTEX } from "./thresholdFilter.js";
 import { RENDER_QUALITY } from "./renderQuality.js";
@@ -10,7 +11,7 @@ import { RENDER_QUALITY } from "./renderQuality.js";
  * metal pintado con relieve. Cada pieza ya llega pintada con su color final (jugador, destello y mojado) por `tint`, así el
  * filtro no sabe de jugadores. El contorno de las piezas llega en `ROBOT_JOINT_COLOR` y se dibuja como junta hundida. La
  * altura sube en el bisel de la silueta y baja en las juntas; de su gradiente sale la normal, que se ilumina con la luz base
- * y las luces de `lighting.js` (`docs/design/13-arte.md` §13.3). Sin ruido ni textura: los robots se mueven.
+ * y el mapa de luz modulado por el relieve (`lightMapPass.js`, `docs/design/13-arte.md` §13.3). Sin ruido ni textura: los robots se mueven.
  */
 
 /** Color con que se traza el contorno de las piezas para que el filtro lo reconozca como junta: ninguna pieza lo usa. */
@@ -32,7 +33,7 @@ const INITIAL_PIXELS_PER_METER = 1;
  * Medidas en metros. `PAINT_BRIGHTNESS`: cuánto del color de la pieza queda con la pintura satinada. `PAINT_WEAR_MIX`: parte
  * que se mezcla hacia el acero de las plataformas en los `PAINT_WEAR_WIDTH` más externos de la silueta. `LIGHT_FLOOR`:
  * piso del multiplicador de luz, para que el destello y el mojado sigan leyéndose. La luz base (clave y relleno) se divide por la de una cara plana, así el color
- * del jugador queda igual donde no hay relieve; las luces puntuales se suman sin dividir, para que alumbren de verdad. El bisel mide al menos MIN_BEVEL_PX px para que se vea con la cámara lejos.
+ * del jugador queda igual donde no hay relieve; el mapa de luz se suma sin dividir, para que alumbre de verdad. El bisel mide al menos MIN_BEVEL_PX px para que se vea con la cámara lejos.
  */
 export const ROBOT_FRAGMENT = `
 precision highp float;
@@ -45,6 +46,7 @@ uniform highp vec2 uOrigin;
 uniform highp float uPixelsPerMeter;
 ${BASE_LIGHT_FUNCTIONS}
 ${LIGHT_FUNCTIONS}
+${LIGHT_MAP_FUNCTIONS}
 ${BEVEL_FUNCTIONS}
 
 const vec3 STEEL_BASE = ${glslColor(SURFACES.steel.baseColor)};
@@ -118,7 +120,7 @@ void main(void)
     float facing = max(0.0, dot(normal, uBaseDirection));
     vec3 flatNormal = vec3(0.0, 0.0, 1.0);
     vec3 baseRelief = baseLight(normal) / baseLight(flatNormal);
-    vec3 light = baseRelief + lightSum(vec3(world, 0.0), normal, 0.0, 1.0);
+    vec3 light = baseRelief + mappedLight(screen) * lightRelief(vec3(world, 0.0), normal, 0.0);
     vec3 halfway = normalize(uBaseDirection + VIEW_DIRECTION);
     float specular = SPECULAR_STRENGTH * pow(max(0.0, dot(normal, halfway)), SPECULAR_SHININESS) * facing;
     vec3 color = paint * max(light, vec3(LIGHT_FLOOR)) + uBaseColor * specular;
@@ -137,11 +139,13 @@ export function createRobotFilter() {
         resolution: RENDER_QUALITY.filterResolution,
         antialias: RENDER_QUALITY.filterAntialias,
         resources: {
+            uLightMap: lightMapSource(),
             [UNIFORM_GROUP]: {
                 uOrigin: { value: new Float32Array(ORIGIN_COMPONENTS), type: "vec2<f32>" },
                 uPixelsPerMeter: { value: INITIAL_PIXELS_PER_METER, type: "f32" },
                 ...createBaseLightUniforms(),
                 ...createPointLightUniforms(),
+                ...createLightMapUniforms(),
             },
         },
     });

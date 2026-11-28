@@ -58,7 +58,7 @@ import { buildRenderItems } from "./src/ragdoll/renderItems.js";
 import { drawParticles, lookOf, SHOT_DRAW } from "./src/render/fluidDraw.js";
 import { collectSurfaces } from "./src/render/fluidSurfaces.js";
 import { FluidLayers } from "./src/render/fluidLayers.js";
-import { buildKindSources, createLightSet, gatherLights } from "./src/render/lighting.js";
+import { addRobotLight, buildKindSources, createLightSet, gatherLights, unitRgbOfBytes } from "./src/render/lighting.js";
 import { createRobotFilter, setRobotFilterLights, updateRobotFilter } from "./src/render/robotFilter.js";
 import { WaterView } from "./src/render/waterView.js";
 import { PickupView } from "./src/render/pickupView.js";
@@ -77,6 +77,7 @@ RagImporter.configure({ Box2D, PIXI });
 const LASER_RANGE = 25;
 const PLAYER_COLORS = ["#ff9933", "#33b5ff"];
 const PLAYER_TINTS = PLAYER_COLORS.map(parseHexColor);
+const PLAYER_LIGHT_COLORS = PLAYER_TINTS.map(unitRgbOfBytes);
 
 async function loadRag(url, prepare = (json) => json) {
     const response = await fetch(url);
@@ -307,7 +308,7 @@ const particleSystem = createParticleSystem(world, SHOT_SYSTEM);
 const store = new ParticleStore(particleSystem, SHOT_SYSTEM);
 const lightSet = createLightSet();
 const robotFilter = createRobotFilter();
-scene.ragdollLayer.filters = [robotFilter, scene.ragdollShadowFilter];
+scene.ragdollLayer.filters = [robotFilter];
 const lightSourceOfKind = buildKindSources({ lava: FLUID.LAVA, acid: FLUID.ACID });
 const lightView = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 const lightScreenOrigin = { originX: 0, originY: 0, pixelsPerMeter: 1, viewHeight: 1 };
@@ -339,6 +340,7 @@ const crateView = new CrateView({
     crateSide: CRATE.side,
     pieceSide: CRATE.side * CRATE.pieceSize,
 });
+scene.addOccluderFilters(levelView.surfaceFilter, crateView.filter);
 const aimLaserView = new AimLaserView({ ...overlayOptions, playerCount: players.length });
 const hitEffectsView = new HitEffectsView(overlayOptions);
 const debugView = new DebugView({ ...overlayOptions, debug });
@@ -1117,13 +1119,17 @@ function loop(nowMs) {
         view: lightView,
         output: lightSet,
     });
+    players.forEach((player, k) => {
+        if (player.dead) return;
+        const head = player.rag.bodies.get(HEAD_BODY).GetPosition();
+        addRobotLight(lightSet, head.get_x(), head.get_y(), PLAYER_LIGHT_COLORS[k]);
+    });
     lightScreenOrigin.originX = scene.world.position.x;
     lightScreenOrigin.originY = scene.world.position.y;
     lightScreenOrigin.pixelsPerMeter = scale;
     lightScreenOrigin.viewHeight = camera.viewH;
     levelView.setLights(lightSet);
     crateView.setLights(lightSet);
-    scene.setShadowLights(lightScreenOrigin, lightSet);
     updateRobotFilter(robotFilter, lightScreenOrigin);
     setRobotFilterLights(robotFilter, lightSet);
     backgroundView.setLights(lightSet, lightScreenOrigin);
@@ -1186,6 +1192,7 @@ function loop(nowMs) {
     hud.events.length = 0;
     cuentaMuda = false;
     debugPanel.update(debug.panelLines());
+    scene.renderLightMap(lightScreenOrigin, lightSet);
     scene.render();
     if (match.state === "title") {
         screens.update({
