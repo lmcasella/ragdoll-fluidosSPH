@@ -7,6 +7,9 @@ const GIVE_UP_TURNS = 2;
 /** Un polígono con menos vértices que esto no encierra área. */
 const TRIANGLE_VERTICES = 3;
 
+/** Multiplicador que junta dos índices de vértice en una clave numérica de arista; tope de vértices por contorno: 2^20. */
+const EDGE_KEY_STRIDE = 1048576;
+
 /**
  * Producto vectorial de (first - origin) y (second - origin): el doble del área con signo del triángulo, en m². Positivo si los tres puntos giran
  * en sentido antihorario.
@@ -254,52 +257,77 @@ function isConvex(points, polygon) {
 }
 
 /**
- * Une dos polígonos que comparten una arista, si la unión es convexa y no pasa de `maxVertices`.
- * @param {{x: number, y: number}[]} points
- * @param {number[]} first polígono como índices, antihorario
- * @param {number[]} second polígono como índices, antihorario
- * @param {number} maxVertices
- * @returns {number[]|null} la unión, o null si no comparten arista o la unión no sirve
+ * Clave de una arista dirigida, para buscarla en un `Map`.
+ * @param {number} start índice del vértice de origen
+ * @param {number} end índice del vértice de destino
+ * @returns {number}
  */
-function mergeIfConvex(points, first, second, maxVertices) {
+function edgeKey(start, end) {
+    return start * EDGE_KEY_STRIDE + end;
+}
+
+/**
+ * Une dos polígonos a lo largo de la arista `start → end` del primero (que es `end → start` en el segundo), si la unión
+ * es convexa y no pasa de `maxVertices`.
+ * @param {{x: number, y: number}[]} points
+ * @param {number[]} first polígono como índices, antihorario, con la arista `start → end`
+ * @param {number[]} second polígono como índices, antihorario, con la arista `end → start`
+ * @param {number} start índice de vértice
+ * @param {number} end índice de vértice
+ * @param {number} maxVertices
+ * @returns {number[]|null} la unión, o null si no sirve
+ */
+function mergeAlongEdge(points, first, second, start, end, maxVertices) {
     if (first.length + second.length - 2 > maxVertices) return null;
-    for (let firstIndex = 0; firstIndex < first.length; firstIndex++) {
-        const start = first[firstIndex];
-        const end = first[(firstIndex + 1) % first.length];
-        const secondIndex = second.findIndex((vertex, index) => vertex === end && second[(index + 1) % second.length] === start);
-        if (secondIndex < 0) continue;
-        const merged = [];
-        for (let step = 1; step <= first.length; step++) merged.push(first[(firstIndex + step) % first.length]);
-        for (let step = 2; step < second.length; step++) merged.push(second[(secondIndex + step) % second.length]);
-        return isConvex(points, merged) ? merged : null;
-    }
-    return null;
+    const firstIndex = first.findIndex((vertex, index) => vertex === start && first[(index + 1) % first.length] === end);
+    const secondIndex = second.findIndex((vertex, index) => vertex === end && second[(index + 1) % second.length] === start);
+    const merged = [];
+    for (let step = 1; step <= first.length; step++) merged.push(first[(firstIndex + step) % first.length]);
+    for (let step = 2; step < second.length; step++) merged.push(second[(secondIndex + step) % second.length]);
+    return isConvex(points, merged) ? merged : null;
+}
+
+/**
+ * Anota a qué pieza pertenece cada arista dirigida de un polígono.
+ * @param {Map<number, number>} ownerOfEdge clave de arista → índice de pieza
+ * @param {number[]} polygon polígono como índices
+ * @param {number} pieceIndex
+ */
+function registerEdges(ownerOfEdge, polygon, pieceIndex) {
+    for (let index = 0; index < polygon.length; index++) ownerOfEdge.set(edgeKey(polygon[index], polygon[(index + 1) % polygon.length]), pieceIndex);
 }
 
 /**
  * Une triángulos vecinos mientras el resultado siga siendo convexo y de hasta `maxVertices` (Hertel y Mehlhorn, 1983:
- * quitar diagonales que no hacen falta). Es voraz: no garantiza el mínimo de piezas.
+ * quitar diagonales que no hacen falta). Recorre cada diagonal una sola vez, con un mapa de arista a pieza que se
+ * actualiza en cada unión, así que el costo crece casi lineal con los triángulos. Es voraz: no garantiza el mínimo de
+ * piezas.
  * @param {{x: number, y: number}[]} points
  * @param {number[][]} polygons polígonos como índices
  * @param {number} maxVertices
  * @returns {number[][]}
  */
 function mergePieces(points, polygons, maxVertices) {
-    const pieces = polygons.slice();
-    let merged = true;
-    while (merged) {
-        merged = false;
-        for (let first = 0; first < pieces.length && !merged; first++) {
-            for (let second = first + 1; second < pieces.length && !merged; second++) {
-                const union = mergeIfConvex(points, pieces[first], pieces[second], maxVertices);
-                if (!union) continue;
-                pieces[first] = union;
-                pieces.splice(second, 1);
-                merged = true;
-            }
-        }
+    const pieces = polygons.map((polygon) => polygon.slice());
+    const ownerOfEdge = new Map();
+    pieces.forEach((polygon, pieceIndex) => registerEdges(ownerOfEdge, polygon, pieceIndex));
+    const diagonals = [];
+    for (const key of ownerOfEdge.keys()) {
+        const start = Math.floor(key / EDGE_KEY_STRIDE);
+        const end = key % EDGE_KEY_STRIDE;
+        if (start < end && ownerOfEdge.has(edgeKey(end, start))) diagonals.push({ start, end });
     }
-    return pieces;
+    for (const { start, end } of diagonals) {
+        const firstIndex = ownerOfEdge.get(edgeKey(start, end));
+        const secondIndex = ownerOfEdge.get(edgeKey(end, start));
+        if (firstIndex === secondIndex) continue;
+        const union = mergeAlongEdge(points, pieces[firstIndex], pieces[secondIndex], start, end, maxVertices);
+        if (!union) continue;
+        pieces[firstIndex] = union;
+        pieces[secondIndex] = null;
+        registerEdges(ownerOfEdge, union, firstIndex);
+    }
+    return pieces.filter((piece) => piece !== null);
 }
 
 /**

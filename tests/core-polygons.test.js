@@ -4,6 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 
 const { contoursOfGrid } = await import("../src/core/math/marchingSquares.js");
 const { simplifyRing } = await import("../src/core/math/polygonSimplify.js");
@@ -15,6 +17,10 @@ const MICROMETER = 1e-6;
 const AREA_TOLERANCE = 0.001;
 const BOX2D_MAX_VERTICES = 8;
 const NO_MINIMUM_AREA = 0;
+const MERGE_BUDGET_MILLISECONDS = 5;
+const CORRODED_GRID_TOLERANCE_CELLS = 0.5;
+const CORRODED_GRID_PIECES_BEFORE = 101;
+const CORRODED_GRID_PATH = new URL("./fixtures/corroded-platform-grid.json", import.meta.url);
 
 function filledGrid(columns, rows, cellWidth, cellHeight) {
     return { values: new Float32Array(columns * rows).fill(1), columns, rows, cellWidth, cellHeight };
@@ -176,4 +182,20 @@ test("descomposición: grillas con huecos al azar dan piezas convexas de hasta 8
         assert.ok(Math.abs(totalArea(pieces) - expected) / expected < AREA_TOLERANCE, `semilla ${seed}`);
         assert.ok(pieces.every((piece) => piece.length / 2 <= BOX2D_MAX_VERTICES && isConvex(piece)), `semilla ${seed}`);
     }
+});
+
+test("descomposición: la plataforma central corroída por el ácido (251 triángulos) da piezas convexas, suma su área y no usa más piezas que la unión anterior", (t) => {
+    const grid = JSON.parse(readFileSync(CORRODED_GRID_PATH, "utf8"));
+    grid.values = Float32Array.from(grid.values);
+    const tolerance = CORRODED_GRID_TOLERANCE_CELLS * Math.max(grid.cellWidth, grid.cellHeight);
+    const outer = contoursOfGrid(grid).map((ring) => simplifyRing(ring, tolerance)).find((ring) => ringArea(ring) > 0);
+    const started = performance.now();
+    const pieces = decomposeConvex(outer, [], { maxVertices: BOX2D_MAX_VERTICES, minArea: NO_MINIMUM_AREA });
+    const milliseconds = performance.now() - started;
+    t.diagnostic(`plataforma corroída: ${pieces.length} piezas en ${milliseconds.toFixed(2)} ms`);
+    const expected = ringArea(outer);
+    assert.ok(Math.abs(totalArea(pieces) - expected) / expected < AREA_TOLERANCE);
+    assert.ok(pieces.every((piece) => piece.length / 2 <= BOX2D_MAX_VERTICES && isConvex(piece)));
+    assert.ok(pieces.length <= CORRODED_GRID_PIECES_BEFORE, `${pieces.length} piezas`);
+    if (process.env.PERF === "1") assert.ok(milliseconds < MERGE_BUDGET_MILLISECONDS, `${milliseconds} ms`);
 });
