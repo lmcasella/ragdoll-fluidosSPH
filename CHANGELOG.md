@@ -24,6 +24,7 @@ Cada merge a `main` agrega su versión acá (ver `CLAUDE.md`). La primera entrad
 ### Changed
 - En máquinas lentas el juego se ralentiza en vez de dar tirones: como máximo corren 2 pasos de física por frame y el atraso que no entra se descarta (#247).
 - `?bench=1` informa la física por paso (mediana, p95 y p99) y los pasos por frame (mediana y máximo); la física por subsistema pasa a rotularse "física (frame)" porque suma todos los pasos del frame (#247).
+- La miel cuesta menos de simular, con el mismo comportamiento (#247).
 - El jugador 1 pasa a azul y el 2 a rojo, la vida baja se marca en magenta y el golpe destella en blanco (#148).
 - Las plataformas ya no tienen contorno: el borde se lee por el bisel con la luz y un oscurecido suave junto al borde. Los tramos vecinos se ven como una sola pieza, sin costuras, y los bordes y esquinas quedan irregulares y gastados. Con la luz base sola, el grano, el rayado y los remaches del acero se ven con más contraste (#348).
 - La corrosión pesa menos en equipos modestos: el terreno solo rehace su forma física cuando el contorno cambia de verdad (no por cada pizca de ácido), un tramo se rehace como mucho cada 0,1 s y el frame reparte el trabajo con un presupuesto de 2 ms; el nivel se dibuja por tramo y solo redibuja el que cambió (el óxido se actualiza como mucho cada 0,25 s). La corrosión se ve igual, con el óxido un poco menos instantáneo (#364).
