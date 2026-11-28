@@ -48,6 +48,10 @@ La suite completa incluye los invariantes de fluidos (`tests/slow/invariants.tes
 
 La térmica (`tests/thermal.test.js`) simula la conducción real entre dos partículas de basalto (L2, unas 220 h simuladas con pasos de 5 s, solo la térmica) y suma unos 5 s por corrida. La ebullición (`tests/boil.test.js`) corre en segundos; `tests/slow/boil-invariants.test.js` simula 45 s de ronda y suma unos 15 s.
 
+## Medir el rendimiento
+
+Abrir el juego con `?bench=1` (por ejemplo `http://localhost:8080/?bench=1`) corre solo, sin tocar nada, una serie fija de escenas con semilla fija y termina en menos de 6 minutos: reposo, partículas de cada material, corrosión con ácido y una partida de bots. Un cartel muestra la escena en curso y, al terminar, el informe con el botón **Copiar resultados**. Las escenas y las duraciones están en `BENCH_SCENES` (`src/bench/benchScript.js`). Sin `?bench=1` el juego no mide nada.
+
 ## Deploy
 
 - Cada push a `main` (merge de PR) corre `.github/workflows/pages.yml`: tests → build → deploy a GitHub Pages (https://lmcasella.github.io/ragdoll-fluidosSPH/). Los PRs a `main` corren solo los tests.

@@ -68,6 +68,11 @@ import { HitEffectsView } from "./src/render/hitEffectsView.js";
 import { WeaponWheelView, WHEEL_RADII } from "./src/render/weaponWheelView.js";
 import { DebugView } from "./src/render/debugView.js";
 import { DebugPanel } from "./src/ui/debugPanel.js";
+import { BenchPanel } from "./src/ui/benchPanel.js";
+import { BENCH } from "./src/bench/benchScript.js";
+import { BenchRunner } from "./src/bench/benchRunner.js";
+import { BenchParticles } from "./src/bench/benchParticles.js";
+import { GpuTimer } from "./src/bench/gpuTimer.js";
 import { wordIndexOf } from "./src/core/heap.js";
 import { RagdollPainter } from "./src/ragdoll/RagdollPainter.js";
 import { ROBOT_ART_LAYERS, ROBOT_ART_PIECES, robotArtPath } from "./src/ragdoll/robotArt.js";
@@ -277,6 +282,8 @@ let inputs = input.poll();
 let controls = inputs;
 const jumpPending = players.map(() => false);
 const bots = new Map();
+/** Verdadero con `?bench=1`: el modo de medición (`src/bench/`) corre solo una serie de escenas; sin él no se crea nada. */
+const benchMode = new URLSearchParams(globalThis.location?.search ?? "").get("bench") === "1";
 const botParam = new URLSearchParams(globalThis.location?.search ?? "").get("bot");
 const urlBots = botParam === null ? null : botParam.split(",").map((n) => Number(n) - 1).filter((k) => k >= 0 && k < players.length);
 const menu = new Menu({ storage: menuStorage() });
@@ -313,8 +320,8 @@ function quitarBots() {
     players.forEach((_, k) => input.setVirtualPad(k, null));
 }
 
-/** Semilla de los bots: `?seed=N` en la URL la fija para reproducir una partida; si no, es aleatoria. */
-const botSeed = Number.parseInt(new URLSearchParams(globalThis.location?.search ?? "").get("seed") ?? "", 10);
+/** Semilla de los bots: `?seed=N` en la URL la fija para reproducir una partida; si no, es aleatoria. El modo de medición usa `BENCH.seed`. */
+const botSeed = benchMode ? BENCH.seed : Number.parseInt(new URLSearchParams(globalThis.location?.search ?? "").get("seed") ?? "", 10);
 
 /** Deja un bot en cada jugador de `ks`, con el preset de su dificultad. */
 function ponerBots(ks, difficulty) {
@@ -849,6 +856,7 @@ if (globalThis.__TEST_HOOKS__) {
         get climb() { return climb; },
         get map() { return currentMap; },
         get terrain() { return currentTerrain(); },
+        get bench() { return bench; },
     };
 }
 
@@ -1041,7 +1049,9 @@ function simular(frameDt, enTitulo) {
             match.hazardsActive ? wetSurface : -Infinity,
             (x) => water.conductivityAt(x),
         );
+        debug.mark("daño");
         corrosion.process(STEP_SETTINGS.dt);
+        debug.mark("corrosión");
         melee.resolve(players, now);
         crates.process(now);
         pickups.process(now);
@@ -1112,6 +1122,61 @@ function datosHud(frameDt, now) {
         gauge: infinite ? { level: flood.eta, stageHeight: CLIMB.stageHeight, offset: climb.offsetY } : null,
     };
 }
+/**
+ * Modo de medición (`?bench=1`, `src/bench/`): arma el corredor con una fachada de lo que necesita del juego y fuerza las
+ * estadísticas de `debug` para tener los tiempos por subsistema. El corredor nunca lee este archivo.
+ * @returns {{runner: BenchRunner, panel: BenchPanel, gpuTimer: GpuTimer}}
+ */
+function createBench() {
+    const glContext = scene.application.renderer.gl ?? null;
+    const gpuTimer = new GpuTimer(glContext);
+    const particles = new BenchParticles(store);
+    let sceneSetup = null;
+    const game = {
+        startScene(setup) {
+            sceneSetup = setup;
+            aplicarMapa(setup.map);
+            ponerBots(setup.bots, menu.choice.difficulty);
+            match.begin();
+            reiniciarRonda();
+        },
+        spawn: (spawn) => particles.spawn(spawn),
+        keepAlive() {
+            if (match.state === "matchOver") this.startScene(sceneSetup);
+        },
+        laps: () => debug.laps,
+        particleCount: () => particleSystem.GetParticleCount(),
+        context() {
+            const terrain = currentTerrain();
+            let wornCells = 0;
+            for (const tile of terrain.tiles) tile.grid.forEachWornCell(() => wornCells++);
+            const rendererInfo = glContext?.getExtension("WEBGL_debug_renderer_info");
+            return {
+                userAgent: globalThis.navigator?.userAgent ?? "desconocido",
+                devicePixelRatio: window.devicePixelRatio ?? 1,
+                canvas: { width: scene.application.canvas.width, height: scene.application.canvas.height },
+                renderer: rendererInfo ? glContext.getParameter(rendererInfo.UNMASKED_RENDERER_WEBGL) : null,
+                gpuAvailable: gpuTimer.available,
+                terrain: { ...terrain.counts(), wornCells },
+            };
+        },
+    };
+    debug.stats = true;
+    const panel = new BenchPanel(document, gameContainer, {
+        writeText: (value) => navigator.clipboard.writeText(value),
+        selectContents: (node) => {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        },
+    });
+    return { runner: new BenchRunner({ game, gpuTimer }), panel, gpuTimer };
+}
+
+const bench = benchMode ? createBench() : null;
+
 function loop(nowMs) {
     const frameDt = Math.min((nowMs - lastTime) / 1000, 0.25);
     lastTime = nowMs;
@@ -1153,7 +1218,9 @@ function loop(nowMs) {
         if (created > 0 || destroyed > 0) bots.forEach((bot) => bot.setNav(climb.level));
     }
     const terrain = currentTerrain();
+    debug.mark("dibujo");
     if (terrain.update(simTime) > 0) wallContact.invalidate();
+    debug.mark("corrosión");
     const scale = camera.scale;
     const bottom = camera.y - camera.viewH / (2 * scale);
 
@@ -1176,6 +1243,7 @@ function loop(nowMs) {
         const head = player.rag.bodies.get(HEAD_BODY).GetPosition();
         addRobotLight(lightSet, head.get_x(), head.get_y(), PLAYER_LIGHT_COLORS[k]);
     });
+    debug.mark("luces");
     lightScreenOrigin.originX = scene.world.position.x;
     lightScreenOrigin.originY = scene.world.position.y;
     lightScreenOrigin.pixelsPerMeter = scale;
@@ -1246,8 +1314,12 @@ function loop(nowMs) {
     hud.events.length = 0;
     cuentaMuda = false;
     debugPanel.update(debug.panelLines());
+    debug.mark("dibujo");
     scene.renderLightMap(lightScreenOrigin, lightSet);
+    bench?.gpuTimer.begin();
     scene.render();
+    bench?.gpuTimer.end();
+    debug.mark("render");
     if (match.state === "title") {
         screens.update({
             screen: SCREEN_NAMES[pantalla],
@@ -1265,6 +1337,10 @@ function loop(nowMs) {
             helpView: ayuda.view,
         });
     } else screens.update({ screen: null });
+    if (bench) {
+        bench.runner.frame(nowMs);
+        bench.panel.update(bench.runner.view);
+    }
     requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
