@@ -22,9 +22,10 @@ function refilterBody(body) {
  * termina de pasar. `approach` (m) es la franja sobre el tope en la que se registra el par antes de tocar, para que un
  * dueño que cae rápido (hasta ~30 m/s por paso de 1/60 s) quede sólido antes de hundirse bajo `tope - tolerance`. Un par
  * sólido sigue sólido mientras se solapen (histéresis): hundirse unos centímetros al caminar no lo vuelve fantasma; solo
- * la bajada o salir del solapamiento lo liberan.
+ * la bajada o salir del solapamiento lo liberan. `crateRest` (m) es la distancia máxima entre la base de una caja de ítem y
+ * el tope de una plataforma para contarla apoyada en ella (ver `setCrateFilter`).
  */
-export const ONE_WAY = { tolerance: 0.05, approach: 0.5, dropMaxTime: 0.4 };
+export const ONE_WAY = { tolerance: 0.05, approach: 0.5, dropMaxTime: 0.4, crateRest: 0.1 };
 
 /**
  * Regla de colisión por defecto de Box2D (`b2ContactFilter::ShouldCollide`) con `groupIndex`, `categoryBits` y `maskBits`.
@@ -64,6 +65,8 @@ export class OneWayPlatforms {
         this.noDrops = new Map();
         /** Predicado de los pedazos de caja; `null` hasta `setPieceFilter`. */
         this.isPiece = null;
+        /** Predicado de las cajas enteras; `null` hasta `setCrateFilter`. */
+        this.isCrate = null;
         this.filter = new Box2D.JSContactFilter();
         this.filter.ShouldCollide = (ptrA, ptrB) => this.shouldCollide(ptrA, ptrB);
         world.SetContactFilter(this.filter);
@@ -274,6 +277,42 @@ export class OneWayPlatforms {
         this.isPiece = isPiece;
     }
 
+    /**
+     * Registra el predicado `isCrate(bodyPointer)` que reconoce las cajas enteras (`Crates.isCrate`): una caja apoyada en una
+     * atravesable se atraviesa como ella. Un robot fantasma contra esa plataforma (sube desde abajo o baja) también lo es
+     * contra la caja; apoyado en la plataforma, choca con la caja y la empuja (`docs/design/04-fluidos.md` §4.2).
+     * @param {(bodyPointer: number) => boolean} isCrate
+     */
+    setCrateFilter(isCrate) {
+        this.isCrate = isCrate;
+    }
+
+    /** Verdadero si un cuerpo es una caja apoyada en una atravesable y el otro es de un robot fantasma contra esa plataforma. */
+    isCrateWithoutContact(bodyA, bodyB) {
+        const pointerA = Box2D.getPointer(bodyA);
+        const pointerB = Box2D.getPointer(bodyB);
+        const crateIsA = this.isCrate(pointerA);
+        if (!crateIsA && !this.isCrate(pointerB)) return false;
+        const owner = this.byBody.get(crateIsA ? pointerB : pointerA);
+        if (!owner) return false;
+        const crateBounds = boundsOfBodies([crateIsA ? bodyA : bodyB], this.bounds);
+        const crateX = (crateBounds.minX + crateBounds.maxX) / 2;
+        const crateBottom = crateBounds.minY;
+        for (const [ptr, platform] of this.platforms) {
+            const resting = crateX >= platform.minX && crateX <= platform.maxX && Math.abs(crateBottom - platform.top) <= this.config.crateRest;
+            if (resting && this.isGhost(owner, ptr, platform)) return true;
+        }
+        return false;
+    }
+
+    /** Verdadero si el dueño `owner` atraviesa la plataforma `platform` (puntero `ptr`): bajada activa, par fantasma o, sin par, punto más bajo bajo el tope. */
+    isGhost(owner, ptr, platform) {
+        if (owner.drops.has(ptr)) return true;
+        const state = owner.pairs?.get(ptr);
+        if (state !== undefined) return state;
+        return this.measure(owner).low < platform.top - this.config.tolerance;
+    }
+
     /** Verdadero si uno de los cuerpos es un pedazo de caja y el otro es de un robot o es otro pedazo. */
     isPieceWithoutContact(bodyA, bodyB) {
         const pointerA = Box2D.getPointer(bodyA);
@@ -289,6 +328,7 @@ export class OneWayPlatforms {
         const fixtureB = Box2D.wrapPointer(ptrB, Box2D.b2Fixture);
         if (!defaultCollide(fixtureA, fixtureB)) return false;
         if (this.isPiece && this.isPieceWithoutContact(fixtureA.GetBody(), fixtureB.GetBody())) return false;
+        if (this.isCrate && this.isCrateWithoutContact(fixtureA.GetBody(), fixtureB.GetBody())) return false;
         const platformA = this.platforms.get(ptrA);
         const platformB = this.platforms.get(ptrB);
         if (!platformA === !platformB) return true;
@@ -298,9 +338,6 @@ export class OneWayPlatforms {
         if (body.GetType() !== Box2D.b2_dynamicBody) return true;
         const bodyPtr = Box2D.getPointer(body);
         const owner = this.byBody.get(bodyPtr) ?? this.implicit.get(bodyPtr) ?? { bodies: [body], drops: this.noDrops };
-        if (owner.drops.has(ptr)) return false;
-        const state = owner.pairs?.get(ptr);
-        if (state !== undefined) return !state;
-        return this.measure(owner).low >= platform.top - this.config.tolerance;
+        return !this.isGhost(owner, ptr, platform);
     }
 }

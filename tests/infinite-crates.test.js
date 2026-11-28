@@ -142,6 +142,7 @@ test("Infinito: el bot de J2 sin arma, en una ronda desde su aparición, rompe u
     assert.notEqual(pickedAt, null, "recogió un arma");
     assert.ok(players[1].tanks.get(players[1].weapon) > 0);
 });
+
 test("Infinito: un bot que cae parado encima de una caja se baja por el costado en vez de quedarse sobre ella", async () => {
     globalThis.location = { search: "?bot=2&seed=2" };
     const game = await loadGame({ map: "infinite" });
@@ -150,7 +151,8 @@ test("Infinito: un bot que cae parado encima de una caja se baja por el costado 
     const doNothing = () => {};
     Object.assign(players[0], { drown: doNothing, hurt: doNothing, burn: doNothing, takeDamage: doNothing });
     const bot = game.state.bots.get(1);
-    const { crate } = pickups.points.find((candidate) => candidate.kind !== "repair");
+    const point = pickups.points.find((candidate) => candidate.kind !== "repair");
+    const { crate } = point;
     const torso = players[1].torso.GetPosition();
     const lift = new Box2D.b2Vec2(0, 0);
     const shiftX = crate.x - torso.get_x();
@@ -165,13 +167,19 @@ test("Infinito: un bot que cae parado encima de una caja se baja por el costado 
     Box2D.destroy(lift);
     let landedAt = null;
     let offAt = null;
+    let supportTop = null;
     for (let frame = 0; frame < STAND_WATCH_FRAMES && offAt === null; frame++) {
         game.frame();
         const standing = bot.crateUnderFoot(players[1]) === crate;
-        if (standing && landedAt === null) landedAt = frame;
-        if (!standing && landedAt !== null) offAt = frame;
+        if (standing && landedAt === null) {
+            landedAt = frame;
+            supportTop = bot.supportOf(players[1]) === null ? null : bot.nav.nodes[bot.supportOf(players[1])].top;
+        }
+        if (!standing && landedAt !== null && offAt === null) offAt = frame;
     }
     console.log(`el bot quedó parado sobre la caja en el frame ${landedAt} y bajó en el ${offAt}`);
     assert.notEqual(landedAt, null, "cayó parado sobre la caja");
+    assert.notEqual(supportTop, null, "parado sobre la caja cuenta como parado en su plataforma");
+    assert.ok(Math.abs(supportTop - (point.homeY - CLIMB.pickupLift)) < REST_TOLERANCE, "la plataforma de apoyo es la de la caja");
     assert.notEqual(offAt, null, "se bajó de la caja");
 });
