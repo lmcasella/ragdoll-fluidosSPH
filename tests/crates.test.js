@@ -233,13 +233,26 @@ test("una caja que cae de muy alto se daña por el choque, y de más alto todav�
     assert.equal(crates.pieces.length > 0, true);
 });
 
+test("el ítem de una caja rota no se recoge hasta 1 s después, aunque el robot esté encima", async () => {
+    const game = await start();
+    const { crates } = game.state;
+    const lava = pointOf(game, FLUID.LAVA, 0);
+    crates.enqueueDamage(lava.crate, Infinity);
+    game.frames(2);
+    place(game, 0, lava.x, lava.y + 0.3);
+    game.frames(Math.round((CRATE.itemPickupDelay / 2) * FRAMES_PER_SECOND));
+    assert.equal(lava.active, true, "a los 0,5 s sigue ahí");
+    game.frames(Math.round(CRATE.itemPickupDelay * FRAMES_PER_SECOND));
+    assert.equal(lava.active, false, "pasado 1 s lo recoge quien sigue encima");
+});
+
 test("a los 15 s de recogido el ítem cae una caja nueva en el punto original, y a los 20 s la de la reparación", async () => {
     const game = await start();
     const { crates } = game.state;
     const lava = pointOf(game, FLUID.LAVA, 0);
     const repair = game.state.pickups.points.find((point) => point.kind === "repair");
     for (const point of [lava, repair]) crates.enqueueDamage(point.crate, Infinity);
-    game.frames(2);
+    game.frames(2 + Math.round(CRATE.itemPickupDelay * FRAMES_PER_SECOND));
     place(game, 0, 8, 8);
     game.state.players[0].hp = 10;
     place(game, 0, repair.x, repair.y + 0.3);

@@ -29,6 +29,7 @@ const TWO_HITS_DAMAGE = MELEE.combo.sequence
  * - `pieceSideSpread`: desvío lateral máximo de la salida de cada pedazo, en fracción de `pieceSpeed` (con signo al azar,
  *   perpendicular a la dirección de salida); `pieceSpin`: velocidad angular máxima de cada pedazo, en rad/s (con signo al azar);
  * - `itemSurfaceLift`: altura sobre la superficie del agua a la que queda el ítem de una caja que se rompió sumergida;
+ * - `itemPickupDelay`: segundos de juego desde que la caja se rompe hasta que el ítem se puede recoger;
  * - `lostMargin`: cuánto fuera de los límites del mapa clásico (o bajo el piso de muerte) una caja cuenta como perdida.
  */
 export const CRATE = {
@@ -52,6 +53,7 @@ export const CRATE = {
     pieceSideSpread: 0.6,
     pieceSpin: 6,
     itemSurfaceLift: 0.5,
+    itemPickupDelay: 1,
     lostMargin: 5,
 };
 
@@ -255,7 +257,7 @@ export class Crates {
         const itemY = y < surface ? surface + this.config.itemSurfaceLift : y;
         const { point } = crate;
         this.removeCrate(crate);
-        this.pickups.release(point, x, itemY - this.pickups.offsetY);
+        this.pickups.release(point, x, itemY - this.pickups.offsetY, now + this.config.itemPickupDelay);
     }
 
     /**

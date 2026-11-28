@@ -52,7 +52,7 @@ export class Pickups {
         const body = this.world.CreateBody(this.bodyDef);
         const fixture = body.CreateFixture(this.shape, 0);
         fixture.SetSensor(true);
-        const point = { x, y, homeX: x, homeY: y, weapon, kind, body, fixture, active: true, readyAt: 0, crate: null };
+        const point = { x, y, homeX: x, homeY: y, weapon, kind, body, fixture, active: true, readyAt: 0, collectableAt: 0, crate: null };
         this.points.push(point);
         this.damage.sensorHooks.set(Box2D.getPointer(fixture), (bodyPtr) => this.queue.push({ point, bodyPtr }));
         this.boxer?.box(point);
@@ -68,8 +68,12 @@ export class Pickups {
         point.body.SetActive(false);
     }
 
-    /** Activa el punto con el ítem en `(x, y)` (y local, como `homeY`). No llamar dentro de un callback de Box2D. */
-    release(point, x, y) {
+    /**
+     * Activa el punto con el ítem en `(x, y)` (y local, como `homeY`). Con `collectableAt` (s de juego) el ítem se ve pero su
+     * sensor queda apagado hasta ese momento; `process` lo prende y Box2D genera el contacto con quien siga encima. No llamar
+     * dentro de un callback de Box2D.
+     */
+    release(point, x, y, collectableAt = 0) {
         point.x = x;
         point.y = y;
         this.center.set_x(x);
@@ -77,7 +81,8 @@ export class Pickups {
         point.body.SetTransform(this.center, 0);
         point.active = true;
         point.readyAt = 0;
-        point.body.SetActive(true);
+        point.collectableAt = collectableAt;
+        point.body.SetActive(collectableAt <= 0);
     }
 
     /** Pone el desplazamiento offsetY y mueve los cuerpos de los puntos con él. No llamar dentro de un callback de Box2D. */
@@ -131,6 +136,7 @@ export class Pickups {
         }
         this.queue.length = 0;
         for (const point of this.points) {
+            if (point.active && now >= point.collectableAt && !point.body.IsActive()) point.body.SetActive(true);
             if (point.active || now < point.readyAt) continue;
             if (this.boxer) {
                 this.boxer.box(point);
